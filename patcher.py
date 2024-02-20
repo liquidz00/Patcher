@@ -23,7 +23,6 @@ jamf_url = os.getenv("URL")
 jamf_client_id = os.getenv("CLIENT_ID")
 jamf_client_secret = os.getenv("CLIENT_SECRET")
 jamf_token = os.getenv("TOKEN")
-print(jamf_url, jamf_client_id, jamf_token)
 
 # Headers for API calls
 headers = {"Accept": "application/json", "Authorization": f"Bearer {jamf_token}"}
