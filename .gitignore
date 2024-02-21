@@ -163,4 +163,4 @@ cython_debug/
 *.DS_Store
 
 # Project-specific
-ui-config.py
+ui_config.py
