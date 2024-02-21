@@ -92,7 +92,7 @@ async def fetch_json(url, session):
 # Use Jamf API to retrieve all Patch titles IDs
 async def get_policies() -> List:
     async with aiohttp.ClientSession() as session:
-        url = f"{jamf_url}/patch-software-title-configurations"
+        url = f"{jamf_url}/api/v2/patch-software-title-configurations"
         response = await fetch_json(url=url, session=session)
 
         return [title["id"] for title in response]
@@ -103,7 +103,7 @@ async def get_summaries(policy_ids: List) -> List:
     async with aiohttp.ClientSession() as session:
         tasks = [
             fetch_json(
-                url=f"{jamf_url}/patch-software-title-configurations/{policy}/patch-summary",
+                url=f"{jamf_url}/api/v2/patch-software-title-configurations/{policy}/patch-summary",
                 session=session,
             )
             for policy in policy_ids
