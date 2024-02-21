@@ -1,5 +1,10 @@
 # Patcher
 
+_Patch reporting simplified_
+
+![](https://img.shields.io/badge/license-apache_2.0-blue)&nbsp;![](https://img.shields.io/badge/python-3.6%2B-success)
+
+
 Patcher leverages the Jamf Pro API to fetch patch management data and generate comprehensive reports in both Excel and PDF formats. It simplifies tracking and reporting on software update compliance across macOS devices managed through Jamf Pro. 
 
 ## Features
