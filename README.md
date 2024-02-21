@@ -43,7 +43,7 @@ python patcher.py --path /path/to/output/directory [--pdf]
 - The optional `--pdf` flag indicates if PDF reports should be generated in addition to Excel files. 
 
 ### Customizing Report UI
-To customize the UI elements like header and footer text after the initial setup, edit the `ui-config.py` file in the project directory. Changes will be reflected in subsequent reports. 
+To customize the UI elements like header and footer text after the initial setup, edit the `ui_config.py` file in the project directory. Changes will be reflected in subsequent reports. 
 
 ## Contributing
 Contributions to Patcher are welcome! Please feel free to submit pull requests or create issues for bugs, questions, or new feature requests. 
