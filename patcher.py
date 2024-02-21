@@ -9,7 +9,7 @@ import asyncio
 from datetime import datetime
 from fpdf import FPDF
 from dotenv import load_dotenv
-from typing import List, Optional, AnyStr
+from typing import List, AnyStr, Dict
 
 # Define paths
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -49,7 +49,6 @@ class PDF(FPDF):
         )
 
         if self.page_no() > 1:
-            # self.ln(1)
             self.add_table_header()
 
     def add_table_header(self):
@@ -68,11 +67,12 @@ class PDF(FPDF):
 
 
 # Convert UTC time to EST
-def convert_timezone(utc_time_str: Optional[str]) -> AnyStr:
+def convert_timezone(utc_time_str: AnyStr) -> AnyStr:
     est_timezone = pytz.timezone("US/Eastern")
     utc_time = datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S%z")
     est_time = utc_time.astimezone(est_timezone)
     est_time_str = est_time.strftime("%b %d %Y")
+
     return est_time_str
 
 
@@ -87,11 +87,12 @@ async def get_policies() -> List:
     async with aiohttp.ClientSession() as session:
         url = f"{jamf_url}/patch-software-title-configurations"
         response = await fetch_json(url=url, session=session)
+
         return [title["id"] for title in response]
 
 
 # Use Jamf API to retrieve active patch summaries based upon supplied ID
-async def get_summaries(policy_ids: list) -> List:
+async def get_summaries(policy_ids: List) -> List:
     async with aiohttp.ClientSession() as session:
         tasks = [
             fetch_json(
@@ -121,7 +122,7 @@ async def get_summaries(policy_ids: list) -> List:
 
 
 # Create excel spreadsheet with patch data for export
-def export_to_excel(patch_reports: List[dict], output_dir: str) -> str:
+def export_to_excel(patch_reports: List[Dict], output_dir: AnyStr) -> AnyStr:
     column_order = [
         "software_title",
         "patch_released",
@@ -139,10 +140,11 @@ def export_to_excel(patch_reports: List[dict], output_dir: str) -> str:
     current_date = datetime.now().strftime("%m-%d-%y")
     excel_path = os.path.join(output_dir, f"patch-report-{current_date}.xlsx")
     df.to_excel(excel_path, index=False)
+
     return excel_path
 
 
-def export_excel_to_pdf(excel_file: AnyStr):
+def export_excel_to_pdf(excel_file: AnyStr) -> None:
     # Read excel file
     df = pd.read_excel(excel_file)
 
@@ -172,7 +174,7 @@ def export_excel_to_pdf(excel_file: AnyStr):
 @click.option(
     "--pdf", is_flag=True, help="Generate a PDF report along with Excel spreadsheet"
 )
-def main_async(path, pdf):
+def main_async(path: AnyStr, pdf: bool) -> None:
     """Generates patch report in Excel format, with optional PDF, at the specified path"""
     # Ensure path exists
     output_path = os.path.expanduser(path)
