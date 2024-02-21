@@ -1,13 +1,14 @@
 #!/bin/bash
 # shellcheck disable=SC2129
+# shellcheck disable=SC2162
 
 echo "Starting installation..."
 
 # Prompt for Jamf instance details, write to .env
-read -pr "Enter the URL of your Jamf instance: " jamf_url
-read -pr "Enter your client_id: " client_id
-read -pr "Enter your client secret: " client_secret
-read -pr "Enter your token: " token
+read -p "Enter the URL of your Jamf instance: " jamf_url
+read -p "Enter your client_id: " client_id
+read -p "Enter your client secret: " client_secret
+read -p "Enter your token: " token
 
 # Create .env if it does not exist already
 if [ ! -f ".env" ]; then
@@ -24,15 +25,15 @@ echo "Jamf instance details saved to .env file."
 
 # Install project dependencies
 if [ -f "requirements.txt" ]; then
-  pip install -r requirements.txt
+  python3 -m pip install -r requirements.txt
   echo "Dependencies installed."
 else
   echo "requirements.txt not found. Skipping dependency installation."
 fi
 
 # Update UI configurations in ui_config.py
-read -pr "Enter the header text you would like to use: " header_text
-read -pr "Enter the footer text you would like to use: " footer_text
+read -p "Enter the header text you would like to use: " header_text
+read -p "Enter the footer text you would like to use: " footer_text
 
 # Ensure ui_config.py exists. If not, create with default values
 if [ -f "ui_config.py" ]; then
