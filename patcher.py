@@ -10,6 +10,13 @@ from datetime import datetime
 from fpdf import FPDF
 from dotenv import load_dotenv
 from typing import List, AnyStr, Dict
+from ui_config import (
+    HEADER_TEXT,
+    FOOTER_TEXT,
+    FONT_NAME,
+    FONT_REGULAR_PATH,
+    FONT_BOLD_PATH,
+)
 
 # Define paths
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -31,8 +38,8 @@ headers = {"Accept": "application/json", "Authorization": f"Bearer {jamf_token}"
 class PDF(FPDF):
     def __init__(self, orientation="L", unit="mm", format="A4"):
         super().__init__(orientation=orientation, unit=unit, format=format)
-        self.add_font("Assistant", "", os.path.join(FONTS_DIR, "Assistant-Regular.ttf"))
-        self.add_font("Assistant", "B", os.path.join(FONTS_DIR, "Assistant-Bold.ttf"))
+        self.add_font(FONT_NAME, "", FONT_REGULAR_PATH)
+        self.add_font(FONT_NAME, "B", FONT_BOLD_PATH)
 
         self.table_headers = []
         self.column_widths = []
@@ -40,7 +47,7 @@ class PDF(FPDF):
     def header(self):
         # Title in bold
         self.set_font("Assistant", "B", 24)
-        self.cell(0, 10, "Advisor360° Mac Patch Report", new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 10, HEADER_TEXT, new_x="LMARGIN", new_y="NEXT")
 
         # Month/Year in light
         self.set_font("Assistant", "", 18)
@@ -62,7 +69,7 @@ class PDF(FPDF):
         self.set_y(-15)
         self.set_font("Assistant", "", 6)
         self.set_text_color(175, 175, 175)
-        footer_text = "Advisor360° Mac Patch Report | Page " + str(self.page_no())
+        footer_text = f"{FOOTER_TEXT} | Page " + str(self.page_no())
         self.cell(0, 10, footer_text, 0, 0, "R")
 
 
@@ -156,7 +163,7 @@ def export_excel_to_pdf(excel_file: AnyStr) -> None:
     pdf.add_table_header()
 
     # Data rows
-    pdf.set_font("Assistant", "", 9)
+    pdf.set_font(FONT_NAME, "", 9)
     for index, row in df.iterrows():
         for data, width in zip(row, pdf.column_widths):
             pdf.cell(width, 10, str(data), border=1, align="C")
