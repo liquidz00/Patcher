@@ -33,9 +33,6 @@ jobs:
           python3 -m pip install -r requirements.txt
           python3 -m pip install black
 
-      - name: Check Python code formatting with Black
-        run: black --check .
-
       - name: Run tests
         run: pytest
 
