@@ -9,12 +9,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         python-version:
-          - "3.8"
           - "3.9"
           - "3.10"
           - "3.11"
           - "3.12"
-          - "pypy-3.8"
           - "pypy-3.9"
     name: Test
     runs-on: ${{ matrix.os }}
@@ -31,7 +29,6 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install -r requirements.txt
-          python3 -m pip install black
 
       - name: Run tests
         run: pytest
