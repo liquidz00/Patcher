@@ -32,7 +32,7 @@ git clone https://github.com/liquidz00/patcher.git
 cd patcher
 ```
 2. **Run the Installer Script**
-The installers cript will guide you through setting up your Jamf Pro instance details and installing project dependencies.
+The installers script will guide you through setting up your Jamf Pro instance details and installing project dependencies.
 ```shell
 chmod +x installer.sh
 ./installer.sh
