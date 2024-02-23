@@ -32,12 +32,12 @@ git clone https://github.com/liquidz00/patcher.git
 cd patcher
 ```
 2. **Run the Installer Script**
-The installers script will guide you through setting up your Jamf Pro instance details and installing project dependencies.
+The installer script will guide you through setting up your Jamf Pro instance details and installing project dependencies.
 ```shell
 chmod +x installer.sh
 ./installer.sh
 ```
-Follow the prompts to enter your Jamf Pro URL, Client ID, Client Secret, and Token. You'll also be asked to customize the report header and footer text.
+Follow the prompts to enter your Jamf Pro URL, Client ID, Client Secret, and Token. You'll also be asked to customize the report header and footer text. Optionally, you can opt to use a custom font instead of the default font [Assistant](https://fonts.google.com/specimen/Assistant).
 
 ### Usage
 After installation, you can generate reports by running the main script. You can specify the output directory for the reports and choose to generate PDF reports alongside Excel files.
