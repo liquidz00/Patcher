@@ -34,10 +34,21 @@ fi
 # Update UI configurations in ui_config.py
 read -p "Enter the header text you would like to use: " header_text
 read -p "Enter the footer text you would like to use: " footer_text
+read -p "Would you like to use a custom font? (y/n): " use_custom_font
+
+custom_font="Assistant"
+custom_font_regular_path="Assistant-Regular.ttf"
+custom_font_bold_path="Assistant-Bold.ttf"
+
+if [[ "$use_custom_font" =~ ^[Yy]$ ]]; then
+  read -p "Enter the custom font name: " custom_font
+  read -p "Enter the relative path to the custom font regular file (e.g., fonts/MyCustom-Regular.ttf): " custom_font_regular_path
+  read -p "Enter the relative path to the custom font bold file (e.g., fonts/MyCustom-Bold.ttf): " custom_font_bold_path
+fi
 
 # Ensure ui_config.py exists. If not, create with default values
 if [ -f "ui_config.py" ]; then
-  echo "Creating default ui_config.py..."
+  echo "Creating default ui_config.py with user-defined configurations..."
   cat > ui_config.py << EOF
 # ui_config.py
 import os
@@ -48,15 +59,22 @@ FONTS = os.path.join(BASE, "fonts")
 # Default UI Configurations
 HEADER_TEXT = "$header_text"
 FOOTER_TEXT = "$footer_text"
-FONT_NAME = "Assistant"
-FONT_REGULAR_PATH = os.path.join(FONTS, "Assistant-Regular.ttf")
-FONT_BOLD_PATH = os.path.join(FONTS, "Assistant-Bold.ttf")
+FONT_NAME = "$custom_font"
+FONT_REGULAR_PATH = os.path.join(FONTS, "$custom_font_regular_path")
+FONT_BOLD_PATH = os.path.join(FONTS, "$custom_font_bold_path")
 EOF
 else
   # Update existing ui_config.py with the new values
-  echo "Updating ui_config.py with new UI configurations..."
-  sed -i '' "s/^HEADER_TEXT = .*/HEADER_TEXT = \"$header_text\"/" ui_config.py
-  sed -i '' "s/^FOOTER_TEXT = .*/FOOTER_TEXT = \"$footer_text\"/" ui-config.py
+  echo "ui_config.py exists. Updating with new UI configurations..."
+  # Use -i.bak to make it compatible across GNU and BSD sed, creates a backup file
+  sed -i.bak "s/^HEADER_TEXT = .*/HEADER_TEXT = \"$header_text\"/" ui_config.py
+  sed -i.bak "s/^FOOTER_TEXT = .*/FOOTER_TEXT = \"$footer_text\"/" ui_config.py
+  sed -i.bak "s/^FONT_NAME = .*/FONT_NAME = \"$custom_font\"/" ui_config.py
+  sed -i.bak "s/^FONT_REGULAR_PATH = .*/FONT_REGULAR_PATH = os.path.join(FONTS, \"$custom_font_regular_path\")/" ui_config.py
+  sed -i.bak "s/^FONT_BOLD_PATH = .*/FONT_BOLD_PATH = os.path.join(FONTS, \"$custom_font_bold_path\")/" ui_config.py
+
+  # Remove backup files created by sed
+  rm ui_config.py.bak
 fi
 
 echo "UI configurations updated as expected."
