@@ -2,11 +2,10 @@ import os
 import click
 import pandas as pd
 import pytz
-import datetime
 import aiohttp
 import asyncio
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from fpdf import FPDF
 from dotenv import load_dotenv
 from typing import List, AnyStr, Dict
@@ -115,13 +114,18 @@ async def get_summaries(policy_ids: List) -> List:
                 "patch_released": convert_timezone(summary["releaseDate"]),
                 "hosts_patched": summary["upToDate"],
                 "missing_patch": summary["outOfDate"],
-                "completion_percent": round(
-                    (summary["upToDate"] / (summary["upToDate"] + summary["outOfDate"]))
-                    * 100,
-                    2,
-                )
-                if summary["upToDate"] + summary["outOfDate"] > 0
-                else 0,
+                "completion_percent": (
+                    round(
+                        (
+                            summary["upToDate"]
+                            / (summary["upToDate"] + summary["outOfDate"])
+                        )
+                        * 100,
+                        2,
+                    )
+                    if summary["upToDate"] + summary["outOfDate"] > 0
+                    else 0
+                ),
                 "total_hosts": summary["upToDate"] + summary["outOfDate"],
             }
             for summary in summaries
@@ -179,9 +183,19 @@ def export_excel_to_pdf(excel_file: AnyStr) -> None:
     "--path", "-p", type=click.Path(), required=True, help="Path to save the report"
 )
 @click.option(
-    "--pdf", is_flag=True, help="Generate a PDF report along with Excel spreadsheet"
+    "--pdf",
+    "-f",
+    is_flag=True,
+    help="Generate a PDF report along with Excel spreadsheet",
 )
-def main_async(path: AnyStr, pdf: bool) -> None:
+@click.option("--sort", "-s", is_flag=True, help="Sort patch reports by date")
+@click.option(
+    "--omit",
+    "-o",
+    is_flag=True,
+    help="Omit software titles with patches released in last 48 hours",
+)
+def main_async(path: AnyStr, pdf: bool, sort: bool, omit: bool) -> None:
     """Generates patch report in Excel format, with optional PDF, at the specified path"""
     # Ensure path exists
     output_path = os.path.expanduser(path)
@@ -195,8 +209,25 @@ def main_async(path: AnyStr, pdf: bool) -> None:
     loop = asyncio.get_event_loop()
     patch_ids = loop.run_until_complete(get_policies())
     patch_reports = loop.run_until_complete(get_summaries(patch_ids))
+
+    # (option) Sort
+    if sort:
+        patch_reports.sort(
+            key=lambda x: datetime.strptime(x["patch_released"], "%b %d %Y")
+        )
+
+    # (option) Omit
+    if omit:
+        cutoff = datetime.now() - timedelta(hours=48)
+        patch_reports = [
+            report
+            for report in patch_reports
+            if datetime.strptime(report["patch_released"], "%b %d %Y") < cutoff
+        ]
+
     excel_file = export_to_excel(patch_reports, reports_dir)
 
+    # (option) Export to PDF
     if pdf:
         export_excel_to_pdf(excel_file)
 
