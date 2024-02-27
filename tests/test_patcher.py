@@ -1,7 +1,6 @@
 import aiohttp
 import pytest
 import os
-import json
 import aioresponses
 from patcher import get_policies, get_summaries
 from dotenv import load_dotenv
@@ -77,6 +76,7 @@ def mock_policy_response():
         },
     ]
 
+
 @pytest.fixture()
 def mock_summary_response():
     """Fixture to provide mock summary responses for each policy."""
@@ -132,7 +132,9 @@ async def test_get_policies(mock_policy_response):
 @pytest.mark.asyncio
 async def test_get_summaries(mock_policy_response, mock_summary_response):
     policy_ids = [policy["id"] for policy in mock_policy_response]
-    summary_response_dict = {str(summary["softwareTitleId"]): summary for summary in mock_summary_response}
+    summary_response_dict = {
+        str(summary["softwareTitleId"]): summary for summary in mock_summary_response
+    }
     with aioresponses.aioresponses() as m:
         for policy_id in policy_ids:
             mock_response = summary_response_dict[policy_id]
@@ -146,3 +148,31 @@ async def test_get_summaries(mock_policy_response, mock_summary_response):
         assert summaries[0]["software_title"] == "Google Chrome"
         assert summaries[1]["hosts_patched"] == 185
         assert summaries[2]["completion_percent"] == 54.55
+
+
+@pytest.mark.asyncio
+async def test_get_policies_empty_response():
+    with aioresponses.aioresponses() as m:
+        m.get(
+            f"{jamf_url}/api/v2/patch-software-title-configurations",
+            payload=[],
+            headers=headers,
+        )
+
+        async with aiohttp.ClientSession() as session:
+            policies = await get_policies()
+            assert policies == []
+
+
+@pytest.mark.asyncio
+async def test_get_policies_api_error():
+    with aioresponses.aioresponses() as m:
+        m.get(
+            f"{jamf_url}/api/v2/patch-software-title-configurations",
+            status=500,
+            headers=headers,
+        )
+
+        async with aiohttp.ClientSession() as session:
+            with pytest.raises(Exception):
+                await get_policies()
