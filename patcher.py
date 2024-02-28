@@ -188,14 +188,20 @@ def export_excel_to_pdf(excel_file: AnyStr) -> None:
     is_flag=True,
     help="Generate a PDF report along with Excel spreadsheet",
 )
-@click.option("--sort", "-s", is_flag=True, help="Sort patch reports by date")
+@click.option(
+    "--sort",
+    "-s",
+    type=click.STRING,
+    required=False,
+    help="Sort patch reports by a specified column. Defaults to 'patch_released'.",
+)
 @click.option(
     "--omit",
     "-o",
     is_flag=True,
     help="Omit software titles with patches released in last 48 hours",
 )
-def main_async(path: AnyStr, pdf: bool, sort: bool, omit: bool) -> None:
+def main_async(path: AnyStr, pdf: bool, sort: AnyStr, omit: bool) -> None:
     """Generates patch report in Excel format, with optional PDF, at the specified path"""
     # Ensure path exists
     output_path = os.path.expanduser(path)
@@ -212,9 +218,11 @@ def main_async(path: AnyStr, pdf: bool, sort: bool, omit: bool) -> None:
 
     # (option) Sort
     if sort:
-        patch_reports.sort(
-            key=lambda x: datetime.strptime(x["patch_released"], "%b %d %Y")
-        )
+        sort = sort.lower().replace(" ", "_")
+        try:
+            patch_reports = sorted(patch_reports, key=lambda x: x[sort])
+        except KeyError:
+            raise ValueError(f"Invalid column name for sorting: {sort}")
 
     # (option) Omit
     if omit:
