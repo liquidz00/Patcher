@@ -2,8 +2,10 @@ import aiohttp
 import pytest
 import os
 import aioresponses
-from patcher import get_policies, get_summaries
+from patcher import get_policies, get_summaries, main_async, convert_timezone
+from tempfile import TemporaryDirectory
 from dotenv import load_dotenv
+from click.testing import CliRunner
 
 BASE = os.path.abspath(os.path.dirname(__file__))
 ROOT = os.path.dirname(BASE)
@@ -176,3 +178,48 @@ async def test_get_policies_api_error():
         async with aiohttp.ClientSession() as session:
             with pytest.raises(Exception):
                 await get_policies()
+
+
+@pytest.mark.asyncio
+async def test_get_summaries_empty_ids():
+    summaries = await get_summaries([])
+    assert summaries == []
+
+
+@pytest.mark.asyncio
+async def test_get_summaries_api_error(mock_policy_response):
+    policy_ids = [policy["id"] for policy in mock_policy_response]
+    with aioresponses.aioresponses() as m:
+        for policy_id in policy_ids:
+            m.get(
+                f"{jamf_url}/api/v2/patch-software-title-configurations/{policy_id}/patch-summary",
+                status=500,
+                headers=headers,
+            )
+
+        with pytest.raises(Exception):
+            await get_summaries(policy_ids)
+
+
+@pytest.mark.asyncio
+async def test_summary_response_data_integrity(mock_summary_response):
+    for summary in mock_summary_response:
+        assert "softwareTitleId" in summary
+        assert "upToDate" in summary and "outOfDate" in summary
+
+
+def test_main_async_default_options():
+    with TemporaryDirectory() as temp_dir:
+        runner = CliRunner()
+        result = runner.invoke(main_async, ["--path", temp_dir])
+        assert result.exit_code == 0
+
+
+def test_convert_timezone_invalid():
+    with pytest.raises(ValueError):
+        convert_timezone("invalid-time-format")
+
+
+def test_load_environment_variables():
+    assert jamf_url is not None
+    assert jamf_token is not None
