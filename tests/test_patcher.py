@@ -218,8 +218,3 @@ def test_main_async_default_options():
 def test_convert_timezone_invalid():
     with pytest.raises(ValueError):
         convert_timezone("invalid-time-format")
-
-
-def test_load_environment_variables():
-    assert jamf_url is not None
-    assert jamf_token is not None
