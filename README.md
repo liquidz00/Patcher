@@ -19,7 +19,12 @@ Patcher leverages the Jamf Pro API to fetch patch management data and generate c
 ### Prerequisites
 
 - Python 3.9 or higher.
-- Access to a Jamf Pro instance with API credentials.
+- Access to a Jamf Pro instance with administrator privileges (for API client creation).
+- A Jamf Pro API Client with the following:
+  - Read Computers, Read Patch Reporting roles
+  - Client ID
+  - Client Secret
+  - Bearer Token
 
 > **Note**<br>
 > Although not required, it is **highly recommended** to create an API client for use with Patcher. For more details, reference the [Jamf Pro Documentation](https://learn.jamf.com/bundle/jamf-pro-documentation-current/page/API_Roles_and_Clients.html) on API Roles and Clients.
