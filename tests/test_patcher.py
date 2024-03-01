@@ -187,13 +187,14 @@ async def test_get_summaries_empty_ids():
 
 
 @pytest.mark.asyncio
-async def test_get_summaries_api_error(mock_policy_response):
+async def test_get_summaries_api_error(mock_policy_response, mock_summary_response):
     policy_ids = [policy["id"] for policy in mock_policy_response]
     with aioresponses.aioresponses() as m:
         for policy_id in policy_ids:
             m.get(
                 f"{jamf_url}/api/v2/patch-software-title-configurations/{policy_id}/patch-summary",
                 status=500,
+                payload=mock_policy_response,
                 headers=headers,
             )
 
