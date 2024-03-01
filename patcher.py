@@ -154,7 +154,7 @@ def export_to_excel(patch_reports: List[Dict], output_dir: AnyStr) -> AnyStr:
 
     return excel_path
 
-
+# Create PDF from Excel file
 def export_excel_to_pdf(excel_file: AnyStr) -> None:
     # Read excel file
     df = pd.read_excel(excel_file)
@@ -193,7 +193,7 @@ def export_excel_to_pdf(excel_file: AnyStr) -> None:
     "-s",
     type=click.STRING,
     required=False,
-    help="Sort patch reports by a specified column. Defaults to 'patch_released'.",
+    help="Sort patch reports by a specified column.",
 )
 @click.option(
     "--omit",
@@ -203,13 +203,20 @@ def export_excel_to_pdf(excel_file: AnyStr) -> None:
 )
 def main_async(path: AnyStr, pdf: bool, sort: AnyStr, omit: bool) -> None:
     """Generates patch report in Excel format, with optional PDF, at the specified path"""
-    # Ensure path exists
-    output_path = os.path.expanduser(path)
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-    reports_dir = os.path.join(output_path, "Patch-Reports")
-    if not os.path.exists(reports_dir):
-        os.makedirs(reports_dir)
+    try:
+        # Validate path provided is not a file
+        output_path = os.path.expanduser(path)
+        if os.path.exists(output_path) and os.path.isfile(output_path):
+            click.echo("Error: Provided path is a file, not a directory. Aborting...", err=True)
+            raise click.Abort()
+
+        # Ensure directories exist
+        os.makedirs(output_path, exist_ok=True)
+        reports_dir = os.path.join(output_path, "Patch-Reports")
+        os.makedirs(reports_dir, exist_ok=True)
+    except OSError as e:
+        click.echo(f"Error creating directories: {e}. Aborting...", err=True)
+        raise click.Abort()
 
     # Generate Excel report
     loop = asyncio.get_event_loop()
@@ -222,7 +229,8 @@ def main_async(path: AnyStr, pdf: bool, sort: AnyStr, omit: bool) -> None:
         try:
             patch_reports = sorted(patch_reports, key=lambda x: x[sort])
         except KeyError:
-            raise ValueError(f"Invalid column name for sorting: {sort}")
+            click.echo(f"Invalid column name for sorting: {sort}. Aborting...")
+            raise click.Abort()
 
     # (option) Omit
     if omit:
