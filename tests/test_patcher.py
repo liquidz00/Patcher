@@ -2,10 +2,8 @@ import aiohttp
 import pytest
 import os
 import aioresponses
-from patcher import get_policies, get_summaries, main_async, convert_timezone
-from tempfile import TemporaryDirectory
+from bin import utils
 from dotenv import load_dotenv
-from click.testing import CliRunner
 
 BASE = os.path.abspath(os.path.dirname(__file__))
 ROOT = os.path.dirname(BASE)
@@ -126,7 +124,7 @@ async def test_get_policies(mock_policy_response):
         )
 
         async with aiohttp.ClientSession() as session:
-            policies = await get_policies()
+            policies = await utils.get_policies()
             assert len(policies) == len(mock_policy_response)
             assert policies[0] == mock_policy_response[0]["id"]
 
@@ -146,7 +144,7 @@ async def test_get_summaries(mock_policy_response, mock_summary_response):
                 headers=headers,
             )
 
-        summaries = await get_summaries(policy_ids)
+        summaries = await utils.get_summaries(policy_ids)
         assert summaries[0]["software_title"] == "Google Chrome"
         assert summaries[1]["hosts_patched"] == 185
         assert summaries[2]["completion_percent"] == 54.55
@@ -162,7 +160,7 @@ async def test_get_policies_empty_response():
         )
 
         async with aiohttp.ClientSession() as session:
-            policies = await get_policies()
+            policies = await utils.get_policies()
             assert policies == []
 
 
@@ -176,13 +174,13 @@ async def test_get_policies_api_error():
         )
 
         async with aiohttp.ClientSession() as session:
-            with pytest.raises(Exception):
-                await get_policies()
+            policies = await utils.get_policies()
+            assert policies == []
 
 
 @pytest.mark.asyncio
 async def test_get_summaries_empty_ids():
-    summaries = await get_summaries([])
+    summaries = await utils.get_summaries([])
     assert summaries == []
 
 
@@ -198,8 +196,8 @@ async def test_get_summaries_api_error(mock_policy_response, mock_summary_respon
                 headers=headers,
             )
 
-        with pytest.raises(Exception):
-            await get_summaries(policy_ids)
+        summaries = await utils.get_summaries(policy_ids)
+        assert summaries == []
 
 
 @pytest.mark.asyncio
@@ -210,5 +208,5 @@ async def test_summary_response_data_integrity(mock_summary_response):
 
 
 def test_convert_timezone_invalid():
-    with pytest.raises(ValueError):
-        convert_timezone("invalid-time-format")
+    result = utils.convert_timezone("invalid time format")
+    assert result == "Invalid time format"
