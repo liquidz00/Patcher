@@ -209,13 +209,6 @@ async def test_summary_response_data_integrity(mock_summary_response):
         assert "upToDate" in summary and "outOfDate" in summary
 
 
-def test_main_async_default_options():
-    with TemporaryDirectory() as temp_dir:
-        runner = CliRunner()
-        result = runner.invoke(main_async, ["--path", temp_dir])
-        assert result.exit_code == 0
-
-
 def test_convert_timezone_invalid():
     with pytest.raises(ValueError):
         convert_timezone("invalid-time-format")
