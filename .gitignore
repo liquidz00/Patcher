@@ -166,3 +166,4 @@ cython_debug/
 ui_config.py
 /tests/mock_policy.json
 /tests/mock_summary.json
+/data/

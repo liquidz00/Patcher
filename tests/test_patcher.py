@@ -1,9 +1,8 @@
 import aiohttp
 import pytest
 import os
-import json
 import aioresponses
-from patcher import get_policies, get_summaries
+from bin import utils
 from dotenv import load_dotenv
 
 BASE = os.path.abspath(os.path.dirname(__file__))
@@ -77,6 +76,7 @@ def mock_policy_response():
         },
     ]
 
+
 @pytest.fixture()
 def mock_summary_response():
     """Fixture to provide mock summary responses for each policy."""
@@ -124,7 +124,7 @@ async def test_get_policies(mock_policy_response):
         )
 
         async with aiohttp.ClientSession() as session:
-            policies = await get_policies()
+            policies = await utils.get_policies()
             assert len(policies) == len(mock_policy_response)
             assert policies[0] == mock_policy_response[0]["id"]
 
@@ -132,7 +132,9 @@ async def test_get_policies(mock_policy_response):
 @pytest.mark.asyncio
 async def test_get_summaries(mock_policy_response, mock_summary_response):
     policy_ids = [policy["id"] for policy in mock_policy_response]
-    summary_response_dict = {str(summary["softwareTitleId"]): summary for summary in mock_summary_response}
+    summary_response_dict = {
+        str(summary["softwareTitleId"]): summary for summary in mock_summary_response
+    }
     with aioresponses.aioresponses() as m:
         for policy_id in policy_ids:
             mock_response = summary_response_dict[policy_id]
@@ -142,7 +144,69 @@ async def test_get_summaries(mock_policy_response, mock_summary_response):
                 headers=headers,
             )
 
-        summaries = await get_summaries(policy_ids)
+        summaries = await utils.get_summaries(policy_ids)
         assert summaries[0]["software_title"] == "Google Chrome"
         assert summaries[1]["hosts_patched"] == 185
         assert summaries[2]["completion_percent"] == 54.55
+
+
+@pytest.mark.asyncio
+async def test_get_policies_empty_response():
+    with aioresponses.aioresponses() as m:
+        m.get(
+            f"{jamf_url}/api/v2/patch-software-title-configurations",
+            payload=[],
+            headers=headers,
+        )
+
+        async with aiohttp.ClientSession() as session:
+            policies = await utils.get_policies()
+            assert policies == []
+
+
+@pytest.mark.asyncio
+async def test_get_policies_api_error():
+    with aioresponses.aioresponses() as m:
+        m.get(
+            f"{jamf_url}/api/v2/patch-software-title-configurations",
+            status=500,
+            headers=headers,
+        )
+
+        async with aiohttp.ClientSession() as session:
+            policies = await utils.get_policies()
+            assert policies == []
+
+
+@pytest.mark.asyncio
+async def test_get_summaries_empty_ids():
+    summaries = await utils.get_summaries([])
+    assert summaries == []
+
+
+@pytest.mark.asyncio
+async def test_get_summaries_api_error(mock_policy_response, mock_summary_response):
+    policy_ids = [policy["id"] for policy in mock_policy_response]
+    with aioresponses.aioresponses() as m:
+        for policy_id in policy_ids:
+            m.get(
+                f"{jamf_url}/api/v2/patch-software-title-configurations/{policy_id}/patch-summary",
+                status=500,
+                payload=mock_policy_response,
+                headers=headers,
+            )
+
+        summaries = await utils.get_summaries(policy_ids)
+        assert summaries == []
+
+
+@pytest.mark.asyncio
+async def test_summary_response_data_integrity(mock_summary_response):
+    for summary in mock_summary_response:
+        assert "softwareTitleId" in summary
+        assert "upToDate" in summary and "outOfDate" in summary
+
+
+def test_convert_timezone_invalid():
+    result = utils.convert_timezone("invalid time format")
+    assert result == "Invalid time format"
