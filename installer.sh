@@ -8,7 +8,24 @@ echo "Starting installation..."
 read -p "Enter the URL of your Jamf instance: " jamf_url
 read -p "Enter your client_id: " client_id
 read -p "Enter your client secret: " client_secret
-read -p "Enter your token: " token
+
+# Prompt if user has bearer token already. If not, generate one.
+read -p "Do you already have a bearer token? (y/n): " has_token
+if [[ "$has_token" =~ ^[Yy]$ ]]; then
+  read -p "Enter your token: " token
+else
+  response=$(curl --silent --location --request POST "${jamf_url}/api/oauth/token" \
+		--header "Content-Type: application/x-www-form-urlencoded" \
+		--data-urlencode "client_id=${client_id}" \
+		--data-urlencode "grant_type=client_credentials" \
+		--data-urlencode "client_secret=${client_secret}")
+  token=$(echo "$response" | plutil -extract access_token raw -)
+
+  if [ "$token" == "null" ]; then
+    echo "Failed to generate a token. Please check your Jamf instance details."
+    exit 1
+  fi
+fi
 
 # Create .env if it does not exist already
 if [ ! -f ".env" ]; then
