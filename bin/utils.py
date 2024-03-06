@@ -1,6 +1,5 @@
 import os
 import pandas as pd
-import pytz
 import aiohttp
 import asyncio
 
