@@ -68,7 +68,6 @@ else
 		--data-urlencode "grant_type=client_credentials" \
 		--data-urlencode "client_secret=${client_secret}")
   token=$(echo "$response" | plutil -extract access_token raw -)
-
   if [ "$token" == "null" ]; then
     log_message "Failed to generate a token. Please check your Jamf instance details." "ERROR"
     exit 1
