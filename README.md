@@ -35,7 +35,7 @@ Patcher leverages the Jamf Pro API to fetch patch management data and generate c
 1. **Download the Installer Script**
 Instead of cloning the repository, you now simply need to download and run the installer script, which will handle the setup, including cloning the repository.
 ```shell
-curl -sL https://raw.githubusercontent.com/liquidz00/patcher/main/installer.sh | bash
+curl -O https://raw.githubusercontent.com/liquidz00/patcher/main/installer.sh && bash ./installer.sh
 ```
 2. **Follow the Installer Script Prompts**
 The installer script will guide you through setting up your Jamf Pro instance details and installing project dependencies. Follow the prompts to enter your Jamf Pro URL, Client ID, and Client Secret. If you already have a Bearer Token, you can pass the value to the installer script, otherwise the installer script will generate one for you. You'll also be asked to customize the report header and footer text. Optionally, you can opt to use a custom font instead of the default font [Assistant](https://fonts.google.com/specimen/Assistant).
@@ -47,6 +47,8 @@ python patcher.py --path /path/to/output/directory [--pdf]
 ```
 - The `--path` option specifies the directory where the reports will be saved.
 - The optional `--pdf` flag indicates if PDF reports should be generated in addition to Excel files.
+
+For additional command options to use, visit the [Command Options](https://github.com/liquidz00/patcher/wiki/Command-Options) in the Wiki.
 
 ### Customizing Report UI
 To customize the UI elements like header and footer text after the initial setup, edit the `ui_config.py` file in the project directory. Changes will be reflected in subsequent reports.
