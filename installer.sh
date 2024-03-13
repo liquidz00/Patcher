@@ -1,8 +1,56 @@
 #!/bin/bash
 # shellcheck disable=SC2129
 # shellcheck disable=SC2162
+# shellcheck disable=SC2155
 
-echo "Starting installation..."
+# Logging
+LOG_DIR="$HOME/.patcher/logs"
+LOG_FILE="$LOG_DIR/installer.log"
+
+log_message() {
+  local message="$1"
+  local type="$2"  # INFO, WARNING, or ERROR
+  local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
+  # Log error to logfile
+  echo "$timestamp - $type - $message" >> "$LOG_FILE"
+
+  # Echo error to stdout for user visibility
+  echo "$timestamp - $type - $message"
+}
+
+# Pre-flight checks
+# Create log directory
+mkdir -p "$LOG_DIR"
+
+# Git
+if ! command -v git &> /dev/null
+then
+  log_message "Git is not installed. Please install Git and try again." "ERROR"
+  exit 1
+fi
+
+# Python
+if ! command -v python3 &> /dev/null
+then
+  log_message "Python is not installed. Please install Python and try again." "ERROR"
+  exit 1
+fi
+
+# Clone repo into home directory
+PROJECT_DIR="$HOME/patcher"
+if [ ! -d "$PROJECT_DIR" ]; then
+  log_message "Cloning Patcher repository into $PROJECT_DIR" "INFO"
+  git clone https://github.com/liquidz00/patcher.git "$PROJECT_DIR"
+else
+  log_message "Directory already exists. Pulling latest updates..." "INFO"
+  (cd "$PROJECT_DIR" && git pull)
+fi
+
+# Change into project directory or exit if error thrown
+cd "$PROJECT_DIR" || exit
+
+log_message "Starting installation..." "INFO"
 
 # Prompt for Jamf instance details, write to .env
 read -p "Enter the URL of your Jamf instance: " jamf_url
@@ -20,9 +68,8 @@ else
 		--data-urlencode "grant_type=client_credentials" \
 		--data-urlencode "client_secret=${client_secret}")
   token=$(echo "$response" | plutil -extract access_token raw -)
-
   if [ "$token" == "null" ]; then
-    echo "Failed to generate a token. Please check your Jamf instance details."
+    log_message "Failed to generate a token. Please check your Jamf instance details." "ERROR"
     exit 1
   fi
 fi
@@ -38,14 +85,14 @@ echo "CLIENT_ID=${client_id}" >> .env
 echo "CLIENT_SECRET=${client_secret}" >> .env
 echo "TOKEN=${token}" >> .env
 
-echo "Jamf instance details saved to .env file."
+log_message "Jamf instance details saved to .env file." "INFO"
 
 # Install project dependencies
 if [ -f "requirements.txt" ]; then
   python3 -m pip install -r requirements.txt
-  echo "Dependencies installed."
+  log_message "Dependencies installed." "INFO"
 else
-  echo "requirements.txt not found. Skipping dependency installation."
+  log_message "requirements.txt not found. Skipping dependency installation." "WARNING"
 fi
 
 # Update UI configurations in ui_config.py
@@ -65,7 +112,7 @@ fi
 
 # Ensure ui_config.py exists. If not, create with default values
 if [ -f "ui_config.py" ]; then
-  echo "Creating default ui_config.py with user-defined configurations..."
+  log_message "Creating default ui_config.py with user-defined configurations..." "INFO"
   cat > ui_config.py << EOF
 # ui_config.py
 import os
@@ -82,7 +129,7 @@ FONT_BOLD_PATH = os.path.join(FONTS, "$custom_font_bold_path")
 EOF
 else
   # Update existing ui_config.py with the new values
-  echo "ui_config.py exists. Updating with new UI configurations..."
+  log_message "ui_config.py exists. Updating with new UI configurations..." "INFO"
   # Use -i.bak to make it compatible across GNU and BSD sed, creates a backup file
   sed -i.bak "s/^HEADER_TEXT = .*/HEADER_TEXT = \"$header_text\"/" ui_config.py
   sed -i.bak "s/^FOOTER_TEXT = .*/FOOTER_TEXT = \"$footer_text\"/" ui_config.py
@@ -94,4 +141,4 @@ else
   rm ui_config.py.bak
 fi
 
-echo "UI configurations updated as expected."
+log_message "UI configurations updated as expected." "INFO"
