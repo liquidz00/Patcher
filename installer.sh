@@ -10,6 +10,7 @@
 #   shellcheck disable=SC2162
 #   shellcheck disable=SC2155
 #   shellcheck disable=SC2016
+#   shellcheck disable=SC2183
 #
 # This script should be run via curl:
 #   bash -c "$(curl -fsSL https://raw.githubusercontent.com/liquidz00/Patcher/main/installer.sh)"
@@ -20,7 +21,7 @@
 # Default repo settings
 REPO=${REPO:-liquidz00/Patcher}
 REMOTE=${REMOTE:-https://github.com/${REPO}.git}
-BRANCH=${BRANCH:-master}
+BRANCH=${BRANCH:-main}
 
 # Directories & files
 PARENT="$HOME/.patcher"
@@ -31,6 +32,11 @@ LOG_FILE="$LOG_DIR/installer.log"
 command_exists() {
   command -v "$@" >/dev/null 2>&1
 }
+
+# Create log directory
+if [ -n "$LOG_DIR" ]; then
+  mkdir -p "$LOG_DIR"
+fi
 
 # tty check (from ohmyzsh/ohmyzsh)
 # The [ -t 1 ] check only works when the function is not called from
@@ -158,7 +164,7 @@ fmt_error() {
   local message="$*"
   local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-  printf '%sERROR: %s%s\n' "${FMT_BOLD}${FMT_RED}" "$timestamp" "$message" "$FMT_RESET" >&2
+  printf '%s ERROR: %s%s\n' "${FMT_BOLD}${FMT_RED}" "$timestamp" "$message" "$FMT_RESET" >&2
   echo "$timestamp - ERROR - $message" >> "$LOG_FILE"
 }
 
@@ -166,7 +172,7 @@ fmt_warning() {
   local message="$*"
   local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-  printf '%sWARNING: %s%s\n' "${FMT_BOLD}${FMT_YELLOW}" "$timestamp" "$message" "$FMT_RESET" >&2
+  printf '%s WARNING: %s%s\n' "${FMT_BOLD}${FMT_YELLOW}" "$timestamp" "$message" "$FMT_RESET" >&2
   echo "$timestamp - WARNING - $message" >> "$LOG_FILE"
 }
 
@@ -174,7 +180,7 @@ fmt_info() {
   local message="$*"
   local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-  printf '%sINFO: %s%s\n' "${FMT_BOLD}${FMT_YELLOW}" "$timestamp" "$message" "$FMT_RESET" >&2
+  printf '%s INFO: %s%s\n' "${FMT_BOLD}${FMT_YELLOW}" "$timestamp" "$message" "$FMT_RESET" >&2
   echo "$timestamp - INFO - $message" >> "$LOG_FILE"
 }
 
@@ -222,11 +228,6 @@ setup_color() {
 }
 
 setup_patcher() {
-  # Create log directory
-  if [ -n "$LOG_DIR" ]; then
-    mkdir -p "$LOG_DIR"
-  fi
-
   # Pre-flight checks (Git, python)
   command_exists git || {
     fmt_error "Git is not installed. Please install Git and try again."
@@ -254,7 +255,7 @@ setup_patcher() {
   && git fetch --depth=1 origin \
   && git checkout -b "$BRANCH" "origin/$BRANCH" || {
     [ ! -d "$PARENT" ] || {
-      cd -
+      cd .. || exit
       rm -rf "$PARENT" 2>/dev/null
     }
     fmt_error "git clone of Patcher repo failed"
@@ -289,17 +290,17 @@ setup_environment() {
   fi
 
   # If .env file exists, ask user if they want to overwrite
-  if [ ! -f ".env" ]; then
-    fmt_warning "An .env file already exists in this location. Overwrite? (y/n): " env_exists
+  if [ -f ".env" ]; then
+    read -p "An .env file already exists in this location...Overwrite? (y/n): " env_exists
     if [[ "$env_exists" =~ ^[Yy]$ ]]; then
       # Write details to .env
       echo "URL=${jamf_url}" > .env
       echo "CLIENT_ID=${client_id}" >> .env
       echo "CLIENT_SECRET=${client_secret}" >> .env
       echo "TOKEN=${token}" >> .env
-      fmt_info "Jamf instance details saved to .env file."
+      fmt_info "User chose to overwrite contents of .env file."
     elif [[ "$env_exists" =~ ^[Nn]$ ]]; then
-      fmt_error "Chose not to overwrite existing .env file."
+      fmt_error "User chose not to overwrite existing .env file."
       exit 1
     fi
   else
