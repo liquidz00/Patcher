@@ -228,17 +228,6 @@ setup_color() {
 }
 
 setup_patcher() {
-  # Pre-flight checks (Git, python)
-  command_exists git || {
-    fmt_error "Git is not installed. Please install Git and try again."
-    exit 1
-  }
-
-  command_exists python3 || {
-    fmt_error "Python is not installed. Please install Python and try again."
-    exit 1
-  }
-
   echo "${FMT_BLUE}Starting installation...${FMT_RESET}"
   echo "Starting installation..." >> "$LOG_FILE"
 
@@ -319,6 +308,25 @@ setup_environment() {
   else
     log_message "requirements.txt not found. Skipping dependency installation." "WARNING"
   fi
+
+  local target="$PARENT/patcher.py"
+  local link="/usr/local/bin/patcher"
+
+  # Ensure script is executable
+  chmod +x "$target"
+
+  # Check if symlink exists already
+  if [ -e "$link" ] || [ -L "$link" ]; then
+    fmt_warning "Symlink $link already exists. Skipping."
+  else
+    # Create symlink
+    if ln -s "$target" "$link"; then
+      fmt_info "Symlink created at $link"
+    else
+      fmt_error "Failed to create symlink at $link"
+      exit 1
+    fi
+  fi
 }
 
 setup_ui() {
@@ -374,13 +382,11 @@ EOF
 }
 
 print_success() {
-  printf '%s _______  _______  _______  _______  __   __  _______  ______   %s\n' $FMT_RAINBOW $FMT_RESET
-  printf '%s|       ||   _   ||       ||       ||  | |  ||       ||    _ |  %s\n' $FMT_RAINBOW $FMT_RESET
-  printf '%s|    _  ||  |_|  ||_     _||       ||  |_|  ||    ___||   | ||  %s\n' $FMT_RAINBOW $FMT_RESET
-  printf '%s|   |_| ||       |  |   |  |       ||       ||   |___ |   |_||_ %s\n' $FMT_RAINBOW $FMT_RESET
-  printf '%s|    ___||       |  |   |  |      _||       ||    ___||    __  |%s\n' $FMT_RAINBOW $FMT_RESET
-  printf '%s|   |    |   _   |  |   |  |     |_ |   _   ||   |___ |   |  | |%s\n' $FMT_RAINBOW $FMT_RESET
-  printf '%s|___|    |__| |__|  |___|  |_______||__| |__||_______||___|  |_|%s\n' $FMT_RAINBOW $FMT_RESET
+  printf '%s   ___         __        __           %s\n'   $FMT_RAINBOW $FMT_RESET
+  printf '%s  / _ \\ ___ _ / /_ ____ / /  ___  ____%s\n'  $FMT_RAINBOW $FMT_RESET
+  printf '%s / ___// _ `// __// __// _ \\/ -_)/ __/%s\n'  $FMT_RAINBOW $FMT_RESET
+  printf '%s/_/    \\_,_/ \\__/ \\__//_//_/\\__//_/%s\n'  $FMT_RAINBOW $FMT_RESET
+  printf '%s                                      %s\n'   $FMT_RAINBOW $FMT_RESET
   printf '\n'
   printf '\n'
   printf "%s %s %s\n" "${FMT_BOLD}${FMT_BLUE}Patcher has finished installing and is ready for use!${FMT_RESET}"
@@ -390,6 +396,18 @@ print_success() {
 
 main() {
   setup_color
+
+  # Pre-flight checks (Git, python)
+  command_exists git || {
+    fmt_error "Git is not installed. Please install Git and try again."
+    exit 1
+  }
+
+  command_exists python3 || {
+    fmt_error "Python is not installed. Please install Python and try again."
+    exit 1
+  }
+
   setup_patcher
   setup_environment
   setup_ui
