@@ -13,9 +13,9 @@ jobs:
 
       - name: Generate Release Notes
         id: release_notes
-        uses: actions/create-release-notes@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        uses: johnyherangi/create-release-notes@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Release
         uses: actions/create-release@v1
