@@ -24,8 +24,8 @@ REMOTE=${REMOTE:-https://github.com/${REPO}.git}
 BRANCH=${BRANCH:-main}
 
 # Directories & files
-PARENT="$HOME/.patcher"
-LOG_DIR="$HOME/.patcher/logs"
+PARENT="$HOME/Patcher"
+LOG_DIR="$PARENT/logs"
 LOG_FILE="$LOG_DIR/installer.log"
 
 # Command checks
@@ -228,7 +228,7 @@ setup_color() {
 }
 
 setup_patcher() {
-  echo "${FMT_BLUE}Starting installation...${FMT_RESET}"
+  echo "${FMT_GREEN}Starting installation...${FMT_RESET}"
   echo "Starting installation..." >> "$LOG_FILE"
 
   # Manually clone with git config options (for git versions < v1.7.2)
@@ -345,6 +345,22 @@ setup_ui() {
     read -p "Enter the custom font name: " custom_font
     read -p "Enter the relative path to the custom font regular file (e.g., fonts/MyCustom-Regular.ttf): " custom_font_regular_path
     read -p "Enter the relative path to the custom font bold file (e.g., fonts/MyCustom-Bold.ttf): " custom_font_bold_path
+
+    # Copy custom font to FONTS directory
+    fmt_info "Copying custom font files to FONTS directory..."
+    if ! cp "$custom_font_regular_path" "$PARENT/fonts/$(basename "$custom_font_regular_path")"; then
+      fmt_error "Failed to copy the custom regular font file. Please check the path and try again."
+      exit 1
+    fi
+
+    if ! cp "$custom_font_bold_path" "$PARENT/fonts/$(basename "$custom_font_bold_path")"; then
+      fmt_error "Failed to copy the custom bold font file. Please check the path and try again."
+      exit 1
+    fi
+
+    # Update paths to reference copied files for consistency in configuration
+    custom_font_regular_path=$(basename "$custom_font_regular_path")
+    custom_font_bold_path=$(basename "$custom_font_bold_path")
   fi
 
   # Ensure ui_config.py exists. If not, create with default values
