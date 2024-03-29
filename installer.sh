@@ -164,7 +164,7 @@ fmt_error() {
   local message="$*"
   local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-  printf '%s ERROR: %s%s\n' "${FMT_BOLD}${FMT_RED}" "$timestamp" "$message" "$FMT_RESET" >&2
+  printf '%s ERROR: %s %s\n' "${FMT_BOLD}${FMT_RED}" "$timestamp" "$message" "$FMT_RESET" >&2
   echo "$timestamp - ERROR - $message" >> "$LOG_FILE"
 }
 
@@ -172,7 +172,7 @@ fmt_warning() {
   local message="$*"
   local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-  printf '%s WARNING: %s%s\n' "${FMT_BOLD}${FMT_YELLOW}" "$timestamp" "$message" "$FMT_RESET" >&2
+  printf '%s WARNING: %s %s\n' "${FMT_BOLD}${FMT_YELLOW}" "$timestamp" "$message" "$FMT_RESET" >&2
   echo "$timestamp - WARNING - $message" >> "$LOG_FILE"
 }
 
@@ -180,7 +180,7 @@ fmt_info() {
   local message="$*"
   local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-  printf '%s INFO: %s%s\n' "${FMT_BOLD}${FMT_YELLOW}" "$timestamp" "$message" "$FMT_RESET" >&2
+  printf '%s INFO: %s %s\n' "${FMT_BOLD}${FMT_YELLOW}" "$timestamp" "$message" "$FMT_RESET" >&2
   echo "$timestamp - INFO - $message" >> "$LOG_FILE"
 }
 
