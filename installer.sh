@@ -11,6 +11,7 @@
 #   shellcheck disable=SC2155
 #   shellcheck disable=SC2016
 #   shellcheck disable=SC2183
+#   shellcheck disable=SC2086
 #
 # This script should be run via curl:
 #   bash -c "$(curl -fsSL https://raw.githubusercontent.com/liquidz00/Patcher/main/installer.sh)"
@@ -301,31 +302,15 @@ setup_environment() {
     fmt_info "Jamf instance details saved to .env file."
   fi
 
-  # Install project dependencies
+  # Ensure dependencies are installed to the user's directory
   if [ -f "requirements.txt" ]; then
-    python3 -m pip install -r requirements.txt
-    log_message "Dependencies installed." "INFO"
-  else
-    log_message "requirements.txt not found. Skipping dependency installation." "WARNING"
-  fi
-
-  local target="$PARENT/patcher.py"
-  local link="/usr/local/bin/patcher"
-
-  # Ensure script is executable
-  chmod +x "$target"
-
-  # Check if symlink exists already
-  if [ -e "$link" ] || [ -L "$link" ]; then
-    fmt_warning "Symlink $link already exists. Skipping."
-  else
-    # Create symlink
-    if ln -s "$target" "$link"; then
-      fmt_info "Symlink created at $link"
-    else
-      fmt_error "Failed to create symlink at $link"
+    python3 -m pip install --user -r requirements.txt || {
+      fmt_error "Failed to install dependencies. Make sure you have pip installed and try again."
       exit 1
-    fi
+    }
+    fmt_info "Dependencies installed to user directory."
+  else
+    fmt_warning "requirements.txt not found. Skipping dependency installation."
   fi
 }
 
