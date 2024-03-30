@@ -75,8 +75,16 @@ class PDF(FPDF):
         self.cell(0, 10, footer_text, 0, 0, "R")
 
 
-# Convert UTC time to EST
+# Format UTC time
 def convert_timezone(utc_time_str: AnyStr) -> AnyStr:
+    """
+    Converts a UTC time string to a formatted string without timezone information.
+
+    :param utc_time_str: UTC time string in ISO 8601 format.
+    :type utc_time_str: AnyStr
+    :return: Formatted time string or error message.
+    :rtype: AnyStr
+    """
     try:
         utc_time = datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S%z")
         time_str = utc_time.strftime("%b %d %Y")
@@ -90,7 +98,16 @@ def convert_timezone(utc_time_str: AnyStr) -> AnyStr:
 
 
 # Async API call
-async def fetch_json(url, session):
+async def fetch_json(url: AnyStr, session: aiohttp.ClientSession):
+    """
+    Asynchronously fetches JSON data from a specified URL using a session.
+
+    :param url: URL to fetch the JSON data from.
+    :type url: AnyStr
+    :param session: Async session used to make the request, instance of aiohttp.ClientSession.
+    :type session: aiohttp.ClientSession
+    :return: JSON data as a dictionary or an empty dictionary on error.
+    """
     try:
         async with session.get(url, headers=headers) as response:
             return await response.json()
@@ -101,6 +118,12 @@ async def fetch_json(url, session):
 
 # Use Jamf API to retrieve all Patch titles IDs
 async def get_policies() -> List:
+    """
+    Asynchronously retrieves all patch software titles' IDs using the Jamf API.
+
+    :return: List of software title IDs or an empty list on error.
+    :rtype: List
+    """
     try:
         async with aiohttp.ClientSession() as session:
             url = f"{jamf_url}/api/v2/patch-software-title-configurations"
@@ -114,6 +137,14 @@ async def get_policies() -> List:
 
 # Use Jamf API to retrieve active patch summaries based upon supplied ID
 async def get_summaries(policy_ids: List) -> List:
+    """
+    Retrieves active patch summaries for given policy IDs using the Jamf API.
+
+    :param policy_ids: List of policy IDs to retrieve summaries for.
+    :type policy_ids: List
+    :return: List of dictionaries containing patch summaries or an empty list on error.
+    :rtype: List
+    """
     try:
         async with aiohttp.ClientSession() as session:
             tasks = [
@@ -153,6 +184,16 @@ async def get_summaries(policy_ids: List) -> List:
 
 # Create excel spreadsheet with patch data for export
 def export_to_excel(patch_reports: List[Dict], output_dir: AnyStr) -> AnyStr:
+    """
+    Exports patch data to an Excel spreadsheet in the specified output directory.
+
+    :param patch_reports: List of dictionaries containing patch report data.
+    :type patch_reports: List[Dict]
+    :param output_dir: Directory to save the Excel spreadsheet.
+    :type output_dir: AnyStr
+    :return: Path to the created Excel spreadsheet or error message.
+    :rtype: AnyStr
+    """
     try:
         column_order = [
             "software_title",
@@ -180,6 +221,12 @@ def export_to_excel(patch_reports: List[Dict], output_dir: AnyStr) -> AnyStr:
 
 # Create PDF from Excel file
 def export_excel_to_pdf(excel_file: AnyStr) -> None:
+    """
+    Creates a PDF report from an Excel file containing patch data.
+
+    :param excel_file: Path to the Excel file to convert to PDF.
+    :type excel_file: AnyStr
+    """
     try:
         # Read excel file
         df = pd.read_excel(excel_file)
@@ -203,4 +250,3 @@ def export_excel_to_pdf(excel_file: AnyStr) -> None:
         pdf.output(pdf_filename)
     except Exception as e:
         logthis.info(f"Error occurred trying to export PDF: {e}")
-
