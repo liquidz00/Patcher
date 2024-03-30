@@ -1,5 +1,3 @@
-#!/usr/local/bin/python3
-
 import os
 import click
 import asyncio
@@ -32,6 +30,34 @@ async def process_reports(
     omit: bool,
     stop_event: threading.Event,
 ) -> None:
+    """
+    Asynchronously generates and saves patch reports in Excel format at a specified
+    path, with the option to also generate PDF versions. The reports can optionally
+    be sorted by a specified column and filtered to omit entries based on a specific
+    condition.
+
+    :param path: The destination path where the report directory will be created.
+        The function expects a directory path, not a file path. It expands user
+        variables (like ~) and ensures the directory exists, creating it if necessary.
+    :type path: AnyStr
+    :param pdf: If True, generates PDF versions of the Excel reports.
+    :type pdf: bool
+    :param sort: A string specifying the column name by which to sort the reports.
+        The function converts this string to lowercase and replaces spaces with
+        underscores. If the column does not exist, the operation is aborted.
+    :type sort: Optional[AnyStr]
+    :param omit: If True, filters out reports based on a predefined condition,
+        currently implemented to exclude reports with a 'patch_released' date within
+        the last 48 hours.
+    :type omit: bool
+    :param stop_event: An event that gets set when the report generation process is
+        either completed or aborted due to an error. This can be used to signal other
+        parts of the application that the operation has finished.
+    :type stop_event: threading.Event
+
+    :return: None. This function does not return a value but raises a click.Abort
+        exception in case of errors.
+    """
     try:
         # Validate path provided is not a file
         output_path = os.path.expanduser(path)
@@ -128,7 +154,6 @@ async def process_reports(
     help="Omit software titles with patches released in last 48 hours",
 )
 def main(path: AnyStr, pdf: bool, sort: Optional[AnyStr], omit: bool) -> None:
-    """Generates patch report in Excel format, with optional PDF, at the specified path"""
     stop_event = threading.Event()
     animation_thread = threading.Thread(target=animate_search, args=(stop_event,))
     animation_thread.start()
