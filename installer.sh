@@ -284,10 +284,10 @@ setup_environment() {
     read -p "An .env file already exists in this location...Overwrite? (y/n): " env_exists
     if [[ "$env_exists" =~ ^[Yy]$ ]]; then
       # Write details to .env
-      echo "URL=${jamf_url}" > .env
-      echo "CLIENT_ID=${client_id}" >> .env
-      echo "CLIENT_SECRET=${client_secret}" >> .env
-      echo "TOKEN=${token}" >> .env
+      echo "URL='${jamf_url}'" > .env
+      echo "CLIENT_ID='${client_id}'" >> .env
+      echo "CLIENT_SECRET='${client_secret}'" >> .env
+      echo "TOKEN='${token}'" >> .env
       fmt_info "User chose to overwrite contents of .env file."
     elif [[ "$env_exists" =~ ^[Nn]$ ]]; then
       fmt_error "User chose not to overwrite existing .env file."
@@ -295,10 +295,10 @@ setup_environment() {
     fi
   else
     # Write details to .env
-    echo "URL=${jamf_url}" > .env
-    echo "CLIENT_ID=${client_id}" >> .env
-    echo "CLIENT_SECRET=${client_secret}" >> .env
-    echo "TOKEN=${token}" >> .env
+    echo "URL='${jamf_url}'" > .env
+    echo "CLIENT_ID='${client_id}'" >> .env
+    echo "CLIENT_SECRET='${client_secret}'" >> .env
+    echo "TOKEN='${token}'" >> .env
     fmt_info "Jamf instance details saved to .env file."
   fi
 
