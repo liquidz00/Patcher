@@ -1,4 +1,5 @@
 import os
+import aiohttp
 import click
 import asyncio
 import threading
@@ -75,7 +76,15 @@ async def process_reports(
 
         # Async operations for patch data
         patch_ids = await utils.get_policies()
+        if not patch_ids:
+            click.echo("\nNo policies were found. Aborting...", err=True)
+            logthis.error("No patch policies were found.")
+            raise click.Abort()
         patch_reports = await utils.get_summaries(patch_ids)
+        if not patch_reports:
+            click.echo("\nError establishing patch summaries. Aborting...", err=True)
+            logthis.error("Error establishing patch summaries.")
+            raise click.Abort()
 
         # (option) Sort
         if sort:
@@ -83,7 +92,10 @@ async def process_reports(
             try:
                 patch_reports = sorted(patch_reports, key=lambda x: x[sort])
             except KeyError:
-                click.echo(f"Invalid column name for sorting: {sort}. Aborting...")
+                stop_event.set()
+                click.echo(
+                    f"\nInvalid column name for sorting: {sort}. Aborting...", err=True
+                )
                 logthis.error(
                     f"Could not sort based on provided column ID {sort}. Column does not exist."
                 )
@@ -110,8 +122,25 @@ async def process_reports(
         )
         click.echo(success_msg)
 
+    except aiohttp.ClientResponseError as e:
+        click.echo("\n")
+        if e.status == 401:
+            unauth_msg = click.style(
+                f"Unauthorized access detected. Please check credentials and try again. Details: {e.message}",
+                bold=True,
+                fg="red",
+            )
+            click.echo(unauth_msg, err=True)
+        else:
+            http_msg = click.style(
+                f"Failed to retrieve data due to an HTTP error: {e.status}",
+                bold=True,
+                fg="red",
+            )
+            click.echo(http_msg, err=True)
+        logthis.error(f"HTTP error occurred: {e}")
+        raise click.Abort()
     except OSError as e:
-        stop_event.set()
         click.echo("\n")
         os_msg = click.style(
             f"Error creating directories: {e}. Aborting...", bold=True, fg="red"
@@ -120,7 +149,6 @@ async def process_reports(
         logthis.error(f"Directory could not be created. Details: {e}.")
         raise click.Abort()
     except Exception as e:
-        stop_event.set()
         click.echo("\n")
         exception_msg = click.style(
             f"An error occurred: {e}. Aborting...", bold=True, fg="red"
@@ -128,6 +156,9 @@ async def process_reports(
         click.echo(exception_msg, err=True)
         logthis.error(f"Unhandled exception occurred. Details: {e}")
         raise click.Abort()
+    finally:
+        # Ensure animation stops regardless of error
+        stop_event.set()
 
 
 @click.command()
