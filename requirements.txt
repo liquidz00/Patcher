@@ -23,7 +23,7 @@ openpyxl==3.1.2
 packaging==23.2
 pandas==2.2.0
 pathspec==0.12.1
-pillow==10.2.0
+pillow==10.3.0
 platformdirs==4.2.0
 pluggy==1.4.0
 pyarrow==15.0.0
