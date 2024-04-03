@@ -59,6 +59,14 @@ async def process_reports(
     :return: None. This function does not return a value but raises a click.Abort
         exception in case of errors.
     """
+    if not utils.token_valid():
+        try:
+            await utils.fetch_token()
+        except Exception as token_refresh_error:
+            click.echo(f"Failed to refresh token: {token_refresh_error}", err=True)
+            logthis.error(f"Failed to refresh token: {token_refresh_error}")
+            raise click.Abort()
+
     try:
         # Validate path provided is not a file
         output_path = os.path.expanduser(path)
