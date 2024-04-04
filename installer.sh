@@ -11,6 +11,7 @@
 #   shellcheck disable=SC2155
 #   shellcheck disable=SC2016
 #   shellcheck disable=SC2183
+#   shellcheck disable=SC2086
 #
 # This script should be run via curl:
 #   bash -c "$(curl -fsSL https://raw.githubusercontent.com/liquidz00/Patcher/main/installer.sh)"
@@ -24,8 +25,8 @@ REMOTE=${REMOTE:-https://github.com/${REPO}.git}
 BRANCH=${BRANCH:-main}
 
 # Directories & files
-PARENT="$HOME/.patcher"
-LOG_DIR="$HOME/.patcher/logs"
+PARENT="$HOME/Patcher"
+LOG_DIR="$PARENT/logs"
 LOG_FILE="$LOG_DIR/installer.log"
 
 # Command checks
@@ -164,7 +165,7 @@ fmt_error() {
   local message="$*"
   local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-  printf '%s ERROR: %s%s\n' "${FMT_BOLD}${FMT_RED}" "$timestamp" "$message" "$FMT_RESET" >&2
+  printf '%s ERROR: %s %s\n' "${FMT_BOLD}${FMT_RED}" "$timestamp" "$message" "$FMT_RESET" >&2
   echo "$timestamp - ERROR - $message" >> "$LOG_FILE"
 }
 
@@ -172,7 +173,7 @@ fmt_warning() {
   local message="$*"
   local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-  printf '%s WARNING: %s%s\n' "${FMT_BOLD}${FMT_YELLOW}" "$timestamp" "$message" "$FMT_RESET" >&2
+  printf '%s WARNING: %s %s\n' "${FMT_BOLD}${FMT_YELLOW}" "$timestamp" "$message" "$FMT_RESET" >&2
   echo "$timestamp - WARNING - $message" >> "$LOG_FILE"
 }
 
@@ -180,7 +181,7 @@ fmt_info() {
   local message="$*"
   local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-  printf '%s INFO: %s%s\n' "${FMT_BOLD}${FMT_YELLOW}" "$timestamp" "$message" "$FMT_RESET" >&2
+  printf '%s INFO: %s %s\n' "${FMT_BOLD}${FMT_YELLOW}" "$timestamp" "$message" "$FMT_RESET" >&2
   echo "$timestamp - INFO - $message" >> "$LOG_FILE"
 }
 
@@ -228,7 +229,7 @@ setup_color() {
 }
 
 setup_patcher() {
-  echo "${FMT_BLUE}Starting installation...${FMT_RESET}"
+  echo "${FMT_GREEN}Starting installation...${FMT_RESET}"
   echo "Starting installation..." >> "$LOG_FILE"
 
   # Manually clone with git config options (for git versions < v1.7.2)
@@ -283,10 +284,10 @@ setup_environment() {
     read -p "An .env file already exists in this location...Overwrite? (y/n): " env_exists
     if [[ "$env_exists" =~ ^[Yy]$ ]]; then
       # Write details to .env
-      echo "URL=${jamf_url}" > .env
-      echo "CLIENT_ID=${client_id}" >> .env
-      echo "CLIENT_SECRET=${client_secret}" >> .env
-      echo "TOKEN=${token}" >> .env
+      echo "URL='${jamf_url}'" > .env
+      echo "CLIENT_ID='${client_id}'" >> .env
+      echo "CLIENT_SECRET='${client_secret}'" >> .env
+      echo "TOKEN='${token}'" >> .env
       fmt_info "User chose to overwrite contents of .env file."
     elif [[ "$env_exists" =~ ^[Nn]$ ]]; then
       fmt_error "User chose not to overwrite existing .env file."
@@ -294,38 +295,22 @@ setup_environment() {
     fi
   else
     # Write details to .env
-    echo "URL=${jamf_url}" > .env
-    echo "CLIENT_ID=${client_id}" >> .env
-    echo "CLIENT_SECRET=${client_secret}" >> .env
-    echo "TOKEN=${token}" >> .env
+    echo "URL='${jamf_url}'" > .env
+    echo "CLIENT_ID='${client_id}'" >> .env
+    echo "CLIENT_SECRET='${client_secret}'" >> .env
+    echo "TOKEN='${token}'" >> .env
     fmt_info "Jamf instance details saved to .env file."
   fi
 
-  # Install project dependencies
+  # Ensure dependencies are installed to the user's directory
   if [ -f "requirements.txt" ]; then
-    python3 -m pip install -r requirements.txt
-    log_message "Dependencies installed." "INFO"
-  else
-    log_message "requirements.txt not found. Skipping dependency installation." "WARNING"
-  fi
-
-  local target="$PARENT/patcher.py"
-  local link="/usr/local/bin/patcher"
-
-  # Ensure script is executable
-  chmod +x "$target"
-
-  # Check if symlink exists already
-  if [ -e "$link" ] || [ -L "$link" ]; then
-    fmt_warning "Symlink $link already exists. Skipping."
-  else
-    # Create symlink
-    if ln -s "$target" "$link"; then
-      fmt_info "Symlink created at $link"
-    else
-      fmt_error "Failed to create symlink at $link"
+    python3 -m pip install --user -r requirements.txt || {
+      fmt_error "Failed to install dependencies. Make sure you have pip installed and try again."
       exit 1
-    fi
+    }
+    fmt_info "Dependencies installed to user directory."
+  else
+    fmt_warning "requirements.txt not found. Skipping dependency installation."
   fi
 }
 
@@ -345,6 +330,22 @@ setup_ui() {
     read -p "Enter the custom font name: " custom_font
     read -p "Enter the relative path to the custom font regular file (e.g., fonts/MyCustom-Regular.ttf): " custom_font_regular_path
     read -p "Enter the relative path to the custom font bold file (e.g., fonts/MyCustom-Bold.ttf): " custom_font_bold_path
+
+    # Copy custom font to FONTS directory
+    fmt_info "Copying custom font files to FONTS directory..."
+    if ! cp "$custom_font_regular_path" "$PARENT/fonts/$(basename "$custom_font_regular_path")"; then
+      fmt_error "Failed to copy the custom regular font file. Please check the path and try again."
+      exit 1
+    fi
+
+    if ! cp "$custom_font_bold_path" "$PARENT/fonts/$(basename "$custom_font_bold_path")"; then
+      fmt_error "Failed to copy the custom bold font file. Please check the path and try again."
+      exit 1
+    fi
+
+    # Update paths to reference copied files for consistency in configuration
+    custom_font_regular_path=$(basename "$custom_font_regular_path")
+    custom_font_bold_path=$(basename "$custom_font_bold_path")
   fi
 
   # Ensure ui_config.py exists. If not, create with default values

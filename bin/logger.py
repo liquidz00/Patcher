@@ -12,7 +12,7 @@ log_backupCount = 10
 def setup_logger(
     log_name=logger_name, log_filename=f"{logger_name}.log", log_level=default_log_level
 ):
-    log_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+    log_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "logs"))
     if not os.path.isdir(log_path):
         os.makedirs(log_path)
     log_file = os.path.join(log_path, log_filename)

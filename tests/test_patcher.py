@@ -2,6 +2,9 @@ import aiohttp
 import pytest
 import os
 import aioresponses
+
+from datetime import datetime, timedelta, timezone
+from unittest.mock import patch, call, ANY
 from bin import utils
 from dotenv import load_dotenv
 
@@ -114,6 +117,31 @@ def mock_summary_response():
     ]
 
 
+@patch("bin.utils.set_key")
+def test_update_env(mock_set_key):
+    token = "newToken"
+    expires_in = 3600
+    utils.update_env(token=token, expires_in=expires_in)
+
+    dotenv_path = os.path.join(utils.ROOT_DIR, ".env")
+
+    expected_calls = [
+        call(
+            dotenv_path=dotenv_path,
+            key_to_set="TOKEN",
+            value_to_set=token,
+        ),
+        call(
+            dotenv_path=dotenv_path,
+            key_to_set="TOKEN_EXPIRATION",
+            value_to_set=ANY,
+        ),
+    ]
+    mock_set_key.assert_has_calls(calls=expected_calls, any_order=True)
+
+    assert mock_set_key.call_count == 2
+
+
 @pytest.mark.asyncio
 async def test_get_policies(mock_policy_response):
     with aioresponses.aioresponses() as m:
@@ -207,6 +235,43 @@ async def test_summary_response_data_integrity(mock_summary_response):
         assert "upToDate" in summary and "outOfDate" in summary
 
 
+@pytest.mark.asyncio
+async def test_fetch_token_api_failure():
+    with aioresponses.aioresponses() as m:
+        m.post(f"{jamf_url}/api/oauth/token", status=500)
+        token = await utils.fetch_token()
+        assert token is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_token_invalid_response():
+    with aioresponses.aioresponses() as m:
+        m.post(
+            f"{jamf_url}/api/oauth/token", payload={"invalid": "response"}, status=200
+        )
+        token = await utils.fetch_token()
+        assert token is None
+
+
 def test_convert_timezone_invalid():
     result = utils.convert_timezone("invalid time format")
     assert result == "Invalid time format"
+
+
+def test_token_valid_true():
+    # Make future_time timezone-aware by specifying tzinfo
+    future_time = datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(hours=1)
+    with patch("os.getenv", return_value=str(future_time.timestamp())):
+        assert utils.token_valid() is True
+
+
+def test_token_valid_false():
+    # Make past_time timezone-aware by specifying tzinfo
+    past_time = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(hours=1)
+    with patch("os.getenv", return_value=str(past_time.timestamp())):
+        assert utils.token_valid() is False
+
+
+def test_token_valid_no_expiration():
+    with patch("os.getenv", return_value=None):
+        assert utils.token_valid() is False
