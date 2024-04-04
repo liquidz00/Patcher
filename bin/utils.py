@@ -38,8 +38,10 @@ logthis = logger.setup_child_logger("patcher", __name__)
 
 
 class PDF(FPDF):
-    def __init__(self, orientation="L", unit="mm", format="A4"):
+    def __init__(self, orientation="L", unit="mm", format="A4", date_format="%B %d %Y"):
         super().__init__(orientation=orientation, unit=unit, format=format)
+        self.date_format = date_format
+
         self.add_font(FONT_NAME, "", FONT_REGULAR_PATH)
         self.add_font(FONT_NAME, "B", FONT_BOLD_PATH)
 
@@ -54,7 +56,11 @@ class PDF(FPDF):
         # Month/Year in light
         self.set_font("Assistant", "", 18)
         self.cell(
-            0, 10, datetime.now().strftime("%B %Y"), new_x="LMARGIN", new_y="NEXT"
+            0,
+            10,
+            datetime.now().strftime(self.date_format),
+            new_x="LMARGIN",
+            new_y="NEXT",
         )
 
         if self.page_no() > 1:
@@ -306,19 +312,21 @@ def export_to_excel(patch_reports: List[Dict], output_dir: AnyStr) -> AnyStr:
 
 
 # Create PDF from Excel file
-def export_excel_to_pdf(excel_file: AnyStr) -> None:
+def export_excel_to_pdf(excel_file: AnyStr, date_format: AnyStr = "%B %d %Y") -> None:
     """
     Creates a PDF report from an Excel file containing patch data.
 
     :param excel_file: Path to the Excel file to convert to PDF.
     :type excel_file: AnyStr
+    :param date_format: The date format string for the PDF report header.
+    :type date_format: AnyStr
     """
     try:
         # Read excel file
         df = pd.read_excel(excel_file)
 
         # Create instance of FPDF
-        pdf = PDF()
+        pdf = PDF(date_format=date_format)
         pdf.table_headers = df.columns
         pdf.column_widths = [75, 40, 40, 40, 40, 40]
         pdf.add_page()
