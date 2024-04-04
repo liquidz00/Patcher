@@ -8,6 +8,9 @@ on:
         required: true
         default: '1.0.0'
 
+permissions:
+  contents: write
+
 jobs:
   release-notes:
     runs-on: macos-latest
@@ -24,7 +27,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.0.4
         with:
           name: Patcher ${{ github.event.inputs.version }}
           tag_name: v${{ github.event.inputs.version }}
