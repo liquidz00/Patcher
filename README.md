@@ -2,7 +2,7 @@
 
 _Patch reporting simplified_
 
-![](https://img.shields.io/badge/license-apache_2.0-blue)&nbsp;![](https://img.shields.io/badge/python-3.9%2B-blue)&nbsp;![](https://github.com/liquidz00/patcher/actions/workflows/test.yaml/badge.svg)
+![](https://img.shields.io/badge/license-apache_2.0-blue)&nbsp;![](https://img.shields.io/badge/python-3.9%2B-blue)&nbsp;![](https://github.com/liquidz00/patcher/actions/workflows/test.yaml/badge.svg)&nbsp;![](https://img.shields.io/github/v/release/liquidz00/Patcher?color=purple)
 
 
 Patcher leverages the Jamf Pro API to fetch patch management data and generate comprehensive reports in both Excel and PDF formats. It simplifies tracking and reporting on software update compliance across macOS devices managed through Jamf Pro.
@@ -42,7 +42,7 @@ The installer script will guide you through setting up your Jamf Pro instance de
 ### Usage
 After installation, you can generate reports by running the main script. You can specify the output directory for the reports and choose to generate PDF reports alongside Excel files.
 ```shell
-python patcher.py --path /path/to/output/directory [--pdf]
+python3 patcher.py --path /path/to/output/directory [--pdf]
 ```
 - The `--path` option specifies the directory where the reports will be saved.
 - The optional `--pdf` flag indicates if PDF reports should be generated in addition to Excel files.

@@ -11,6 +11,14 @@ from bin import utils, logger
 
 logthis = logger.setup_child_logger("patcher", "cli")
 
+DATE_FORMATS = {
+    "Month-Year": "%B %Y",  # April 2024
+    "Month-Day-Year": "%B %d %Y",  # April 21 2024
+    "Year-Month-Day": "%Y %B %d",  # 2024 April 21
+    "Day-Month-Year": "%d %B %Y",  # 16 April 2024
+    "Full": "%A %B %d %Y",  # Thursday September 26 2013
+}
+
 
 def animate_search(stop_event: threading.Event) -> None:
     """Animates ellipsis in 'Processing...' message."""
@@ -30,6 +38,7 @@ async def process_reports(
     sort: Optional[AnyStr],
     omit: bool,
     stop_event: threading.Event,
+    date_format: AnyStr = "%B %d %Y",
 ) -> None:
     """
     Asynchronously generates and saves patch reports in Excel format at a specified
@@ -55,6 +64,8 @@ async def process_reports(
         either completed or aborted due to an error. This can be used to signal other
         parts of the application that the operation has finished.
     :type stop_event: threading.Event
+    :param date_format: Date format used for header date. Default is "%B %d %Y" (Month Day Year)
+    :type date_format: AnyStr
 
     :return: None. This function does not return a value but raises a click.Abort
         exception in case of errors.
@@ -121,7 +132,7 @@ async def process_reports(
         # Generate reports
         excel_file = utils.export_to_excel(patch_reports, reports_dir)
         if pdf:
-            utils.export_excel_to_pdf(excel_file)
+            utils.export_excel_to_pdf(excel_file, date_format)
 
         stop_event.set()
         click.echo("\n")
@@ -192,12 +203,20 @@ async def process_reports(
     is_flag=True,
     help="Omit software titles with patches released in last 48 hours",
 )
-def main(path: AnyStr, pdf: bool, sort: Optional[AnyStr], omit: bool) -> None:
+@click.option(
+    "--date-format",
+    "-d",
+    type=click.Choice(list(DATE_FORMATS.keys()), case_sensitive=False),
+    default="Month-Day-Year",
+    help="Specify the date format for the PDF header from predefined choices.",
+)
+def main(path: AnyStr, pdf: bool, sort: Optional[AnyStr], omit: bool, date_format: AnyStr) -> None:
+    actual_format = DATE_FORMATS[date_format]
     stop_event = threading.Event()
     animation_thread = threading.Thread(target=animate_search, args=(stop_event,))
     animation_thread.start()
 
-    asyncio.run(process_reports(path, pdf, sort, omit, stop_event))
+    asyncio.run(process_reports(path, pdf, sort, omit, stop_event, actual_format))
 
 
 if __name__ == "__main__":
