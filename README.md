@@ -18,7 +18,7 @@ Patcher leverages the Jamf Pro API to fetch patch management data and generate c
 
 ### Prerequisites
 
-> **Note**<br>
+> [!NOTE]
 > Patcher **requires** an API client for authentication. For instructions on creating an API Role & Client in Jamf Pro, refer to the [Jamf Pro Deployment Guide](https://github.com/liquidz00/Patcher/wiki/Jamf-Pro-Deployment-Guide#creating-an-api-role--client) in the wiki.
 
 - Python 3.9+ (with pip).
