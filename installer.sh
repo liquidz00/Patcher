@@ -398,6 +398,11 @@ print_success() {
 main() {
   setup_color
 
+  # Check if script is running as root
+  if [ "$(id -u)" -eq 0 ]; then
+    fmt_error "This script should not be run as root or with sudo privileges. Exiting..."
+    exit 1
+  fi
   # Pre-flight checks (Git, python)
   command_exists git || {
     fmt_error "Git is not installed. Please install Git and try again."
@@ -408,6 +413,19 @@ main() {
     fmt_error "Python is not installed. Please install Python and try again."
     exit 1
   }
+
+  while [[ "$#" -gt 0 ]]; do
+    case $1 in
+      -d|--develop)
+      BRANCH="develop"
+      shift
+      ;;
+      *)
+      echo "Unknown option: $1"
+      fmt_warning "Unknown option passed. Defaulting to main..."
+      ;;
+    esac
+  done
 
   setup_patcher
   setup_environment
