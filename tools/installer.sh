@@ -14,10 +14,10 @@
 #   shellcheck disable=SC2086
 #
 # This script should be run via curl:
-#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/liquidz00/Patcher/main/installer.sh)"
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/liquidz00/Patcher/main/tools/installer.sh)"
 #
 # Alternatively, the script can be downloaded first and run afterwards:
-#   curl -O https://raw.githubusercontent.com/liquidz00/Patcher/main/installer.sh && bash ./installer.sh
+#   curl -O https://raw.githubusercontent.com/liquidz00/Patcher/main/tools/installer.sh && bash ./installer.sh
 #
 # Default repo settings
 REPO=${REPO:-liquidz00/Patcher}
@@ -228,6 +228,20 @@ setup_color() {
   FMT_RESET=$(printf '\033[0m')
 }
 
+copy_v0() {
+  # Copies .env file and fonts directory from initial Patcher release location ($HOME/.patcher)
+  local old_path="$HOME/.patcher"
+  if ! cp "$old_path/.env" "$PARENT/.env"; then
+    fmt_error "Unable to copy .env to new install location. Exiting..."
+    return 1
+  fi
+
+  if ! cp -r "$old_path/fonts/"* "$PARENT/fonts"; then
+    fmt_error "Unable to copy fonts directory to new install location. Exiting..."
+    return 1
+  fi
+}
+
 setup_patcher() {
   echo "${FMT_GREEN}Starting installation...${FMT_RESET}"
   echo "Starting installation..." >> "$LOG_FILE"
@@ -426,6 +440,26 @@ main() {
       ;;
     esac
   done
+
+  if [ -d "$HOME/.patcher" ]; then
+    fmt_info "Previous installation found. Attempting migration of .env file and fonts directory."
+
+    if ! copy_v0; then
+      # Prompt user to delete old installation if copy fails
+      read -p "Would you like to delete the previous installation at $HOME/.patcher? Note: You will need to enter your custom fonts and API client information again if you choose yes. (y/n): " confirm_delete
+
+      if [[ "$confirm_delete" =~ ^[Yy]$ ]]; then
+        rm -rf "$HOME/.patcher"
+        fmt_info "Previous install deleted successfully."
+      else
+        fmt_info "Opted to retain previous installation."
+      fi
+    else
+      # Copy succeeded, remove previous location automatically
+      rm -rf "$HOME/.patcher"
+      fmt_info "Previous installation migrated and removed as expected."
+    fi
+  fi
 
   setup_patcher
   setup_environment
