@@ -18,7 +18,7 @@ Patcher leverages the Jamf Pro API to fetch patch management data and generate c
 
 ### Prerequisites
 
-> **Note**<br>
+> [!NOTE]
 > Patcher **requires** an API client for authentication. For instructions on creating an API Role & Client in Jamf Pro, refer to the [Jamf Pro Deployment Guide](https://github.com/liquidz00/Patcher/wiki/Jamf-Pro-Deployment-Guide#creating-an-api-role--client) in the wiki.
 
 - Python 3.9+ (with pip).
@@ -34,7 +34,7 @@ Patcher leverages the Jamf Pro API to fetch patch management data and generate c
 
 1. **Run the Installer**
 ```shell
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/liquidz00/Patcher/main/installer.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/liquidz00/Patcher/main/tools/installer.sh)"
 ```
 2. **Follow the Installer Script Prompts**
 The installer script will guide you through setting up your Jamf Pro instance details and installing project dependencies. Follow the prompts to enter your Jamf Pro URL, Client ID, and Client Secret. If you already have a Bearer Token, you can pass the value to the installer script, otherwise the installer script will generate one for you. You'll also be asked to customize the report header and footer text. Optionally, you can opt to use a custom font instead of the default font [Assistant](https://fonts.google.com/specimen/Assistant).
