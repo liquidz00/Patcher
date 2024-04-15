@@ -42,7 +42,7 @@ The installer script will guide you through setting up your Jamf Pro instance de
 ### Usage
 After installation, you can generate reports by running the main script. You can specify the output directory for the reports and choose to generate PDF reports alongside Excel files.
 ```shell
-python3 patcher.py --path /path/to/output/directory [--pdf]
+python3 patcher.py --path '/path/to/output/directory' [--pdf]
 ```
 - The `--path` option specifies the directory where the reports will be saved.
 - The optional `--pdf` flag indicates if PDF reports should be generated in addition to Excel files.
