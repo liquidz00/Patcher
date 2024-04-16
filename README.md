@@ -14,6 +14,10 @@ Patcher leverages the Jamf Pro API to fetch patch management data and generate c
 - Creates PDF reports for easy sharing and presentation.
 - Customizable report headers and footers through a simple configuration.
 
+### Sample PDF
+The following image can be found in the `tools` directory.
+<p align="left"><img src="https://raw.githubusercontent.com/liquidz00/Patcher/main/tools/example_pdf.jpeg" width="750"/></p>
+
 ## Getting Started
 
 ### Prerequisites
