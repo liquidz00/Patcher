@@ -228,6 +228,30 @@ setup_color() {
   FMT_RESET=$(printf '\033[0m')
 }
 
+clean_up() {
+  # Removes installation directory in event of install failures or exits
+  local reason="${1:-Unknown reason}"
+
+  fmt_warning "Initiating cleanup: $reason"
+  if [ -d "$PARENT" ]; then
+    # Remove entire directory including .git and configuration files
+    rm -rf "$PARENT"
+    if [ $? -eq 0 ]; then
+      fmt_info "Successfully cleaned up the installation directory."
+    else
+      fmt_error "Failed to clean up the installation directory. Please check permissions."
+    fi
+  else
+    fmt_info "No installation directory found to clean up."
+  fi
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Cleanup initiated: $reason" >> "$LOG_FILE"
+  exit 1
+}
+
+# Perform clean-up on SIGINT or SIGTERM
+trap 'clean_up "Received SIGINT (CTRL+C by user)"' SIGINT
+trap 'clean_up "Received SIGTERM (Termination signal received)"' SIGTERM
+
 copy_v0() {
   # Copies .env file and fonts directory from initial Patcher release location ($HOME/.patcher)
   local old_path="$HOME/.patcher"
@@ -246,25 +270,37 @@ setup_patcher() {
   echo "${FMT_GREEN}Starting installation...${FMT_RESET}"
   echo "Starting installation..." >> "$LOG_FILE"
 
-  # Manually clone with git config options (for git versions < v1.7.2)
-  git init --quiet "$PARENT" && cd "$PARENT" \
-  && git config core.eol lf \
-  && git config core.autocrlf false \
-  && git config fsck.zeroPaddedFilemode ignore \
-  && git config fetch.fsck.zeroPaddedFilemode ignore \
-  && git config receive.fsck.zeroPaddedFilemode ignore \
-  && git config Patcher.remote origin \
-  && git config Patcher.branch "$BRANCH" \
-  && git remote add origin "$REMOTE" \
-  && git fetch --depth=1 origin \
-  && git checkout -b "$BRANCH" "origin/$BRANCH" || {
-    [ ! -d "$PARENT" ] || {
-      cd .. || exit
-      rm -rf "$PARENT" 2>/dev/null
-    }
-    fmt_error "git clone of Patcher repo failed"
+  # Initialize directory and setup git if it's not already set up
+  if [ ! -d "$PARENT/.git" ]; then
+    git init --quiet "$PARENT" && cd "$PARENT" \
+    && git config core.eol lf \
+    && git config core.autocrlf false \
+    && git config fsck.zeroPaddedFilemode ignore \
+    && git config fetch.fsck.zeroPaddedFilemode ignore \
+    && git config receive.fsck.zeroPaddedFilemode ignore \
+    && git config Patcher.remote origin \
+    && git config Patcher.branch "$BRANCH"
+  else
+    cd "$PARENT" || exit
+  fi
+
+  # Handle remote
+  if git remote get-url origin &>/dev/null; then
+    fmt_info "Updating existing remote..."
+    git remote set-url origin "$REMOTE"
+  else
+    fmt_info "Adding new remote..."
+    git remote add origin "$REMOTE"
+  fi
+
+  # Fetch and checkout the specific branch
+  if git fetch --depth=1 origin && git checkout -b "$BRANCH" "origin/$BRANCH"; then
+    fmt_info "Repository successfully cloned and set up."
+  else
+    fmt_error "git clone of Patcher repo failed. Exiting..."
+    clean_up ""
     exit 1
-  }
+  fi
 }
 
 setup_environment() {
@@ -320,6 +356,7 @@ setup_environment() {
   if [ -f "requirements.txt" ]; then
     python3 -m pip install --user -r requirements.txt || {
       fmt_error "Failed to install dependencies. Make sure you have pip installed and try again."
+      clean_up ""
       exit 1
     }
     fmt_info "Dependencies installed to user directory."
