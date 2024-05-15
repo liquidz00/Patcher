@@ -144,14 +144,28 @@ def test_update_env(mock_set_key):
 
 @pytest.mark.asyncio
 async def test_get_policies(mock_policy_response):
-    with aioresponses.aioresponses() as m:
-        m.get(
-            f"{jamf_url}/api/v2/patch-software-title-configurations",
-            payload=mock_policy_response,
-            headers=headers,
-        )
+    with patch.dict(
+        os.environ,
+        {
+            "URL": "https://mocked.url",
+            "CLIENT_ID": "mocked_client_id",
+            "CLIENT_SECRET": "mocked_client_secret",
+            "TOKEN": "mocked_token",
+        },
+    ):
+        with aioresponses.aioresponses() as m:
+            m.post(
+                f"{jamf_url}/api/oauth/token",
+                payload={"access_token": "new_token", "expires_in": 3600},
+                headers={"Content-Type": "application/json"},
+            )
 
-        async with aiohttp.ClientSession() as session:
+            m.get(
+                f"{jamf_url}/api/v2/patch-software-title-configurations",
+                payload=mock_policy_response,
+                headers=headers,
+            )
+
             policies = await utils.get_policies()
             assert len(policies) == len(mock_policy_response)
             assert policies[0] == mock_policy_response[0]["id"]
@@ -163,69 +177,112 @@ async def test_get_summaries(mock_policy_response, mock_summary_response):
     summary_response_dict = {
         str(summary["softwareTitleId"]): summary for summary in mock_summary_response
     }
-    with aioresponses.aioresponses() as m:
-        for policy_id in policy_ids:
-            mock_response = summary_response_dict[policy_id]
-            m.get(
-                f"{jamf_url}/api/v2/patch-software-title-configurations/{policy_id}/patch-summary",
-                payload=mock_response,
-                headers=headers,
-            )
+    with patch.dict(
+        os.environ,
+        {
+            "URL": "https://mocked.url",
+            "CLIENT_ID": "mocked_client_id",
+            "CLIENT_SECRET": "mocked_client_secret",
+            "TOKEN": "mocked_token",
+        },
+    ):
+        with aioresponses.aioresponses() as m:
+            for policy_id in policy_ids:
+                mock_response = summary_response_dict[policy_id]
+                m.get(
+                    f"{jamf_url}/api/v2/patch-software-title-configurations/{policy_id}/patch-summary",
+                    payload=mock_response,
+                    headers=headers,
+                )
 
-        summaries = await utils.get_summaries(policy_ids)
-        assert summaries[0]["software_title"] == "Google Chrome"
-        assert summaries[1]["hosts_patched"] == 185
-        assert summaries[2]["completion_percent"] == 54.55
+            summaries = await utils.get_summaries(policy_ids)
+            assert summaries[0]["software_title"] == "Google Chrome"
+            assert summaries[1]["hosts_patched"] == 185
+            assert summaries[2]["completion_percent"] == 54.55
 
 
 @pytest.mark.asyncio
 async def test_get_policies_empty_response():
-    with aioresponses.aioresponses() as m:
-        m.get(
-            f"{jamf_url}/api/v2/patch-software-title-configurations",
-            payload=[],
-            headers=headers,
-        )
+    with patch.dict(
+        os.environ,
+        {
+            "URL": "https://mocked.url",
+            "CLIENT_ID": "mocked_client_id",
+            "CLIENT_SECRET": "mocked_client_secret",
+            "TOKEN": "mocked_token",
+        },
+    ):
+        with aioresponses.aioresponses() as m:
+            m.get(
+                f"{jamf_url}/api/v2/patch-software-title-configurations",
+                payload=[],
+                headers=headers,
+            )
 
-        async with aiohttp.ClientSession() as session:
             policies = await utils.get_policies()
             assert policies == []
 
 
 @pytest.mark.asyncio
 async def test_get_policies_api_error():
-    with aioresponses.aioresponses() as m:
-        m.get(
-            f"{jamf_url}/api/v2/patch-software-title-configurations",
-            status=500,
-            headers=headers,
-        )
+    with patch.dict(
+        os.environ,
+        {
+            "URL": "https://mocked.url",
+            "CLIENT_ID": "mocked_client_id",
+            "CLIENT_SECRET": "mocked_client_secret",
+            "TOKEN": "mocked_token",
+        },
+    ):
+        with aioresponses.aioresponses() as m:
+            m.get(
+                f"{jamf_url}/api/v2/patch-software-title-configurations",
+                status=500,
+                headers=headers,
+            )
 
-        async with aiohttp.ClientSession() as session:
             policies = await utils.get_policies()
             assert policies == []
 
 
 @pytest.mark.asyncio
 async def test_get_summaries_empty_ids():
-    summaries = await utils.get_summaries([])
-    assert summaries == []
+    with patch.dict(
+        os.environ,
+        {
+            "URL": "https://mocked.url",
+            "CLIENT_ID": "mocked_client_id",
+            "CLIENT_SECRET": "mocked_client_secret",
+            "TOKEN": "mocked_token",
+        },
+    ):
+        summaries = await utils.get_summaries([])
+        assert summaries == []
 
 
 @pytest.mark.asyncio
 async def test_get_summaries_api_error(mock_policy_response, mock_summary_response):
     policy_ids = [policy["id"] for policy in mock_policy_response]
-    with aioresponses.aioresponses() as m:
-        for policy_id in policy_ids:
-            m.get(
-                f"{jamf_url}/api/v2/patch-software-title-configurations/{policy_id}/patch-summary",
-                status=500,
-                payload=mock_policy_response,
-                headers=headers,
-            )
+    with patch.dict(
+        os.environ,
+        {
+            "URL": "https://mocked.url",
+            "CLIENT_ID": "mocked_client_id",
+            "CLIENT_SECRET": "mocked_client_secret",
+            "TOKEN": "mocked_token",
+        },
+    ):
+        with aioresponses.aioresponses() as m:
+            for policy_id in policy_ids:
+                m.get(
+                    f"{jamf_url}/api/v2/patch-software-title-configurations/{policy_id}/patch-summary",
+                    status=500,
+                    payload=mock_policy_response,
+                    headers=headers,
+                )
 
-        summaries = await utils.get_summaries(policy_ids)
-        assert summaries == []
+            summaries = await utils.get_summaries(policy_ids)
+            assert summaries == []
 
 
 @pytest.mark.asyncio
@@ -237,20 +294,40 @@ async def test_summary_response_data_integrity(mock_summary_response):
 
 @pytest.mark.asyncio
 async def test_fetch_token_api_failure():
-    with aioresponses.aioresponses() as m:
-        m.post(f"{jamf_url}/api/oauth/token", status=500)
-        token = await utils.fetch_token()
-        assert token is None
+    with patch.dict(
+        os.environ,
+        {
+            "URL": "https://mocked.url",
+            "CLIENT_ID": "mocked_client_id",
+            "CLIENT_SECRET": "mocked_client_secret",
+            "TOKEN": "mocked_token",
+        },
+    ):
+        with aioresponses.aioresponses() as m:
+            m.post(f"{jamf_url}/api/oauth/token", status=500)
+            token = await utils.fetch_token()
+            assert token is None
 
 
 @pytest.mark.asyncio
 async def test_fetch_token_invalid_response():
-    with aioresponses.aioresponses() as m:
-        m.post(
-            f"{jamf_url}/api/oauth/token", payload={"invalid": "response"}, status=200
-        )
-        token = await utils.fetch_token()
-        assert token is None
+    with patch.dict(
+        os.environ,
+        {
+            "URL": "https://mocked.url",
+            "CLIENT_ID": "mocked_client_id",
+            "CLIENT_SECRET": "mocked_client_secret",
+            "TOKEN": "mocked_token",
+        },
+    ):
+        with aioresponses.aioresponses() as m:
+            m.post(
+                f"{jamf_url}/api/oauth/token",
+                payload={"invalid": "response"},
+                status=200,
+            )
+            token = await utils.fetch_token()
+            assert token is None
 
 
 def test_convert_timezone_invalid():
