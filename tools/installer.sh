@@ -252,6 +252,18 @@ clean_up() {
 trap 'clean_up "Received SIGINT (CTRL+C by user)"' SIGINT
 trap 'clean_up "Received SIGTERM (Termination signal received)"' SIGTERM
 
+check_homebrew_python() {
+  local python_path=$(which python3)
+  local brew_prefix=$(brew --prefix 2>/dev/null)
+
+  if [[ "$python_path" == "$brew_prefix"* ]]; then
+    local site_packages_path="$brew_prefix/lib/python$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')/site-packages"
+    export PYTHONPATH="$site_packages_path:$PYTHONPATH"
+    fmt_warning "You are using the Homebrew version of Python. It's recommended to use a virtual environment for project dependencies."
+    echo "$site_packages_path has been added to your PYTHONPATH."
+  fi
+}
+
 copy_v0() {
   # Copies .env file and fonts directory from initial Patcher release location ($HOME/.patcher)
   local old_path="$HOME/.patcher"
@@ -464,6 +476,8 @@ main() {
     fmt_error "Python is not installed. Please install Python and try again."
     exit 1
   }
+
+  check_homebrew_python
 
   while [[ "$#" -gt 0 ]]; do
     case $1 in
