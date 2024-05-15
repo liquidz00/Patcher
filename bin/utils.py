@@ -214,9 +214,28 @@ async def get_policies() -> List:
     :rtype: List
     """
     try:
+        # Ensure bearer token is valid
+        if not token_valid():
+            logthis.info("Bearer token is not valid, refreshing token.")
+            new_token = await fetch_token()
+            if not new_token:
+                logthis.error("Failed to refresh token, aborting...")
+                return []
+
         async with aiohttp.ClientSession() as session:
             url = f"{jamf_url}/api/v2/patch-software-title-configurations"
             response = await fetch_json(url=url, session=session)
+
+            # Verify response is list type as expected
+            if not isinstance(response, list):
+                logthis.error("Unexpected response format: expected a list.")
+                return []
+
+            # Check if all elements in the list are dictionaries
+            if not all(isinstance(item, dict) for item in response):
+                logthis.error("Unexpected response format: all items should be dictionaries.")
+                return []
+
             logthis.info("Patch policies obtained as expected.")
             return [title["id"] for title in response]
 
