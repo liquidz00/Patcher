@@ -116,6 +116,14 @@ def mock_summary_response():
         },
     ]
 
+def mock_env_vars():
+    env_vars = {
+        "URL": "https://mocked.url",
+        "CLIENT_ID": "mocked_client_id",
+        "CLIENT_SECRET": "mocked_client_secret",
+        "TOKEN": "mocked_token",
+    }
+    return patch.dict(os.environ, env_vars)
 
 @patch("bin.utils.set_key")
 def test_update_env(mock_set_key):
@@ -144,15 +152,7 @@ def test_update_env(mock_set_key):
 
 @pytest.mark.asyncio
 async def test_get_policies(mock_policy_response):
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         with aioresponses.aioresponses() as m:
             m.post(
                 f"{jamf_url}/api/oauth/token",
@@ -177,15 +177,7 @@ async def test_get_summaries(mock_policy_response, mock_summary_response):
     summary_response_dict = {
         str(summary["softwareTitleId"]): summary for summary in mock_summary_response
     }
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         with aioresponses.aioresponses() as m:
             for policy_id in policy_ids:
                 mock_response = summary_response_dict[policy_id]
@@ -203,15 +195,7 @@ async def test_get_summaries(mock_policy_response, mock_summary_response):
 
 @pytest.mark.asyncio
 async def test_get_policies_empty_response():
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         with aioresponses.aioresponses() as m:
             m.get(
                 f"{jamf_url}/api/v2/patch-software-title-configurations",
@@ -225,15 +209,7 @@ async def test_get_policies_empty_response():
 
 @pytest.mark.asyncio
 async def test_get_policies_api_error():
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         with aioresponses.aioresponses() as m:
             m.get(
                 f"{jamf_url}/api/v2/patch-software-title-configurations",
@@ -247,15 +223,7 @@ async def test_get_policies_api_error():
 
 @pytest.mark.asyncio
 async def test_get_summaries_empty_ids():
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         summaries = await utils.get_summaries([])
         assert summaries == []
 
@@ -263,15 +231,7 @@ async def test_get_summaries_empty_ids():
 @pytest.mark.asyncio
 async def test_get_summaries_api_error(mock_policy_response, mock_summary_response):
     policy_ids = [policy["id"] for policy in mock_policy_response]
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         with aioresponses.aioresponses() as m:
             for policy_id in policy_ids:
                 m.get(
@@ -294,15 +254,7 @@ async def test_summary_response_data_integrity(mock_summary_response):
 
 @pytest.mark.asyncio
 async def test_fetch_token_api_failure():
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         with aioresponses.aioresponses() as m:
             m.post(f"{jamf_url}/api/oauth/token", status=500)
             token = await utils.fetch_token()
@@ -311,15 +263,7 @@ async def test_fetch_token_api_failure():
 
 @pytest.mark.asyncio
 async def test_fetch_token_invalid_response():
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         with aioresponses.aioresponses() as m:
             m.post(
                 f"{jamf_url}/api/oauth/token",
