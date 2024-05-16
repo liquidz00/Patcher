@@ -1,4 +1,3 @@
-import aiohttp
 import pytest
 import os
 import aioresponses
