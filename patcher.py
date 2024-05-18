@@ -41,34 +41,23 @@ async def process_reports(
     date_format: AnyStr = "%B %d %Y",
 ) -> None:
     """
-    Asynchronously generates and saves patch reports in Excel format at a specified
-    path, with the option to also generate PDF versions. The reports can optionally
-    be sorted by a specified column and filtered to omit entries based on a specific
-    condition.
+    Asynchronously generates and saves patch reports in Excel format at the specified path,
+    optionally generating PDF versions, sorting by a specified column, and omitting recent entries.
 
-    :param path: The destination path where the report directory will be created.
-        The function expects a directory path, not a file path. It expands user
-        variables (like ~) and ensures the directory exists, creating it if necessary.
+    :param path: Directory path to save the reports
     :type path: AnyStr
-    :param pdf: If True, generates PDF versions of the Excel reports.
+    :param pdf: Generate PDF versions of the reports if True.
     :type pdf: bool
-    :param sort: A string specifying the column name by which to sort the reports.
-        The function converts this string to lowercase and replaces spaces with
-        underscores. If the column does not exist, the operation is aborted.
+    :param sort: Column name to sort the reports.
     :type sort: Optional[AnyStr]
-    :param omit: If True, filters out reports based on a predefined condition,
-        currently implemented to exclude reports with a 'patch_released' date within
-        the last 48 hours.
+    :param omit: Omit reports based on a condition if True.
     :type omit: bool
-    :param stop_event: An event that gets set when the report generation process is
-        either completed or aborted due to an error. This can be used to signal other
-        parts of the application that the operation has finished.
+    :param stop_event: Event to signal completion or abortion (used solely for animation).
     :type stop_event: threading.Event
-    :param date_format: Date format used for header date. Default is "%B %d %Y" (Month Day Year)
+    :param date_format: Format for dates in the header. Default is "%B %d %Y" (Month Day Year)
     :type date_format: AnyStr
 
-    :return: None. This function does not return a value but raises a click.Abort
-        exception in case of errors.
+    :return: None. Raises click.Abort on errors.
     """
     if not utils.token_valid():
         try:
