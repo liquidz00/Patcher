@@ -3,7 +3,7 @@ import pandas as pd
 import aiohttp
 import asyncio
 
-from bin import logger
+from bin import logger, globals
 from datetime import datetime, timedelta, timezone
 from fpdf import FPDF
 from dotenv import load_dotenv, set_key
@@ -17,12 +17,13 @@ from ui_config import (
 )
 
 # Define paths
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(BASE_DIR)
-FONTS_DIR = os.path.join(ROOT_DIR, "fonts")
+BASE_DIR = globals.BIN_DIR
+ROOT_DIR = globals.ROOT_DIR
+FONTS_DIR = globals.FONT_DIR
+ENV_PATH = globals.ENV_PATH
 
 # Load .env
-load_dotenv(dotenv_path=os.path.join(ROOT_DIR, ".env"))
+load_dotenv(dotenv_path=ENV_PATH)
 
 # Set environment variables
 jamf_url = os.getenv("URL")

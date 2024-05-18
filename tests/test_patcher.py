@@ -4,12 +4,12 @@ import aioresponses
 
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, call, ANY
-from bin import utils
+from bin import utils, globals
 from dotenv import load_dotenv
 
-BASE = os.path.abspath(os.path.dirname(__file__))
-ROOT = os.path.dirname(BASE)
-ENV_PATH = os.path.join(ROOT, ".env")
+BASE = globals.TESTS_DIR
+ROOT = globals.ROOT_DIR
+ENV_PATH = globals.ENV_PATH
 
 load_dotenv(dotenv_path=ENV_PATH)
 jamf_url = os.getenv("URL")

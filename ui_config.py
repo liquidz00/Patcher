@@ -1,7 +1,8 @@
 import os
+from bin import globals
 
-BASE = os.path.abspath(os.path.dirname(__file__))
-FONTS = os.path.join(BASE, "fonts")
+BASE = globals.ROOT_DIR
+FONTS = globals.FONT_DIR
 
 # Default UI Configurations
 HEADER_TEXT = "Default header text"
