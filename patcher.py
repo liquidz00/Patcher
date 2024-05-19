@@ -60,6 +60,7 @@ async def process_reports(
     :return: None. Raises click.Abort on errors.
     """
     if not utils.token_valid():
+        logthis.info("Bearer token is invalid, attempting refresh...")
         try:
             await utils.fetch_token()
         except Exception as token_refresh_error:
@@ -85,8 +86,8 @@ async def process_reports(
         # Async operations for patch data
         patch_ids = await utils.get_policies()
         if not patch_ids:
-            click.echo("\nNo policies were found. Aborting...", err=True)
-            logthis.error("No patch policies were found.")
+            click.echo("\nError obtaining patch policies. Aborting...", err=True)
+            logthis.error("Policy ID API call returned an empty list.")
             raise click.Abort()
         patch_reports = await utils.get_summaries(patch_ids)
         if not patch_reports:
