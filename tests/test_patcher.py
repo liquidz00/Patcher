@@ -130,7 +130,7 @@ def test_update_env(mock_set_key):
     expires_in = 3600
     utils.update_env(token=token, expires_in=expires_in)
 
-    dotenv_path = os.path.join(utils.ROOT_DIR, ".env")
+    dotenv_path = globals.ENV_PATH
 
     expected_calls = [
         call(

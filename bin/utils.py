@@ -16,14 +16,8 @@ from ui_config import (
     FONT_BOLD_PATH,
 )
 
-# Define paths
-BASE_DIR = globals.BIN_DIR
-ROOT_DIR = globals.ROOT_DIR
-FONTS_DIR = globals.FONT_DIR
-ENV_PATH = globals.ENV_PATH
-
 # Load .env
-load_dotenv(dotenv_path=ENV_PATH)
+load_dotenv(dotenv_path=globals.ENV_PATH)
 
 # Set environment variables
 jamf_url = os.getenv("URL")
@@ -116,16 +110,15 @@ def update_env(token: AnyStr, expires_in: int) -> None:
     :type expires_in: int
     """
     try:
-        dotenv_path = os.path.join(ROOT_DIR, ".env")
         expiration_time = datetime.utcnow() + timedelta(seconds=expires_in)
 
         # Small buffer to account for time sync issues
         buffer = 5 * 60
         expiration_timestamp = (expiration_time - timedelta(seconds=buffer)).timestamp()
 
-        set_key(dotenv_path=dotenv_path, key_to_set="TOKEN", value_to_set=token)
+        set_key(dotenv_path=globals.ENV_PATH, key_to_set="TOKEN", value_to_set=token)
         set_key(
-            dotenv_path=dotenv_path,
+            dotenv_path=globals.ENV_PATH,
             key_to_set="TOKEN_EXPIRATION",
             value_to_set=str(expiration_timestamp),
         )
