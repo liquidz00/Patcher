@@ -5,11 +5,12 @@ import asyncio
 import threading
 import time
 
+from enum import Enum
 from datetime import datetime, timedelta
 from typing import AnyStr, Optional
 from bin import utils, logger
 
-logthis = logger.setup_child_logger("patcher", "cli")
+logthis = logger.setup_child_logger("patcher", __name__)
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -18,6 +19,35 @@ DATE_FORMATS = {
     "Day-Month-Year": "%d %B %Y",  # 16 April 2024
     "Full": "%A %B %d %Y",  # Thursday September 26 2013
 }
+
+class LogMe:
+    class Level(Enum):
+        INFO = "info"
+        WARNING = "warning"
+        ERROR = "error"
+
+    def __init__(self):
+        self.INFO = logthis.info
+        self.WARNING = logthis.warning
+        self.ERROR = logthis.error
+
+    def __call__(self, msg: AnyStr, level: 'LogMe.Level'):
+        self._inform(msg, level)
+
+    def _inform(self, msg: AnyStr, level: 'LogMe.Level' = 'LogMe.Level.INFO'):
+        match level:
+            case self.Level.INFO:
+                self.INFO(f"\n{msg}")
+                std_output = click.style(text=f"\n{msg}", bold=False)
+                click.echo(message=std_output, err=False)
+            case self.Level.WARNING:
+                self.WARNING(f"\n{msg}")
+                warn_output = click.style(text=f"\n{msg}", fg="yellow", bold=True)
+                click.echo(warn_output, err=False)
+            case self.Level.ERROR:
+                self.ERROR(f"\n{msg}")
+                err_output = click.style(text=f"\n{msg}", fg="red", bold=True)
+                click.echo(err_output, err=True)
 
 
 def animate_search(stop_event: threading.Event) -> None:
@@ -59,23 +89,22 @@ async def process_reports(
 
     :return: None. Raises click.Abort on errors.
     """
+    # Log all the things
+    log_me = LogMe()
+
     if not utils.token_valid():
-        logthis.info("Bearer token is invalid, attempting refresh...")
+        log_me("Bearer token is invalid, attempting refresh...", LogMe.Level.INFO)
         try:
             await utils.fetch_token()
         except Exception as token_refresh_error:
-            click.echo(f"Failed to refresh token: {token_refresh_error}", err=True)
-            logthis.error(f"Failed to refresh token: {token_refresh_error}")
+            log_me(f"Failed to refresh token: {token_refresh_error}", LogMe.Level.ERROR)
             raise click.Abort()
 
     try:
         # Validate path provided is not a file
         output_path = os.path.expanduser(path)
         if os.path.exists(output_path) and os.path.isfile(output_path):
-            click.echo(
-                "Error: Provided path is a file, not a directory. Aborting...", err=True
-            )
-            logthis.error(f"Provided path {output_path} is a file, not a directory.")
+            log_me(f"Provided path {output_path} is a file, not a directory. Aborting...", LogMe.Level.ERROR)
             raise click.Abort()
 
         # Ensure directories exist
@@ -86,13 +115,11 @@ async def process_reports(
         # Async operations for patch data
         patch_ids = await utils.get_policies()
         if not patch_ids:
-            click.echo("\nError obtaining patch policies. Aborting...", err=True)
-            logthis.error("Policy ID API call returned an empty list.")
+            log_me("Policy ID API call returned an empty list. Aborting...", LogMe.Level.ERROR)
             raise click.Abort()
         patch_reports = await utils.get_summaries(patch_ids)
         if not patch_reports:
-            click.echo("\nError establishing patch summaries. Aborting...", err=True)
-            logthis.error("Error establishing patch summaries.")
+            log_me("Error establishing patch summaries.", LogMe.Level.ERROR)
             raise click.Abort()
 
         # (option) Sort
@@ -102,12 +129,7 @@ async def process_reports(
                 patch_reports = sorted(patch_reports, key=lambda x: x[sort])
             except KeyError:
                 stop_event.set()
-                click.echo(
-                    f"\nInvalid column name for sorting: {sort}. Aborting...", err=True
-                )
-                logthis.error(
-                    f"Could not sort based on provided column ID {sort}. Column does not exist."
-                )
+                log_me(f"Invalid column name for sorting: {sort}. Aborting...", LogMe.Level.ERROR)
                 raise click.Abort()
 
         # (option) Omit
@@ -132,38 +154,16 @@ async def process_reports(
         click.echo(success_msg)
 
     except aiohttp.ClientResponseError as e:
-        click.echo("\n")
         if e.status == 401:
-            unauth_msg = click.style(
-                f"Unauthorized access detected. Please check credentials and try again. Details: {e.message}",
-                bold=True,
-                fg="red",
-            )
-            click.echo(unauth_msg, err=True)
+            log_me(f"Unauthorized access detected. Please check credentials and try again. Details: {e.message}", LogMe.Level.ERROR)
         else:
-            http_msg = click.style(
-                f"Failed to retrieve data due to an HTTP error: {e.status}",
-                bold=True,
-                fg="red",
-            )
-            click.echo(http_msg, err=True)
-        logthis.error(f"HTTP error occurred: {e}")
+            log_me(f"Failed to retrieve data due to an HTTP error: {e.status}", LogMe.Level.ERROR)
         raise click.Abort()
     except OSError as e:
-        click.echo("\n")
-        os_msg = click.style(
-            f"Error creating directories: {e}. Aborting...", bold=True, fg="red"
-        )
-        click.echo(os_msg, err=True)
-        logthis.error(f"Directory could not be created. Details: {e}.")
+        log_me(f"Error creating directories: {e}. Aborting...", LogMe.Level.ERROR)
         raise click.Abort()
     except Exception as e:
-        click.echo("\n")
-        exception_msg = click.style(
-            f"An error occurred: {e}. Aborting...", bold=True, fg="red"
-        )
-        click.echo(exception_msg, err=True)
-        logthis.error(f"Unhandled exception occurred. Details: {e}")
+        log_me(f"An unexpected error occurred: {e}. Aborting...", LogMe.Level.ERROR)
         raise click.Abort()
     finally:
         # Ensure animation stops regardless of error
