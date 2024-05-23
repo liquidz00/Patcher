@@ -8,8 +8,6 @@ black==24.3.0
 certifi==2024.2.2
 charset-normalizer==3.3.2
 click==8.1.7
-customtkinter==5.2.2
-darkdetect==0.8.0
 defusedxml==0.7.1
 et-xmlfile==1.1.0
 exceptiongroup==1.2.0
