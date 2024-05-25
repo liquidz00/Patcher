@@ -20,13 +20,13 @@ from ui_config import (
 load_dotenv(dotenv_path=globals.ENV_PATH)
 
 # Set environment variables
-jamf_url = os.getenv("URL")
-jamf_client_id = os.getenv("CLIENT_ID")
-jamf_client_secret = os.getenv("CLIENT_SECRET")
-jamf_token = os.getenv("TOKEN")
+jamf_url = globals.JAMF_URL
+jamf_client_id = globals.JAMF_CLIENT_ID
+jamf_client_secret = globals.JAMF_CLIENT_SECRET
+jamf_token = globals.JAMF_TOKEN
 
 # Headers for API calls
-headers = {"Accept": "application/json", "Authorization": f"Bearer {jamf_token}"}
+headers = globals.HEADERS
 
 # Logging
 logthis = logger.setup_child_logger("patcher", __name__)
@@ -146,8 +146,8 @@ def token_valid() -> bool:
 # Retrieve Bearer Token
 async def fetch_token() -> Optional[AnyStr]:
     """
-    Fetches a new Bearer Token using client credentials. Updates .env
-        if successful.
+    Fetches a new Bearer Token using either client credentials.
+    Updates .env if successful.
 
     :return: The new Bearer Token (str), or None if the fetch fails.
     """
