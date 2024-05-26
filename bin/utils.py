@@ -199,6 +199,59 @@ async def fetch_json(url: AnyStr, session: aiohttp.ClientSession):
         return {}
 
 
+# Token lifetime check
+async def check_token_lifetime(client_id: AnyStr) -> bool:
+    """
+    Ensures the bearer token lifetime is valid (longer than 1 minute, ideally above 10 minutes)
+
+    :param client_id: The client ID property to match
+    :return: True if token lifetime is greater than 5 minutes
+    """
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = f"{jamf_url}/api/v1/api-integrations"
+            response = await fetch_json(url=url, session=session)
+            if not response:
+                logthis.error("Received empty dictionary fetching response.")
+                return False
+            try:
+                results = response["results"]
+                for result in results:
+                    if result["clientId"] == client_id:
+                        # accessTokenLifetimeSeconds value is extracted once match found
+                        lifetime = result["accessTokenLifetimeSeconds"]
+                        if lifetime <= 0:
+                            logthis.error("Token lifetime is invalid.")
+                            return False
+
+                        # Calculate duration in different units
+                        minutes = lifetime / 60
+                        hours = minutes / 60
+                        days = hours / 24
+                        months = days / 30
+
+                        # Throw error if duration of lifetime is less than 1 minute
+                        if minutes < 1:
+                            logthis.error("Token life time is less than 1 minute.")
+                            return False
+                        elif 5 <= minutes <= 10:
+                            # Throws warning if token lifetime is between 5-10 minutes
+                            logthis.warning("Token lifetime is between 5-10 minutes.")
+                        else:
+                            # Lifetime duration logged otherwise
+                            logthis.info(
+                                f"Token lifetime: {minutes:.2f} minutes, {hours:.2f} hours, {days:.2f} days, {months:.2f} months."
+                            )
+                        return True
+                logthis.error(f"No matching Client ID found for {client_id}.")
+                return False
+            except KeyError as e:
+                logthis.error(f"KeyError: Missing key {e} in the response.")
+                return False
+    except Exception as e:
+        logthis.error(f"An unexpected error occurred. Details: {e}")
+
+
 # Use Jamf API to retrieve all Patch titles IDs
 async def get_policies() -> List:
     """
@@ -227,7 +280,9 @@ async def get_policies() -> List:
 
             # Check if all elements in the list are dictionaries
             if not all(isinstance(item, dict) for item in response):
-                logthis.error("Unexpected response format: all items should be dictionaries.")
+                logthis.error(
+                    "Unexpected response format: all items should be dictionaries."
+                )
                 return []
 
             logthis.info("Patch policies obtained as expected.")
