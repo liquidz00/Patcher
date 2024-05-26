@@ -115,6 +115,7 @@ def mock_summary_response():
         },
     ]
 
+
 def mock_env_vars():
     env_vars = {
         "URL": "https://mocked.url",
@@ -123,6 +124,7 @@ def mock_env_vars():
         "TOKEN": "mocked_token",
     }
     return patch.dict(os.environ, env_vars)
+
 
 @patch("bin.utils.set_key")
 def test_update_env(mock_set_key):
@@ -295,3 +297,145 @@ def test_token_valid_false():
 def test_token_valid_no_expiration():
     with patch("os.getenv", return_value=None):
         assert utils.token_valid() is False
+
+
+@pytest.fixture()
+def mock_api_integration_response():
+    return {
+        "totalCount": 3,
+        "results": [
+            {
+                "authorizationScopes": ["Read Computers", "Read Computer Groups"],
+                "displayName": "captain-falcon",
+                "enabled": True,
+                "accessTokenLifetimeSeconds": 15780000,
+                "id": 3,
+                "appType": "CLIENT_CREDENTIALS",
+                "clientId": "a1234567-abcd-1234-efgh-123456789abc",
+            },
+            {
+                "authorizationScopes": ["Read Computers"],
+                "displayName": "enrollmentCheck",
+                "enabled": True,
+                "accessTokenLifetimeSeconds": 15780000,
+                "id": 5,
+                "appType": "CLIENT_CREDENTIALS",
+                "clientId": "b2345678-bcde-2345-fghi-23456789abcd",
+            },
+            {
+                "authorizationScopes": [
+                    "Read FileVault Recovery Key",
+                    "Read Computers",
+                    "Read Computer Groups",
+                ],
+                "displayName": "api-test",
+                "enabled": True,
+                "accessTokenLifetimeSeconds": 1800,
+                "id": 6,
+                "appType": "CLIENT_CREDENTIALS",
+                "clientId": "c3456789-cdef-3456-ghij-3456789abcde",
+            },
+        ],
+    }
+
+
+@pytest.fixture()
+def mock_lifetime_response():
+    return {
+        "totalCount": 1,
+        "results": [
+            {
+                "authorizationScopes": ["Read Computers"],
+                "displayName": "short-lived-token",
+                "enabled": True,
+                "accessTokenLifetimeSeconds": 30,
+                "id": 7,
+                "appType": "CLIENT_CREDENTIALS",
+                "clientId": "short-lived-client-id",
+            }
+        ],
+    }
+
+
+@pytest.mark.asyncio
+async def test_check_valid_token_lifetime(mock_api_integration_response):
+    with mock_env_vars():
+        client_id = "a1234567-abcd-1234-efgh-123456789abc"
+        with aioresponses.aioresponses() as m:
+            m.get(
+                f"{jamf_url}/api/v1/api-integrations",
+                payload=mock_api_integration_response,
+                headers=headers,
+            )
+            result = await utils.check_token_lifetime(client_id=client_id)
+            assert result is True
+
+
+@pytest.mark.asyncio
+async def test_check_invalid_token_lifetime(mock_api_integration_response):
+    with mock_env_vars():
+        client_id = "nonexistent-client-id"
+        with aioresponses.aioresponses() as m:
+            m.get(
+                f"{jamf_url}/api/v1/api-integrations",
+                payload=mock_api_integration_response,
+                headers=headers,
+            )
+            result = await utils.check_token_lifetime(client_id=client_id)
+            assert result is False
+
+
+@pytest.mark.asyncio
+async def test_check_short_lifetime(mock_lifetime_response):
+    with mock_env_vars():
+        client_id = "short-lived-client-id"
+        with aioresponses.aioresponses() as m:
+            m.get(
+                f"{jamf_url}/api/v1/api-integrations",
+                payload=mock_lifetime_response,
+                headers=headers,
+            )
+            result = await utils.check_token_lifetime(client_id=client_id)
+            assert result is False
+
+
+@pytest.mark.asyncio
+async def test_check_token_lifetime_key_error():
+    with mock_env_vars():
+        client_id = "a1234567-abcd-1234-efgh-123456789abc"
+        with aioresponses.aioresponses() as m:
+            m.get(
+                f"{jamf_url}/api/v1/api-integrations",
+                payload={"incorrect": "response"},
+                headers=headers,
+            )
+            result = await utils.check_token_lifetime(client_id=client_id)
+            assert result is False
+
+
+@pytest.mark.asyncio
+async def test_check_token_lifetime_api_error():
+    with mock_env_vars():
+        client_id = "a1234567-abcd-1234-efgh-123456789abc"
+        with aioresponses.aioresponses() as m:
+            m.get(
+                f"{jamf_url}/api/v1/api-integrations",
+                status=500,
+                headers=headers,
+            )
+            result = await utils.check_token_lifetime(client_id=client_id)
+            assert result is False
+
+
+@pytest.mark.asyncio
+async def test_check_token_lifetime_empty_response():
+    with mock_env_vars():
+        client_id = "a1234567-abcd-1234-efgh-123456789abc"
+        with aioresponses.aioresponses() as m:
+            m.get(
+                f"{jamf_url}/api/v1/api-integrations",
+                payload={},
+                headers=headers,
+            )
+            result = await utils.check_token_lifetime(client_id=client_id)
+            assert result is False
