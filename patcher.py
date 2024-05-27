@@ -20,6 +20,7 @@ DATE_FORMATS = {
     "Full": "%A %B %d %Y",  # Thursday September 26 2013
 }
 
+
 class LogMe:
     class Level(Enum):
         INFO = "info"
@@ -31,10 +32,10 @@ class LogMe:
         self.WARNING = logthis.warning
         self.ERROR = logthis.error
 
-    def __call__(self, msg: AnyStr, level: 'LogMe.Level'):
+    def __call__(self, msg: AnyStr, level: "LogMe.Level"):
         self._inform(msg, level)
 
-    def _inform(self, msg: AnyStr, level: 'LogMe.Level' = 'LogMe.Level.INFO'):
+    def _inform(self, msg: AnyStr, level: "LogMe.Level" = "LogMe.Level.INFO"):
         match level:
             case self.Level.INFO:
                 self.INFO(f"\n{msg}")
@@ -92,6 +93,7 @@ async def process_reports(
     # Log all the things
     log_me = LogMe()
 
+    # Ensure bearer token has been retrieved
     if not utils.token_valid():
         log_me("Bearer token is invalid, attempting refresh...", LogMe.Level.INFO)
         try:
@@ -100,11 +102,22 @@ async def process_reports(
             log_me(f"Failed to refresh token: {token_refresh_error}", LogMe.Level.ERROR)
             raise click.Abort()
 
+    # Ensure token has proper lifetime duration
+    if not utils.check_token_lifetime():
+        log_me(
+            "Bearer token lifetime is too short. Review the Patcher Wiki for instructions to increase the token's lifetime.",
+            LogMe.Level.ERROR,
+        )
+        raise click.Abort()
+
     try:
         # Validate path provided is not a file
         output_path = os.path.expanduser(path)
         if os.path.exists(output_path) and os.path.isfile(output_path):
-            log_me(f"Provided path {output_path} is a file, not a directory. Aborting...", LogMe.Level.ERROR)
+            log_me(
+                f"Provided path {output_path} is a file, not a directory. Aborting...",
+                LogMe.Level.ERROR,
+            )
             raise click.Abort()
 
         # Ensure directories exist
@@ -115,7 +128,10 @@ async def process_reports(
         # Async operations for patch data
         patch_ids = await utils.get_policies()
         if not patch_ids:
-            log_me("Policy ID API call returned an empty list. Aborting...", LogMe.Level.ERROR)
+            log_me(
+                "Policy ID API call returned an empty list. Aborting...",
+                LogMe.Level.ERROR,
+            )
             raise click.Abort()
         patch_reports = await utils.get_summaries(patch_ids)
         if not patch_reports:
@@ -129,7 +145,10 @@ async def process_reports(
                 patch_reports = sorted(patch_reports, key=lambda x: x[sort])
             except KeyError:
                 stop_event.set()
-                log_me(f"Invalid column name for sorting: {sort}. Aborting...", LogMe.Level.ERROR)
+                log_me(
+                    f"Invalid column name for sorting: {sort}. Aborting...",
+                    LogMe.Level.ERROR,
+                )
                 raise click.Abort()
 
         # (option) Omit
@@ -155,9 +174,15 @@ async def process_reports(
 
     except aiohttp.ClientResponseError as e:
         if e.status == 401:
-            log_me(f"Unauthorized access detected. Please check credentials and try again. Details: {e.message}", LogMe.Level.ERROR)
+            log_me(
+                f"Unauthorized access detected. Please check credentials and try again. Details: {e.message}",
+                LogMe.Level.ERROR,
+            )
         else:
-            log_me(f"Failed to retrieve data due to an HTTP error: {e.status}", LogMe.Level.ERROR)
+            log_me(
+                f"Failed to retrieve data due to an HTTP error: {e.status}",
+                LogMe.Level.ERROR,
+            )
         raise click.Abort()
     except OSError as e:
         log_me(f"Error creating directories: {e}. Aborting...", LogMe.Level.ERROR)
@@ -200,7 +225,9 @@ async def process_reports(
     default="Month-Day-Year",
     help="Specify the date format for the PDF header from predefined choices.",
 )
-def main(path: AnyStr, pdf: bool, sort: Optional[AnyStr], omit: bool, date_format: AnyStr) -> None:
+def main(
+    path: AnyStr, pdf: bool, sort: Optional[AnyStr], omit: bool, date_format: AnyStr
+) -> None:
     actual_format = DATE_FORMATS[date_format]
     stop_event = threading.Event()
     animation_thread = threading.Thread(target=animate_search, args=(stop_event,))
