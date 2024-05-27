@@ -200,11 +200,11 @@ async def fetch_json(url: AnyStr, session: aiohttp.ClientSession):
 
 
 # Token lifetime check
-async def check_token_lifetime(client_id: AnyStr) -> bool:
+async def check_token_lifetime(client_id: AnyStr = globals.JAMF_CLIENT_ID) -> bool:
     """
     Ensures the bearer token lifetime is valid (longer than 1 minute, ideally above 10 minutes)
 
-    :param client_id: The client ID property to match
+    :param client_id: The client ID property to match, defaults to client_id property in .env
     :return: True if token lifetime is greater than 5 minutes
     """
     try:
