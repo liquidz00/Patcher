@@ -3,7 +3,7 @@ import pandas as pd
 import aiohttp
 import asyncio
 
-from bin import logger
+from bin import logger, globals
 from datetime import datetime, timedelta, timezone
 from fpdf import FPDF
 from dotenv import load_dotenv, set_key
@@ -16,22 +16,17 @@ from ui_config import (
     FONT_BOLD_PATH,
 )
 
-# Define paths
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(BASE_DIR)
-FONTS_DIR = os.path.join(ROOT_DIR, "fonts")
-
 # Load .env
-load_dotenv(dotenv_path=os.path.join(ROOT_DIR, ".env"))
+load_dotenv(dotenv_path=globals.ENV_PATH)
 
 # Set environment variables
-jamf_url = os.getenv("URL")
-jamf_client_id = os.getenv("CLIENT_ID")
-jamf_client_secret = os.getenv("CLIENT_SECRET")
-jamf_token = os.getenv("TOKEN")
+jamf_url = globals.JAMF_URL
+jamf_client_id = globals.JAMF_CLIENT_ID
+jamf_client_secret = globals.JAMF_CLIENT_SECRET
+jamf_token = globals.JAMF_TOKEN
 
 # Headers for API calls
-headers = {"Accept": "application/json", "Authorization": f"Bearer {jamf_token}"}
+headers = globals.HEADERS
 
 # Logging
 logthis = logger.setup_child_logger("patcher", __name__)
@@ -115,16 +110,15 @@ def update_env(token: AnyStr, expires_in: int) -> None:
     :type expires_in: int
     """
     try:
-        dotenv_path = os.path.join(ROOT_DIR, ".env")
         expiration_time = datetime.utcnow() + timedelta(seconds=expires_in)
 
         # Small buffer to account for time sync issues
         buffer = 5 * 60
         expiration_timestamp = (expiration_time - timedelta(seconds=buffer)).timestamp()
 
-        set_key(dotenv_path=dotenv_path, key_to_set="TOKEN", value_to_set=token)
+        set_key(dotenv_path=globals.ENV_PATH, key_to_set="TOKEN", value_to_set=token)
         set_key(
-            dotenv_path=dotenv_path,
+            dotenv_path=globals.ENV_PATH,
             key_to_set="TOKEN_EXPIRATION",
             value_to_set=str(expiration_timestamp),
         )
@@ -152,8 +146,8 @@ def token_valid() -> bool:
 # Retrieve Bearer Token
 async def fetch_token() -> Optional[AnyStr]:
     """
-    Fetches a new Bearer Token using client credentials. Updates .env
-        if successful.
+    Fetches a new Bearer Token using either client credentials.
+    Updates .env if successful.
 
     :return: The new Bearer Token (str), or None if the fetch fails.
     """
@@ -205,6 +199,59 @@ async def fetch_json(url: AnyStr, session: aiohttp.ClientSession):
         return {}
 
 
+# Token lifetime check
+async def check_token_lifetime(client_id: AnyStr = globals.JAMF_CLIENT_ID) -> bool:
+    """
+    Ensures the bearer token lifetime is valid (longer than 1 minute, ideally above 10 minutes)
+
+    :param client_id: The client ID property to match, defaults to client_id property in .env
+    :return: True if token lifetime is greater than 5 minutes
+    """
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = f"{jamf_url}/api/v1/api-integrations"
+            response = await fetch_json(url=url, session=session)
+            if not response:
+                logthis.error("Received empty dictionary fetching response.")
+                return False
+            try:
+                results = response["results"]
+                for result in results:
+                    if result["clientId"] == client_id:
+                        # accessTokenLifetimeSeconds value is extracted once match found
+                        lifetime = result["accessTokenLifetimeSeconds"]
+                        if lifetime <= 0:
+                            logthis.error("Token lifetime is invalid.")
+                            return False
+
+                        # Calculate duration in different units
+                        minutes = lifetime / 60
+                        hours = minutes / 60
+                        days = hours / 24
+                        months = days / 30
+
+                        # Throw error if duration of lifetime is less than 1 minute
+                        if minutes < 1:
+                            logthis.error("Token life time is less than 1 minute.")
+                            return False
+                        elif 5 <= minutes <= 10:
+                            # Throws warning if token lifetime is between 5-10 minutes
+                            logthis.warning("Token lifetime is between 5-10 minutes.")
+                        else:
+                            # Lifetime duration logged otherwise
+                            logthis.info(
+                                f"Token lifetime: {minutes:.2f} minutes, {hours:.2f} hours, {days:.2f} days, {months:.2f} months."
+                            )
+                        return True
+                logthis.error(f"No matching Client ID found for {client_id}.")
+                return False
+            except KeyError as e:
+                logthis.error(f"KeyError: Missing key {e} in the response.")
+                return False
+    except Exception as e:
+        logthis.error(f"An unexpected error occurred. Details: {e}")
+
+
 # Use Jamf API to retrieve all Patch titles IDs
 async def get_policies() -> List:
     """
@@ -233,7 +280,9 @@ async def get_policies() -> List:
 
             # Check if all elements in the list are dictionaries
             if not all(isinstance(item, dict) for item in response):
-                logthis.error("Unexpected response format: all items should be dictionaries.")
+                logthis.error(
+                    "Unexpected response format: all items should be dictionaries."
+                )
                 return []
 
             logthis.info("Patch policies obtained as expected.")

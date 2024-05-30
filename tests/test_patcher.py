@@ -1,16 +1,15 @@
-import aiohttp
 import pytest
 import os
 import aioresponses
 
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, call, ANY
-from bin import utils
+from bin import utils, globals
 from dotenv import load_dotenv
 
-BASE = os.path.abspath(os.path.dirname(__file__))
-ROOT = os.path.dirname(BASE)
-ENV_PATH = os.path.join(ROOT, ".env")
+BASE = globals.TESTS_DIR
+ROOT = globals.ROOT_DIR
+ENV_PATH = globals.ENV_PATH
 
 load_dotenv(dotenv_path=ENV_PATH)
 jamf_url = os.getenv("URL")
@@ -117,13 +116,23 @@ def mock_summary_response():
     ]
 
 
+def mock_env_vars():
+    env_vars = {
+        "URL": "https://mocked.url",
+        "CLIENT_ID": "mocked_client_id",
+        "CLIENT_SECRET": "mocked_client_secret",
+        "TOKEN": "mocked_token",
+    }
+    return patch.dict(os.environ, env_vars)
+
+
 @patch("bin.utils.set_key")
 def test_update_env(mock_set_key):
     token = "newToken"
     expires_in = 3600
     utils.update_env(token=token, expires_in=expires_in)
 
-    dotenv_path = os.path.join(utils.ROOT_DIR, ".env")
+    dotenv_path = globals.ENV_PATH
 
     expected_calls = [
         call(
@@ -144,15 +153,7 @@ def test_update_env(mock_set_key):
 
 @pytest.mark.asyncio
 async def test_get_policies(mock_policy_response):
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         with aioresponses.aioresponses() as m:
             m.post(
                 f"{jamf_url}/api/oauth/token",
@@ -177,15 +178,7 @@ async def test_get_summaries(mock_policy_response, mock_summary_response):
     summary_response_dict = {
         str(summary["softwareTitleId"]): summary for summary in mock_summary_response
     }
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         with aioresponses.aioresponses() as m:
             for policy_id in policy_ids:
                 mock_response = summary_response_dict[policy_id]
@@ -203,15 +196,7 @@ async def test_get_summaries(mock_policy_response, mock_summary_response):
 
 @pytest.mark.asyncio
 async def test_get_policies_empty_response():
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         with aioresponses.aioresponses() as m:
             m.get(
                 f"{jamf_url}/api/v2/patch-software-title-configurations",
@@ -225,15 +210,7 @@ async def test_get_policies_empty_response():
 
 @pytest.mark.asyncio
 async def test_get_policies_api_error():
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         with aioresponses.aioresponses() as m:
             m.get(
                 f"{jamf_url}/api/v2/patch-software-title-configurations",
@@ -247,15 +224,7 @@ async def test_get_policies_api_error():
 
 @pytest.mark.asyncio
 async def test_get_summaries_empty_ids():
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         summaries = await utils.get_summaries([])
         assert summaries == []
 
@@ -263,15 +232,7 @@ async def test_get_summaries_empty_ids():
 @pytest.mark.asyncio
 async def test_get_summaries_api_error(mock_policy_response, mock_summary_response):
     policy_ids = [policy["id"] for policy in mock_policy_response]
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         with aioresponses.aioresponses() as m:
             for policy_id in policy_ids:
                 m.get(
@@ -294,15 +255,7 @@ async def test_summary_response_data_integrity(mock_summary_response):
 
 @pytest.mark.asyncio
 async def test_fetch_token_api_failure():
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         with aioresponses.aioresponses() as m:
             m.post(f"{jamf_url}/api/oauth/token", status=500)
             token = await utils.fetch_token()
@@ -311,15 +264,7 @@ async def test_fetch_token_api_failure():
 
 @pytest.mark.asyncio
 async def test_fetch_token_invalid_response():
-    with patch.dict(
-        os.environ,
-        {
-            "URL": "https://mocked.url",
-            "CLIENT_ID": "mocked_client_id",
-            "CLIENT_SECRET": "mocked_client_secret",
-            "TOKEN": "mocked_token",
-        },
-    ):
+    with mock_env_vars():
         with aioresponses.aioresponses() as m:
             m.post(
                 f"{jamf_url}/api/oauth/token",
@@ -352,3 +297,145 @@ def test_token_valid_false():
 def test_token_valid_no_expiration():
     with patch("os.getenv", return_value=None):
         assert utils.token_valid() is False
+
+
+@pytest.fixture()
+def mock_api_integration_response():
+    return {
+        "totalCount": 3,
+        "results": [
+            {
+                "authorizationScopes": ["Read Computers", "Read Computer Groups"],
+                "displayName": "captain-falcon",
+                "enabled": True,
+                "accessTokenLifetimeSeconds": 15780000,
+                "id": 3,
+                "appType": "CLIENT_CREDENTIALS",
+                "clientId": "a1234567-abcd-1234-efgh-123456789abc",
+            },
+            {
+                "authorizationScopes": ["Read Computers"],
+                "displayName": "enrollmentCheck",
+                "enabled": True,
+                "accessTokenLifetimeSeconds": 15780000,
+                "id": 5,
+                "appType": "CLIENT_CREDENTIALS",
+                "clientId": "b2345678-bcde-2345-fghi-23456789abcd",
+            },
+            {
+                "authorizationScopes": [
+                    "Read FileVault Recovery Key",
+                    "Read Computers",
+                    "Read Computer Groups",
+                ],
+                "displayName": "api-test",
+                "enabled": True,
+                "accessTokenLifetimeSeconds": 1800,
+                "id": 6,
+                "appType": "CLIENT_CREDENTIALS",
+                "clientId": "c3456789-cdef-3456-ghij-3456789abcde",
+            },
+        ],
+    }
+
+
+@pytest.fixture()
+def mock_lifetime_response():
+    return {
+        "totalCount": 1,
+        "results": [
+            {
+                "authorizationScopes": ["Read Computers"],
+                "displayName": "short-lived-token",
+                "enabled": True,
+                "accessTokenLifetimeSeconds": 30,
+                "id": 7,
+                "appType": "CLIENT_CREDENTIALS",
+                "clientId": "short-lived-client-id",
+            }
+        ],
+    }
+
+
+@pytest.mark.asyncio
+async def test_check_valid_token_lifetime(mock_api_integration_response):
+    with mock_env_vars():
+        client_id = "a1234567-abcd-1234-efgh-123456789abc"
+        with aioresponses.aioresponses() as m:
+            m.get(
+                f"{jamf_url}/api/v1/api-integrations",
+                payload=mock_api_integration_response,
+                headers=headers,
+            )
+            result = await utils.check_token_lifetime(client_id=client_id)
+            assert result is True
+
+
+@pytest.mark.asyncio
+async def test_check_invalid_token_lifetime(mock_api_integration_response):
+    with mock_env_vars():
+        client_id = "nonexistent-client-id"
+        with aioresponses.aioresponses() as m:
+            m.get(
+                f"{jamf_url}/api/v1/api-integrations",
+                payload=mock_api_integration_response,
+                headers=headers,
+            )
+            result = await utils.check_token_lifetime(client_id=client_id)
+            assert result is False
+
+
+@pytest.mark.asyncio
+async def test_check_short_lifetime(mock_lifetime_response):
+    with mock_env_vars():
+        client_id = "short-lived-client-id"
+        with aioresponses.aioresponses() as m:
+            m.get(
+                f"{jamf_url}/api/v1/api-integrations",
+                payload=mock_lifetime_response,
+                headers=headers,
+            )
+            result = await utils.check_token_lifetime(client_id=client_id)
+            assert result is False
+
+
+@pytest.mark.asyncio
+async def test_check_token_lifetime_key_error():
+    with mock_env_vars():
+        client_id = "a1234567-abcd-1234-efgh-123456789abc"
+        with aioresponses.aioresponses() as m:
+            m.get(
+                f"{jamf_url}/api/v1/api-integrations",
+                payload={"incorrect": "response"},
+                headers=headers,
+            )
+            result = await utils.check_token_lifetime(client_id=client_id)
+            assert result is False
+
+
+@pytest.mark.asyncio
+async def test_check_token_lifetime_api_error():
+    with mock_env_vars():
+        client_id = "a1234567-abcd-1234-efgh-123456789abc"
+        with aioresponses.aioresponses() as m:
+            m.get(
+                f"{jamf_url}/api/v1/api-integrations",
+                status=500,
+                headers=headers,
+            )
+            result = await utils.check_token_lifetime(client_id=client_id)
+            assert result is False
+
+
+@pytest.mark.asyncio
+async def test_check_token_lifetime_empty_response():
+    with mock_env_vars():
+        client_id = "a1234567-abcd-1234-efgh-123456789abc"
+        with aioresponses.aioresponses() as m:
+            m.get(
+                f"{jamf_url}/api/v1/api-integrations",
+                payload={},
+                headers=headers,
+            )
+            result = await utils.check_token_lifetime(client_id=client_id)
+            assert result is False
