@@ -181,7 +181,7 @@ async def fetch_token() -> Optional[AnyStr]:
 
 
 # Async API call
-async def fetch_json(url: AnyStr, session: aiohttp.ClientSession):
+async def fetch_json(url: AnyStr, session: aiohttp.ClientSession) -> Dict:
     """
     Asynchronously fetches JSON data from a specified URL using a session.
 
@@ -193,10 +193,13 @@ async def fetch_json(url: AnyStr, session: aiohttp.ClientSession):
     """
     try:
         async with session.get(url, headers=headers) as response:
+            response.raise_for_status()
             return await response.json()
+    except aiohttp.ClientResponseError as e:
+        logthis.error(f"Received a client error while fetching JSON from {url}: {e}")
     except Exception as e:
         logthis.error(f"Error fetching JSON: {e}")
-        return {}
+    return {}
 
 
 # Token lifetime check
@@ -313,7 +316,7 @@ async def get_summaries(policy_ids: List) -> List:
                 for policy in policy_ids
             ]
             summaries = await asyncio.gather(*tasks)
-            return [
+            policy_summaries = [
                 {
                     "software_title": summary["title"],
                     "patch_released": convert_timezone(summary["releaseDate"]),
@@ -333,12 +336,61 @@ async def get_summaries(policy_ids: List) -> List:
                     ),
                     "total_hosts": summary["upToDate"] + summary["outOfDate"],
                 }
-                for summary in summaries
+                for summary in summaries if summary
             ]
-
+            logthis.info(f"Successfully obtained policy summaries for {len(policy_summaries)} policies.")
+            return policy_summaries
     except Exception as e:
         logthis.error(f"Error retrieving summaries: {e}")
         return []
+
+
+# iOS Functionality - Get mobile device IDs from Jamf (Classic API)
+async def get_device_ids() -> List[int]:
+    """
+    Asynchronously fetches the list of mobile device IDs from the Jamf Classic API.
+
+    :return: A list of mobile device IDs.
+    """
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = f"{jamf_url}/JSSResource/mobiledevices"
+            response = await fetch_json(url=url, session=session)
+            devices = response["mobile_devices"]
+            device_ids = [device["id"] for device in devices]
+            logthis.info("Received device IDs successfully.")
+            return device_ids
+    except Exception as e:
+        logthis.error(f"Error fetching device IDs: {e}")
+        return []
+
+
+# iOS Functionality - Get OS Version and Type from Jamf (Classic API)
+async def get_device_os_versions(device_ids: List[int]) -> List[Dict[AnyStr, AnyStr]]:
+    """
+    Asynchronously fetches the OS version and serial number for each device ID from the Jamf Classic API.
+
+    :param device_ids: A list of mobile device IDs.
+    :type device_ids: List[int]
+    :return: A list of dictionaries containing the serial number and OS version.
+    """
+    try:
+        async with aiohttp.ClientSession() as session:
+            tasks = [fetch_json(url=f"{jamf_url}/mobiledevices/id/{device}/subset/General", session=session) for device in device_ids]
+            subsets = await asyncio.gather(*tasks)
+            devices = [
+                {
+                    "SN": subset["mobile_device"]["general"]["serial_number"],
+                    "OS": subset["mobile_device"]["general"]["os_version"]
+                }
+                for subset in subsets if subset
+            ]
+            logthis.info(f"Successfully obtained OS versions for {len(devices)} devices.")
+            return devices
+    except Exception as e:
+        logthis.error(f"Error while fetching device OS information: {e}")
+        return []
+
 
 
 # Create excel spreadsheet with patch data for export
