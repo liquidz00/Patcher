@@ -89,6 +89,7 @@ def convert_timezone(utc_time_str: AnyStr) -> AnyStr:
     try:
         utc_time = datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S%z")
         time_str = utc_time.strftime("%b %d %Y")
+        logthis.info("Converted timezone successfully.")
         return time_str
     except ValueError as e:
         logthis.warn(f"Invalid time format provided. Details: {e}")
@@ -336,9 +337,12 @@ async def get_summaries(policy_ids: List) -> List:
                     ),
                     "total_hosts": summary["upToDate"] + summary["outOfDate"],
                 }
-                for summary in summaries if summary
+                for summary in summaries
+                if summary
             ]
-            logthis.info(f"Successfully obtained policy summaries for {len(policy_summaries)} policies.")
+            logthis.info(
+                f"Successfully obtained policy summaries for {len(policy_summaries)} policies."
+            )
             return policy_summaries
     except Exception as e:
         logthis.error(f"Error retrieving summaries: {e}")
@@ -354,11 +358,11 @@ async def get_device_ids() -> List[int]:
     """
     try:
         async with aiohttp.ClientSession() as session:
-            url = f"{jamf_url}/JSSResource/mobiledevices"
+            url = f"{jamf_url}/api/v2/mobile-devices"
             response = await fetch_json(url=url, session=session)
-            devices = response["mobile_devices"]
-            device_ids = [device["id"] for device in devices]
-            logthis.info("Received device IDs successfully.")
+            devices = response.get("results", [])
+            device_ids = [device["id"] for device in devices if device]
+            logthis.info(f"Received {len(devices)} device IDs successfully.")
             return device_ids
     except Exception as e:
         logthis.error(f"Error fetching device IDs: {e}")
@@ -376,21 +380,96 @@ async def get_device_os_versions(device_ids: List[int]) -> List[Dict[AnyStr, Any
     """
     try:
         async with aiohttp.ClientSession() as session:
-            tasks = [fetch_json(url=f"{jamf_url}/mobiledevices/id/{device}/subset/General", session=session) for device in device_ids]
+            tasks = [
+                fetch_json(
+                    url=f"{jamf_url}/api/v2/mobile-devices/{device}/detail",
+                    session=session,
+                )
+                for device in device_ids
+            ]
             subsets = await asyncio.gather(*tasks)
             devices = [
                 {
-                    "SN": subset["mobile_device"]["general"]["serial_number"],
-                    "OS": subset["mobile_device"]["general"]["os_version"]
+                    "SN": subset.get("serialNumber"),
+                    "OS": subset.get("osVersion"),
                 }
-                for subset in subsets if subset
+                for subset in subsets
+                if subset
             ]
-            logthis.info(f"Successfully obtained OS versions for {len(devices)} devices.")
+            logthis.info(
+                f"Successfully obtained OS versions for {len(devices)} devices."
+            )
             return devices
     except Exception as e:
         logthis.error(f"Error while fetching device OS information: {e}")
         return []
 
+
+# iOS Functionality - Get iOS machine readable feeds from SOFA (sofa.macadmins.io)
+async def get_sofa_feed() -> List[Dict[AnyStr, AnyStr]]:
+    """
+    Fetches iOS Data feeds from SOFA and extracts latest OS version information
+
+    :return: A list of dictionaries containing Base OS Version, latest iOS Version and release date.
+    """
+    try:
+        async with aiohttp.ClientSession() as session:
+            sofa_url = "https://sofa.macadmins.io/v1/ios_data_feed.json"
+            data = await fetch_json(url=sofa_url, session=session)
+            os_versions = data.get("OSVersions", [])
+            latest_versions = []
+            for version in os_versions:
+                version_info = version.get("Latest", {})
+                latest_versions.append(
+                    {
+                        "OSVersion": version.get("OSVersion"),
+                        "ProductVersion": version_info.get("ProductVersion"),
+                        "ReleaseDate": version_info.get("ReleaseDate"),
+                    }
+                )
+            return latest_versions
+    except Exception as e:
+        logthis.error(f"Error while fetching SOFA feeds: {e}")
+        return []
+
+
+# iOS Functionality - Calculate amount of devices on latest version
+async def calculate_ios_on_latest(device_ids: List[int]) -> Optional[float]:
+    """
+    Calculates the amount of enrolled devices are on the latest version of their respective operating system.
+
+    :param device_ids: A list of device IDs returned from the Jamf Pro Classic API
+    :return: The percentage of devices on the latest version, or None on error
+    """
+    latest_versions = await get_sofa_feed()
+    devices = await get_device_os_versions(device_ids=device_ids)
+
+    if not latest_versions or not devices:
+        logthis.error(
+            "There was an issue obtaining latest operating system version information."
+        )
+        return None
+
+    try:
+        latest_versions_dict = {
+            lv["OSVersion"]: lv["ProductVersion"] for lv in latest_versions
+        }
+
+        count_on_latest = 0
+        for device in devices:
+            device_os = device.get("OS")
+            if device_os in latest_versions_dict.values():
+                count_on_latest += 1
+
+        total_devices = len(devices)
+        if total_devices == 0:
+            return 0.0
+        percentage_on_latest = round((count_on_latest / total_devices) * 100, 2)
+
+        return percentage_on_latest
+    except (Exception, KeyError) as e:
+        logthis.error(f"Unable to calculate amount of devices on latest version: {e}")
+        return None
 
 
 # Create excel spreadsheet with patch data for export
@@ -423,11 +502,11 @@ def export_to_excel(patch_reports: List[Dict], output_dir: AnyStr) -> AnyStr:
         current_date = datetime.now().strftime("%m-%d-%y")
         excel_path = os.path.join(output_dir, f"patch-report-{current_date}.xlsx")
         df.to_excel(excel_path, index=False)
-
+        logthis.info(f"Excel spreadsheet created successfully at {excel_path}")
         return excel_path
 
     except Exception as e:
-        logthis.info(f"Error occurred trying to export to Excel: {e}")
+        logthis.error(f"Error occurred trying to export to Excel: {e}")
         return "Error exporting to Excel. Check log files in data directory."
 
 
