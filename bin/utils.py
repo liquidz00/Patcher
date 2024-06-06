@@ -111,7 +111,7 @@ def update_env(token: AnyStr, expires_in: int) -> None:
     :type expires_in: int
     """
     try:
-        expiration_time = datetime.utcnow() + timedelta(seconds=expires_in)
+        expiration_time = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
         # Small buffer to account for time sync issues
         buffer = 5 * 60
@@ -139,7 +139,7 @@ def token_valid() -> bool:
         expiration_time = datetime.fromtimestamp(
             float(token_expiration), tz=timezone.utc
         )
-        current_time = datetime.utcnow().replace(tzinfo=timezone.utc)
+        current_time = datetime.now(timezone.utc).replace(tzinfo=timezone.utc)
         return current_time < expiration_time
     return False
 
