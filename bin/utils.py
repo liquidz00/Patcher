@@ -79,7 +79,7 @@ class PDF(FPDF):
 
 
 # Format UTC time
-def convert_timezone(utc_time_str: AnyStr) -> AnyStr:
+def convert_timezone(utc_time_str: AnyStr) -> Optional[AnyStr]:
     """
     Converts a UTC time string to a formatted string without timezone information.
 
@@ -94,12 +94,8 @@ def convert_timezone(utc_time_str: AnyStr) -> AnyStr:
         logthis.info("Converted timezone successfully.")
         return time_str
     except ValueError as e:
-        logthis.warn(f"Invalid time format provided. Details: {e}")
-        return "Invalid time format"
-    except Exception as e:
-        logthis.error(f"An unexpected error occurred: {e}")
-        return "Conversion error."
-
+        logthis.error(f"Invalid time format provided. Details: {e}")
+        return None
 
 # Update Bearer Token in .env
 def update_env(token: AnyStr, expires_in: int) -> None:
@@ -112,25 +108,22 @@ def update_env(token: AnyStr, expires_in: int) -> None:
     :param expires_in: Number (in seconds) when token will expire
     :type expires_in: int
     """
+    expiration_time = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+
+    # Small buffer to account for time sync issues
+    buffer = 5 * 60
+    expiration_timestamp = (expiration_time - timedelta(seconds=buffer)).timestamp()
+
     try:
-        expiration_time = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
-
-        # Small buffer to account for time sync issues
-        buffer = 5 * 60
-        expiration_timestamp = (expiration_time - timedelta(seconds=buffer)).timestamp()
-
         set_key(dotenv_path=globals.ENV_PATH, key_to_set="TOKEN", value_to_set=token)
         set_key(
             dotenv_path=globals.ENV_PATH,
             key_to_set="TOKEN_EXPIRATION",
             value_to_set=str(expiration_timestamp),
         )
-
         logthis.info("Bearer token and expiration updated in .env file")
-    except OSError as e:
+    except (OSError, ValueError) as e:
         logthis.error(f"Failed to update the .env file due to a file error: {e}")
-    except Exception as e:
-        logthis.error(f"An unexpected error occurred while update the .env file: {e}")
 
 
 # Check token expiration
@@ -167,18 +160,17 @@ async def fetch_token() -> Optional[AnyStr]:
                 url=f"{jamf_url}/api/oauth/token", data=payload, headers=token_headers
             )
             response.raise_for_status()
-
+        except aiohttp.ClientResponseError as e:
+            logthis.warn(f"Failed to fetch bearer token. Status code: {e.status}")
+        else:
             json_response = await response.json()
             token = json_response.get("access_token", "")
-            expires = int(json_response.get("expires_in", ""))
-
+            expires = int(json_response.get("expires_in", 0))
+            if not token or not expires:
+                return None
             update_env(token=token, expires_in=expires)
             logthis.info(f"Token obtained successfully. Expires in {expires} seconds")
             return token
-        except aiohttp.ClientResponseError as e:
-            logthis.warn(f"Failed to fetch bearer token. Status code: {e.status}")
-        except Exception as e:
-            logthis.error(f"Unexpected error during token fetch: {e}")
 
     return None
 
@@ -213,94 +205,84 @@ async def check_token_lifetime(client_id: AnyStr = globals.JAMF_CLIENT_ID) -> bo
     :param client_id: The client ID property to match, defaults to client_id property in .env
     :return: True if token lifetime is greater than 5 minutes
     """
-    try:
-        async with aiohttp.ClientSession() as session:
-            url = f"{jamf_url}/api/v1/api-integrations"
-            response = await fetch_json(url=url, session=session)
-            if not response:
-                logthis.error("Received empty dictionary fetching response.")
-                return False
-            try:
-                results = response["results"]
-                for result in results:
-                    if result["clientId"] == client_id:
-                        # accessTokenLifetimeSeconds value is extracted once match found
-                        lifetime = result["accessTokenLifetimeSeconds"]
-                        if lifetime <= 0:
-                            logthis.error("Token lifetime is invalid.")
-                            return False
+    async with aiohttp.ClientSession() as session:
+        url = f"{jamf_url}/api/v1/api-integrations"
+        response = await fetch_json(url=url, session=session)
+        if not response:
+            logthis.error("Received empty dictionary fetching response.")
+            return False
+        results = response.get("results")
+        if not results:
+            logthis.error("Invalid response received from API call.")
+            return False
 
-                        # Calculate duration in different units
-                        minutes = lifetime / 60
-                        hours = minutes / 60
-                        days = hours / 24
-                        months = days / 30
+        lifetime = None
+        for result in results:
+            if result.get("clientId") == client_id:
+                # accessTokenLifetimeSeconds value is extracted once match found
+                lifetime = result.get("accessTokenLifetimeSeconds")
+                break
 
-                        # Throw error if duration of lifetime is less than 1 minute
-                        if minutes < 1:
-                            logthis.error("Token life time is less than 1 minute.")
-                            return False
-                        elif 5 <= minutes <= 10:
-                            # Throws warning if token lifetime is between 5-10 minutes
-                            logthis.warning("Token lifetime is between 5-10 minutes.")
-                        else:
-                            # Lifetime duration logged otherwise
-                            logthis.info(
-                                f"Token lifetime: {minutes:.2f} minutes, {hours:.2f} hours, {days:.2f} days, {months:.2f} months."
-                            )
-                        return True
-                logthis.error(f"No matching Client ID found for {client_id}.")
-                return False
-            except KeyError as e:
-                logthis.error(f"KeyError: Missing key {e} in the response.")
-                return False
-    except Exception as e:
-        logthis.error(f"An unexpected error occurred. Details: {e}")
+        if lifetime is None:
+            # Client ID not found
+            logthis.error(f"No matching Client ID found for {client_id}.")
+            return False
+
+        if lifetime <= 0:
+            logthis.error("Token lifetime is invalid.")
+            return False
+
+        # Calculate duration in different units
+        minutes = lifetime / 60
+        hours = minutes / 60
+        days = hours / 24
+        months = days / 30
+
+        # Throw error if duration of lifetime is less than 1 minute
+        if minutes < 1:
+            logthis.error("Token life time is less than 1 minute.")
+            return False
+        elif 5 <= minutes <= 10:
+            # Throws warning if token lifetime is between 5-10 minutes
+            logthis.warning("Token lifetime is between 5-10 minutes.")
+        else:
+            # Lifetime duration logged otherwise
+            logthis.info(
+                f"Token lifetime: {minutes:.2f} minutes, {hours:.2f} hours, {days:.2f} days, {months:.2f} months."
+            )
+        return True
 
 
 # Use Jamf API to retrieve all Patch titles IDs
-async def get_policies() -> List:
+async def get_policies() -> Optional[List]:
     """
     Asynchronously retrieves all patch software titles' IDs using the Jamf API.
 
     :return: List of software title IDs or an empty list on error.
     :rtype: List
     """
-    try:
-        # Ensure bearer token is valid
-        if not token_valid():
-            logthis.info("Bearer token is not valid, refreshing token.")
-            new_token = await fetch_token()
-            if not new_token:
-                logthis.error("Failed to refresh token, aborting...")
-                return []
+    async with aiohttp.ClientSession() as session:
+        url = f"{jamf_url}/api/v2/patch-software-title-configurations"
+        response = await fetch_json(url=url, session=session)
 
-        async with aiohttp.ClientSession() as session:
-            url = f"{jamf_url}/api/v2/patch-software-title-configurations"
-            response = await fetch_json(url=url, session=session)
+        # Verify response is list type as expected
+        if not isinstance(response, list):
+            logthis.error("Unexpected response format: expected a list.")
+            return None
 
-            # Verify response is list type as expected
-            if not isinstance(response, list):
-                logthis.error("Unexpected response format: expected a list.")
-                return []
+        # Check if all elements in the list are dictionaries
+        if not all(isinstance(item, dict) for item in response):
+            logthis.error(
+                "Unexpected response format: all items should be dictionaries."
+            )
+            return None
 
-            # Check if all elements in the list are dictionaries
-            if not all(isinstance(item, dict) for item in response):
-                logthis.error(
-                    "Unexpected response format: all items should be dictionaries."
-                )
-                return []
-
-            logthis.info("Patch policies obtained as expected.")
-            return [title["id"] for title in response]
-
-    except Exception as e:
-        logthis.error(f"Error retrieving policies from API: {e}")
-        return []
+        logthis.info("Patch policies obtained as expected.")
+        return [title.get("id") for title in response]
 
 
 # Use Jamf API to retrieve active patch summaries based upon supplied ID
-async def get_summaries(policy_ids: List) -> List:
+async def get_summaries(policy_ids: List) -> Optional[List]:
     """
     Retrieves active patch summaries for given policy IDs using the Jamf API.
 
@@ -319,42 +301,43 @@ async def get_summaries(policy_ids: List) -> List:
                 for policy in policy_ids
             ]
             summaries = await asyncio.gather(*tasks)
-            policy_summaries = [
-                {
-                    "software_title": summary["title"],
-                    "patch_released": convert_timezone(summary["releaseDate"]),
-                    "hosts_patched": summary["upToDate"],
-                    "missing_patch": summary["outOfDate"],
-                    "completion_percent": (
-                        round(
-                            (
-                                summary["upToDate"]
-                                / (summary["upToDate"] + summary["outOfDate"])
-                            )
-                            * 100,
-                            2,
-                        )
-                        if summary["upToDate"] + summary["outOfDate"] > 0
-                        else 0
-                    ),
-                    "total_hosts": summary["upToDate"] + summary["outOfDate"],
-                }
-                for summary in summaries
-                if summary
-            ]
-            logthis.info(
-                f"Successfully obtained policy summaries for {len(policy_summaries)} policies."
-            )
-            return policy_summaries
-    except Exception as e:
-        logthis.error(f"Error retrieving summaries: {e}")
-        return []
+    except aiohttp.ClientError as e:
+        logthis.error(f"Received ClientError trying to retreive patch summaries: {e}")
+        return None
+
+    policy_summaries = [
+        {
+            "software_title": summary.get("title"),
+            "patch_released": convert_timezone(summary.get("releaseDate")),
+            "hosts_patched": summary.get("upToDate"),
+            "missing_patch": summary.get("outOfDate"),
+            "completion_percent": (
+                round(
+                    (
+                        summary.get("upToDate")
+                        / (summary.get("upToDate") + summary.get("outOfDate"))
+                    )
+                    * 100,
+                    2,
+                )
+                if summary.get("upToDate") + summary.get("outOfDate") > 0
+                else 0
+            ),
+            "total_hosts": summary.get("upToDate") + summary.get("outOfDate"),
+        }
+        for summary in summaries
+        if summary
+    ]
+    logthis.info(
+        f"Successfully obtained policy summaries for {len(policy_summaries)} policies."
+    )
+    return policy_summaries
 
 
-# iOS Functionality - Get mobile device IDs from Jamf (Classic API)
+# iOS Functionality - Get mobile device IDs from Jamf Pro API
 async def get_device_ids() -> List[int]:
     """
-    Asynchronously fetches the list of mobile device IDs from the Jamf Classic API.
+    Asynchronously fetches the list of mobile device IDs from the Jamf Pro API.
 
     :return: A list of mobile device IDs.
     """
@@ -371,10 +354,10 @@ async def get_device_ids() -> List[int]:
         return []
 
 
-# iOS Functionality - Get OS Version and Type from Jamf (Classic API)
-async def get_device_os_versions(device_ids: List[int]) -> List[Dict[AnyStr, AnyStr]]:
+# iOS Functionality - Get OS Version and Type from Jamf Pro API
+async def get_device_os_versions(device_ids: List[int]) -> Optional[List[Dict[AnyStr, AnyStr]]]:
     """
-    Asynchronously fetches the OS version and serial number for each device ID from the Jamf Classic API.
+    Asynchronously fetches the OS version and serial number for each device ID from the Jamf Pro API.
 
     :param device_ids: A list of mobile device IDs.
     :type device_ids: List[int]
@@ -390,21 +373,22 @@ async def get_device_os_versions(device_ids: List[int]) -> List[Dict[AnyStr, Any
                 for device in device_ids
             ]
             subsets = await asyncio.gather(*tasks)
-            devices = [
-                {
-                    "SN": subset.get("serialNumber"),
-                    "OS": subset.get("osVersion"),
-                }
-                for subset in subsets
-                if subset
-            ]
-            logthis.info(
-                f"Successfully obtained OS versions for {len(devices)} devices."
-            )
-            return devices
-    except Exception as e:
-        logthis.error(f"Error while fetching device OS information: {e}")
-        return []
+    except aiohttp.ClientError as e:
+        logthis.error(f"Received ClientError fetching device OS information: {e}")
+        return None
+
+    devices = [
+        {
+            "SN": subset.get("serialNumber"),
+            "OS": subset.get("osVersion"),
+        }
+        for subset in subsets
+        if subset
+    ]
+    logthis.info(
+        f"Successfully obtained OS versions for {len(devices)} devices."
+    )
+    return devices
 
 # iOS Functionality - Get iOS machine readable feeds from SOFA (sofa.macadmins.io)
 def get_sofa_feed() -> Optional[List[Dict[AnyStr, AnyStr]]]:
@@ -441,7 +425,6 @@ def get_sofa_feed() -> Optional[List[Dict[AnyStr, AnyStr]]]:
             }
         )
     return latest_versions
-
 
 # iOS Functionality - Calculate amount of devices on latest version
 async def calculate_ios_on_latest(device_ids: List[int]) -> Optional[float]:
