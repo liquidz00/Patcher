@@ -2,6 +2,8 @@ import os
 import pandas as pd
 import aiohttp
 import asyncio
+import subprocess
+import json
 
 from bin import logger, globals
 from datetime import datetime, timedelta, timezone
@@ -404,33 +406,41 @@ async def get_device_os_versions(device_ids: List[int]) -> List[Dict[AnyStr, Any
         logthis.error(f"Error while fetching device OS information: {e}")
         return []
 
-
 # iOS Functionality - Get iOS machine readable feeds from SOFA (sofa.macadmins.io)
-async def get_sofa_feed() -> List[Dict[AnyStr, AnyStr]]:
+def get_sofa_feed() -> Optional[List[Dict[AnyStr, AnyStr]]]:
     """
     Fetches iOS Data feeds from SOFA and extracts latest OS version information
 
     :return: A list of dictionaries containing Base OS Version, latest iOS Version and release date.
     """
+
+    # Utilize curl to avoid SSL Verification errors for end-users on managed devices
+    command = "curl -s 'https://sofa.macadmins.io/v1/ios_data_feed.json'"
+
     try:
-        async with aiohttp.ClientSession() as session:
-            sofa_url = "https://sofa.macadmins.io/v1/ios_data_feed.json"
-            data = await fetch_json(url=sofa_url, session=session)
-            os_versions = data.get("OSVersions", [])
-            latest_versions = []
-            for version in os_versions:
-                version_info = version.get("Latest", {})
-                latest_versions.append(
-                    {
-                        "OSVersion": version.get("OSVersion"),
-                        "ProductVersion": version_info.get("ProductVersion"),
-                        "ReleaseDate": version_info.get("ReleaseDate"),
-                    }
-                )
-            return latest_versions
-    except Exception as e:
-        logthis.error(f"Error while fetching SOFA feeds: {e}")
-        return []
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as e:
+        logthis.error(f"Encountered error executing subprocess command: {e}")
+        return None
+
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        logthis.error(f"Error decoding JSON data: {e}")
+        return None
+
+    os_versions = data.get("OSVersions", [])
+    latest_versions = []
+    for version in os_versions:
+        version_info = version.get("Latest", {})
+        latest_versions.append(
+            {
+                "OSVersion": version.get("OSVersion"),
+                "ProductVersion": version_info.get("ProductVersion"),
+                "ReleaseDate": convert_timezone(version_info.get("ReleaseDate")),
+            }
+        )
+    return latest_versions
 
 
 # iOS Functionality - Calculate amount of devices on latest version
