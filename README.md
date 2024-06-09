@@ -2,7 +2,7 @@
 
 _Patch reporting simplified_
 
-![](https://img.shields.io/badge/license-apache_2.0-blue)&nbsp;![](https://img.shields.io/badge/python-3.9%2B-blue)&nbsp;![](https://img.shields.io/github/v/release/liquidz00/Patcher?color=purple)&nbsp;![](https://github.com/liquidz00/patcher/actions/workflows/pytest.yml/badge.svg)
+![](https://img.shields.io/badge/license-apache_2.0-blue)&nbsp;![](https://img.shields.io/badge/python-3.10%2B-blue)&nbsp;![](https://img.shields.io/github/v/release/liquidz00/Patcher?color=purple)&nbsp;![](https://github.com/liquidz00/patcher/actions/workflows/pytest.yml/badge.svg)
 
 
 Patcher leverages the Jamf Pro API to fetch patch management data and generate comprehensive reports in both Excel and PDF formats. It simplifies tracking and reporting on software update compliance across macOS devices managed through Jamf Pro.
@@ -25,7 +25,7 @@ The following image can be found in the `images` directory.
 > [!NOTE]
 > Patcher **requires** an API client for authentication. For instructions on creating an API Role & Client in Jamf Pro, refer to the [Jamf Pro Deployment Guide](https://github.com/liquidz00/Patcher/wiki/Jamf-Pro-Deployment-Guide#creating-an-api-role--client) in the wiki.
 
-- Python 3.9+ (with pip).
+- Python 3.10+ (with pip).
 - Git installed (via Homebrew or Developer Tools)
 - Access to a Jamf Pro instance with administrator privileges (for API client creation).
 - A Jamf Pro API Client with the following:
