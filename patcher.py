@@ -169,14 +169,23 @@ async def process_reports(
             try:
                 device_ids = await utils.get_device_ids()
             except aiohttp.ClientError as e:
-                log_me(f"Received ClientError response when obtaining mobile device IDs: {e}", LogMe.Level.ERROR)
+                log_me(
+                    f"Received ClientError response when obtaining mobile device IDs: {e}",
+                    LogMe.Level.ERROR,
+                )
                 raise click.Abort()
             device_versions = await utils.get_device_os_versions(device_ids=device_ids)
             latest_versions = utils.get_sofa_feed()
             if not device_versions and not latest_versions:
-                log_me("Received empty response obtaining device versions or SOFA feed. Exiting...", LogMe.Level.ERROR)
+                log_me(
+                    "Received empty response obtaining device versions or SOFA feed. Exiting...",
+                    LogMe.Level.ERROR,
+                )
                 raise click.Abort()
-            ios_data = await utils.calculate_ios_on_latest(device_versions=device_versions, latest_versions=latest_versions)
+
+            ios_data = utils.calculate_ios_on_latest(
+                device_versions=device_versions, latest_versions=latest_versions
+            )
             patch_reports.append(ios_data)
 
         # Generate reports
@@ -248,10 +257,15 @@ async def process_reports(
     "--ios",
     "-m",
     is_flag=True,
-    help="Include the amount of enrolled mobile devices on the latest version of their respective OS."
+    help="Include the amount of enrolled mobile devices on the latest version of their respective OS.",
 )
 def main(
-    path: AnyStr, pdf: bool, sort: Optional[AnyStr], omit: bool, ios: bool, date_format: AnyStr
+    path: AnyStr,
+    pdf: bool,
+    sort: Optional[AnyStr],
+    omit: bool,
+    ios: bool,
+    date_format: AnyStr,
 ) -> None:
     actual_format = DATE_FORMATS[date_format]
     stop_event = threading.Event()
