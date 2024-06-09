@@ -2,9 +2,9 @@ import pytest
 import threading
 import click.testing
 
-from unittest.mock import patch, AsyncMock, ANY
+from unittest.mock import patch, AsyncMock
 
-from patcher import LogMe, process_reports, logthis, main
+from patcher import LogMe, process_reports
 
 
 @pytest.fixture(scope="function", autouse=True)
