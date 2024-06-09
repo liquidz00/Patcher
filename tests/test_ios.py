@@ -127,3 +127,122 @@ def test_get_sofa_feed_json_decode_error(mock_run):
     result = utils.get_sofa_feed()
     assert result is None
     assert pytest.raises(json.JSONDecodeError)
+
+# Test successful calculation
+@pytest.mark.asyncio
+async def test_calculate_ios_on_latest_success():
+    device_versions = [
+        {"DeviceID": "1", "OS": "17.5.1"},
+        {"DeviceID": "2", "OS": "16.7.8"},
+        {"DeviceID": "3", "OS": "17.5.1"},
+    ]
+    latest_versions = [
+        {"OSVersion": "17", "ProductVersion": "17.5.1", "ReleaseDate": "2024-05-20T00:00:00Z"},
+        {"OSVersion": "16", "ProductVersion": "16.7.8", "ReleaseDate": "2024-05-13T00:00:00Z"},
+    ]
+
+    result = await utils.calculate_ios_on_latest(device_versions, latest_versions)
+    expected_result = [
+        {
+            "software_title": "iOS 17.5.1",
+            "patch_released": "2024-05-20T00:00:00Z",
+            "hosts_patched": 2,
+            "missing_patch": 0,
+            "completion_percent": 100.0,
+            "total_hosts": 2
+        },
+        {
+            "software_title": "iOS 16.7.8",
+            "patch_released": "2024-05-13T00:00:00Z",
+            "hosts_patched": 1,
+            "missing_patch": 0,
+            "completion_percent": 100.0,
+            "total_hosts": 1
+        }
+    ]
+
+    assert result == expected_result
+
+# Test no devices on the latest version
+@pytest.mark.asyncio
+async def test_calculate_ios_on_latest_no_devices_on_latest():
+    device_versions = [
+        {"DeviceID": "1", "OS": "17.4.0"},
+        {"DeviceID": "2", "OS": "16.6.0"},
+    ]
+    latest_versions = [
+        {"OSVersion": "17", "ProductVersion": "17.5.1", "ReleaseDate": "2024-05-20T00:00:00Z"},
+        {"OSVersion": "16", "ProductVersion": "16.7.8", "ReleaseDate": "2024-05-13T00:00:00Z"},
+    ]
+
+    result = await utils.calculate_ios_on_latest(device_versions, latest_versions)
+    expected_result = [
+        {
+            "software_title": "iOS 17.5.1",
+            "patch_released": "2024-05-20T00:00:00Z",
+            "hosts_patched": 0,
+            "missing_patch": 1,
+            "completion_percent": 0.0,
+            "total_hosts": 1
+        },
+        {
+            "software_title": "iOS 16.7.8",
+            "patch_released": "2024-05-13T00:00:00Z",
+            "hosts_patched": 0,
+            "missing_patch": 1,
+            "completion_percent": 0.0,
+            "total_hosts": 1
+        }
+    ]
+
+    assert result == expected_result
+
+# Test all devices on the latest version
+@pytest.mark.asyncio
+async def test_calculate_ios_on_latest_all_devices_on_latest():
+    device_versions = [
+        {"DeviceID": "1", "OS": "17.5.1"},
+        {"DeviceID": "2", "OS": "17.5.1"},
+    ]
+    latest_versions = [
+        {"OSVersion": "17", "ProductVersion": "17.5.1", "ReleaseDate": "2024-05-20T00:00:00Z"},
+    ]
+
+    result = await utils.calculate_ios_on_latest(device_versions, latest_versions)
+    expected_result = [
+        {
+            "software_title": "iOS 17.5.1",
+            "patch_released": "2024-05-20T00:00:00Z",
+            "hosts_patched": 2,
+            "missing_patch": 0,
+            "completion_percent": 100.0,
+            "total_hosts": 2
+        }
+    ]
+
+    assert result == expected_result
+
+# Test some devices on the latest version
+@pytest.mark.asyncio
+async def test_calculate_ios_on_latest_some_devices_on_latest():
+    device_versions = [
+        {"DeviceID": "1", "OS": "17.5.1"},
+        {"DeviceID": "2", "OS": "17.4.0"},
+    ]
+    latest_versions = [
+        {"OSVersion": "17", "ProductVersion": "17.5.1", "ReleaseDate": "2024-05-20T00:00:00Z"},
+    ]
+
+    result = await utils.calculate_ios_on_latest(device_versions, latest_versions)
+    expected_result = [
+        {
+            "software_title": "iOS 17.5.1",
+            "patch_released": "2024-05-20T00:00:00Z",
+            "hosts_patched": 1,
+            "missing_patch": 1,
+            "completion_percent": 50.0,
+            "total_hosts": 2
+        }
+    ]
+
+    assert result == expected_result
