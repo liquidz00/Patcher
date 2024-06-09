@@ -163,17 +163,16 @@ async def fetch_token() -> Optional[AnyStr]:
             response.raise_for_status()
         except aiohttp.ClientResponseError as e:
             logthis.warn(f"Failed to fetch bearer token. Status code: {e.status}")
-        else:
-            json_response = await response.json()
-            token = json_response.get("access_token", "")
-            expires = int(json_response.get("expires_in", 0))
-            if not token or not expires:
-                return None
-            update_env(token=token, expires_in=expires)
-            logthis.info(f"Token obtained successfully. Expires in {expires} seconds")
-            return token
+            return None
 
-    return None
+        json_response = await response.json()
+        token = json_response.get("access_token", "")
+        expires = int(json_response.get("expires_in", 0))
+        if not token or not expires:
+            return None
+        update_env(token=token, expires_in=expires)
+        logthis.info(f"Token obtained successfully. Expires in {expires} seconds")
+        return token
 
 
 # Async API call
