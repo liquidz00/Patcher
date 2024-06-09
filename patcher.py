@@ -68,6 +68,7 @@ async def process_reports(
     pdf: bool,
     sort: Optional[AnyStr],
     omit: bool,
+    ios: bool,
     stop_event: threading.Event,
     date_format: AnyStr = "%B %d %Y",
 ) -> None:
@@ -83,6 +84,8 @@ async def process_reports(
     :type sort: Optional[AnyStr]
     :param omit: Omit reports based on a condition if True.
     :type omit: bool
+    :param ios: Include iOS device data if True
+    :type ios: bool
     :param stop_event: Event to signal completion or abortion (used solely for animation).
     :type stop_event: threading.Event
     :param date_format: Format for dates in the header. Default is "%B %d %Y" (Month Day Year)
@@ -103,7 +106,8 @@ async def process_reports(
             raise click.Abort()
 
     # Ensure token has proper lifetime duration
-    if not utils.check_token_lifetime():
+    token_lifetime = await utils.check_token_lifetime()
+    if not token_lifetime:
         log_me(
             "Bearer token lifetime is too short. Review the Patcher Wiki for instructions to increase the token's lifetime.",
             LogMe.Level.ERROR,
@@ -159,6 +163,21 @@ async def process_reports(
                 for report in patch_reports
                 if datetime.strptime(report["patch_released"], "%b %d %Y") < cutoff
             ]
+
+        # (option) iOS
+        if ios:
+            try:
+                device_ids = await utils.get_device_ids()
+            except aiohttp.ClientError as e:
+                log_me(f"Received ClientError response when obtaining mobile device IDs: {e}", LogMe.Level.ERROR)
+                raise click.Abort()
+            device_versions = await utils.get_device_os_versions(device_ids=device_ids)
+            latest_versions = utils.get_sofa_feed()
+            if not device_versions and not latest_versions:
+                log_me("Received empty response obtaining device versions or SOFA feed. Exiting...", LogMe.Level.ERROR)
+                raise click.Abort()
+            ios_data = await utils.calculate_ios_on_latest(device_versions=device_versions, latest_versions=latest_versions)
+            patch_reports.append(ios_data)
 
         # Generate reports
         excel_file = utils.export_to_excel(patch_reports, reports_dir)
@@ -225,15 +244,21 @@ async def process_reports(
     default="Month-Day-Year",
     help="Specify the date format for the PDF header from predefined choices.",
 )
+@click.option(
+    "--ios",
+    "-m",
+    is_flag=True,
+    help="Include the amount of enrolled mobile devices on the latest version of their respective OS."
+)
 def main(
-    path: AnyStr, pdf: bool, sort: Optional[AnyStr], omit: bool, date_format: AnyStr
+    path: AnyStr, pdf: bool, sort: Optional[AnyStr], omit: bool, ios: bool, date_format: AnyStr
 ) -> None:
     actual_format = DATE_FORMATS[date_format]
     stop_event = threading.Event()
     animation_thread = threading.Thread(target=animate_search, args=(stop_event,))
     animation_thread.start()
 
-    asyncio.run(process_reports(path, pdf, sort, omit, stop_event, actual_format))
+    asyncio.run(process_reports(path, pdf, sort, omit, ios, stop_event, actual_format))
 
 
 if __name__ == "__main__":
