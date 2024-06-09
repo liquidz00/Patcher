@@ -335,23 +335,29 @@ async def get_summaries(policy_ids: List) -> Optional[List]:
 
 
 # iOS Functionality - Get mobile device IDs from Jamf Pro API
-async def get_device_ids() -> List[int]:
+async def get_device_ids() -> Optional[List[int]]:
     """
     Asynchronously fetches the list of mobile device IDs from the Jamf Pro API.
 
     :return: A list of mobile device IDs.
     """
+    url = f"{jamf_url}/api/v2/mobile-devices"
+
     try:
         async with aiohttp.ClientSession() as session:
-            url = f"{jamf_url}/api/v2/mobile-devices"
             response = await fetch_json(url=url, session=session)
-            devices = response.get("results", [])
-            device_ids = [device["id"] for device in devices if device]
-            logthis.info(f"Received {len(devices)} device IDs successfully.")
-            return device_ids
-    except Exception as e:
+    except aiohttp.ClientError as e:
         logthis.error(f"Error fetching device IDs: {e}")
-        return []
+        return None
+    devices = response.get("results", [])
+
+    if not devices:
+        logthis.error("Received invalid data set during device ID API call.")
+        return None
+
+    device_ids = [device.get("id") for device in devices if device]
+    logthis.info(f"Received {len(devices)} device IDs successfully.")
+    return device_ids
 
 
 # iOS Functionality - Get OS Version and Type from Jamf Pro API
@@ -377,13 +383,16 @@ async def get_device_os_versions(device_ids: List[int]) -> Optional[List[Dict[An
         logthis.error(f"Received ClientError fetching device OS information: {e}")
         return None
 
+    if not subsets:
+        logthis.error("Received empty response obtaining device OS information.")
+        return None
+
     devices = [
         {
             "SN": subset.get("serialNumber"),
             "OS": subset.get("osVersion"),
         }
         for subset in subsets
-        if subset
     ]
     logthis.info(
         f"Successfully obtained OS versions for {len(devices)} devices."
@@ -427,42 +436,54 @@ def get_sofa_feed() -> Optional[List[Dict[AnyStr, AnyStr]]]:
     return latest_versions
 
 # iOS Functionality - Calculate amount of devices on latest version
-async def calculate_ios_on_latest(device_ids: List[int]) -> Optional[float]:
+async def calculate_ios_on_latest(
+    device_versions: List[Dict[AnyStr, AnyStr]],
+    latest_versions: List[Dict[AnyStr, AnyStr]],
+) -> Optional[List[Dict]]:
     """
     Calculates the amount of enrolled devices are on the latest version of their respective operating system.
 
-    :param device_ids: A list of device IDs returned from the Jamf Pro Classic API
-    :return: The percentage of devices on the latest version, or None on error
+    :param device_versions: A list of nested dictionaries containing devices and corresponding operating system versions
+    :type device_versions: List[Dict[AnyStr, AnyStr]]
+    :param latest_versions: A list of latest available iOS versions, from SOFA feed
+    :type latest_versions: List[Dict[AnyStr, AnyStr]]
+    :return: A list with calculated data per iOS version
     """
-    latest_versions = await get_sofa_feed()
-    devices = await get_device_os_versions(device_ids=device_ids)
-
-    if not latest_versions or not devices:
-        logthis.error(
-            "There was an issue obtaining latest operating system version information."
-        )
+    if not device_versions or not latest_versions:
+        logthis.error("Error calculating iOS Versions. Received None instead of a List")
         return None
 
-    try:
-        latest_versions_dict = {
-            lv["OSVersion"]: lv["ProductVersion"] for lv in latest_versions
-        }
+    latest_versions_dict = {
+        lv.get("OSVersion"): lv for lv in latest_versions
+    }
 
-        count_on_latest = 0
-        for device in devices:
-            device_os = device.get("OS")
-            if device_os in latest_versions_dict.values():
-                count_on_latest += 1
+    version_counts = {version: {"count": 0, "total": 0} for version in
+                      latest_versions_dict.keys()}
 
-        total_devices = len(devices)
-        if total_devices == 0:
-            return 0.0
-        percentage_on_latest = round((count_on_latest / total_devices) * 100, 2)
+    for device in device_versions:
+        device_os = device.get("OS")
+        major_version = device_os.split('.')[0]
+        if major_version in version_counts:
+            version_counts[major_version]["total"] += 1
+            if device_os == latest_versions_dict[major_version]["ProductVersion"]:
+                version_counts[major_version]["count"] += 1
 
-        return percentage_on_latest
-    except (Exception, KeyError) as e:
-        logthis.error(f"Unable to calculate amount of devices on latest version: {e}")
-        return None
+    mapped = []
+    for version, counts in version_counts.items():
+        if counts["total"] > 0:
+            completion_percent = round((counts["count"] / counts["total"]) * 100, 2)
+            mapped.append(
+                {
+                    "software_title": f"iOS {latest_versions_dict[version]['ProductVersion']}",
+                    "patch_released": latest_versions_dict[version]["ReleaseDate"],
+                    "hosts_patched": counts["count"],
+                    "missing_patch": counts["total"] - counts["count"],
+                    "completion_percent": completion_percent,
+                    "total_hosts": counts["total"]
+                }
+            )
+
+    return mapped
 
 
 # Create excel spreadsheet with patch data for export
