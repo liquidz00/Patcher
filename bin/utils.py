@@ -97,6 +97,7 @@ def convert_timezone(utc_time_str: AnyStr) -> Optional[AnyStr]:
         logthis.error(f"Invalid time format provided. Details: {e}")
         return None
 
+
 # Update Bearer Token in .env
 def update_env(token: AnyStr, expires_in: int) -> None:
     """
@@ -361,7 +362,9 @@ async def get_device_ids() -> Optional[List[int]]:
 
 
 # iOS Functionality - Get OS Version and Type from Jamf Pro API
-async def get_device_os_versions(device_ids: List[int]) -> Optional[List[Dict[AnyStr, AnyStr]]]:
+async def get_device_os_versions(
+    device_ids: List[int],
+) -> Optional[List[Dict[AnyStr, AnyStr]]]:
     """
     Asynchronously fetches the OS version and serial number for each device ID from the Jamf Pro API.
 
@@ -394,10 +397,9 @@ async def get_device_os_versions(device_ids: List[int]) -> Optional[List[Dict[An
         }
         for subset in subsets
     ]
-    logthis.info(
-        f"Successfully obtained OS versions for {len(devices)} devices."
-    )
+    logthis.info(f"Successfully obtained OS versions for {len(devices)} devices.")
     return devices
+
 
 # iOS Functionality - Get iOS machine readable feeds from SOFA (sofa.macadmins.io)
 def get_sofa_feed() -> Optional[List[Dict[AnyStr, AnyStr]]]:
@@ -411,7 +413,9 @@ def get_sofa_feed() -> Optional[List[Dict[AnyStr, AnyStr]]]:
     command = "curl -s 'https://sofa.macadmins.io/v1/ios_data_feed.json'"
 
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            command, shell=True, capture_output=True, text=True, check=True
+        )
     except subprocess.CalledProcessError as e:
         logthis.error(f"Encountered error executing subprocess command: {e}")
         return None
@@ -435,8 +439,9 @@ def get_sofa_feed() -> Optional[List[Dict[AnyStr, AnyStr]]]:
         )
     return latest_versions
 
+
 # iOS Functionality - Calculate amount of devices on latest version
-async def calculate_ios_on_latest(
+def calculate_ios_on_latest(
     device_versions: List[Dict[AnyStr, AnyStr]],
     latest_versions: List[Dict[AnyStr, AnyStr]],
 ) -> Optional[List[Dict]]:
@@ -453,16 +458,15 @@ async def calculate_ios_on_latest(
         logthis.error("Error calculating iOS Versions. Received None instead of a List")
         return None
 
-    latest_versions_dict = {
-        lv.get("OSVersion"): lv for lv in latest_versions
-    }
+    latest_versions_dict = {lv.get("OSVersion"): lv for lv in latest_versions}
 
-    version_counts = {version: {"count": 0, "total": 0} for version in
-                      latest_versions_dict.keys()}
+    version_counts = {
+        version: {"count": 0, "total": 0} for version in latest_versions_dict.keys()
+    }
 
     for device in device_versions:
         device_os = device.get("OS")
-        major_version = device_os.split('.')[0]
+        major_version = device_os.split(".")[0]
         if major_version in version_counts:
             version_counts[major_version]["total"] += 1
             if device_os == latest_versions_dict[major_version]["ProductVersion"]:
@@ -479,7 +483,7 @@ async def calculate_ios_on_latest(
                     "hosts_patched": counts["count"],
                     "missing_patch": counts["total"] - counts["count"],
                     "completion_percent": completion_percent,
-                    "total_hosts": counts["total"]
+                    "total_hosts": counts["total"],
                 }
             )
 
