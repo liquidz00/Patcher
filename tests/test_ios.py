@@ -141,7 +141,7 @@ async def test_calculate_ios_on_latest_success():
         {"OSVersion": "16", "ProductVersion": "16.7.8", "ReleaseDate": "2024-05-13T00:00:00Z"},
     ]
 
-    result = await utils.calculate_ios_on_latest(device_versions, latest_versions)
+    result = utils.calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
         {
             "software_title": "iOS 17.5.1",
@@ -175,7 +175,7 @@ async def test_calculate_ios_on_latest_no_devices_on_latest():
         {"OSVersion": "16", "ProductVersion": "16.7.8", "ReleaseDate": "2024-05-13T00:00:00Z"},
     ]
 
-    result = await utils.calculate_ios_on_latest(device_versions, latest_versions)
+    result = utils.calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
         {
             "software_title": "iOS 17.5.1",
@@ -208,7 +208,7 @@ async def test_calculate_ios_on_latest_all_devices_on_latest():
         {"OSVersion": "17", "ProductVersion": "17.5.1", "ReleaseDate": "2024-05-20T00:00:00Z"},
     ]
 
-    result = await utils.calculate_ios_on_latest(device_versions, latest_versions)
+    result = utils.calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
         {
             "software_title": "iOS 17.5.1",
@@ -233,7 +233,7 @@ async def test_calculate_ios_on_latest_some_devices_on_latest():
         {"OSVersion": "17", "ProductVersion": "17.5.1", "ReleaseDate": "2024-05-20T00:00:00Z"},
     ]
 
-    result = await utils.calculate_ios_on_latest(device_versions, latest_versions)
+    result = utils.calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
         {
             "software_title": "iOS 17.5.1",
