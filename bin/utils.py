@@ -91,7 +91,6 @@ def convert_timezone(utc_time_str: AnyStr) -> Optional[AnyStr]:
     try:
         utc_time = datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S%z")
         time_str = utc_time.strftime("%b %d %Y")
-        logthis.info("Converted timezone successfully.")
         return time_str
     except ValueError as e:
         logthis.error(f"Invalid time format provided. Details: {e}")
