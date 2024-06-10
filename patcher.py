@@ -96,25 +96,25 @@ async def process_reports(
     # Log all the things
     log_me = LogMe()
 
-    # Ensure bearer token has been retrieved
-    if not utils.token_valid():
-        log_me("Bearer token is invalid, attempting refresh...", LogMe.Level.INFO)
-        try:
-            await utils.fetch_token()
-        except Exception as token_refresh_error:
-            log_me(f"Failed to refresh token: {token_refresh_error}", LogMe.Level.ERROR)
+    try:
+        # Ensure bearer token has been retrieved
+        if not utils.token_valid():
+            log_me("Bearer token is invalid, attempting refresh...", LogMe.Level.INFO)
+            try:
+                await utils.fetch_token()
+            except Exception as token_refresh_error:
+                log_me(f"Failed to refresh token: {token_refresh_error}", LogMe.Level.ERROR)
+                raise click.Abort()
+
+        # Ensure token has proper lifetime duration
+        token_lifetime = await utils.check_token_lifetime()
+        if not token_lifetime:
+            log_me(
+                "Bearer token lifetime is too short. Review the Patcher Wiki for instructions to increase the token's lifetime.",
+                LogMe.Level.ERROR,
+            )
             raise click.Abort()
 
-    # Ensure token has proper lifetime duration
-    token_lifetime = await utils.check_token_lifetime()
-    if not token_lifetime:
-        log_me(
-            "Bearer token lifetime is too short. Review the Patcher Wiki for instructions to increase the token's lifetime.",
-            LogMe.Level.ERROR,
-        )
-        raise click.Abort()
-
-    try:
         # Validate path provided is not a file
         output_path = os.path.expanduser(path)
         if os.path.exists(output_path) and os.path.isfile(output_path):
