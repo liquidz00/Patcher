@@ -186,7 +186,7 @@ async def process_reports(
             ios_data = utils.calculate_ios_on_latest(
                 device_versions=device_versions, latest_versions=latest_versions
             )
-            patch_reports.append(ios_data)
+            patch_reports.extend(ios_data)
 
         # Generate reports
         excel_file = utils.export_to_excel(patch_reports, reports_dir)
