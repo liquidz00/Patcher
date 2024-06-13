@@ -335,6 +335,7 @@ setup_environment() {
     --data-urlencode "grant_type=client_credentials" \
     --data-urlencode "client_secret=${client_secret}")
     token=$(echo "$response" | plutil -extract access_token raw -)
+    token_expiration=$(echo "$response" | plutil -extract expires_in raw -)
     if [ "$token" == "null" ]; then
       fmt_error "Failed to generate a token. Please check your Jamf instance details."
       exit 1
@@ -350,6 +351,7 @@ setup_environment() {
       echo "CLIENT_ID='${client_id}'" >> .env
       echo "CLIENT_SECRET='${client_secret}'" >> .env
       echo "TOKEN='${token}'" >> .env
+      echo "TOKEN_EXPIRATION='${token_expiration}'" >> .env
       fmt_info "User chose to overwrite contents of .env file."
     elif [[ "$env_exists" =~ ^[Nn]$ ]]; then
       fmt_error "User chose not to overwrite existing .env file."
@@ -361,6 +363,7 @@ setup_environment() {
     echo "CLIENT_ID='${client_id}'" >> .env
     echo "CLIENT_SECRET='${client_secret}'" >> .env
     echo "TOKEN='${token}'" >> .env
+    echo "TOKEN_EXPIRATION='${token_expiration}'" >> .env
     fmt_info "Jamf instance details saved to .env file."
   fi
 
@@ -369,7 +372,6 @@ setup_environment() {
     python3 -m pip install --user -r requirements.txt || {
       fmt_error "Failed to install dependencies. Make sure you have pip installed and try again."
       clean_up ""
-      exit 1
     }
     fmt_info "Dependencies installed to user directory."
   else
