@@ -5,12 +5,25 @@ import asyncio
 import threading
 import time
 
-from enum import Enum
 from datetime import datetime, timedelta
 from typing import AnyStr, Optional
-from bin import utils, logger
+from bin import utils, logger, exceptions
+from bin.logger import LogMe
+from bin.exceptions import (
+    TokenFetchError,
+    TokenLifetimeError,
+    DirectoryCreationError,
+    ExportError,
+    PolicyFetchError,
+    SummaryFetchError,
+    DeviceIDFetchError,
+    DeviceOSFetchError,
+    SortError,
+    SofaFeedError,
+)
 
 logthis = logger.setup_child_logger("patcher", __name__)
+
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -19,36 +32,6 @@ DATE_FORMATS = {
     "Day-Month-Year": "%d %B %Y",  # 16 April 2024
     "Full": "%A %B %d %Y",  # Thursday September 26 2013
 }
-
-
-class LogMe:
-    class Level(Enum):
-        INFO = "info"
-        WARNING = "warning"
-        ERROR = "error"
-
-    def __init__(self):
-        self.INFO = logthis.info
-        self.WARNING = logthis.warning
-        self.ERROR = logthis.error
-
-    def __call__(self, msg: AnyStr, level: "LogMe.Level"):
-        self._inform(msg, level)
-
-    def _inform(self, msg: AnyStr, level: "LogMe.Level" = "LogMe.Level.INFO"):
-        match level:
-            case self.Level.INFO:
-                self.INFO(f"\n{msg}")
-                std_output = click.style(text=f"\n{msg}", bold=False)
-                click.echo(message=std_output, err=False)
-            case self.Level.WARNING:
-                self.WARNING(f"\n{msg}")
-                warn_output = click.style(text=f"\n{msg}", fg="yellow", bold=True)
-                click.echo(warn_output, err=False)
-            case self.Level.ERROR:
-                self.ERROR(f"\n{msg}")
-                err_output = click.style(text=f"\n{msg}", fg="red", bold=True)
-                click.echo(err_output, err=True)
 
 
 def animate_search(stop_event: threading.Event) -> None:
@@ -94,35 +77,33 @@ async def process_reports(
     :return: None. Raises click.Abort on errors.
     """
     # Log all the things
-    log_me = LogMe()
+    log = LogMe(logthis)
 
-    try:
+    with exceptions.error_handling(log, stop_event):
         # Ensure bearer token has been retrieved
         if not utils.token_valid():
-            log_me("Bearer token is invalid, attempting refresh...", LogMe.Level.INFO)
+            log.warn("Bearer token is invalid, attempting refresh...")
             try:
                 await utils.fetch_token()
-            except Exception as token_refresh_error:
-                log_me(f"Failed to refresh token: {token_refresh_error}", LogMe.Level.ERROR)
-                raise click.Abort()
+            except aiohttp.ClientError as token_refresh_error:
+                log.error(f"Failed to refresh token: {token_refresh_error}")
+                raise TokenFetchError(reason=token_refresh_error)
 
         # Ensure token has proper lifetime duration
         token_lifetime = await utils.check_token_lifetime()
         if not token_lifetime:
-            log_me(
+            log.error(
                 "Bearer token lifetime is too short. Review the Patcher Wiki for instructions to increase the token's lifetime.",
-                LogMe.Level.ERROR,
             )
-            raise click.Abort()
+            raise TokenLifetimeError(lifetime=token_lifetime)
 
         # Validate path provided is not a file
         output_path = os.path.expanduser(path)
         if os.path.exists(output_path) and os.path.isfile(output_path):
-            log_me(
+            log.error(
                 f"Provided path {output_path} is a file, not a directory. Aborting...",
-                LogMe.Level.ERROR,
             )
-            raise click.Abort()
+            raise DirectoryCreationError(path=output_path)
 
         # Ensure directories exist
         os.makedirs(output_path, exist_ok=True)
@@ -132,15 +113,14 @@ async def process_reports(
         # Async operations for patch data
         patch_ids = await utils.get_policies()
         if not patch_ids:
-            log_me(
+            log.error(
                 "Policy ID API call returned an empty list. Aborting...",
-                LogMe.Level.ERROR,
             )
-            raise click.Abort()
+            raise PolicyFetchError()
         patch_reports = await utils.get_summaries(patch_ids)
         if not patch_reports:
-            log_me("Error establishing patch summaries.", LogMe.Level.ERROR)
-            raise click.Abort()
+            log.error("Error establishing patch summaries.")
+            raise SummaryFetchError()
 
         # (option) Sort
         if sort:
@@ -148,12 +128,10 @@ async def process_reports(
             try:
                 patch_reports = sorted(patch_reports, key=lambda x: x[sort])
             except KeyError:
-                stop_event.set()
-                log_me(
-                    f"Invalid column name for sorting: {sort}. Aborting...",
-                    LogMe.Level.ERROR,
+                log.error(
+                    f"Invalid column name for sorting: {sort.title().replace('_', ' ')}. Aborting...",
                 )
-                raise click.Abort()
+                raise SortError(column=sort.title().replace("_", " "))
 
         # (option) Omit
         if omit:
@@ -166,22 +144,28 @@ async def process_reports(
 
         # (option) iOS
         if ios:
-            try:
-                device_ids = await utils.get_device_ids()
-            except aiohttp.ClientError as e:
-                log_me(
-                    f"Received ClientError response when obtaining mobile device IDs: {e}",
-                    LogMe.Level.ERROR,
+            device_ids = await utils.get_device_ids()
+            if not device_ids:
+                log.error(
+                    f"Received ClientError response when obtaining mobile device IDs",
                 )
-                raise click.Abort()
+                raise DeviceIDFetchError(
+                    reason=f"Received ClientError response when obtaining mobile device IDs"
+                )
             device_versions = await utils.get_device_os_versions(device_ids=device_ids)
             latest_versions = utils.get_sofa_feed()
-            if not device_versions and not latest_versions:
-                log_me(
-                    "Received empty response obtaining device versions or SOFA feed. Exiting...",
-                    LogMe.Level.ERROR,
+            if not device_versions:
+                log.error(
+                    "Received empty response obtaining device OS versions from Jamf. Exiting...",
                 )
-                raise click.Abort()
+                raise DeviceOSFetchError(
+                    reason="Received empty response obtaining device OS versions from Jamf."
+                )
+            elif not latest_versions:
+                log.error("Received empty response from SOFA feed. Exiting...")
+                raise SofaFeedError(
+                    reason="Received empty response from SOFA feed. Unable to verify amount of devices on latest version."
+                )
 
             ios_data = utils.calculate_ios_on_latest(
                 device_versions=device_versions, latest_versions=latest_versions
@@ -189,7 +173,12 @@ async def process_reports(
             patch_reports.extend(ios_data)
 
         # Generate reports
-        excel_file = utils.export_to_excel(patch_reports, reports_dir)
+        try:
+            excel_file = utils.export_to_excel(patch_reports, reports_dir)
+        except ValueError as e:
+            log.error(f"Error exporting to excel: {e}")
+            raise ExportError(file_path=excel_file)
+
         if pdf:
             utils.export_excel_to_pdf(excel_file, date_format)
 
@@ -199,28 +188,7 @@ async def process_reports(
             f"Reports saved to {reports_dir}", bold=True, fg="green"
         )
         click.echo(success_msg)
-
-    except aiohttp.ClientResponseError as e:
-        if e.status == 401:
-            log_me(
-                f"Unauthorized access detected. Please check credentials and try again. Details: {e.message}",
-                LogMe.Level.ERROR,
-            )
-        else:
-            log_me(
-                f"Failed to retrieve data due to an HTTP error: {e.status}",
-                LogMe.Level.ERROR,
-            )
-        raise click.Abort()
-    except OSError as e:
-        log_me(f"Error creating directories: {e}. Aborting...", LogMe.Level.ERROR)
-        raise click.Abort()
-    except Exception as e:
-        log_me(f"An unexpected error occurred: {e}. Aborting...", LogMe.Level.ERROR)
-        raise click.Abort()
-    finally:
-        # Ensure animation stops regardless of error
-        stop_event.set()
+        log.info(f"{len(patch_reports)} saved successfully to {reports_dir}.")
 
 
 @click.command()
