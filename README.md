@@ -29,7 +29,7 @@ The following image can be found in the `images` directory.
 - Git installed (via Homebrew or Developer Tools)
 - Access to a Jamf Pro instance with administrator privileges (for API client creation).
 - A Jamf Pro API Client with the following:
-  - Read Computers, Read Patch Reporting roles
+  - Read Patch Management Software Titles, Read Patch Policies, Read Mobile Devices, Read Mobile Device Inventory Collection, Read Mobile Device Applications, Read API Integrations, Read Patch External Source, Read API Roles, Read Patch Internal Source and Read Patch Management Settings
   - Client ID
   - Client Secret
   - Bearer Token (Optional, installer script can generate one for you)
