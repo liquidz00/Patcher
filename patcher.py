@@ -9,18 +9,6 @@ from datetime import datetime, timedelta
 from typing import AnyStr, Optional
 from bin import utils, logger, exceptions
 from bin.logger import LogMe
-from bin.exceptions import (
-    TokenFetchError,
-    TokenLifetimeError,
-    DirectoryCreationError,
-    ExportError,
-    PolicyFetchError,
-    SummaryFetchError,
-    DeviceIDFetchError,
-    DeviceOSFetchError,
-    SortError,
-    SofaFeedError,
-)
 
 logthis = logger.setup_child_logger("patcher", __name__)
 
@@ -84,10 +72,12 @@ async def process_reports(
         if not utils.token_valid():
             log.warn("Bearer token is invalid, attempting refresh...")
             try:
-                await utils.fetch_token()
+                token = await utils.fetch_token()
+                if token is None:
+                    raise exceptions.TokenFetchError(reason="Token refresh returned None")
             except aiohttp.ClientError as token_refresh_error:
                 log.error(f"Failed to refresh token: {token_refresh_error}")
-                raise TokenFetchError(reason=token_refresh_error)
+                raise exceptions.TokenFetchError(reason=token_refresh_error)
 
         # Ensure token has proper lifetime duration
         token_lifetime = await utils.check_token_lifetime()
@@ -95,7 +85,7 @@ async def process_reports(
             log.error(
                 "Bearer token lifetime is too short. Review the Patcher Wiki for instructions to increase the token's lifetime.",
             )
-            raise TokenLifetimeError(lifetime=token_lifetime)
+            raise exceptions.TokenLifetimeError(lifetime=token_lifetime)
 
         # Validate path provided is not a file
         output_path = os.path.expanduser(path)
@@ -103,12 +93,16 @@ async def process_reports(
             log.error(
                 f"Provided path {output_path} is a file, not a directory. Aborting...",
             )
-            raise DirectoryCreationError(path=output_path)
+            raise exceptions.DirectoryCreationError(path=output_path)
 
         # Ensure directories exist
-        os.makedirs(output_path, exist_ok=True)
-        reports_dir = os.path.join(output_path, "Patch-Reports")
-        os.makedirs(reports_dir, exist_ok=True)
+        try:
+            os.makedirs(output_path, exist_ok=True)
+            reports_dir = os.path.join(output_path, "Patch-Reports")
+            os.makedirs(reports_dir, exist_ok=True)
+        except OSError as e:
+            log.error(f"Failed to create directory: {e}")
+            raise exceptions.DirectoryCreationError()
 
         # Async operations for patch data
         patch_ids = await utils.get_policies()
@@ -116,11 +110,11 @@ async def process_reports(
             log.error(
                 "Policy ID API call returned an empty list. Aborting...",
             )
-            raise PolicyFetchError()
+            raise exceptions.PolicyFetchError()
         patch_reports = await utils.get_summaries(patch_ids)
         if not patch_reports:
             log.error("Error establishing patch summaries.")
-            raise SummaryFetchError()
+            raise exceptions.SummaryFetchError()
 
         # (option) Sort
         if sort:
@@ -131,7 +125,7 @@ async def process_reports(
                 log.error(
                     f"Invalid column name for sorting: {sort.title().replace('_', ' ')}. Aborting...",
                 )
-                raise SortError(column=sort.title().replace("_", " "))
+                raise exceptions.SortError(column=sort.title().replace("_", " "))
 
         # (option) Omit
         if omit:
@@ -149,7 +143,7 @@ async def process_reports(
                 log.error(
                     f"Received ClientError response when obtaining mobile device IDs",
                 )
-                raise DeviceIDFetchError(
+                raise exceptions.DeviceIDFetchError(
                     reason=f"Received ClientError response when obtaining mobile device IDs"
                 )
             device_versions = await utils.get_device_os_versions(device_ids=device_ids)
@@ -158,12 +152,12 @@ async def process_reports(
                 log.error(
                     "Received empty response obtaining device OS versions from Jamf. Exiting...",
                 )
-                raise DeviceOSFetchError(
+                raise exceptions.DeviceOSFetchError(
                     reason="Received empty response obtaining device OS versions from Jamf."
                 )
             elif not latest_versions:
                 log.error("Received empty response from SOFA feed. Exiting...")
-                raise SofaFeedError(
+                raise exceptions.SofaFeedError(
                     reason="Received empty response from SOFA feed. Unable to verify amount of devices on latest version."
                 )
 
@@ -177,7 +171,7 @@ async def process_reports(
             excel_file = utils.export_to_excel(patch_reports, reports_dir)
         except ValueError as e:
             log.error(f"Error exporting to excel: {e}")
-            raise ExportError(file_path=excel_file)
+            raise exceptions.ExportError(file_path=excel_file)
 
         if pdf:
             utils.export_excel_to_pdf(excel_file, date_format)
