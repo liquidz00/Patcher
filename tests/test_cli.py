@@ -2,9 +2,17 @@ import pytest
 import threading
 import click.testing
 
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 
-from patcher import LogMe, process_reports
+from patcher import process_reports
+from bin import logger, exceptions
+
+@pytest.fixture
+def mock_setup_child_logger():
+    with patch('bin.logger.setup_child_logger') as mock:
+        mock_logger = MagicMock()
+        mock.return_value = mock_logger
+        yield mock
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -15,23 +23,25 @@ def stop_event_fixture():
 
 
 # Test logging functionality - Info
-def test_log_me_info():
-    with patch("patcher.logthis.info") as mock_info, patch("click.echo") as mock_click:
-        log_me = LogMe()
-        log_me("This is an info message", LogMe.Level.INFO)
-        mock_info.assert_called_once_with("\nThis is an info message")
-        mock_click.assert_called_once()
+def test_log_me_info(mock_setup_child_logger, capsys):
+    mock_logger = mock_setup_child_logger.return_value
+    log_me = logger.LogMe(mock_logger)
+    log_me.info("This is an info message")
+    mock_logger.info.assert_called_once_with("This is an info message")
+
+    captured = capsys.readouterr()
+    assert 'This is an info message' in captured.out
 
 
 # Test logging functionality - Error
-def test_log_me_error():
-    with patch("patcher.logthis.error") as mock_error, patch(
-        "click.echo"
-    ) as mock_click:
-        log_me = LogMe()
-        log_me("This is an error message", LogMe.Level.ERROR)
-        mock_error.assert_called_once_with("\nThis is an error message")
-        mock_click.assert_called_once()
+def test_log_me_error(mock_setup_child_logger, capsys):
+    mock_logger = mock_setup_child_logger.return_value
+    log_me = logger.LogMe(mock_logger)
+    log_me.error("This is an error message")
+    mock_logger.error.assert_called_once_with("This is an error message")
+
+    captured = capsys.readouterr()
+    assert 'This is an error message' in captured.err
 
 
 # Test successful report processing
@@ -66,10 +76,12 @@ async def test_process_reports_success(
     assert mock_export_to_excel.called
 
 
+# Test process reports with invalid path
 @pytest.mark.asyncio
+@patch("os.makedirs", MagicMock(side_effect=OSError("Read-only file system")))
 @patch("os.path.isfile", return_value=True)
 async def test_process_reports_invalid_path(mock_isfile, stop_event_fixture):
-    with patch("patcher.logthis.error") as mock_error, pytest.raises(click.Abort):
+    with patch("bin.logger.logthis.error") as mock_error, pytest.raises(click.Abort):
         await process_reports(
             path="/invalid/path",
             pdf=False,
@@ -84,11 +96,11 @@ async def test_process_reports_invalid_path(mock_isfile, stop_event_fixture):
 # Test token validation and refresh
 @pytest.mark.asyncio
 @patch("bin.utils.token_valid", return_value=False)
-@patch("bin.utils.fetch_token", side_effect=Exception("Token refresh failed"))
+@patch("bin.utils.fetch_token", new_callable=AsyncMock, return_value=None)
 async def test_process_reports_token_refresh_fail(
     mock_fetch_token, mock_token_valid, stop_event_fixture
 ):
-    with patch("patcher.logthis.error") as mock_error, pytest.raises(click.Abort):
+    with patch("bin.logger.logthis.error") as mock_error, pytest.raises(click.Abort):
         await process_reports(
             path="~/",
             pdf=False,
