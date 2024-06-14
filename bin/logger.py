@@ -40,16 +40,16 @@ class LogMe:
         self.logger = logger
 
     def info(self, msg: AnyStr):
-        self.logger.info(f"{msg}")
+        self.logger.info(msg)
         std_output = style(text=f"\n{msg}", bold=False)
         echo(message=std_output, err=False)
 
     def warn(self, msg: AnyStr):
-        self.logger.warning(f"{msg}")
-        warn_out = style(text=f"{msg}\n", fg="yellow", bold=True)
+        self.logger.warning(msg)
+        warn_out = style(text=f"\n{msg}", fg="yellow", bold=True)
         echo(message=warn_out, err=False)
 
     def error(self, msg: AnyStr):
-        self.logger.error(f"{msg}")
+        self.logger.error(msg)
         err_out = style(text=f"\n{msg}", fg="red", bold=True)
         echo(message=err_out, err=True)
