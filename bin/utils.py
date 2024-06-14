@@ -275,7 +275,9 @@ async def get_policies() -> Optional[List]:
 
         # Verify response is list type as expected
         if not isinstance(response, list):
-            logthis.error(f"Unexpected response format: expected a list, received {type(response)} instead.")
+            logthis.error(
+                f"Unexpected response format: expected a list, received {type(response)} instead."
+            )
             return None
 
         # Check if all elements in the list are dictionaries
@@ -357,10 +359,15 @@ async def get_device_ids() -> Optional[List[int]]:
     except aiohttp.ClientError as e:
         logthis.error(f"Error fetching device IDs: {e}")
         return None
-    devices = response.get("results", [])
+
+    if not response:
+        logthis.error(f"API call to {url} was unsuccessful.")
+        return None
+
+    devices = response.get("results")
 
     if not devices:
-        logthis.error("Received invalid data set during device ID API call.")
+        logthis.error("Received empty data set when trying to obtain device IDs.")
         return None
 
     logthis.info(f"Received {len(devices)} device IDs successfully.")
@@ -402,6 +409,7 @@ async def get_device_os_versions(
             "OS": subset.get("osVersion"),
         }
         for subset in subsets
+        if subset
     ]
     logthis.info(f"Successfully obtained OS versions for {len(devices)} devices.")
     return devices
@@ -535,6 +543,7 @@ def export_to_excel(patch_reports: List[Dict], output_dir: AnyStr) -> Optional[A
     df.to_excel(excel_path, index=False)
     logthis.info(f"Excel spreadsheet created successfully at {excel_path}")
     return excel_path
+
 
 # Create PDF from Excel file
 def export_excel_to_pdf(excel_file: AnyStr, date_format: AnyStr = "%B %d %Y") -> None:
