@@ -136,64 +136,8 @@ def token_valid() -> bool:
         )
         current_time = datetime.now(timezone.utc).replace(tzinfo=timezone.utc)
         return current_time < expiration_time
+    logthis.warning("Bearer token expiration missing.")
     return False
-
-
-# Retrieve Bearer Token
-async def fetch_token() -> Optional[AnyStr]:
-    """
-    Fetches a new Bearer Token using either client credentials.
-    Updates .env if successful.
-
-    :return: The new Bearer Token (str), or None if the fetch fails.
-    """
-    async with aiohttp.ClientSession() as session:
-        payload = {
-            "client_id": jamf_client_id,
-            "grant_type": "client_credentials",
-            "client_secret": jamf_client_secret,
-        }
-        token_headers = {"Content-Type": "application/x-www-form-urlencoded"}
-
-        try:
-            response = await session.post(
-                url=f"{jamf_url}/api/oauth/token", data=payload, headers=token_headers
-            )
-            response.raise_for_status()
-        except aiohttp.ClientResponseError as e:
-            logthis.warn(f"Failed to fetch bearer token. Status code: {e.status}")
-            return None
-
-        json_response = await response.json()
-        token = json_response.get("access_token", "")
-        expires = int(json_response.get("expires_in", 0))
-        if not token or not expires:
-            return None
-        update_env(token=token, expires_in=expires)
-        logthis.info(f"Token obtained successfully. Expires in {expires} seconds")
-        return token
-
-
-# Async API call
-async def fetch_json(url: AnyStr, session: aiohttp.ClientSession) -> Dict:
-    """
-    Asynchronously fetches JSON data from a specified URL using a session.
-
-    :param url: URL to fetch the JSON data from.
-    :type url: AnyStr
-    :param session: Async session used to make the request, instance of aiohttp.ClientSession.
-    :type session: aiohttp.ClientSession
-    :return: JSON data as a dictionary or an empty dictionary on error.
-    """
-    try:
-        async with session.get(url, headers=headers) as response:
-            response.raise_for_status()
-            return await response.json()
-    except aiohttp.ClientResponseError as e:
-        logthis.error(f"Received a client error while fetching JSON from {url}: {e}")
-    except Exception as e:
-        logthis.error(f"Error fetching JSON: {e}")
-    return {}
 
 
 # Token lifetime check
@@ -220,6 +164,7 @@ async def check_token_lifetime(client_id: AnyStr = globals.JAMF_CLIENT_ID) -> bo
             if result.get("clientId") == client_id:
                 # accessTokenLifetimeSeconds value is extracted once match found
                 lifetime = result.get("accessTokenLifetimeSeconds")
+                logthis.info(f"Retrieved token lifetime for {client_id} successfully.")
                 break
 
         if lifetime is None:
@@ -243,13 +188,77 @@ async def check_token_lifetime(client_id: AnyStr = globals.JAMF_CLIENT_ID) -> bo
             return False
         elif 5 <= minutes <= 10:
             # Throws warning if token lifetime is between 5-10 minutes
-            logthis.warning("Token lifetime is between 5-10 minutes.")
+            logthis.warning(
+                "Token lifetime is between 5-10 minutes, consider increasing duration."
+            )
         else:
             # Lifetime duration logged otherwise
             logthis.info(
                 f"Token lifetime: {minutes:.2f} minutes, {hours:.2f} hours, {days:.2f} days, {months:.2f} months."
             )
         return True
+
+
+# Retrieve Bearer Token
+async def fetch_token() -> Optional[AnyStr]:
+    """
+    Fetches a new Bearer Token using either client credentials.
+    Updates .env if successful.
+
+    :return: The new Bearer Token (str), or None if the fetch fails.
+    """
+    async with aiohttp.ClientSession() as session:
+        payload = {
+            "client_id": jamf_client_id,
+            "grant_type": "client_credentials",
+            "client_secret": jamf_client_secret,
+        }
+        token_headers = {"Content-Type": "application/x-www-form-urlencoded"}
+
+        try:
+            response = await session.post(
+                url=f"{jamf_url}/api/oauth/token", data=payload, headers=token_headers
+            )
+            response.raise_for_status()
+        except aiohttp.ClientResponseError as e:
+            logthis.warning(f"Failed to fetch bearer token. Status code: {e.status}")
+            return None
+
+        json_response = await response.json()
+        token = json_response.get("access_token", "")
+        expires = int(json_response.get("expires_in", 0))
+        if not token:
+            logthis.error("Token missing from JSON response.")
+            return None
+        elif not expires:
+            logthis.error("Bearer Token expiration missing from JSON response.")
+            return None
+
+        update_env(token=token, expires_in=expires)
+        logthis.info(f"Token obtained successfully. Expires in {expires} seconds")
+        return token
+
+
+# Async API call
+async def fetch_json(url: AnyStr, session: aiohttp.ClientSession) -> Optional[Dict]:
+    """
+    Asynchronously fetches JSON data from a specified URL using a session.
+
+    :param url: URL to fetch the JSON data from.
+    :type url: AnyStr
+    :param session: Async session used to make the request, instance of aiohttp.ClientSession.
+    :type session: aiohttp.ClientSession
+    :return: JSON data as a dictionary or an empty dictionary on error.
+    """
+    try:
+        async with session.get(url, headers=headers) as response:
+            response.raise_for_status()
+            return await response.json()
+    except aiohttp.ClientResponseError as e:
+        logthis.error(f"Received a client error while fetching JSON from {url}: {e}")
+    except Exception as e:
+        logthis.error(f"Error fetching JSON: {e}")
+    return None
 
 
 # Use Jamf API to retrieve all Patch titles IDs
@@ -266,7 +275,7 @@ async def get_policies() -> Optional[List]:
 
         # Verify response is list type as expected
         if not isinstance(response, list):
-            logthis.error("Unexpected response format: expected a list.")
+            logthis.error(f"Unexpected response format: expected a list, received {type(response)} instead.")
             return None
 
         # Check if all elements in the list are dictionaries
@@ -354,9 +363,8 @@ async def get_device_ids() -> Optional[List[int]]:
         logthis.error("Received invalid data set during device ID API call.")
         return None
 
-    device_ids = [device.get("id") for device in devices if device]
     logthis.info(f"Received {len(devices)} device IDs successfully.")
-    return device_ids
+    return [device.get("id") for device in devices if device]
 
 
 # iOS Functionality - Get OS Version and Type from Jamf Pro API
@@ -489,7 +497,7 @@ def calculate_ios_on_latest(
 
 
 # Create excel spreadsheet with patch data for export
-def export_to_excel(patch_reports: List[Dict], output_dir: AnyStr) -> AnyStr:
+def export_to_excel(patch_reports: List[Dict], output_dir: AnyStr) -> Optional[AnyStr]:
     """
     Exports patch data to an Excel spreadsheet in the specified output directory.
 
@@ -500,31 +508,33 @@ def export_to_excel(patch_reports: List[Dict], output_dir: AnyStr) -> AnyStr:
     :return: Path to the created Excel spreadsheet or error message.
     :rtype: AnyStr
     """
-    try:
-        column_order = [
-            "software_title",
-            "patch_released",
-            "hosts_patched",
-            "missing_patch",
-            "completion_percent",
-            "total_hosts",
-        ]
+    current_date = datetime.now().strftime("%m-%d-%y")
 
+    column_order = [
+        "software_title",
+        "patch_released",
+        "hosts_patched",
+        "missing_patch",
+        "completion_percent",
+        "total_hosts",
+    ]
+
+    try:
         # create dataframe
         df = pd.DataFrame(patch_reports, columns=column_order)
         df.columns = [column.replace("_", " ").title() for column in column_order]
-
-        # export to excel
-        current_date = datetime.now().strftime("%m-%d-%y")
-        excel_path = os.path.join(output_dir, f"patch-report-{current_date}.xlsx")
-        df.to_excel(excel_path, index=False)
-        logthis.info(f"Excel spreadsheet created successfully at {excel_path}")
-        return excel_path
-
+    except ValueError as e:
+        logthis.error(f"Error creating DataFrame: {e}")
+        return None
     except Exception as e:
-        logthis.error(f"Error occurred trying to export to Excel: {e}")
-        return "Error exporting to Excel. Check log files in data directory."
+        logthis.error(f"Unhandled exception occurred trying to export to Excel: {e}")
+        return None
 
+    # export to excel
+    excel_path = os.path.join(output_dir, f"patch-report-{current_date}.xlsx")
+    df.to_excel(excel_path, index=False)
+    logthis.info(f"Excel spreadsheet created successfully at {excel_path}")
+    return excel_path
 
 # Create PDF from Excel file
 def export_excel_to_pdf(excel_file: AnyStr, date_format: AnyStr = "%B %d %Y") -> None:
