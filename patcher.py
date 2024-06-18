@@ -80,7 +80,11 @@ async def process_reports(
                 raise exceptions.TokenFetchError(reason=token_refresh_error)
 
         # Ensure token has proper lifetime duration
-        token_lifetime = await utils.check_token_lifetime()
+        try:
+            token_lifetime = await utils.check_token_lifetime()
+        except aiohttp.ClientResponseError as e:
+            log.error(f"Received unauthorized response checking token lifetime. API client may not have sufficient privileges.")
+            raise exceptions.APIPrivilegeError(reason=e)
         if not token_lifetime:
             log.error(
                 "Bearer token lifetime is too short. Review the Patcher Wiki for instructions to increase the token's lifetime.",
