@@ -189,6 +189,26 @@ class SofaFeedError(PatcherError):
         return self.message
 
 
+class APIPrivilegeError(PatcherError):
+    """Raised when the provided API client does not have sufficient privileges for API call type (commonly API integration checks)"""
+
+    def __init__(
+        self,
+        message="API Client does not have sufficient privileges",
+        reason=None,
+    ):
+        self.reason = reason
+        if reason:
+            message = f"{message} - Reason: {reason}"
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self):
+        if self.reason:
+            return f"{self.message} - Reason: {self.reason}"
+        return self.message
+
+
 @contextmanager
 def error_handling(log: LogMe, stop_event: Event):
     default_exceptions = (
@@ -202,6 +222,7 @@ def error_handling(log: LogMe, stop_event: Event):
         DeviceOSFetchError,
         SortError,
         SofaFeedError,
+        APIPrivilegeError
     )
     try:
         yield
