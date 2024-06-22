@@ -1,6 +1,9 @@
 import pytest
 import os
+import logging
 from bin import globals
+
+from io import StringIO
 from dotenv import load_dotenv
 from unittest.mock import patch
 
@@ -23,7 +26,7 @@ def load_env():
     load_dotenv(dotenv_path=ENV_PATH)
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_policy_response():
     """Fixture to provide a mock policy response."""
     yield [
@@ -81,7 +84,7 @@ def mock_policy_response():
     ]
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_summary_response():
     """Fixture to provide mock summary responses for each policy."""
     yield [
@@ -118,7 +121,7 @@ def mock_summary_response():
     ]
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_env_vars():
     env_vars = {
         "URL": "https://mocked.url",
@@ -130,7 +133,7 @@ def mock_env_vars():
         yield
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_api_integration_response():
     return {
         "totalCount": 3,
@@ -170,7 +173,7 @@ def mock_api_integration_response():
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_lifetime_response():
     return {
         "totalCount": 1,
@@ -188,7 +191,7 @@ def mock_lifetime_response():
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_ios_device_id_list_response():
     return {
         "totalCount": 2,
@@ -229,7 +232,7 @@ def mock_ios_device_id_list_response():
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_ios_detail_response():
     return {
         "id": "1",
@@ -271,7 +274,7 @@ def mock_ios_detail_response():
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_sofa_response():
     return {
         "UpdateHash": "",
@@ -296,3 +299,18 @@ def mock_sofa_response():
             },
         ],
     }
+
+@pytest.fixture
+def capture_logs():
+    log_capture = logging.getLogger("patcher")
+    log_capture.setLevel(logging.DEBUG)
+    stream = StringIO()
+    handler = logging.StreamHandler(stream)
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    handler.setFormatter(formatter)
+    log_capture.addHandler(handler)
+
+    yield stream
+
+    log_capture.removeHandler(handler)
+    handler.close()
