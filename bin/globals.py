@@ -14,6 +14,7 @@ JAMF_URL = os.getenv("URL")
 JAMF_CLIENT_ID = os.getenv("CLIENT_ID")
 JAMF_CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 JAMF_TOKEN = os.getenv("TOKEN")
+JAMF_TOKEN_EXPIRATION = os.getenv("TOKEN_EXPIRATION")
 
 # Headers for API Calls
 HEADERS = {"Accept": "application/json", "Authorization": f"Bearer {JAMF_TOKEN}"}
