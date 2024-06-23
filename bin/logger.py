@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 from logging import handlers
 from typing import AnyStr
 from click import echo, style
@@ -44,9 +43,8 @@ logthis = setup_logger(logger_name, f"{logger_name}.log")
 
 
 class LogMe:
-    def __init__(self, logger, stop_event=None):
+    def __init__(self, logger):
         self.logger = logger
-        self.stop_event = stop_event
 
     def is_debug_enabled(self):
         return self.logger.isEnabledFor(logging.DEBUG)
