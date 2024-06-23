@@ -73,7 +73,7 @@ async def process_reports(
     """
     # Log all the things
     logthis = logger.setup_child_logger("patcher", __name__, debug=debug)
-    log = LogMe(logthis, stop_event=stop_event)
+    log = LogMe(logthis)
     log.debug("Beginning Patcher process...")
 
     with exceptions.error_handling(log, stop_event):
