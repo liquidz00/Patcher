@@ -10,6 +10,7 @@ from typing import AnyStr, Optional
 from bin import utils, logger, exceptions
 from bin.logger import LogMe
 from bin.globals import JAMF_TOKEN_EXPIRATION
+from bin.__about__ import __version__
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -263,6 +264,7 @@ async def process_reports(
 
 
 @click.command()
+@click.version_option(version=__version__)
 @click.option(
     "--path", "-p", type=click.Path(), required=True, help="Path to save the report"
 )
