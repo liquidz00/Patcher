@@ -1,13 +1,78 @@
 import aiohttp
+import os
+import plistlib
+import click
+import time
 from functools import wraps
 from src import logger
 from datetime import datetime
 from typing import List, AnyStr, Dict, Optional, Callable
 from src.client.token_manager import TokenManager
+from src.client.config_manager import ConfigManager
+from src.model.models import AccessToken
 from src import exceptions
 
 # Logging
 logthis = logger.setup_child_logger("helpers", __name__)
+
+
+# Check for API Client credentials
+def cred_check(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        config = ConfigManager()
+        token_manager = TokenManager(config)
+
+        plist_path = os.path.expanduser(
+            "~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist"
+        )
+
+        first_run_done = False
+        if os.path.exists(plist_path):
+            try:
+                with open(plist_path, "rb") as fp:
+                    plist_data = plistlib.load(fp)
+                    first_run_done = plist_data.get("first_run_done", False)
+            except Exception as e:
+                logthis.error(f"Error reading plist file: {e}")
+                raise exceptions.PlistError(path=plist_path)
+
+        if not first_run_done:
+            api_url = click.prompt("Enter your Jamf Pro URL: ")
+            api_client_id = click.prompt("Enter your API Client ID: ")
+            api_client_secret = click.prompt("Enter your API Client Secret: ")
+
+            # Store credentials
+            config.set_credential("URL", api_url)
+            config.set_credential("CLIENT_ID", api_client_id)
+            config.set_credential("CLIENT_SECRET", api_client_secret)
+
+            # Wait a short time to ensure creds are saved
+            time.sleep(3)
+
+            # Generate bearer token and save it
+            token = await token_manager.fetch_token()
+
+            if token and isinstance(token, AccessToken):
+                token_manager.save_token(token)
+                plist_data = {"first_run_done": True}
+                try:
+                    os.makedirs(os.path.dirname(plist_path), exist_ok=True)
+                    with open(plist_path, "wb") as fp:
+                        plistlib.dump(plist_data, fp)
+                except Exception as e:
+                    logthis.error(f"Error writing to plist file: {e}")
+                    raise exceptions.PlistError(path=plist_path)
+            else:
+                logthis.error("Failed to fetch a valid token!")
+                raise click.Abort()
+        else:
+            logthis.debug("First run already completed.")
+
+        return await func(*args, **kwargs)
+
+    return wrapper
+
 
 # Automatic checking/refreshing of AccessToken
 def check_token(func: Callable):
@@ -50,7 +115,9 @@ def check_token(func: Callable):
             log.error(
                 "Bearer token lifetime is too short. Review the Patcher Wiki for instructions to increase the token's lifetime.",
             )
-            raise exceptions.TokenLifetimeError(lifetime=instance.config.get_credential("TOKEN_EXPIRATION"))
+            raise exceptions.TokenLifetimeError(
+                lifetime=instance.config.get_credential("TOKEN_EXPIRATION")
+            )
         else:
             log.debug("Token lifetime is at least 5 minutes. Continuing...")
 
