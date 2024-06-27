@@ -63,6 +63,22 @@ class DirectoryCreationError(PatcherError):
         return self.message
 
 
+class PlistError(PatcherError):
+    """Raised when there is an error creating directories."""
+
+    def __init__(self, message="Unable to interact with plist!", path=None):
+        self.path = path
+        if path:
+            message = f"{message} - Path: {path}"
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self):
+        if self.path:
+            return f"{self.message} - Path: {self.path}"
+        return self.message
+
+
 class ExportError(PatcherError):
     """Raised when encountering error(s) exporting data to files."""
 
@@ -222,7 +238,8 @@ def error_handling(log: LogMe, stop_event: Event):
         DeviceOSFetchError,
         SortError,
         SofaFeedError,
-        APIPrivilegeError
+        APIPrivilegeError,
+        PlistError
     )
     try:
         yield
