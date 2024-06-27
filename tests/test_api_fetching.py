@@ -1,6 +1,6 @@
 import pytest
 from aioresponses import aioresponses
-from bin import utils
+from src import utils
 from conftest import jamf_url, headers
 
 @pytest.mark.asyncio

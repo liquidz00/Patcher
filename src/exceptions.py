@@ -1,6 +1,6 @@
 import click
 
-from bin.logger import LogMe
+from src.logger import LogMe
 from typing import AnyStr
 from contextlib import contextmanager
 from threading import Event

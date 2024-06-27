@@ -1,5 +1,4 @@
-import logging
-from bin.logger import setup_child_logger, LogMe
+from src.logger import setup_child_logger, LogMe
 
 
 def test_debug_logging_enabled(capture_logs):

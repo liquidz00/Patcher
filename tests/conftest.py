@@ -1,7 +1,7 @@
 import pytest
 import os
 import logging
-from bin import globals
+from src import globals
 
 from io import StringIO
 from dotenv import load_dotenv

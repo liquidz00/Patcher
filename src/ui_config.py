@@ -1,6 +1,6 @@
 import os
 import configparser
-from bin import globals
+from src import globals
 
 # Paths
 ROOT = globals.ROOT_DIR

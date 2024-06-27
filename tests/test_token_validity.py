@@ -3,7 +3,7 @@ import pytest
 from aioresponses import aioresponses
 from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
-from bin import utils
+from src import utils
 
 from conftest import jamf_url, headers
 

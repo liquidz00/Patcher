@@ -5,11 +5,11 @@ import click.testing
 from unittest.mock import patch, AsyncMock, MagicMock
 
 from patcher import process_reports
-from bin import logger, exceptions
+from src import logger
 
 @pytest.fixture
 def mock_setup_child_logger():
-    with patch('bin.logger.setup_child_logger') as mock:
+    with patch('src.logger.setup_child_logger') as mock:
         mock_logger = MagicMock()
         mock.return_value = mock_logger
         yield mock
@@ -46,17 +46,17 @@ def test_log_me_error(mock_setup_child_logger, capsys):
 
 # Test successful report processing
 @pytest.mark.asyncio
-@patch("bin.utils.token_valid", return_value=True)
-@patch("bin.utils.check_token_lifetime", return_value=True)
+@patch("src.utils.token_valid", return_value=True)
+@patch("src.utils.check_token_lifetime", return_value=True)
 @patch(
-    "bin.utils.get_policies",
+    "src.utils.get_policies",
     return_value=AsyncMock(return_value=["policy1", "policy2"]),
 )
 @patch(
-    "bin.utils.get_summaries",
+    "src.utils.get_summaries",
     return_value=AsyncMock(return_value=[{"patch_released": "2024-05-20"}]),
 )
-@patch("bin.utils.export_to_excel")
+@patch("src.utils.export_to_excel")
 async def test_process_reports_success(
     mock_export_to_excel,
     mock_get_summaries,
@@ -81,7 +81,7 @@ async def test_process_reports_success(
 @patch("os.makedirs", MagicMock(side_effect=OSError("Read-only file system")))
 @patch("os.path.isfile", return_value=True)
 async def test_process_reports_invalid_path(mock_isfile, stop_event_fixture):
-    with patch("bin.logger.logthis.error") as mock_error, pytest.raises(click.Abort):
+    with patch("src.logger.logthis.error") as mock_error, pytest.raises(click.Abort):
         await process_reports(
             path="/invalid/path",
             pdf=False,
@@ -95,12 +95,12 @@ async def test_process_reports_invalid_path(mock_isfile, stop_event_fixture):
 
 # Test token validation and refresh
 @pytest.mark.asyncio
-@patch("bin.utils.token_valid", return_value=False)
-@patch("bin.utils.fetch_token", new_callable=AsyncMock, return_value=None)
+@patch("src.utils.token_valid", return_value=False)
+@patch("src.utils.fetch_token", new_callable=AsyncMock, return_value=None)
 async def test_process_reports_token_refresh_fail(
     mock_fetch_token, mock_token_valid, stop_event_fixture
 ):
-    with patch("bin.logger.logthis.error") as mock_error, pytest.raises(click.Abort):
+    with patch("src.logger.logthis.error") as mock_error, pytest.raises(click.Abort):
         await process_reports(
             path="~/",
             pdf=False,
@@ -114,14 +114,14 @@ async def test_process_reports_token_refresh_fail(
 
 # Test sorting and omission options
 @pytest.mark.asyncio
-@patch("bin.utils.token_valid", return_value=True)
-@patch("bin.utils.check_token_lifetime", return_value=True)
+@patch("src.utils.token_valid", return_value=True)
+@patch("src.utils.check_token_lifetime", return_value=True)
 @patch(
-    "bin.utils.get_policies",
+    "src.utils.get_policies",
     return_value=AsyncMock(return_value=["policy1", "policy2"]),
 )
 @patch(
-    "bin.utils.get_summaries",
+    "src.utils.get_summaries",
     return_value=AsyncMock(
         return_value=[
             {"patch_released": "2024-05-20", "sort_column": "B"},
@@ -129,7 +129,7 @@ async def test_process_reports_token_refresh_fail(
         ]
     ),
 )
-@patch("bin.utils.export_to_excel")
+@patch("src.utils.export_to_excel")
 async def test_process_reports_sorting(
     mock_export_to_excel,
     mock_get_summaries,
@@ -151,14 +151,14 @@ async def test_process_reports_sorting(
 
 # Test omission
 @pytest.mark.asyncio
-@patch("bin.utils.token_valid", return_value=True)
-@patch("bin.utils.check_token_lifetime", return_value=True)
+@patch("src.utils.token_valid", return_value=True)
+@patch("src.utils.check_token_lifetime", return_value=True)
 @patch(
-    "bin.utils.get_policies",
+    "src.utils.get_policies",
     return_value=AsyncMock(return_value=["policy1", "policy2"]),
 )
 @patch(
-    "bin.utils.get_summaries",
+    "src.utils.get_summaries",
     return_value=AsyncMock(
         return_value=[
             {"patch_released": "2024-05-20"},
@@ -166,7 +166,7 @@ async def test_process_reports_sorting(
         ]
     ),
 )
-@patch("bin.utils.export_to_excel")
+@patch("src.utils.export_to_excel")
 async def test_process_reports_omit(
     mock_export_to_excel,
     mock_get_summaries,
@@ -188,37 +188,37 @@ async def test_process_reports_omit(
 
 # Test iOS inclusion
 @pytest.mark.asyncio
-@patch("bin.utils.token_valid", return_value=True)
-@patch("bin.utils.check_token_lifetime", return_value=True)
+@patch("src.utils.token_valid", return_value=True)
+@patch("src.utils.check_token_lifetime", return_value=True)
 @patch(
-    "bin.utils.get_policies",
+    "src.utils.get_policies",
     new_callable=AsyncMock,
     return_value=["policy1", "policy2"],
 )
 @patch(
-    "bin.utils.get_summaries",
+    "src.utils.get_summaries",
     new_callable=AsyncMock,
     return_value=[{"patch_released": "2024-05-20"}],
 )
 @patch(
-    "bin.utils.get_device_ids",
+    "src.utils.get_device_ids",
     new_callable=AsyncMock,
     return_value=["device1", "device2"],
 )
 @patch(
-    "bin.utils.get_device_os_versions",
+    "src.utils.get_device_os_versions",
     new_callable=AsyncMock,
     return_value=[{"OS": "17.5.1"}, {"OS": "16.7.8"}],
 )
 @patch(
-    "bin.utils.get_sofa_feed",
+    "src.utils.get_sofa_feed",
     return_value=[
         {"OSVersion": "17", "ProductVersion": "17.5.1"},
         {"OSVersion": "16", "ProductVersion": "16.7.8"},
     ],
 )
-@patch("bin.utils.calculate_ios_on_latest")
-@patch("bin.utils.export_to_excel")
+@patch("src.utils.calculate_ios_on_latest")
+@patch("src.utils.export_to_excel")
 async def test_process_reports_ios(
     mock_export_to_excel,
     mock_calculate_ios_on_latest,

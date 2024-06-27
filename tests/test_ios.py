@@ -4,7 +4,7 @@ import subprocess
 import json
 from unittest.mock import patch, MagicMock
 from aioresponses import aioresponses
-from bin import utils
+from src import utils
 from conftest import jamf_url, headers
 
 

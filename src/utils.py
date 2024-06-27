@@ -5,12 +5,12 @@ import asyncio
 import subprocess
 import json
 
-from bin import logger, globals
+from src import globals, logger
 from datetime import datetime, timedelta, timezone
 from fpdf import FPDF
 from dotenv import load_dotenv, set_key
 from typing import List, AnyStr, Dict, Optional
-from ui_config import (
+from src.ui_config import (
     HEADER_TEXT,
     FOOTER_TEXT,
     FONT_NAME,

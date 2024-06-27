@@ -1,9 +1,7 @@
-import pytest
 from unittest.mock import patch, call, ANY
-from bin import utils, globals
+from src import globals, utils
 
-
-@patch("bin.utils.set_key")
+@patch("src.utils.set_key")
 def test_update_env(mock_set_key):
     token = "newToken"
     expires_in = 3600
