@@ -84,7 +84,8 @@ def check_token(func: Callable):
 
         # Check if token is valid
         log.debug("Checking bearer token validity")
-        if not token_manager.token_valid():
+        valid = await token_manager.token_valid()
+        if not valid:
             log.warn("Bearer token is invalid, attempting refresh...")
             try:
                 token = await token_manager.fetch_token()
