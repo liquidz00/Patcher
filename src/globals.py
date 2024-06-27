@@ -1,5 +1,7 @@
 import os
-from dotenv import load_dotenv
+from src.client.config_manager import ConfigManager
+
+config = ConfigManager()
 
 # Global paths
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -9,12 +11,11 @@ TESTS_DIR = os.path.join(ROOT_DIR, "tests")
 ENV_PATH = os.path.join(ROOT_DIR, ".env")
 
 # Global environment variables
-load_dotenv(dotenv_path=ENV_PATH)
-JAMF_URL = os.getenv("URL")
-JAMF_CLIENT_ID = os.getenv("CLIENT_ID")
-JAMF_CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-JAMF_TOKEN = os.getenv("TOKEN")
-JAMF_TOKEN_EXPIRATION = os.getenv("TOKEN_EXPIRATION")
+JAMF_URL = config.get_credential("URL")
+JAMF_CLIENT_ID = config.get_credential("CLIENT_ID")
+JAMF_CLIENT_SECRET = config.get_credential("CLIENT_SECRET")
+JAMF_TOKEN = config.get_credential("TOKEN")
+JAMF_TOKEN_EXPIRATION = config.get_credential("TOKEN_EXPIRATION")
 
 # Headers for API Calls
 HEADERS = {"Accept": "application/json", "Authorization": f"Bearer {JAMF_TOKEN}"}
