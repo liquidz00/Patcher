@@ -1,24 +1,32 @@
 import pytest
 from aioresponses import aioresponses
-from src import utils
-from conftest import jamf_url, headers
+from src.client.api_client import ApiClient
+
+@pytest.fixture
+def api_client(config_manager):
+    return ApiClient(config=config_manager)
 
 @pytest.mark.asyncio
-async def test_get_policies(mock_policy_response, mock_env_vars):
+async def test_get_policies(api_client, mock_policy_response, mock_env_vars, mock_api_integration_response):
     with aioresponses() as m:
         m.get(
-            f"{jamf_url}/api/v2/patch-software-title-configurations",
+            "https://mocked.url/api/v2/patch-software-title-configurations",
             payload=mock_policy_response,
-            headers=headers,
+            headers={"Accept": "application/json"},
+        )
+        m.get(
+            "https://mocked.url/api/v1/api-integrations",
+            payload=mock_api_integration_response,
+            headers={"Accept": "application/json"},
         )
 
-        policies = await utils.get_policies()
+        policies = await api_client.get_policies()
         assert len(policies) == len(mock_policy_response)
         assert policies[0] == mock_policy_response[0]["id"]
 
 
 @pytest.mark.asyncio
-async def test_get_summaries(mock_policy_response, mock_summary_response, mock_env_vars):
+async def test_get_summaries(api_client, mock_policy_response, mock_summary_response, mock_env_vars, mock_api_integration_response):
     policy_ids = [policy["id"] for policy in mock_policy_response]
     summary_response_dict = {
         str(summary["softwareTitleId"]): summary for summary in mock_summary_response
@@ -27,38 +35,53 @@ async def test_get_summaries(mock_policy_response, mock_summary_response, mock_e
         for policy_id in policy_ids:
             mock_response = summary_response_dict[policy_id]
             m.get(
-                f"{jamf_url}/api/v2/patch-software-title-configurations/{policy_id}/patch-summary",
+                f"https://mocked.url/api/v2/patch-software-title-configurations/{policy_id}/patch-summary",
                 payload=mock_response,
-                headers=headers,
+                headers={"Accept": "application/json"},
+            )
+            m.get(
+                "https://mocked.url/api/v1/api-integrations",
+                payload=mock_api_integration_response,
+                headers={"Accept": "application/json"},
             )
 
-        summaries = await utils.get_summaries(policy_ids)
+        summaries = await api_client.get_summaries(policy_ids)
         assert summaries[0]["software_title"] == "Google Chrome"
         assert summaries[1]["hosts_patched"] == 185
         assert summaries[2]["completion_percent"] == 54.55
 
 
 @pytest.mark.asyncio
-async def test_get_policies_empty_response(mock_env_vars):
+async def test_get_policies_empty_response(api_client, mock_env_vars, mock_api_integration_response):
     with aioresponses() as m:
         m.get(
-            f"{jamf_url}/api/v2/patch-software-title-configurations",
+            "https://mocked.url/api/v2/patch-software-title-configurations",
             payload=[],
-            headers=headers,
+            headers={"Accept": "application/json"},
+        )
+        m.get(
+            "https://mocked.url/api/v1/api-integrations",
+            payload=mock_api_integration_response,
+            headers={"Accept": "application/json"},
         )
 
-        policies = await utils.get_policies()
+        policies = await api_client.get_policies()
         assert policies == []
 
 
 @pytest.mark.asyncio
-async def test_get_policies_api_error(mock_env_vars):
+async def test_get_policies_api_error(api_client, mock_env_vars, mock_api_integration_response):
     with aioresponses() as m:
         m.get(
-            f"{jamf_url}/api/v2/patch-software-title-configurations",
+            "https://mocked.url/api/v2/patch-software-title-configurations",
             status=500,
-            headers=headers,
+            headers={"Accept": "application/json"},
+        )
+        m.get(
+            "https://mocked.url/api/v1/api-integrations",
+            payload=mock_api_integration_response,
+            headers={"Accept": "application/json"},
         )
 
-        policies = await utils.get_policies()
+        policies = await api_client.get_policies()
         assert policies is None
