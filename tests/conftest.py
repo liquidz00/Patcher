@@ -1,29 +1,10 @@
 import pytest
 import os
 import logging
-from src import globals
-
+from datetime import datetime, timezone
+from src.client.config_manager import ConfigManager
 from io import StringIO
-from dotenv import load_dotenv
 from unittest.mock import patch
-
-BASE = globals.TESTS_DIR
-ROOT = globals.ROOT_DIR
-ENV_PATH = globals.ENV_PATH
-
-load_dotenv(dotenv_path=ENV_PATH)
-jamf_url = os.getenv("URL")
-jamf_client_id = os.getenv("CLIENT_ID")
-jamf_client_secret = os.getenv("CLIENT_SECRET")
-jamf_token = os.getenv("TOKEN")
-
-# Headers for API calls
-headers = {"Accept": "application/json", "Authorization": f"Bearer {jamf_token}"}
-
-
-@pytest.fixture(scope="session", autouse=True)
-def load_env():
-    load_dotenv(dotenv_path=ENV_PATH)
 
 
 @pytest.fixture
@@ -314,3 +295,21 @@ def capture_logs():
 
     log_capture.removeHandler(handler)
     handler.close()
+
+@pytest.fixture
+def config_manager():
+    with patch("src.client.config_manager.keyring.get_password") as mock_get_password:
+        def side_effect(service_name, key):
+            if key == "TOKEN":
+                return "mocked_token"
+            elif key == "TOKEN_EXPIRATION":
+                return datetime(2030, 1, 1, tzinfo=timezone.utc).isoformat()
+            elif key == "URL":
+                return "https://mocked.url"
+            elif key == "CLIENT_ID":
+                return "a1234567-abcd-1234-efgh-123456789abc"
+            return "mocked_value"
+
+        mock_get_password.side_effect = side_effect
+        config_manager = ConfigManager(service_name="patcher")
+        yield config_manager
