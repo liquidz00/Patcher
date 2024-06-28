@@ -2,15 +2,15 @@ import os
 import pandas as pd
 from datetime import datetime
 from typing import List, Dict, AnyStr, Optional
-from src import logger
 from src.client.config_manager import ConfigManager
+from src import logger
 
 logthis = logger.setup_child_logger("excel_report", __name__)
 
 
 class ExcelReport:
     def __init__(self, config: ConfigManager):
-        self.ui_config = config.get_ui_config()
+        self.config = config
 
     @staticmethod
     def export_to_excel(
