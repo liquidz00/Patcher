@@ -318,8 +318,8 @@ def config_manager():
             return "mocked_value"
 
         mock_get_password.side_effect = side_effect
-        config_manager = ConfigManager(service_name="patcher")
-        yield config_manager
+        managers = ConfigManager(service_name="patcher")
+        yield managers
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -332,6 +332,7 @@ def stop_event_fixture():
 @pytest.fixture
 def patcher_instance(mock_policy_response, mock_summary_response):
     config = MagicMock()
+    ui_config = MagicMock()
     token_manager = AsyncMock()
     api_client = AsyncMock()
 
@@ -347,6 +348,7 @@ def patcher_instance(mock_policy_response, mock_summary_response):
         api_client=api_client,
         excel_report=excel_report,
         pdf_report=pdf_report,
+        ui_config=ui_config,
         debug=True,
     )
 
