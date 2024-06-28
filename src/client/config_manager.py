@@ -4,7 +4,8 @@ import os
 
 from typing import Dict
 
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SRC_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT_DIR = os.path.dirname(SRC_DIR)
 FONT_DIR = os.path.join(ROOT_DIR, "fonts")
 
 class ConfigManager:
