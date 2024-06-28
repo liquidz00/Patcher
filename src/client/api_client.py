@@ -3,7 +3,7 @@ import asyncio
 import subprocess
 import json
 from typing import AnyStr, Optional, Dict, List
-from src import logger, globals
+from src import logger
 from src.client.token_manager import TokenManager
 from src.client.config_manager import ConfigManager
 from src.utils import convert_timezone, check_token
@@ -15,7 +15,7 @@ class ApiClient:
     def __init__(self, config: ConfigManager):
         self.config = config
         self.jamf_url = config.get_credential("URL")
-        self.headers = globals.HEADERS
+        self.headers = {"Accept": "application/json", "Authorization": f"Bearer {self.config.get_credential('TOKEN')}"}
         self.token_manager = TokenManager(config)
         self.log = logthis
 

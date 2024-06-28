@@ -1,7 +1,7 @@
 from aiohttp import ClientSession, ClientResponseError
 from typing import AnyStr, Dict, Optional
 from datetime import datetime, timedelta, timezone
-from src import logger, globals
+from src import logger
 from src.client.config_manager import ConfigManager
 from src.model.models import AccessToken
 
@@ -92,7 +92,7 @@ class TokenManager:
         if client_id is None:
             client_id = self.get_credentials()[0]
         if headers is None:
-            headers = globals.HEADERS
+            headers = {"Accept": "application/json", "Authorization": f"Bearer {self.config.get_credential('TOKEN')}"}
 
         async with ClientSession() as session:
             url = f"{self.config.get_credential('URL')}/api/v1/api-integrations"
