@@ -7,6 +7,7 @@ from threading import Event
 from src import exceptions, logger, utils
 from src.logger import LogMe
 from src.client.config_manager import ConfigManager
+from src.client.ui_manager import UIConfigManager
 from src.client.token_manager import TokenManager
 from src.client.api_client import ApiClient
 from src.model.excel_report import ExcelReport
@@ -22,6 +23,7 @@ class Patcher:
         api_client: ApiClient,
         excel_report: ExcelReport,
         pdf_report: PDFReport,
+        ui_config: UIConfigManager,
         debug=False,
     ):
         self.config = config
@@ -29,6 +31,7 @@ class Patcher:
         self.api_client = api_client
         self.excel_report = excel_report
         self.pdf_report = pdf_report
+        self.ui_config = ui_config
         self.debug = debug
         self.log = LogMe(logger.setup_child_logger("patcher", __name__, debug=debug))
 
@@ -94,14 +97,17 @@ class Patcher:
             # Async operations for patch data
             self.log.debug("Attempting to retrieve policy IDs.")
             patch_ids = await self.api_client.get_policies()
+
             if not patch_ids:
                 self.log.error(
                     "Policy ID API call returned an empty list. Aborting...",
                 )
                 raise exceptions.PolicyFetchError()
             self.log.debug(f"Retrieved policy IDs for {len(patch_ids)} policies.")
+
             self.log.debug("Attempting to retrieve patch summaries.")
             patch_reports = await self.api_client.get_summaries(patch_ids)
+
             if not patch_reports:
                 self.log.error("Error establishing patch summaries.")
                 raise exceptions.SummaryFetchError()
@@ -205,7 +211,8 @@ class Patcher:
                     f"Detected PDF flag set to {pdf}. Generating PDF file..."
                 )
                 try:
-                    self.pdf_report.export_excel_to_pdf(excel_file, date_format)
+                    pdf_report = PDFReport(self.ui_config)
+                    pdf_report.export_excel_to_pdf(excel_file, date_format)
                     self.log.debug("PDF file generated successfully.")
                 except (OSError, PermissionError) as e:
                     self.log.error(

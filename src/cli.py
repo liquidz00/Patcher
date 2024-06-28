@@ -8,6 +8,7 @@ from src.__about__ import __version__
 from src.utils import cred_check
 
 from src.client.config_manager import ConfigManager
+from src.client.ui_manager import UIConfigManager
 from src.client.token_manager import TokenManager
 from src.client.api_client import ApiClient
 from src.client.patcher import Patcher
@@ -99,9 +100,10 @@ async def main(
     token_manager = TokenManager(config)
     api_client = ApiClient(config)
     excel_report = ExcelReport(config)
-    pdf_report = PDFReport(config)
+    ui_config = UIConfigManager()
+    pdf_report = PDFReport(ui_config)
     patcher = Patcher(
-        config, token_manager, api_client, excel_report, pdf_report, debug
+        config, token_manager, api_client, excel_report, pdf_report, ui_config, debug
     )
 
     actual_format = DATE_FORMATS[date_format]
