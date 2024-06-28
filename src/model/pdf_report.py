@@ -3,7 +3,7 @@ import os
 from fpdf import FPDF
 from datetime import datetime
 from typing import AnyStr
-from src.client.config_manager import ConfigManager
+from src.client.ui_manager import UIConfigManager
 from src import logger
 
 logthis = logger.setup_child_logger("pdf_report", __name__)
@@ -12,7 +12,7 @@ logthis = logger.setup_child_logger("pdf_report", __name__)
 class PDFReport(FPDF):
     def __init__(
         self,
-        config: ConfigManager,
+        ui_config: UIConfigManager,
         orientation="L",
         unit="mm",
         format="A4",
@@ -20,7 +20,7 @@ class PDFReport(FPDF):
     ):
         super().__init__(orientation=orientation, unit=unit, format=format)
         self.date_format = date_format
-        self.config = config.get_ui_config()
+        self.config = ui_config.get_ui_config()
 
         self.add_font(
             self.config.get("FONT_NAME"), "", self.config.get("FONT_REGULAR_PATH")
@@ -80,7 +80,7 @@ class PDFReport(FPDF):
             df = pd.read_excel(excel_file)
 
             # Create instance of FPDF
-            pdf = PDFReport(date_format=date_format)
+            pdf = PDFReport(ui_config=UIConfigManager(), date_format=date_format)
             pdf.table_headers = df.columns
             pdf.column_widths = [75, 40, 40, 40, 40, 40]
             pdf.add_page()
