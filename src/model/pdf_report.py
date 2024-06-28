@@ -12,7 +12,7 @@ logthis = logger.setup_child_logger("pdf_report", __name__)
 class PDFReport(FPDF):
     def __init__(
         self,
-        config_manager: ConfigManager,
+        config: ConfigManager,
         orientation="L",
         unit="mm",
         format="A4",
@@ -20,7 +20,7 @@ class PDFReport(FPDF):
     ):
         super().__init__(orientation=orientation, unit=unit, format=format)
         self.date_format = date_format
-        self.config = config_manager.get_ui_config()
+        self.config = config.get_ui_config()
 
         self.add_font(
             self.config.get("FONT_NAME"), "", self.config.get("FONT_REGULAR_PATH")
