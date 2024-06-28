@@ -1,10 +1,12 @@
 import pytest
 import os
 import logging
+import threading
 from datetime import datetime, timezone
 from src.client.config_manager import ConfigManager
+from src.client.patcher import Patcher
 from io import StringIO
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock, AsyncMock
 
 
 @pytest.fixture
@@ -281,13 +283,16 @@ def mock_sofa_response():
         ],
     }
 
+
 @pytest.fixture
 def capture_logs():
     log_capture = logging.getLogger("patcher")
     log_capture.setLevel(logging.DEBUG)
     stream = StringIO()
     handler = logging.StreamHandler(stream)
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
     handler.setFormatter(formatter)
     log_capture.addHandler(handler)
 
@@ -296,9 +301,11 @@ def capture_logs():
     log_capture.removeHandler(handler)
     handler.close()
 
+
 @pytest.fixture
 def config_manager():
     with patch("src.client.config_manager.keyring.get_password") as mock_get_password:
+
         def side_effect(service_name, key):
             if key == "TOKEN":
                 return "mocked_token"
@@ -313,3 +320,51 @@ def config_manager():
         mock_get_password.side_effect = side_effect
         config_manager = ConfigManager(service_name="patcher")
         yield config_manager
+
+
+@pytest.fixture(scope="function", autouse=True)
+def stop_event_fixture():
+    stop_event = threading.Event()
+    yield stop_event
+    stop_event.set()
+
+
+@pytest.fixture
+def patcher_instance(mock_policy_response, mock_summary_response):
+    config = MagicMock()
+    token_manager = AsyncMock()
+    api_client = AsyncMock()
+
+    api_client.get_policies.return_value = mock_policy_response
+    api_client.get_summaries.return_value = mock_summary_response
+
+    excel_report = MagicMock()
+    pdf_report = MagicMock()
+
+    return Patcher(
+        config=config,
+        token_manager=token_manager,
+        api_client=api_client,
+        excel_report=excel_report,
+        pdf_report=pdf_report,
+        debug=True,
+    )
+
+
+@pytest.fixture
+def sample_patch_reports():
+    return [
+        {
+            "software_title": "Example Software",
+            "patch_released": "2024-01-01",
+            "hosts_patched": 10,
+            "missing_patch": 2,
+            "completion_percent": 83.33,
+            "total_hosts": 12,
+        }
+    ]
+
+
+@pytest.fixture
+def temp_output_dir(tmpdir):
+    return str(tmpdir)
