@@ -28,6 +28,10 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install -r requirements.txt
 
+      - name: Set fallback keyring for Ubuntu
+        if: matrix.os == 'ubuntu-latest'
+        run: echo "KEYRING_BACKEND=keyring.backends.null.Keyring" >> $GITHUB_ENV
+
       - name: Run tests
         env:
           PYTHONPATH: ${{ github.workspace }}
