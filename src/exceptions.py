@@ -1,5 +1,4 @@
 import click
-
 from src.logger import LogMe
 from typing import AnyStr
 from contextlib import contextmanager
@@ -239,7 +238,7 @@ def error_handling(log: LogMe, stop_event: Event):
         SortError,
         SofaFeedError,
         APIPrivilegeError,
-        PlistError
+        PlistError,
     )
     try:
         yield
