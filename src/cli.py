@@ -1,4 +1,4 @@
-import click
+import asyncclick as click
 import asyncio
 import threading
 import time
