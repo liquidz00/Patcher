@@ -3,7 +3,6 @@ from pydantic import BaseModel, field_validator, Field
 
 
 class AccessToken(BaseModel):
-    type: str = ""
     token: str = ""
     expires: datetime = Field(default_factory=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc))
 
