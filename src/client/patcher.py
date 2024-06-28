@@ -218,7 +218,7 @@ class Patcher:
 
             stop_event.set()
             self.log.debug(
-                "Patcher finished as expected. Additional logs can be found at '~/Patcher/Logs'."
+                "Patcher finished as expected. Additional logs can be found at '~/Library/Application Support/Patcher/logs'."
             )
             self.log.info(
                 f"{len(patch_reports)} patch reports saved successfully to {reports_dir}."
