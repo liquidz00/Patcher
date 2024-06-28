@@ -1,8 +1,9 @@
 import pytest
 import os
+import pytz
 import logging
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from src.client.config_manager import ConfigManager
 from src.client.patcher import Patcher
 from io import StringIO
@@ -76,7 +77,7 @@ def mock_summary_response():
             "softwareTitleConfigurationId": "3",
             "title": "Google Chrome",
             "latestVersion": "122.0.6261.57",
-            "releaseDate": "2024-02-21T09:43:36Z",
+            "releaseDate": (datetime.now(pytz.utc) - timedelta(days=3)).isoformat(),
             "upToDate": 23,
             "outOfDate": 163,
             "onDashboard": True,
@@ -86,7 +87,7 @@ def mock_summary_response():
             "softwareTitleConfigurationId": "4",
             "title": "Jamf Connect",
             "latestVersion": "2.32.0",
-            "releaseDate": "2024-02-05T20:07:10Z",
+            "releaseDate": (datetime.now(pytz.utc) - timedelta(hours=24)).isoformat(),
             "upToDate": 185,
             "outOfDate": 19,
             "onDashboard": True,
@@ -96,7 +97,7 @@ def mock_summary_response():
             "softwareTitleConfigurationId": "5",
             "title": "Apple macOS Ventura",
             "latestVersion": "13.6.4 (22G513)",
-            "releaseDate": "2024-01-23T01:13:19Z",
+            "releaseDate": (datetime.now(pytz.utc) - timedelta(days=7)).isoformat(),
             "upToDate": 6,
             "outOfDate": 5,
             "onDashboard": True,
