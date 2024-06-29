@@ -6,6 +6,7 @@ SRC_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROOT_DIR = os.path.dirname(SRC_DIR)
 FONT_DIR = os.path.join(ROOT_DIR, "fonts")
 
+
 class UIConfigManager:
 
     def __init__(self):
@@ -13,7 +14,6 @@ class UIConfigManager:
         self.load_ui_config()
 
     def load_ui_config(self):
-        # Paths
         default_path = os.path.join(ROOT_DIR, "config.ini")
         user_config_dir = os.path.expanduser("~/Library/Application Support/Patcher")
         user_config_path = os.path.join(user_config_dir, "config.ini")
