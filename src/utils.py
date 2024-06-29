@@ -11,9 +11,24 @@ from src.client.token_manager import TokenManager
 from src.client.config_manager import ConfigManager
 from src.model.models import AccessToken
 from src import exceptions
+from urllib.parse import urlparse, urlunparse
 
 # Logging
 logthis = logger.setup_child_logger("helpers", __name__)
+
+
+# Ensure any URL passed is in proper format
+def valid_url(url: AnyStr) -> AnyStr:
+    parsed_url = urlparse(url=url)
+    scheme = "https" if not parsed_url.scheme else parsed_url.scheme
+    netloc = parsed_url.netloc if parsed_url.netloc else parsed_url.path.split("/")[0]
+    path = (
+        "/" + "/".join(parsed_url.path.split("/")[1:])
+        if len(parsed_url.path.split("/")) > 1
+        else ""
+    )
+    new_url = urlunparse((scheme, netloc, path.rstrip("/"), "", "", ""))
+    return new_url
 
 
 # Check for API Client credentials
@@ -38,9 +53,9 @@ def cred_check(func):
                 raise exceptions.PlistError(path=plist_path)
 
         if not first_run_done:
-            api_url = click.prompt("Enter your Jamf Pro URL: ")
-            api_client_id = click.prompt("Enter your API Client ID: ")
-            api_client_secret = click.prompt("Enter your API Client Secret: ")
+            api_url = valid_url(url=click.prompt("Enter your Jamf Pro URL"))
+            api_client_id = click.prompt("Enter your API Client ID")
+            api_client_secret = click.prompt("Enter your API Client Secret")
 
             # Store credentials
             config.set_credential("URL", api_url)
