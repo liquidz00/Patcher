@@ -10,25 +10,11 @@ from typing import List, AnyStr, Dict, Optional, Callable
 from src.client.token_manager import TokenManager
 from src.client.config_manager import ConfigManager
 from src.model.models import AccessToken
+from pydantic import ValidationError
 from src import exceptions
-from urllib.parse import urlparse, urlunparse
 
 # Logging
 logthis = logger.setup_child_logger("helpers", __name__)
-
-
-# Ensure any URL passed is in proper format
-def valid_url(url: AnyStr) -> AnyStr:
-    parsed_url = urlparse(url=url)
-    scheme = "https" if not parsed_url.scheme else parsed_url.scheme
-    netloc = parsed_url.netloc if parsed_url.netloc else parsed_url.path.split("/")[0]
-    path = (
-        "/" + "/".join(parsed_url.path.split("/")[1:])
-        if len(parsed_url.path.split("/")) > 1
-        else ""
-    )
-    new_url = urlunparse((scheme, netloc, path.rstrip("/"), "", "", ""))
-    return new_url
 
 
 # Check for API Client credentials
@@ -37,6 +23,11 @@ def cred_check(func):
     async def wrapper(*args, **kwargs):
         config = ConfigManager()
         token_manager = TokenManager(config)
+        try:
+            config.attach_client()
+        except ValidationError as e:
+            logthis.error(f"JamfClient validation failed: {e}")
+            raise click.Abort()
 
         plist_path = os.path.expanduser(
             "~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist"
@@ -53,7 +44,7 @@ def cred_check(func):
                 raise exceptions.PlistError(path=plist_path)
 
         if not first_run_done:
-            api_url = valid_url(url=click.prompt("Enter your Jamf Pro URL"))
+            api_url = click.prompt("Enter your Jamf Pro URL")
             api_client_id = click.prompt("Enter your API Client ID")
             api_client_secret = click.prompt("Enter your API Client Secret")
 
@@ -95,7 +86,14 @@ def check_token(func: Callable):
     async def wrapper(*args, **kwargs):
         instance = args[0]
         token_manager = instance.token_manager
+        config = instance.config
         log = instance.log
+
+        try:
+            config.attach_client()
+        except ValidationError as e:
+            log.error(f"Failed validation: {e}")
+            raise click.Abort()
 
         # Check if token is valid
         log.debug("Checking bearer token validity")
@@ -118,20 +116,15 @@ def check_token(func: Callable):
 
         # Ensure token has proper lifetime duration
         log.debug("Verifying token lifetime is greater than 5 minutes")
-        try:
-            token_lifetime = await token_manager.check_token_lifetime()
-            log.info("Token lifetime verified successfully.")
-        except aiohttp.ClientResponseError as e:
-            log.error(
-                f"Received unauthorized response checking token lifetime. API client may not have sufficient privileges."
-            )
-            raise exceptions.APIPrivilegeError(reason=e)
-        if not token_lifetime:
+        token_lifetime = token_manager.check_token_lifetime()
+        if token_lifetime:
+            log.debug("Token lifetime verified successfully.")
+        elif not token_lifetime:
             log.error(
                 "Bearer token lifetime is too short. Review the Patcher Wiki for instructions to increase the token's lifetime.",
             )
             raise exceptions.TokenLifetimeError(
-                lifetime=instance.config.get_credential("TOKEN_EXPIRATION")
+                lifetime=instance.token.seconds_remaining
             )
         else:
             log.debug("Token lifetime is at least 5 minutes. Continuing...")
