@@ -1,21 +1,18 @@
 import pytest
 from aioresponses import aioresponses
-from src.client.api_client import ApiClient
-
-@pytest.fixture
-def api_client(config_manager):
-    return ApiClient(config=config_manager)
 
 @pytest.mark.asyncio
-async def test_get_policies(api_client, mock_policy_response, mock_env_vars, mock_api_integration_response):
+async def test_get_policies(api_client, mock_policy_response, mock_api_integration_response):
+    base_url = api_client.jamf_url
+    api_client.jamf_client.client_id = "a1234567-abcd-1234-efgh-123456789abc"
     with aioresponses() as m:
         m.get(
-            "https://mocked.url/api/v2/patch-software-title-configurations",
+            f"{base_url}/api/v2/patch-software-title-configurations",
             payload=mock_policy_response,
             headers={"Accept": "application/json"},
         )
         m.get(
-            "https://mocked.url/api/v1/api-integrations",
+            f"{base_url}/api/v1/api-integrations",
             payload=mock_api_integration_response,
             headers={"Accept": "application/json"},
         )
@@ -26,7 +23,9 @@ async def test_get_policies(api_client, mock_policy_response, mock_env_vars, moc
 
 
 @pytest.mark.asyncio
-async def test_get_summaries(api_client, mock_policy_response, mock_summary_response, mock_env_vars, mock_api_integration_response):
+async def test_get_summaries(api_client, mock_policy_response, mock_summary_response, mock_api_integration_response):
+    base_url = api_client.jamf_url
+    api_client.jamf_client.client_id = "a1234567-abcd-1234-efgh-123456789abc"
     policy_ids = [policy["id"] for policy in mock_policy_response]
     summary_response_dict = {
         str(summary["softwareTitleId"]): summary for summary in mock_summary_response
@@ -35,12 +34,12 @@ async def test_get_summaries(api_client, mock_policy_response, mock_summary_resp
         for policy_id in policy_ids:
             mock_response = summary_response_dict[policy_id]
             m.get(
-                f"https://mocked.url/api/v2/patch-software-title-configurations/{policy_id}/patch-summary",
+                f"{base_url}/api/v2/patch-software-title-configurations/{policy_id}/patch-summary",
                 payload=mock_response,
                 headers={"Accept": "application/json"},
             )
             m.get(
-                "https://mocked.url/api/v1/api-integrations",
+                f"{base_url}/api/v1/api-integrations",
                 payload=mock_api_integration_response,
                 headers={"Accept": "application/json"},
             )
@@ -52,15 +51,17 @@ async def test_get_summaries(api_client, mock_policy_response, mock_summary_resp
 
 
 @pytest.mark.asyncio
-async def test_get_policies_empty_response(api_client, mock_env_vars, mock_api_integration_response):
+async def test_get_policies_empty_response(api_client, mock_api_integration_response):
+    base_url = api_client.jamf_url
+    api_client.jamf_client.client_id = "a1234567-abcd-1234-efgh-123456789abc"
     with aioresponses() as m:
         m.get(
-            "https://mocked.url/api/v2/patch-software-title-configurations",
+            f"{base_url}/api/v2/patch-software-title-configurations",
             payload=[],
             headers={"Accept": "application/json"},
         )
         m.get(
-            "https://mocked.url/api/v1/api-integrations",
+            f"{base_url}/api/v1/api-integrations",
             payload=mock_api_integration_response,
             headers={"Accept": "application/json"},
         )
@@ -70,15 +71,17 @@ async def test_get_policies_empty_response(api_client, mock_env_vars, mock_api_i
 
 
 @pytest.mark.asyncio
-async def test_get_policies_api_error(api_client, mock_env_vars, mock_api_integration_response):
+async def test_get_policies_api_error(api_client, mock_api_integration_response):
+    base_url = api_client.jamf_url
+    api_client.jamf_client.client_id = "a1234567-abcd-1234-efgh-123456789abc"
     with aioresponses() as m:
         m.get(
-            "https://mocked.url/api/v2/patch-software-title-configurations",
+            f"{base_url}/api/v2/patch-software-title-configurations",
             status=500,
             headers={"Accept": "application/json"},
         )
         m.get(
-            "https://mocked.url/api/v1/api-integrations",
+            f"{base_url}/api/v1/api-integrations",
             payload=mock_api_integration_response,
             headers={"Accept": "application/json"},
         )
