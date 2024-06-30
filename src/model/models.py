@@ -2,6 +2,9 @@ from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, field_validator, Field
 from urllib.parse import urlparse, urlunparse
 from typing import Optional, AnyStr
+from src import logger
+
+logthis = logger.setup_child_logger("models", __name__)
 
 
 class AccessToken(BaseModel):
@@ -61,12 +64,16 @@ class JamfClient(BaseModel):
     :type server: AnyStr
     :param token: The access token for the Jamf client.
     :type token: Optional[AccessToken]
+    :param max_concurrency: The maximum concurrency level for API calls.
+        Defaults to 5 per Jamf Developer documentation.
+    :type max_concurrency: int
     """
 
     client_id: AnyStr
     client_secret: AnyStr
     server: AnyStr
     token: Optional[AccessToken] = None
+    max_concurrency: int = 5
 
     @staticmethod
     def valid_url(url: AnyStr) -> AnyStr:
@@ -127,3 +134,17 @@ class JamfClient(BaseModel):
         :rtype: AnyStr
         """
         return self.server
+
+    def set_max_concurrency(self, concurrency: int):
+        """
+        Sets the maximum concurrency level for API calls. It is **strongly
+            recommended** to limit API call concurrency to no more than 5 connections.
+            See https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices
+
+        :param concurrency: The new maximum concurrency level.
+        :type concurrency: int
+        """
+        if concurrency < 1:
+            logthis.error("Concurrency level must be at least 1!")
+            raise ValueError("Concurrency level must be at least 1. ")
+        self.max_concurrency = concurrency

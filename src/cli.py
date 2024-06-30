@@ -79,6 +79,7 @@ def animate_search(stop_event: threading.Event, enable_animation: bool) -> None:
     is_flag=True,
     help="Include the amount of enrolled mobile devices on the latest version of their respective OS.",
 )
+@click.option("--concurrency", type=click.INT, default=5, help="Set the maximum concurrency level for API calls.")
 @click.option(
     "--debug",
     "-x",
@@ -92,8 +93,9 @@ async def main(
     pdf: bool,
     sort: Optional[AnyStr],
     omit: bool,
-    ios: bool,
     date_format: AnyStr,
+    ios: bool,
+    concurrency: int,
     debug: bool,
 ) -> None:
     config = ConfigManager()
@@ -102,6 +104,8 @@ async def main(
     excel_report = ExcelReport(config)
     ui_config = UIConfigManager()
     pdf_report = PDFReport(ui_config)
+    api_client.jamf_client.set_max_concurrency(concurrency=concurrency)
+
     patcher = Patcher(
         config, token_manager, api_client, excel_report, pdf_report, ui_config, debug
     )
