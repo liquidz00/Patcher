@@ -22,11 +22,14 @@ class ApiClient:
         :type config: ConfigManager
         :raises ValueError: If the JamfClient configuration is invalid.
         """
+        logthis.debug("Initializing ApiClient")
         self.config = config
         self.jamf_client = config.attach_client()
         if self.jamf_client:
             self.token = self.jamf_client.token
+            logthis.info("JamfClient and token successfully attached")
         else:
+            logthis.error("Invalid JamfClient configuration detected!")
             raise ValueError("Invalid JamfClient configuration detected!")
         self.jamf_url = self.jamf_client.base_url
         self.headers = {
@@ -50,10 +53,13 @@ class ApiClient:
         :return: JSON data as a dictionary or an empty dictionary on error.
         :rtype: Optional[Dict]
         """
+        logthis.debug(f"Fetching JSON data from URL: {url}")
         try:
             async with session.get(url, headers=self.headers) as response:
                 response.raise_for_status()
-                return await response.json()
+                json_data = await response.json()
+                logthis.info(f"Successfully fetched JSON data from {url}")
+                return json_data
         except aiohttp.ClientResponseError as e:
             logthis.error(
                 f"Received a client error while fetching JSON from {url}: {e}"
