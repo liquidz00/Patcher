@@ -12,7 +12,16 @@ logthis = logger.setup_child_logger("ApiClient", __name__)
 
 
 class ApiClient:
+    """Provides methods for interacting with the Jamf API."""
+
     def __init__(self, config: ConfigManager):
+        """
+        Initializes the ApiClient with the provided ConfigManager.
+
+        :param config: Instance of ConfigManager for loading and storing credentials.
+        :type config: ConfigManager
+        :raises ValueError: If the JamfClient configuration is invalid.
+        """
         self.config = config
         self.jamf_client = config.attach_client()
         if self.jamf_client:
@@ -38,6 +47,7 @@ class ApiClient:
         :param session: Async session used to make the request, instance of aiohttp.ClientSession.
         :type session: aiohttp.ClientSession
         :return: JSON data as a dictionary or an empty dictionary on error.
+        :rtype: Optional[Dict]
         """
         try:
             async with session.get(url, headers=self.headers) as response:
@@ -56,8 +66,8 @@ class ApiClient:
         """
         Asynchronously retrieves all patch software titles' IDs using the Jamf API.
 
-        :return: List of software title IDs or an empty list on error.
-        :rtype: List
+        :return: List of software title IDs or None on error.
+        :rtype: Optional[List]
         """
         async with aiohttp.ClientSession() as session:
             url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
@@ -87,8 +97,8 @@ class ApiClient:
 
         :param policy_ids: List of policy IDs to retrieve summaries for.
         :type policy_ids: List
-        :return: List of dictionaries containing patch summaries or an empty list on error.
-        :rtype: List
+        :return: List of dictionaries containing patch summaries or None on error.
+        :rtype: Optional[List]
         """
         try:
             async with aiohttp.ClientSession() as session:
@@ -139,7 +149,8 @@ class ApiClient:
         """
         Asynchronously fetches the list of mobile device IDs from the Jamf Pro API.
 
-        :return: A list of mobile device IDs.
+        :return: A list of mobile device IDs or None on error.
+        :rtype: Optional[List[int]]
         """
         url = f"{self.jamf_url}/api/v2/mobile-devices"
 
@@ -173,7 +184,8 @@ class ApiClient:
 
         :param device_ids: A list of mobile device IDs.
         :type device_ids: List[int]
-        :return: A list of dictionaries containing the serial number and OS version.
+        :return: A list of dictionaries containing the serial number and OS version, or None on error.
+        :rtype: Optional[List[Dict[AnyStr, AnyStr]]]
         """
         if not device_ids:
             self.log.error("No device IDs provided!")
@@ -212,7 +224,9 @@ class ApiClient:
         """
         Fetches iOS Data feeds from SOFA and extracts latest OS version information
 
-        :return: A list of dictionaries containing Base OS Version, latest iOS Version and release date.
+        :return: A list of dictionaries containing Base OS Version, latest iOS Version and release date,
+            or None on error.
+        :rtype: Optional[List[Dict[AnyStr, AnyStr]]]
         """
 
         # Utilize curl to avoid SSL Verification errors for end-users on managed devices

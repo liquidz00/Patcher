@@ -10,6 +10,8 @@ logthis = logger.setup_child_logger("pdf_report", __name__)
 
 
 class PDFReport(FPDF):
+    """Handles the generation of PDF reports from Excel files."""
+
     def __init__(
         self,
         ui_config: UIConfigManager,
@@ -18,6 +20,20 @@ class PDFReport(FPDF):
         format="A4",
         date_format="%B %d %Y",
     ):
+        """
+        Initializes the PDFReport with the provided parameters and UIConfigManager.
+
+        :param ui_config: Instance of UIConfigManager for managing UI configuration.
+        :type ui_config: UIConfigManager
+        :param orientation: Orientation of the PDF, default is "L" (landscape).
+        :type orientation: str
+        :param unit: Unit of measurement, default is "mm".
+        :type unit: str
+        :param format: Page format, default is "A4".
+        :type format: str
+        :param date_format: Date format string for the PDF report header, default is "%B %d %Y".
+        :type date_format: str
+        """
         super().__init__(orientation=orientation, unit=unit, format=format)
         self.date_format = date_format
         self.config = ui_config.get_ui_config()
@@ -33,11 +49,10 @@ class PDFReport(FPDF):
         self.column_widths = []
 
     def header(self):
-        # Title in bold
+        """Creates the header section for each page of the PDF report."""
         self.set_font(self.config.get("FONT_NAME"), "B", 24)
         self.cell(0, 10, self.config.get("HEADER_TEXT"), new_x="LMARGIN", new_y="NEXT")
 
-        # Month/Year in light
         self.set_font(self.config.get("FONT_NAME"), "", 18)
         self.cell(
             0,
@@ -51,6 +66,7 @@ class PDFReport(FPDF):
             self.add_table_header()
 
     def add_table_header(self):
+        """Adds the table header to the PDF report."""
         self.set_y(30)
         self.set_font(self.config.get("FONT_NAME"), "B", 11)
         for header, width in zip(self.table_headers, self.column_widths):
@@ -58,6 +74,7 @@ class PDFReport(FPDF):
         self.ln(10)
 
     def footer(self):
+        """Creates the footer section for each page of the PDF report."""
         self.set_y(-15)
         self.set_font(self.config.get("FONT_NAME"), "", 6)
         self.set_text_color(175, 175, 175)

@@ -16,6 +16,8 @@ from src.utils import check_token
 
 
 class Patcher:
+    """Main class for managing the patch reporting process in the Patcher application."""
+
     def __init__(
         self,
         config: ConfigManager,
@@ -26,6 +28,24 @@ class Patcher:
         ui_config: UIConfigManager,
         debug=False,
     ):
+        """
+        Initializes the Patcher class with the provided components.
+
+        :param config: Instance of ConfigManager for managing configuration.
+        :type config: ConfigManager
+        :param token_manager: Instance of TokenManager for managing tokens.
+        :type token_manager: TokenManager
+        :param api_client: Instance of ApiClient for interacting with the Jamf API.
+        :type api_client: ApiClient
+        :param excel_report: Instance of ExcelReport for generating Excel reports.
+        :type excel_report: ExcelReport
+        :param pdf_report: Instance of PDFReport for generating PDF reports.
+        :type pdf_report: PDFReport
+        :param ui_config: Instance of UIConfigManager for UI configuration.
+        :type ui_config: UIConfigManager
+        :param debug: Enable or disable debug mode. Defaults to False.
+        :type debug: bool
+        """
         self.config = config
         self.token_manager = token_manager
         self.api_client = api_client

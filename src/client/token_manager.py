@@ -9,7 +9,16 @@ logthis = logger.setup_child_logger("TokenManager", __name__)
 
 
 class TokenManager:
+    """Manages the Bearer Token for accessing the Jamf API."""
+
     def __init__(self, config: ConfigManager):
+        """
+        Initialies the TokenManager with the provided ConfigManager.
+
+        :param config: Instance of ConfigManager for loading and storing credentials.
+        :type config: ConfigManager
+        :raises ValueError: If the JamfClient configuration is invalid.
+        """
         self.config = config
         self.jamf_client = self.config.attach_client()
         if self.jamf_client:
@@ -18,23 +27,58 @@ class TokenManager:
             raise ValueError("Invalid JamfClient configuration detected!")
 
     def save_token(self, token: AccessToken):
+        """
+        Saves the token and its expiration date in the keyring.
+
+        :param token: The access token to save.
+        :type token: AccessToken
+        """
         self.config.set_credential("TOKEN", token.token)
         self.config.set_credential("TOKEN_EXPIRATION", token.expires.isoformat())
         logthis.info("Bearer token and expiration updated in keyring")
         self.jamf_client.token = token
 
     def token_valid(self) -> bool:
+        """
+        Checks if the current token is valid.
+
+        :return: True if the token is valid, False otherwise.
+        :rtype: bool
+        """
         return not self.token.is_expired
 
     def get_credentials(self):
+        """
+        Retrieves the client ID and client secret from the JamfCLient.
+
+        :return: Tuple containing the client ID and client secret.
+        :rtype: tuple
+        """
         return self.jamf_client.client_id, self.jamf_client.client_secret
 
     def update_token(self, token_str: AnyStr, expires_in: int):
+        """
+        Updates the token with a new value and expiration time.
+
+        :param token_str: The new token string.
+        :type token_str: AnyStr
+        :param expires_in: The number of seconds until the token expires.
+        :type expires_in: int
+        """
         expiration_time = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
         self.token = AccessToken(token=token_str, expires=expiration_time)
         self.save_token(self.token)
 
     def check_token_lifetime(self, client: Optional[JamfClient] = None) -> bool:
+        """
+        Checks the remaining lifetime of the token.
+
+        :param client: The JamfClient to check the token for, defaults to the current JamfClient.
+        :type client: Optional[JamfClient]
+        :return: True if the token lifetime is sufficient (greater than 5 mins),
+            False otherwise.
+        :rtype: bool
+        """
         if client is None:
             client = self.jamf_client
 
@@ -64,6 +108,12 @@ class TokenManager:
             return True
 
     async def fetch_token(self) -> Optional[AccessToken]:
+        """
+        Asynchronously fetches a new token from the Jamf API.
+
+        :return: The fetched access token, or None if fetching fails.
+        :rtype: Optional[AccessToken]
+        """
         client_id, client_secret = self.get_credentials()
         async with ClientSession() as session:
             payload = {

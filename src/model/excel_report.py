@@ -9,7 +9,15 @@ logthis = logger.setup_child_logger("excel_report", __name__)
 
 
 class ExcelReport:
+    """Handles the generation of Excel reports from patch data."""
+
     def __init__(self, config: ConfigManager):
+        """
+        Initializes the ExcelReport with the provided ConfigManager.
+
+        :param config: Instance of ConfigManager for managing configuration.
+        :type config: ConfigManager
+        """
         self.config = config
 
     @staticmethod
@@ -23,8 +31,8 @@ class ExcelReport:
         :type patch_reports: List[Dict]
         :param output_dir: Directory to save the Excel spreadsheet.
         :type output_dir: AnyStr
-        :return: Path to the created Excel spreadsheet or error message.
-        :rtype: AnyStr
+        :return: Path to the created Excel spreadsheet or None on error.
+        :rtype: Optional[AnyStr]
         """
         current_date = datetime.now().strftime("%m-%d-%y")
 

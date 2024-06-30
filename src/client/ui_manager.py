@@ -8,12 +8,16 @@ FONT_DIR = os.path.join(ROOT_DIR, "fonts")
 
 
 class UIConfigManager:
+    """Manages the user interface configuration settings (Header & Footer text of the exported PDF class,
+    custom font (optional) and font paths)"""
 
     def __init__(self):
+        """Initializes the UIConfigManager by loading the UI configuration."""
         self.config = configparser.ConfigParser()
         self.load_ui_config()
 
     def load_ui_config(self):
+        """Loads the UI configuration from the default and user configuration files."""
         default_path = os.path.join(ROOT_DIR, "config.ini")
         user_config_dir = os.path.expanduser("~/Library/Application Support/Patcher")
         user_config_path = os.path.join(user_config_dir, "config.ini")
@@ -29,6 +33,12 @@ class UIConfigManager:
             self.config.read(user_config_path)
 
     def get_ui_config(self) -> Dict:
+        """
+        Retrieves the UI configuration settings.
+
+        :return: Dictionary containing UI configuration settings.
+        :rtype: Dict
+        """
         return {
             "HEADER_TEXT": self.config.get("UI", "HEADER_TEXT"),
             "FOOTER_TEXT": self.config.get(
