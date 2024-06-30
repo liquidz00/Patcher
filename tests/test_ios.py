@@ -4,13 +4,7 @@ import subprocess
 import json
 from unittest.mock import patch, MagicMock
 from aioresponses import aioresponses
-from src.client.api_client import ApiClient
 from src.utils import calculate_ios_on_latest
-
-
-@pytest.fixture
-def api_client(config_manager):
-    return ApiClient(config=config_manager)
 
 
 # Test valid response - iOS device IDs
@@ -18,7 +12,6 @@ def api_client(config_manager):
 async def test_get_device_ids_valid(
     api_client,
     mock_ios_device_id_list_response,
-    mock_env_vars,
     mock_api_integration_response,
 ):
     with aioresponses() as m:
@@ -40,9 +33,7 @@ async def test_get_device_ids_valid(
 
 # Test invalid response - iOS device IDs
 @pytest.mark.asyncio
-async def test_get_device_ids_invalid(
-    api_client, mock_api_integration_response, mock_env_vars
-):
+async def test_get_device_ids_invalid(api_client, mock_api_integration_response):
     with aioresponses() as m:
         m.get(
             url="https://mocked.url/api/v2/mobile-devices",
@@ -63,7 +54,6 @@ async def test_get_device_ids_invalid(
 async def test_get_device_ids_api_error(
     api_client,
     mock_ios_device_id_list_response,
-    mock_env_vars,
     mock_api_integration_response,
 ):
     with aioresponses() as m:
@@ -86,7 +76,7 @@ async def test_get_device_ids_api_error(
 # Test valid response - Getting iOS Versions
 @pytest.mark.asyncio
 async def test_get_ios_versions_valid(
-    api_client, mock_ios_detail_response, mock_env_vars, mock_api_integration_response
+    api_client, mock_ios_detail_response, mock_api_integration_response
 ):
     device_ids = [1]
 
