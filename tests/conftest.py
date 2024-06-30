@@ -1,13 +1,15 @@
 import pytest
-import os
 import pytz
 import logging
 import threading
 from datetime import datetime, timezone, timedelta
+from unittest.mock import patch, MagicMock, AsyncMock
 from src.client.config_manager import ConfigManager
+from src.client.token_manager import TokenManager
+from src.client.api_client import ApiClient
+from src.model.models import AccessToken, JamfClient
 from src.client.patcher import Patcher
 from io import StringIO
-from unittest.mock import patch, MagicMock, AsyncMock
 
 
 @pytest.fixture
@@ -103,18 +105,6 @@ def mock_summary_response():
             "onDashboard": True,
         },
     ]
-
-
-@pytest.fixture
-def mock_env_vars():
-    env_vars = {
-        "URL": "https://mocked.url",
-        "CLIENT_ID": "mocked_client_id",
-        "CLIENT_SECRET": "mocked_client_secret",
-        "TOKEN": "mocked_token",
-    }
-    with patch.dict(os.environ, env_vars):
-        yield
 
 
 @pytest.fixture
@@ -304,23 +294,39 @@ def capture_logs():
 
 
 @pytest.fixture
-def config_manager():
-    with patch("src.client.config_manager.keyring.get_password") as mock_get_password:
+def mock_jamf_client():
+    mock_token = AccessToken(
+        token="mocked_token", expires=datetime(2030, 1, 1, tzinfo=timezone.utc)
+    )
+    mock_jamf_client = JamfClient(
+        client_id="mocked_client_id",
+        client_secret="mocked_client_secret",
+        server="https://mocked.url",
+        token=mock_token,
+    )
+    return mock_jamf_client
 
-        def side_effect(service_name, key):
-            if key == "TOKEN":
-                return "mocked_token"
-            elif key == "TOKEN_EXPIRATION":
-                return datetime(2030, 1, 1, tzinfo=timezone.utc).isoformat()
-            elif key == "URL":
-                return "https://mocked.url"
-            elif key == "CLIENT_ID":
-                return "a1234567-abcd-1234-efgh-123456789abc"
-            return "mocked_value"
 
-        mock_get_password.side_effect = side_effect
-        managers = ConfigManager(service_name="patcher")
-        yield managers
+@pytest.fixture
+def short_lived_jamf_client():
+    mock_token = AccessToken(
+        token="mocked_token", expires=(datetime.now() + timedelta(seconds=30))
+    )
+    return JamfClient(
+        client_id="short-lived-client-id",
+        client_secret="mocked_client_secret",
+        server="https://mocked.url",
+        token=mock_token,
+    )
+
+
+@pytest.fixture
+def config_manager(mock_jamf_client):
+    with patch(
+        "src.client.config_manager.ConfigManager.attach_client",
+        return_value=mock_jamf_client,
+    ):
+        yield ConfigManager(service_name="patcher")
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -352,6 +358,23 @@ def patcher_instance(mock_policy_response, mock_summary_response):
         ui_config=ui_config,
         debug=True,
     )
+
+
+@pytest.fixture
+def token_manager(config_manager):
+    token_manager = TokenManager(config_manager)
+    token_manager.fetch_token = AsyncMock(
+        return_value=AccessToken(
+            token="mocked_token", expires=datetime(2030, 1, 1, tzinfo=timezone.utc)
+        )
+    )
+    token_manager.check_token_lifetime = AsyncMock(return_value=True)
+    yield token_manager
+
+
+@pytest.fixture
+def api_client(config_manager):
+    return ApiClient(config=config_manager)
 
 
 @pytest.fixture
