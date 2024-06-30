@@ -81,20 +81,19 @@ class TokenManager:
                 try:
                     resp.raise_for_status()
                     json_response = await resp.json()
-                    token = json_response.get("access_token")
-                    expires_in = json_response.get("expires_in", 0)
-
-                    if not isinstance(token, str) or expires_in <= 0:
-                        logthis.error("Received invalid token response")
-                        return None
-
-                    expiration = datetime.now(timezone.utc) + timedelta(
-                        seconds=expires_in
-                    )
-                    access_token = AccessToken(token=token, expires=expiration)
-
-                    self.save_token(token=access_token)
-                    return access_token
                 except ClientResponseError as e:
                     logthis.error(f"Failed to fetch a token: {e}")
                     return None
+
+                token = json_response.get("access_token")
+                expires_in = json_response.get("expires_in", 0)
+
+                if not isinstance(token, str) or expires_in <= 0:
+                    logthis.error("Received invalid token response")
+                    return None
+
+                expiration = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+                access_token = AccessToken(token=token, expires=expiration)
+
+                self.save_token(token=access_token)
+                return access_token
