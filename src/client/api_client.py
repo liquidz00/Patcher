@@ -35,6 +35,7 @@ class ApiClient:
         }
         self.token_manager = TokenManager(config)
         self.log = logthis
+        self.connector = aiohttp.TCPConnector(limit=self.jamf_client.max_concurrency)
 
     async def fetch_json(
         self, url: AnyStr, session: aiohttp.ClientSession
@@ -69,7 +70,7 @@ class ApiClient:
         :return: List of software title IDs or None on error.
         :rtype: Optional[List]
         """
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(connector=self.connector) as session:
             url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
             response = await self.fetch_json(url=url, session=session)
 
@@ -101,7 +102,7 @@ class ApiClient:
         :rtype: Optional[List]
         """
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(connector=self.connector) as session:
                 tasks = [
                     self.fetch_json(
                         url=f"{self.jamf_url}/api/v2/patch-software-title-configurations/{policy}/patch-summary",
@@ -155,7 +156,7 @@ class ApiClient:
         url = f"{self.jamf_url}/api/v2/mobile-devices"
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(connector=self.connector) as session:
                 response = await self.fetch_json(url=url, session=session)
         except aiohttp.ClientError as e:
             logthis.error(f"Error fetching device IDs: {e}")
@@ -191,7 +192,7 @@ class ApiClient:
             self.log.error("No device IDs provided!")
             return None
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(connector=self.connector) as session:
                 tasks = [
                     self.fetch_json(
                         url=f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail",

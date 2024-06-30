@@ -1,4 +1,5 @@
-from aiohttp import ClientSession, ClientResponseError
+import asyncio
+from aiohttp import ClientSession, ClientResponseError, TCPConnector
 from typing import AnyStr, Optional
 from datetime import datetime, timedelta, timezone
 from src import logger
@@ -25,6 +26,7 @@ class TokenManager:
             self.token = self.jamf_client.token
         else:
             raise ValueError("Invalid JamfClient configuration detected!")
+        self.lock = asyncio.Lock()
 
     def save_token(self, token: AccessToken):
         """
@@ -114,36 +116,38 @@ class TokenManager:
         :return: The fetched access token, or None if fetching fails.
         :rtype: Optional[AccessToken]
         """
-        client_id, client_secret = self.get_credentials()
-        async with ClientSession() as session:
-            payload = {
-                "client_id": client_id,
-                "grant_type": "client_credentials",
-                "client_secret": client_secret,
-            }
-            headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        async with self.lock:
+            client_id, client_secret = self.get_credentials()
+            connector = TCPConnector(limit=self.jamf_client.max_concurrency)
+            async with ClientSession(connector=connector) as session:
+                payload = {
+                    "client_id": client_id,
+                    "grant_type": "client_credentials",
+                    "client_secret": client_secret,
+                }
+                headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
-            async with session.post(
-                url=f"{self.jamf_client.base_url}/api/oauth/token",
-                data=payload,
-                headers=headers,
-            ) as resp:
-                try:
-                    resp.raise_for_status()
-                    json_response = await resp.json()
-                except ClientResponseError as e:
-                    logthis.error(f"Failed to fetch a token: {e}")
-                    return None
+                async with session.post(
+                    url=f"{self.jamf_client.base_url}/api/oauth/token",
+                    data=payload,
+                    headers=headers,
+                ) as resp:
+                    try:
+                        resp.raise_for_status()
+                        json_response = await resp.json()
+                    except ClientResponseError as e:
+                        logthis.error(f"Failed to fetch a token: {e}")
+                        return None
 
-                token = json_response.get("access_token")
-                expires_in = json_response.get("expires_in", 0)
+                    token = json_response.get("access_token")
+                    expires_in = json_response.get("expires_in", 0)
 
-                if not isinstance(token, str) or expires_in <= 0:
-                    logthis.error("Received invalid token response")
-                    return None
+                    if not isinstance(token, str) or expires_in <= 0:
+                        logthis.error("Received invalid token response")
+                        return None
 
-                expiration = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
-                access_token = AccessToken(token=token, expires=expiration)
+                    expiration = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+                    access_token = AccessToken(token=token, expires=expiration)
 
-                self.save_token(token=access_token)
-                return access_token
+                    self.save_token(token=access_token)
+                    return access_token
