@@ -20,11 +20,14 @@ class TokenManager:
         :type config: ConfigManager
         :raises ValueError: If the JamfClient configuration is invalid.
         """
+        logthis.debug("Initializing TokenManager...")
         self.config = config
         self.jamf_client = self.config.attach_client()
         if self.jamf_client:
             self.token = self.jamf_client.token
+            logthis.info("JamfClient and token successfully attached")
         else:
+            logthis.error("Invalid JamfClient configuration was detected and ValueError raised.")
             raise ValueError("Invalid JamfClient configuration detected!")
         self.lock = asyncio.Lock()
 
@@ -35,6 +38,7 @@ class TokenManager:
         :param token: The access token to save.
         :type token: AccessToken
         """
+        logthis.debug(f"Saving token: {token.token}")
         self.config.set_credential("TOKEN", token.token)
         self.config.set_credential("TOKEN_EXPIRATION", token.expires.isoformat())
         logthis.info("Bearer token and expiration updated in keyring")
@@ -47,7 +51,9 @@ class TokenManager:
         :return: True if the token is valid, False otherwise.
         :rtype: bool
         """
-        return not self.token.is_expired
+        valid = not self.token.is_expired
+        logthis.debug(f"Token validity check: {valid}")
+        return valid
 
     def get_credentials(self):
         """
@@ -56,6 +62,7 @@ class TokenManager:
         :return: Tuple containing the client ID and client secret.
         :rtype: tuple
         """
+        logthis.debug("Retrieving credentials from JamfClient")
         return self.jamf_client.client_id, self.jamf_client.client_secret
 
     def update_token(self, token_str: AnyStr, expires_in: int):
@@ -67,9 +74,11 @@ class TokenManager:
         :param expires_in: The number of seconds until the token expires.
         :type expires_in: int
         """
+        logthis.debug(f"Updating token with new value: {token_str}, expiration: {expires_in} seconds")
         expiration_time = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
         self.token = AccessToken(token=token_str, expires=expiration_time)
         self.save_token(self.token)
+        logthis.info("Token updated successfully")
 
     def check_token_lifetime(self, client: Optional[JamfClient] = None) -> bool:
         """
@@ -89,12 +98,14 @@ class TokenManager:
             return False
 
         lifetime = client.token.seconds_remaining
+        logthis.debug(f"Token lifetime in seconds: {lifetime}")
 
         if lifetime <= 0:
             logthis.error("Token lifetime is invalid")
             return False
 
         minutes = lifetime / 60
+        logthis.debug(f"Token lifetime in minutes: {minutes}")
 
         if minutes < 1:
             logthis.error("Token life time is less than 1 minute.")
@@ -118,6 +129,7 @@ class TokenManager:
         """
         async with self.lock:
             client_id, client_secret = self.get_credentials()
+            logthis.debug(f"Using client_id: {client_id}")
             connector = TCPConnector(limit=self.jamf_client.max_concurrency)
             async with ClientSession(connector=connector) as session:
                 payload = {
@@ -135,6 +147,7 @@ class TokenManager:
                     try:
                         resp.raise_for_status()
                         json_response = await resp.json()
+                        logthis.debug(f"Token response received: {json_response}")
                     except ClientResponseError as e:
                         logthis.error(f"Failed to fetch a token: {e}")
                         return None
@@ -150,4 +163,5 @@ class TokenManager:
                     access_token = AccessToken(token=token, expires=expiration)
 
                     self.save_token(token=access_token)
+                    logthis.info("New token fetched and saved successfully")
                     return access_token
