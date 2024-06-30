@@ -8,14 +8,22 @@ from src.client.token_manager import TokenManager
 from src.client.config_manager import ConfigManager
 from src.utils import convert_timezone, check_token
 
-logthis = logger.setup_child_logger("api_client", __name__)
+logthis = logger.setup_child_logger("ApiClient", __name__)
 
 
 class ApiClient:
     def __init__(self, config: ConfigManager):
         self.config = config
-        self.jamf_url = config.get_credential("URL")
-        self.headers = {"Accept": "application/json", "Authorization": f"Bearer {self.config.get_credential('TOKEN')}"}
+        self.jamf_client = config.attach_client()
+        if self.jamf_client:
+            self.token = self.jamf_client.token
+        else:
+            raise ValueError("Invalid JamfClient configuration detected!")
+        self.jamf_url = self.jamf_client.base_url
+        self.headers = {
+            "Accept": "application/json",
+            "Authorization": f"Bearer {self.token}",
+        }
         self.token_manager = TokenManager(config)
         self.log = logthis
 
