@@ -12,6 +12,7 @@ black==24.3.0
 certifi==2024.2.2
 charset-normalizer==3.3.2
 click==8.1.7
+coverage==7.5.4
 defusedxml==0.7.1
 et-xmlfile==1.1.0
 exceptiongroup==1.2.0
@@ -41,6 +42,7 @@ pydantic==2.7.4
 pydantic_core==2.18.4
 pytest==8.2.2
 pytest-asyncio==0.23.5
+pytest-cov==5.0.0
 python-dateutil==2.8.2
 pytz==2024.1
 requests==2.32.2
