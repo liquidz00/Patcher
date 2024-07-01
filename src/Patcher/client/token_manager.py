@@ -14,7 +14,7 @@ class TokenManager:
 
     def __init__(self, config: ConfigManager):
         """
-        Initialies the TokenManager with the provided ConfigManager.
+        Initializes the TokenManager with the provided ConfigManager.
 
         :param config: Instance of ConfigManager for loading and storing credentials.
         :type config: ConfigManager
@@ -59,7 +59,7 @@ class TokenManager:
 
     def get_credentials(self):
         """
-        Retrieves the client ID and client secret from the JamfCLient.
+        Retrieves the client ID and client secret from the JamfClient.
 
         :return: Tuple containing the client ID and client secret.
         :rtype: tuple
