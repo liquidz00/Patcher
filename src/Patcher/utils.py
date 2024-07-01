@@ -4,14 +4,14 @@ import plistlib
 import click
 import time
 from functools import wraps
-from src import logger
 from datetime import datetime
 from typing import List, AnyStr, Dict, Optional, Callable
-from src.client.token_manager import TokenManager
-from src.client.config_manager import ConfigManager
-from src.model.models import AccessToken
+from configparser import ConfigParser
+from src.Patcher.client.token_manager import TokenManager
+from src.Patcher.client.config_manager import ConfigManager
+from src.Patcher.model.models import AccessToken
 from pydantic import ValidationError
-from src import exceptions
+from src.Patcher import exceptions, logger
 
 # Logging
 logthis = logger.setup_child_logger("helpers", __name__)
@@ -61,6 +61,53 @@ def cred_check(func):
 
             if token and isinstance(token, AccessToken):
                 token_manager.save_token(token)
+
+                header_text = click.prompt(
+                    "Enter the Header Text to use on PDF reports"
+                )
+                footer_text = click.prompt(
+                    "Enter the Header Text to use on PDF reports"
+                )
+
+                use_custom_font = click.confirm(
+                    "Would you like to use a custom font?", default=False
+                )
+                if use_custom_font:
+                    font_name = click.prompt(
+                        "Enter the custom font name", default="CustomFont"
+                    )
+                    font_regular_path = click.prompt(
+                        "Enter the path to the regular font file"
+                    )
+                    font_bold_path = click.prompt(
+                        "Enter the path to the bold font file"
+                    )
+                else:
+                    font_name = "Assistant"
+                    font_regular_path = "fonts/Assistant-Regular.ttf"
+                    font_bold_path = "fonts/Assistant-Bold.ttf"
+
+                user_config_dir = os.path.expanduser(
+                    "~/Library/Application Support/Patcher"
+                )
+                user_config_path = os.path.join(user_config_dir, "config.ini")
+
+                config_parser = ConfigParser()
+                if os.path.exists(user_config_path):
+                    config_parser.read(user_config_path)
+
+                if "UI" not in config_parser.sections():
+                    config_parser.add_section("UI")
+                config_parser.set("UI", "HEADER_TEXT", header_text)
+                config_parser.set("UI", "FOOTER_TEXT", footer_text)
+                config_parser.set("UI", "FONT_NAME", font_name)
+                config_parser.set("UI", "FONT_REGULAR_PATH", font_regular_path)
+                config_parser.set("UI", "FONT_BOLD_PATH", font_bold_path)
+
+                os.makedirs(user_config_dir, exist_ok=True)
+                with open(user_config_path, "w") as configfile:
+                    config_parser.write(configfile)
+
                 plist_data = {"first_run_done": True}
                 try:
                     os.makedirs(os.path.dirname(plist_path), exist_ok=True)

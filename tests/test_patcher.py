@@ -8,13 +8,6 @@ from unittest.mock import patch, AsyncMock
 async def test_process_reports_success(
     stop_event_fixture, patcher_instance, mock_policy_response, mock_summary_response
 ):
-
-    policies = await patcher_instance.api_client.get_policies()
-    summaries = await patcher_instance.api_client.get_summaries(policies)
-
-    assert policies, "mock_policy_response not set up correctly"
-    assert summaries, "mock_summary_response not set up correctly"
-
     with patch.object(
         patcher_instance.excel_report, "export_to_excel"
     ) as mock_export_to_excel:

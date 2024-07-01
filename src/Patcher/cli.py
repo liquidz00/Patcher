@@ -4,16 +4,16 @@ import threading
 import time
 
 from typing import AnyStr, Optional
-from src.__about__ import __version__
-from src.utils import cred_check
+from .__about__ import __version__
+from .utils import cred_check
 
-from src.client.config_manager import ConfigManager
-from src.client.ui_manager import UIConfigManager
-from src.client.token_manager import TokenManager
-from src.client.api_client import ApiClient
-from src.client.patcher import Patcher
-from src.model.excel_report import ExcelReport
-from src.model.pdf_report import PDFReport
+from .client.config_manager import ConfigManager
+from .client.ui_manager import UIConfigManager
+from .client.token_manager import TokenManager
+from .client.api_client import ApiClient
+from .client.report_manager import ReportManager
+from .model.excel_report import ExcelReport
+from .model.pdf_report import PDFReport
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -79,7 +79,12 @@ def animate_search(stop_event: threading.Event, enable_animation: bool) -> None:
     is_flag=True,
     help="Include the amount of enrolled mobile devices on the latest version of their respective OS.",
 )
-@click.option("--concurrency", type=click.INT, default=5, help="Set the maximum concurrency level for API calls.")
+@click.option(
+    "--concurrency",
+    type=click.INT,
+    default=5,
+    help="Set the maximum concurrency level for API calls.",
+)
 @click.option(
     "--debug",
     "-x",
@@ -106,7 +111,7 @@ async def main(
     pdf_report = PDFReport(ui_config)
     api_client.jamf_client.set_max_concurrency(concurrency=concurrency)
 
-    patcher = Patcher(
+    patcher = ReportManager(
         config, token_manager, api_client, excel_report, pdf_report, ui_config, debug
     )
 

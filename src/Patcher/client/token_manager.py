@@ -2,9 +2,9 @@ import asyncio
 from aiohttp import ClientSession, ClientResponseError, TCPConnector
 from typing import AnyStr, Optional
 from datetime import datetime, timedelta, timezone
-from src import logger
-from src.client.config_manager import ConfigManager
-from src.model.models import AccessToken, JamfClient
+from src.Patcher import logger
+from src.Patcher.client.config_manager import ConfigManager
+from src.Patcher.model.models import AccessToken, JamfClient
 
 logthis = logger.setup_child_logger("TokenManager", __name__)
 
@@ -27,7 +27,9 @@ class TokenManager:
             self.token = self.jamf_client.token
             logthis.info("JamfClient and token successfully attached")
         else:
-            logthis.error("Invalid JamfClient configuration was detected and ValueError raised.")
+            logthis.error(
+                "Invalid JamfClient configuration was detected and ValueError raised."
+            )
             raise ValueError("Invalid JamfClient configuration detected!")
         self.lock = asyncio.Lock()
 
@@ -74,7 +76,9 @@ class TokenManager:
         :param expires_in: The number of seconds until the token expires.
         :type expires_in: int
         """
-        logthis.debug(f"Updating token with new value: {token_str}, expiration: {expires_in} seconds")
+        logthis.debug(
+            f"Updating token with new value: {token_str}, expiration: {expires_in} seconds"
+        )
         expiration_time = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
         self.token = AccessToken(token=token_str, expires=expiration_time)
         self.save_token(self.token)
@@ -159,7 +163,9 @@ class TokenManager:
                         logthis.error("Received invalid token response")
                         return None
 
-                    expiration = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+                    expiration = datetime.now(timezone.utc) + timedelta(
+                        seconds=expires_in
+                    )
                     access_token = AccessToken(token=token, expires=expiration)
 
                     self.save_token(token=access_token)

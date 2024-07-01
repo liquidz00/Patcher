@@ -1,8 +1,8 @@
 import os
 import pandas as pd
 from unittest.mock import patch, MagicMock
-from src.client.config_manager import ConfigManager
-from src.model.excel_report import ExcelReport
+from src.Patcher.client.config_manager import ConfigManager
+from src.Patcher.model.excel_report import ExcelReport
 
 
 def test_export_to_excel_success(sample_patch_reports, temp_output_dir):

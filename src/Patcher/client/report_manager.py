@@ -4,18 +4,18 @@ from datetime import datetime, timedelta
 from typing import AnyStr, Optional
 from threading import Event
 
-from src import exceptions, logger, utils
-from src.logger import LogMe
-from src.client.config_manager import ConfigManager
-from src.client.ui_manager import UIConfigManager
-from src.client.token_manager import TokenManager
-from src.client.api_client import ApiClient
-from src.model.excel_report import ExcelReport
-from src.model.pdf_report import PDFReport
-from src.utils import check_token
+from src.Patcher import exceptions, logger, utils
+from src.Patcher.logger import LogMe
+from src.Patcher.model.excel_report import ExcelReport
+from src.Patcher.model.pdf_report import PDFReport
+from src.Patcher.utils import check_token
+from src.Patcher.client.config_manager import ConfigManager
+from src.Patcher.client.ui_manager import UIConfigManager
+from src.Patcher.client.token_manager import TokenManager
+from src.Patcher.client.api_client import ApiClient
 
 
-class Patcher:
+class ReportManager:
     """Main class for managing the patch reporting process in the Patcher application."""
 
     def __init__(

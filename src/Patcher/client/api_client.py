@@ -3,10 +3,10 @@ import asyncio
 import subprocess
 import json
 from typing import AnyStr, Optional, Dict, List
-from src import logger
-from src.client.token_manager import TokenManager
-from src.client.config_manager import ConfigManager
-from src.utils import convert_timezone, check_token
+from src.Patcher import logger
+from src.Patcher.client.token_manager import TokenManager
+from src.Patcher.client.config_manager import ConfigManager
+from src.Patcher.utils import convert_timezone, check_token
 
 logthis = logger.setup_child_logger("ApiClient", __name__)
 

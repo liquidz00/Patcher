@@ -2,8 +2,8 @@ import os
 import pandas as pd
 from datetime import datetime
 from typing import List, Dict, AnyStr, Optional
-from src.client.config_manager import ConfigManager
-from src import logger
+from src.Patcher.client.config_manager import ConfigManager
+from src.Patcher import logger
 
 logthis = logger.setup_child_logger("excel_report", __name__)
 

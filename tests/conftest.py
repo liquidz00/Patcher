@@ -3,12 +3,12 @@ import pytz
 import logging
 import threading
 from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, MagicMock, AsyncMock
-from src.client.config_manager import ConfigManager
-from src.client.token_manager import TokenManager
-from src.client.api_client import ApiClient
-from src.model.models import AccessToken, JamfClient
-from src.client.patcher import Patcher
+from unittest.mock import patch, MagicMock, AsyncMock, mock_open
+from src.Patcher.client.config_manager import ConfigManager
+from src.Patcher.client.token_manager import TokenManager
+from src.Patcher.client.api_client import ApiClient
+from src.Patcher.model.models import AccessToken, JamfClient
+from src.Patcher.client.report_manager import ReportManager
 from io import StringIO
 
 
@@ -323,7 +323,7 @@ def short_lived_jamf_client():
 @pytest.fixture
 def config_manager(mock_jamf_client):
     with patch(
-        "src.client.config_manager.ConfigManager.attach_client",
+        "src.Patcher.client.config_manager.ConfigManager.attach_client",
         return_value=mock_jamf_client,
     ):
         yield ConfigManager(service_name="patcher")
@@ -349,7 +349,7 @@ def patcher_instance(mock_policy_response, mock_summary_response):
     excel_report = MagicMock()
     pdf_report = MagicMock()
 
-    return Patcher(
+    return ReportManager(
         config=config,
         token_manager=token_manager,
         api_client=api_client,
@@ -394,3 +394,27 @@ def sample_patch_reports():
 @pytest.fixture
 def temp_output_dir(tmpdir):
     return str(tmpdir)
+
+
+@pytest.fixture
+def mock_plist():
+    with patch("plistlib.load"), patch("plistlib.dump"):
+        yield
+
+
+@pytest.fixture
+def mock_os_path():
+    with patch("os.path.exists"), patch("os.makedirs"):
+        yield
+
+
+@pytest.fixture
+def mock_open_file():
+    with patch("builtins.open", mock_open()):
+        yield
+
+
+@pytest.fixture
+def mock_click():
+    with patch("click.prompt"), patch("click.confirm"):
+        yield

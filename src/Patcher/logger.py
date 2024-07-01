@@ -14,7 +14,11 @@ log_backupCount = 10
 def setup_logger(
     log_name=logger_name, log_filename=f"{logger_name}.log", log_level=default_log_level
 ):
-    log_path = os.path.abspath(os.path.join(os.path.expanduser("~/Library/Application Support/Patcher"), "logs"))
+    log_path = os.path.abspath(
+        os.path.join(
+            os.path.expanduser("~/Library/Application Support/Patcher"), "logs"
+        )
+    )
     if not os.path.isdir(log_path):
         os.makedirs(log_path)
     log_file = os.path.join(log_path, log_filename)
@@ -69,4 +73,3 @@ class LogMe:
         self.logger.error(msg)
         err_out = style(text=f"\rERROR: {msg.strip()}", fg="red", bold=True)
         echo(message=err_out, err=True)
-

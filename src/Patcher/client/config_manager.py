@@ -1,7 +1,7 @@
 import keyring
-from src.model.models import AccessToken, JamfClient
 from datetime import datetime, timezone
-from src import logger
+from src.Patcher.model.models import AccessToken, JamfClient
+from src.Patcher import logger
 from pydantic import ValidationError
 from typing import Optional, AnyStr
 

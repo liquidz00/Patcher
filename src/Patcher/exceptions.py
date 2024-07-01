@@ -1,5 +1,5 @@
 import click
-from src.logger import LogMe
+from src.Patcher.logger import LogMe
 from typing import AnyStr
 from contextlib import contextmanager
 from threading import Event

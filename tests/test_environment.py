@@ -1,8 +1,8 @@
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, call, ANY, MagicMock
-from src.client.config_manager import ConfigManager
-from src.client.token_manager import TokenManager
-from src.model.models import AccessToken
+from src.Patcher.client.config_manager import ConfigManager
+from src.Patcher.client.token_manager import TokenManager
+from src.Patcher.model.models import AccessToken
 
 
 @patch.object(ConfigManager, "set_credential")

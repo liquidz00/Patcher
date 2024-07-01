@@ -4,7 +4,7 @@ import subprocess
 import json
 from unittest.mock import patch, MagicMock
 from aioresponses import aioresponses
-from src.utils import calculate_ios_on_latest
+from src.Patcher.utils import calculate_ios_on_latest
 
 
 # Test valid response - iOS device IDs
