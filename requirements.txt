@@ -33,7 +33,7 @@ openpyxl==3.1.2
 packaging==23.2
 pandas==2.2.0
 pathspec==0.12.1
-pillow==10.3.0
+pillow==10.4.0
 platformdirs==4.2.0
 pluggy==1.5.0
 pyarrow==15.0.0
@@ -42,7 +42,6 @@ pydantic_core==2.18.4
 pytest==8.2.2
 pytest-asyncio==0.23.5
 python-dateutil==2.8.2
-python-dotenv==1.0.1
 pytz==2024.1
 requests==2.32.2
 six==1.16.0
