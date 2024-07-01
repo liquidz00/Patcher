@@ -26,7 +26,7 @@ SCRIPT_DIR=$(dirname "$0")
 cd "$SCRIPT_DIR/../../"
 
 # Create binary using PyInstaller
-pyinstaller --onefile --clean --add-data=".env:". --osx-bundle-identifier com.liquidzoo.$APP_NAME $APP_PY
+pyinstaller --onefile --clean --osx-bundle-identifier com.liquidzoo.$APP_NAME $APP_PY
 
 # Ensure binary has proper permissions
 chmod +x $BINARY_PATH
