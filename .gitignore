@@ -165,3 +165,4 @@ cython_debug/
 # Project-specific
 /data/
 /logs/
+/coverage/
