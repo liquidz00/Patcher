@@ -17,8 +17,12 @@ class UIConfigManager:
 
     def __init__(self):
         """Initializes the UIConfigManager by loading the UI configuration."""
-        self.config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
-        self.user_config_dir = os.path.expanduser("~/Library/Application Support/Patcher")
+        self.config = configparser.ConfigParser(
+            interpolation=configparser.ExtendedInterpolation()
+        )
+        self.user_config_dir = os.path.expanduser(
+            "~/Library/Application Support/Patcher"
+        )
         self.user_config_path = os.path.join(self.user_config_dir, "config.ini")
         self.font_dir = os.path.join(self.user_config_dir, "fonts")
         os.makedirs(self.font_dir, exist_ok=True)
@@ -37,24 +41,26 @@ class UIConfigManager:
     def create_default_config(self):
         """Creates config.ini with default settings."""
         default_config = {
-            'Settings': {
-                'patcher_path': self.user_config_dir
+            "Settings": {"patcher_path": self.user_config_dir},
+            "UI": {
+                "HEADER_TEXT": "Default header text",
+                "FOOTER_TEXT": "Default footer text",
+                "FONT_NAME": "Assistant",
+                "FONT_REGULAR_PATH": "${Settings:patcher_path}/fonts/Assistant-Regular.ttf",
+                "FONT_BOLD_PATH": "${Settings:patcher_path}/fonts/Assistant-Bold.ttf",
             },
-            'UI': {
-                'HEADER_TEXT': 'Default header text',
-                'FOOTER_TEXT': 'Default footer text',
-                'FONT_NAME': 'Assistant',
-                'FONT_REGULAR_PATH': '${Settings:patcher_path}/fonts/Assistant-Regular.ttf',
-                'FONT_BOLD_PATH': '${Settings:patcher_path}/fonts/Assistant-Bold.ttf'
-            }
         }
 
         # Ensure directory exists
         os.makedirs(self.user_config_dir, exist_ok=True)
 
         # Download fonts
-        self.download_font(self.REGULAR_FONT_URL, os.path.join(self.font_dir, "Assistant-Regular.ttf"))
-        self.download_font(self.BOLD_FONT_URL, os.path.join(self.font_dir, "Assistant-Bold.ttf"))
+        self.download_font(
+            self.REGULAR_FONT_URL, os.path.join(self.font_dir, "Assistant-Regular.ttf")
+        )
+        self.download_font(
+            self.BOLD_FONT_URL, os.path.join(self.font_dir, "Assistant-Bold.ttf")
+        )
 
         # Write default configuration
         with open(self.user_config_path, "w") as configfile:
