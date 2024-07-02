@@ -1,36 +1,73 @@
 import configparser
 import os
+import requests
+import shutil
 from typing import Dict, AnyStr
+from .. import logger
 
-SRC_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ROOT_DIR = os.path.dirname(SRC_DIR)
-FONT_DIR = os.path.join(ROOT_DIR, "fonts")
+logthis = logger.setup_child_logger("UIConfigManager", __name__)
 
 
 class UIConfigManager:
     """Manages the user interface configuration settings (Header & Footer text of the exported PDF class,
     custom font (optional) and font paths)"""
 
+    REGULAR_FONT_URL = "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Regular.ttf"
+    BOLD_FONT_URL = "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Bold.ttf"
+
     def __init__(self):
         """Initializes the UIConfigManager by loading the UI configuration."""
-        self.config = configparser.ConfigParser()
+        self.config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
+        self.user_config_dir = os.path.expanduser("~/Library/Application Support/Patcher")
+        self.user_config_path = os.path.join(self.user_config_dir, "config.ini")
+        self.font_dir = os.path.join(self.user_config_dir, "fonts")
+        os.makedirs(self.font_dir, exist_ok=True)
         self.load_ui_config()
+
+    @staticmethod
+    def download_font(url: AnyStr, dest_path: AnyStr):
+        """Downloads Assistant font families from specified URL to destination path"""
+        response = requests.get(url=url, stream=True)
+        if response.status_code == 200:
+            with open(dest_path, "wb") as f:
+                shutil.copyfileobj(response.raw, f)
+        else:
+            raise OSError(f"Failed to download font from {url}!")
+
+    def create_default_config(self):
+        """Creates config.ini with default settings."""
+        default_config = {
+            'Settings': {
+                'patcher_path': self.user_config_dir
+            },
+            'UI': {
+                'HEADER_TEXT': 'Default header text',
+                'FOOTER_TEXT': 'Default footer text',
+                'FONT_NAME': 'Assistant',
+                'FONT_REGULAR_PATH': '${Settings:patcher_path}/fonts/Assistant-Regular.ttf',
+                'FONT_BOLD_PATH': '${Settings:patcher_path}/fonts/Assistant-Bold.ttf'
+            }
+        }
+
+        # Ensure directory exists
+        os.makedirs(self.user_config_dir, exist_ok=True)
+
+        # Download fonts
+        self.download_font(self.REGULAR_FONT_URL, os.path.join(self.font_dir, "Assistant-Regular.ttf"))
+        self.download_font(self.BOLD_FONT_URL, os.path.join(self.font_dir, "Assistant-Bold.ttf"))
+
+        # Write default configuration
+        with open(self.user_config_path, "w") as configfile:
+            self.config.read_dict(default_config)
+            self.config.write(configfile)
 
     def load_ui_config(self):
         """Loads the UI configuration from the default and user configuration files."""
-        default_path = os.path.join(ROOT_DIR, "config.ini")
-        user_config_dir = os.path.expanduser("~/Library/Application Support/Patcher")
-        user_config_path = os.path.join(user_config_dir, "config.ini")
-
-        # Ensure directory exists
-        os.makedirs(user_config_dir, exist_ok=True)
+        if not os.path.exists(self.user_config_path):
+            self.create_default_config()
 
         # Load configs
-        self.config.read(default_path)
-
-        # Override with user configuration if available
-        if os.path.exists(user_config_path):
-            self.config.read(user_config_path)
+        self.config.read(self.user_config_path)
 
     def get_ui_config(self) -> Dict:
         """
@@ -48,12 +85,12 @@ class UIConfigManager:
             "FONT_REGULAR_PATH": self.config.get(
                 "UI",
                 "FONT_REGULAR_PATH",
-                fallback=os.path.join(FONT_DIR, "Assistant-Regular.ttf"),
+                fallback=os.path.join(self.font_dir, "Assistant-Regular.ttf"),
             ),
             "FONT_BOLD_PATH": self.config.get(
                 "UI",
                 "FONT_BOLD_PATH",
-                fallback=os.path.join(FONT_DIR, "Assistant-Bold.ttf"),
+                fallback=os.path.join(self.font_dir, "Assistant-Bold.ttf"),
             ),
         }
 
