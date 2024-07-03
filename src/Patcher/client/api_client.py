@@ -22,14 +22,14 @@ class ApiClient:
         :type config: ConfigManager
         :raises ValueError: If the JamfClient configuration is invalid.
         """
-        logthis.debug("Initializing ApiClient")
+        self.log = logthis
         self.config = config
         self.jamf_client = config.attach_client()
         if self.jamf_client:
             self.token = self.jamf_client.token
-            logthis.info("JamfClient and token successfully attached")
+            self.log.info("JamfClient and token successfully attached")
         else:
-            logthis.error("Invalid JamfClient configuration detected!")
+            self.log.error("Invalid JamfClient configuration detected!")
             raise ValueError("Invalid JamfClient configuration detected!")
         self.jamf_url = self.jamf_client.base_url
         self.headers = {
@@ -37,8 +37,9 @@ class ApiClient:
             "Authorization": f"Bearer {self.token}",
         }
         self.token_manager = TokenManager(config)
-        self.log = logthis
-        self.connector = aiohttp.TCPConnector(limit=self.jamf_client.max_concurrency)
+        self.max_concurrency = self.jamf_client.max_concurrency
+        self.log.debug("Initializing ApiClient")
+        # self.connector = aiohttp.TCPConnector(limit=self.jamf_client.max_concurrency)
 
     async def fetch_json(
         self, url: AnyStr, session: aiohttp.ClientSession
@@ -58,15 +59,36 @@ class ApiClient:
             async with session.get(url, headers=self.headers) as response:
                 response.raise_for_status()
                 json_data = await response.json()
-                logthis.info(f"Successfully fetched JSON data from {url}")
+                self.log.info(f"Successfully fetched JSON data from {url}")
                 return json_data
         except aiohttp.ClientResponseError as e:
-            logthis.error(
+            self.log.error(
                 f"Received a client error while fetching JSON from {url}: {e}"
             )
         except Exception as e:
-            logthis.error(f"Error fetching JSON: {e}")
+            self.log.error(f"Error fetching JSON: {e}")
         return None
+
+    async def fetch_batch(self, urls: List[AnyStr]) -> List[Optional[Dict]]:
+        """
+        Fetches JSON data in batches to respect the concurrency limit. Data is fetched
+        from each URL in the provided list, ensuring that no more than `max_concurrency`
+        requests are sent concurrently.
+
+        :param urls: A list of URLs to fetch JSON data from
+        :type urls: List[AnyStr]
+        :return: A list of dictionaries containing the JSON data fetched from each URL,
+            or None on error.
+        :rtype: List[Optional[Dict]]
+        """
+        results = []
+        async with aiohttp.ClientSession() as session:
+            for i in range(0, len(urls), self.max_concurrency):
+                batch = urls[i : i + self.max_concurrency]
+                tasks = [self.fetch_json(url, session) for url in batch]
+                batch_results = await asyncio.gather(*tasks)
+                results.extend(batch_results)
+        return results
 
     @check_token
     async def get_policies(self) -> Optional[List]:
@@ -76,25 +98,25 @@ class ApiClient:
         :return: List of software title IDs or None on error.
         :rtype: Optional[List]
         """
-        async with aiohttp.ClientSession(connector=self.connector) as session:
+        async with aiohttp.ClientSession() as session:
             url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
             response = await self.fetch_json(url=url, session=session)
 
             # Verify response is list type as expected
             if not isinstance(response, list):
-                logthis.error(
+                self.log.error(
                     f"Unexpected response format: expected a list, received {type(response)} instead."
                 )
                 return None
 
             # Check if all elements in the list are dictionaries
             if not all(isinstance(item, dict) for item in response):
-                logthis.error(
+                self.log.error(
                     "Unexpected response format: all items should be dictionaries."
                 )
                 return None
 
-            logthis.info("Patch policies obtained as expected.")
+            self.log.info("Patch policies obtained as expected.")
             return [title.get("id") for title in response]
 
     @check_token
@@ -107,21 +129,11 @@ class ApiClient:
         :return: List of dictionaries containing patch summaries or None on error.
         :rtype: Optional[List]
         """
-        try:
-            async with aiohttp.ClientSession(connector=self.connector) as session:
-                tasks = [
-                    self.fetch_json(
-                        url=f"{self.jamf_url}/api/v2/patch-software-title-configurations/{policy}/patch-summary",
-                        session=session,
-                    )
-                    for policy in policy_ids
-                ]
-                summaries = await asyncio.gather(*tasks)
-        except aiohttp.ClientError as e:
-            logthis.error(
-                f"Received ClientError trying to retreive patch summaries: {e}"
-            )
-            return None
+        urls = [
+            f"{self.jamf_url}/api/v2/patch-software-title-configurations/{policy}/patch-summary"
+            for policy in policy_ids
+        ]
+        summaries = await self.fetch_batch(urls)
 
         policy_summaries = [
             {
@@ -146,7 +158,7 @@ class ApiClient:
             for summary in summaries
             if summary
         ]
-        logthis.info(
+        self.log.info(
             f"Successfully obtained policy summaries for {len(policy_summaries)} policies."
         )
         return policy_summaries
@@ -162,23 +174,23 @@ class ApiClient:
         url = f"{self.jamf_url}/api/v2/mobile-devices"
 
         try:
-            async with aiohttp.ClientSession(connector=self.connector) as session:
+            async with aiohttp.ClientSession() as session:
                 response = await self.fetch_json(url=url, session=session)
         except aiohttp.ClientError as e:
-            logthis.error(f"Error fetching device IDs: {e}")
+            self.log.error(f"Error fetching device IDs: {e}")
             return None
 
         if not response:
-            logthis.error(f"API call to {url} was unsuccessful.")
+            self.log.error(f"API call to {url} was unsuccessful.")
             return None
 
         devices = response.get("results")
 
         if not devices:
-            logthis.error("Received empty data set when trying to obtain device IDs.")
+            self.log.error("Received empty data set when trying to obtain device IDs.")
             return None
 
-        logthis.info(f"Received {len(devices)} device IDs successfully.")
+        self.log.info(f"Received {len(devices)} device IDs successfully.")
         return [device.get("id") for device in devices if device]
 
     @check_token
@@ -197,22 +209,11 @@ class ApiClient:
         if not device_ids:
             self.log.error("No device IDs provided!")
             return None
-        try:
-            async with aiohttp.ClientSession(connector=self.connector) as session:
-                tasks = [
-                    self.fetch_json(
-                        url=f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail",
-                        session=session,
-                    )
-                    for device in device_ids
-                ]
-                subsets = await asyncio.gather(*tasks)
-        except aiohttp.ClientError as e:
-            logthis.error(f"Received ClientError fetching device OS information: {e}")
-            return None
+        urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
+        subsets = await self.fetch_batch(urls)
 
         if not subsets:
-            logthis.error("Received empty response obtaining device OS information.")
+            self.log.error("Received empty response obtaining device OS information.")
             return None
 
         devices = [
@@ -223,11 +224,10 @@ class ApiClient:
             for subset in subsets
             if subset
         ]
-        logthis.info(f"Successfully obtained OS versions for {len(devices)} devices.")
+        self.log.info(f"Successfully obtained OS versions for {len(devices)} devices.")
         return devices
 
-    @staticmethod
-    def get_sofa_feed() -> Optional[List[Dict[AnyStr, AnyStr]]]:
+    def get_sofa_feed(self) -> Optional[List[Dict[AnyStr, AnyStr]]]:
         """
         Fetches iOS Data feeds from SOFA and extracts latest OS version information
 
@@ -244,13 +244,13 @@ class ApiClient:
                 command, shell=True, capture_output=True, text=True, check=True
             )
         except (subprocess.CalledProcessError, aiohttp.ClientResponseError) as e:
-            logthis.error(f"Encountered error executing subprocess command: {e}")
+            self.log.error(f"Encountered error executing subprocess command: {e}")
             return None
 
         try:
             data = json.loads(result.stdout)
         except json.JSONDecodeError as e:
-            logthis.error(f"Error decoding JSON data: {e}")
+            self.log.error(f"Error decoding JSON data: {e}")
             return None
 
         os_versions = data.get("OSVersions", [])
