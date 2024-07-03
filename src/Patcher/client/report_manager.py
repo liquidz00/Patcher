@@ -160,7 +160,7 @@ class ReportManager:
                 os.makedirs(output_path, exist_ok=True)
                 reports_dir = os.path.join(output_path, "Patch-Reports")
                 os.makedirs(reports_dir, exist_ok=True)
-                self.log.info(f"Reports directory created at '{reports_dir}'.")
+                self.log.debug(f"Reports directory created at '{reports_dir}'.")
             except OSError as e:
                 self.log.error(f"Failed to create directory: {e}")
                 raise exceptions.DirectoryCreationError()
@@ -298,7 +298,7 @@ class ReportManager:
             self.log.debug(
                 "Patcher finished as expected. Additional logs can be found at '~/Library/Application Support/Patcher/logs'."
             )
-            self.log.info(
+            self.log.debug(
                 f"{len(patch_reports)} patch reports saved successfully to {reports_dir}."
             )
             success_msg = style(
