@@ -7,7 +7,7 @@ from typing import AnyStr, Optional, Dict, List
 from src.Patcher import logger
 from src.Patcher.client.token_manager import TokenManager
 from src.Patcher.client.config_manager import ConfigManager
-from src.Patcher.utils import check_token
+from src.Patcher.wrappers import check_token
 
 logthis = logger.setup_child_logger("ApiClient", __name__)
 
@@ -103,7 +103,7 @@ class ApiClient:
         results = []
         async with aiohttp.ClientSession() as session:
             for i in range(0, len(urls), self.max_concurrency):
-                batch = urls[i : i + self.max_concurrency]
+                batch = urls[i: i + self.max_concurrency]
                 tasks = [self.fetch_json(url, session) for url in batch]
                 batch_results = await asyncio.gather(*tasks)
                 results.extend(batch_results)
@@ -283,7 +283,9 @@ class ApiClient:
                 {
                     "OSVersion": version.get("OSVersion"),
                     "ProductVersion": version_info.get("ProductVersion"),
-                    "ReleaseDate": self.convert_timezone(version_info.get("ReleaseDate")),
+                    "ReleaseDate": self.convert_timezone(
+                        version_info.get("ReleaseDate")
+                    ),
                 }
             )
         return latest_versions

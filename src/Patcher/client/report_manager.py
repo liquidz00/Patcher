@@ -4,11 +4,11 @@ from datetime import datetime, timedelta
 from typing import AnyStr, Optional, List, Dict
 from threading import Event
 
-from src.Patcher import exceptions, logger, utils
+from src.Patcher import exceptions, logger
 from src.Patcher.logger import LogMe
 from src.Patcher.model.excel_report import ExcelReport
 from src.Patcher.model.pdf_report import PDFReport
-from src.Patcher.utils import check_token, logthis
+from src.Patcher.wrappers import check_token
 from src.Patcher.client.config_manager import ConfigManager
 from src.Patcher.client.ui_manager import UIConfigManager
 from src.Patcher.client.token_manager import TokenManager
