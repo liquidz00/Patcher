@@ -1,5 +1,5 @@
 [project]
-name = "Patcher"
+name = "patcherctl"
 dynamic = ["readme", "version"]
 description = "Fetch patch management data from Jamf Pro to generate comprehensive reports in both Excel and PDF formats"
 keywords = ["jamf", "pro", "jss", "patch", "macOS"]
@@ -42,7 +42,7 @@ Documentation = "https://github.com/liquidz00/Patcher/wiki"
 Source = "https://github.com/liquidz00/Patcher"
 
 [project.scripts]
-patcher = "Patcher.cli:main"
+patcherctl = "Patcher.cli:main"
 
 [project.optional-dependencies]
 dev = [
