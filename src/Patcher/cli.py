@@ -4,16 +4,16 @@ import threading
 import time
 
 from typing import AnyStr, Optional
-from .__about__ import __version__
-from .utils import cred_check
+from __about__ import __version__
 
-from .client.config_manager import ConfigManager
-from .client.ui_manager import UIConfigManager
-from .client.token_manager import TokenManager
-from .client.api_client import ApiClient
-from .client.report_manager import ReportManager
-from .model.excel_report import ExcelReport
-from .model.pdf_report import PDFReport
+from src.Patcher.wrappers import first_run
+from src.Patcher.client.config_manager import ConfigManager
+from src.Patcher.client.ui_manager import UIConfigManager
+from src.Patcher.client.token_manager import TokenManager
+from src.Patcher.client.api_client import ApiClient
+from src.Patcher.client.report_manager import ReportManager
+from src.Patcher.model.excel_report import ExcelReport
+from src.Patcher.model.pdf_report import PDFReport
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -92,7 +92,7 @@ def animate_search(stop_event: threading.Event, enable_animation: bool) -> None:
     default=False,
     help="Enable debug logging to see detailed debug messages.",
 )
-@cred_check
+@first_run
 async def main(
     path: AnyStr,
     pdf: bool,
