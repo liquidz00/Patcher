@@ -4,7 +4,7 @@ import subprocess
 import json
 from unittest.mock import patch, MagicMock
 from aioresponses import aioresponses
-from src.Patcher.utils import calculate_ios_on_latest
+from src.Patcher.client.report_manager import ReportManager
 
 
 # Test valid response - iOS device IDs
@@ -159,7 +159,7 @@ def test_get_sofa_feed_json_decode_error(mock_run, api_client):
 
 # Test successful calculation
 @pytest.mark.asyncio
-async def test_calculate_ios_on_latest_success():
+async def test_calculate_ios_on_latest_success(patcher_instance):
     device_versions = [
         {"DeviceID": "1", "OS": "17.5.1"},
         {"DeviceID": "2", "OS": "16.7.8"},
@@ -177,8 +177,10 @@ async def test_calculate_ios_on_latest_success():
             "ReleaseDate": "2024-05-13T00:00:00Z",
         },
     ]
-
-    result = calculate_ios_on_latest(device_versions, latest_versions)
+    with patch.object(patcher_instance, "log", MagicMock()):
+        result = patcher_instance.calculate_ios_on_latest(
+            device_versions, latest_versions
+        )
     expected_result = [
         {
             "software_title": "iOS 17.5.1",
@@ -203,7 +205,7 @@ async def test_calculate_ios_on_latest_success():
 
 # Test no devices on the latest version
 @pytest.mark.asyncio
-async def test_calculate_ios_on_latest_no_devices_on_latest():
+async def test_calculate_ios_on_latest_no_devices_on_latest(patcher_instance):
     device_versions = [
         {"DeviceID": "1", "OS": "17.4.0"},
         {"DeviceID": "2", "OS": "16.6.0"},
@@ -220,8 +222,10 @@ async def test_calculate_ios_on_latest_no_devices_on_latest():
             "ReleaseDate": "2024-05-13T00:00:00Z",
         },
     ]
-
-    result = calculate_ios_on_latest(device_versions, latest_versions)
+    with patch.object(patcher_instance, "log", MagicMock()):
+        result = patcher_instance.calculate_ios_on_latest(
+            device_versions, latest_versions
+        )
     expected_result = [
         {
             "software_title": "iOS 17.5.1",
@@ -246,7 +250,7 @@ async def test_calculate_ios_on_latest_no_devices_on_latest():
 
 # Test all devices on the latest version
 @pytest.mark.asyncio
-async def test_calculate_ios_on_latest_all_devices_on_latest():
+async def test_calculate_ios_on_latest_all_devices_on_latest(patcher_instance):
     device_versions = [
         {"DeviceID": "1", "OS": "17.5.1"},
         {"DeviceID": "2", "OS": "17.5.1"},
@@ -259,7 +263,10 @@ async def test_calculate_ios_on_latest_all_devices_on_latest():
         },
     ]
 
-    result = calculate_ios_on_latest(device_versions, latest_versions)
+    with patch.object(patcher_instance, "log", MagicMock()):
+        result = patcher_instance.calculate_ios_on_latest(
+            device_versions, latest_versions
+        )
     expected_result = [
         {
             "software_title": "iOS 17.5.1",
@@ -276,7 +283,7 @@ async def test_calculate_ios_on_latest_all_devices_on_latest():
 
 # Test some devices on the latest version
 @pytest.mark.asyncio
-async def test_calculate_ios_on_latest_some_devices_on_latest():
+async def test_calculate_ios_on_latest_some_devices_on_latest(patcher_instance):
     device_versions = [
         {"DeviceID": "1", "OS": "17.5.1"},
         {"DeviceID": "2", "OS": "17.4.0"},
@@ -289,7 +296,10 @@ async def test_calculate_ios_on_latest_some_devices_on_latest():
         },
     ]
 
-    result = calculate_ios_on_latest(device_versions, latest_versions)
+    with patch.object(patcher_instance, "log", MagicMock()):
+        result = patcher_instance.calculate_ios_on_latest(
+            device_versions, latest_versions
+        )
     expected_result = [
         {
             "software_title": "iOS 17.5.1",
