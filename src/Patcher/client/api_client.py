@@ -2,11 +2,12 @@ import aiohttp
 import asyncio
 import subprocess
 import json
+from datetime import datetime
 from typing import AnyStr, Optional, Dict, List
 from src.Patcher import logger
 from src.Patcher.client.token_manager import TokenManager
 from src.Patcher.client.config_manager import ConfigManager
-from src.Patcher.utils import convert_timezone, check_token
+from src.Patcher.utils import check_token
 
 logthis = logger.setup_child_logger("ApiClient", __name__)
 
@@ -40,6 +41,24 @@ class ApiClient:
         self.max_concurrency = self.jamf_client.max_concurrency
         self.log.debug("Initializing ApiClient")
         # self.connector = aiohttp.TCPConnector(limit=self.jamf_client.max_concurrency)
+
+    @staticmethod
+    def convert_timezone(utc_time_str: AnyStr) -> Optional[AnyStr]:
+        """
+        Converts a UTC time string to a formatted string without timezone information.
+
+        :param utc_time_str: UTC time string in ISO 8601 format.
+        :type utc_time_str: AnyStr
+        :return: Formatted time string or error message.
+        :rtype: AnyStr
+        """
+        try:
+            utc_time = datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S%z")
+            time_str = utc_time.strftime("%b %d %Y")
+            return time_str
+        except ValueError as e:
+            logthis.error(f"Invalid time format provided. Details: {e}")
+            return None
 
     async def fetch_json(
         self, url: AnyStr, session: aiohttp.ClientSession
@@ -138,7 +157,7 @@ class ApiClient:
         policy_summaries = [
             {
                 "software_title": summary.get("title"),
-                "patch_released": convert_timezone(summary.get("releaseDate")),
+                "patch_released": self.convert_timezone(summary.get("releaseDate")),
                 "hosts_patched": summary.get("upToDate"),
                 "missing_patch": summary.get("outOfDate"),
                 "completion_percent": (
@@ -209,7 +228,10 @@ class ApiClient:
         if not device_ids:
             self.log.error("No device IDs provided!")
             return None
-        urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
+        urls = [
+            f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail"
+            for device in device_ids
+        ]
         subsets = await self.fetch_batch(urls)
 
         if not subsets:
@@ -261,7 +283,7 @@ class ApiClient:
                 {
                     "OSVersion": version.get("OSVersion"),
                     "ProductVersion": version_info.get("ProductVersion"),
-                    "ReleaseDate": convert_timezone(version_info.get("ReleaseDate")),
+                    "ReleaseDate": self.convert_timezone(version_info.get("ReleaseDate")),
                 }
             )
         return latest_versions
