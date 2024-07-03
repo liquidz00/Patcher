@@ -72,7 +72,7 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.dynamic]
-version = { attr = "src.Patcher.__about__.__version__" }
+version = { attr = "Patcher.__about__.__version__" }
 readme = { file = ["README.md"], content-type = "text/markdown" }
 
 [tool.pytest.ini_options]
