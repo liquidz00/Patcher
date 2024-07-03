@@ -2,6 +2,10 @@ name: Publish to Test PyPi
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - develop
+      - pypi
 
 jobs:
   build:
