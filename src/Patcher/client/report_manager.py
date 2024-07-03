@@ -1,14 +1,14 @@
 import os
 from click import echo, style
 from datetime import datetime, timedelta
-from typing import AnyStr, Optional
+from typing import AnyStr, Optional, List, Dict
 from threading import Event
 
 from src.Patcher import exceptions, logger, utils
 from src.Patcher.logger import LogMe
 from src.Patcher.model.excel_report import ExcelReport
 from src.Patcher.model.pdf_report import PDFReport
-from src.Patcher.utils import check_token
+from src.Patcher.utils import check_token, logthis
 from src.Patcher.client.config_manager import ConfigManager
 from src.Patcher.client.ui_manager import UIConfigManager
 from src.Patcher.client.token_manager import TokenManager
@@ -54,6 +54,57 @@ class ReportManager:
         self.ui_config = ui_config
         self.debug = debug
         self.log = LogMe(logger.setup_child_logger("patcher", __name__, debug=debug))
+
+    def calculate_ios_on_latest(
+        self,
+        device_versions: List[Dict[AnyStr, AnyStr]],
+        latest_versions: List[Dict[AnyStr, AnyStr]],
+    ) -> Optional[List[Dict]]:
+        """
+        Calculates the amount of enrolled devices are on the latest version of their respective operating system.
+
+        :param device_versions: A list of nested dictionaries containing devices and corresponding operating system versions
+        :type device_versions: List[Dict[AnyStr, AnyStr]]
+        :param latest_versions: A list of latest available iOS versions, from SOFA feed
+        :type latest_versions: List[Dict[AnyStr, AnyStr]]
+        :return: A list with calculated data per iOS version
+        """
+        if not device_versions or not latest_versions:
+            self.log.error(
+                "Error calculating iOS Versions. Received None instead of a List"
+            )
+            return None
+
+        latest_versions_dict = {lv.get("OSVersion"): lv for lv in latest_versions}
+
+        version_counts = {
+            version: {"count": 0, "total": 0} for version in latest_versions_dict.keys()
+        }
+
+        for device in device_versions:
+            device_os = device.get("OS")
+            major_version = device_os.split(".")[0]
+            if major_version in version_counts:
+                version_counts[major_version]["total"] += 1
+                if device_os == latest_versions_dict[major_version]["ProductVersion"]:
+                    version_counts[major_version]["count"] += 1
+
+        mapped = []
+        for version, counts in version_counts.items():
+            if counts["total"] > 0:
+                completion_percent = round((counts["count"] / counts["total"]) * 100, 2)
+                mapped.append(
+                    {
+                        "software_title": f"iOS {latest_versions_dict[version]['ProductVersion']}",
+                        "patch_released": latest_versions_dict[version]["ReleaseDate"],
+                        "hosts_patched": counts["count"],
+                        "missing_patch": counts["total"] - counts["count"],
+                        "completion_percent": completion_percent,
+                        "total_hosts": counts["total"],
+                    }
+                )
+
+        return mapped
 
     @check_token
     async def process_reports(
@@ -206,7 +257,7 @@ class ReportManager:
                 self.log.debug(
                     "Retrieved device version info and SOFA feed as expected. Calculating devices on latest version."
                 )
-                ios_data = utils.calculate_ios_on_latest(
+                ios_data = self.calculate_ios_on_latest(
                     device_versions=device_versions, latest_versions=latest_versions
                 )
                 self.log.debug("Appending iOS device information to dataframe...")
