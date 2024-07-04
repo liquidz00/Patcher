@@ -3,7 +3,7 @@ name = "patcherctl"
 dynamic = ["readme", "version"]
 description = "Fetch patch management data from Jamf Pro to generate comprehensive reports in both Excel and PDF formats"
 keywords = ["jamf", "pro", "jss", "patch", "macOS"]
-license = { file = "License.txt" }
+license = { file = "LICENSE.txt" }
 authors = [
   { name = "Andrew Speciale" },
   { name = "Chris Ball" }

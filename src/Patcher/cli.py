@@ -4,7 +4,7 @@ import threading
 import time
 
 from typing import AnyStr, Optional
-from __about__ import __version__
+from src.Patcher.__about__ import __version__
 
 from src.Patcher.wrappers import first_run
 from src.Patcher.client.config_manager import ConfigManager
