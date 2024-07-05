@@ -51,6 +51,13 @@ jobs:
             ./dist/*.tar.gz
             ./dist/*.whl
 
+      - name: Generate changelog
+        id: changelog
+        uses: metcalfc/changelog-generator@v4.3.1
+        with:
+          myToken: ${{ secrets.GITHUB_TOKEN }}
+          reverse: 'true'
+
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v2.0.6
