@@ -2,7 +2,7 @@
 
 _Patch reporting simplified_
 
-![](https://img.shields.io/badge/license-apache_2.0-blue)&nbsp;![](https://img.shields.io/badge/python-3.10%2B-blue)&nbsp;![](https://img.shields.io/github/v/release/liquidz00/Patcher?color=purple)&nbsp;![](https://github.com/liquidz00/patcher/actions/workflows/pytest.yml/badge.svg)
+![](https://img.shields.io/pypi/l/patcherctl)&nbsp;![](https://img.shields.io/badge/Python-3.10+-3776AB.svg?style=flat&logo=python&logoColor=white)&nbsp;![](https://img.shields.io/github/v/release/liquidz00/Patcher?color=orange)&nbsp;![](https://github.com/liquidz00/patcher/actions/workflows/pytest.yml/badge.svg)&nbsp;![](https://img.shields.io/pypi/v/patcherctl?color=yellow)
 
 
 Patcher leverages the Jamf Pro API to fetch patch management data and generate comprehensive reports in both Excel and PDF formats. It simplifies tracking and reporting on software update compliance across macOS devices managed through Jamf Pro.
