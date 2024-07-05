@@ -56,9 +56,13 @@ jobs:
       - name: Publish package to PyPI
         id: publish_pypi
         uses: pypa/gh-action-pypi-publish@release/v1
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Verify PyPI publishing outcome
+        run: |
+          if [ "${{ steps.pypi_publish.outcome }}" != "success" ]; then
+            echo "Publishing to PyPI failed, aborting GitHub release."
+            exit 1
+          fi
 
       - name: Generate changelog
         id: changelog
