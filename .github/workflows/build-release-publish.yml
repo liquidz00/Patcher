@@ -50,13 +50,6 @@ jobs:
         id: publish_pypi
         uses: pypa/gh-action-pypi-publish@release/v1
 
-      - name: Verify PyPI publishing outcome
-        run: |
-          if [ "${{ steps.pypi_publish.outcome }}" != "success" ]; then
-            echo "Publishing to PyPI failed, aborting GitHub release."
-            exit 1
-          fi
-
       - name: Sign distribution packages
         uses: sigstore/gh-action-sigstore-python@v2.1.1
         with:
