@@ -46,13 +46,6 @@ jobs:
           name: patcher-${{ env.VERSION }}
           path: dist/
 
-      - name: Sign distribution packages
-        uses: sigstore/gh-action-sigstore-python@v2.1.1
-        with:
-          inputs: |
-            ./dist/*.tar.gz
-            ./dist/*.whl
-
       - name: Publish package to PyPI
         id: publish_pypi
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -63,6 +56,13 @@ jobs:
             echo "Publishing to PyPI failed, aborting GitHub release."
             exit 1
           fi
+
+      - name: Sign distribution packages
+        uses: sigstore/gh-action-sigstore-python@v2.1.1
+        with:
+          inputs: |
+            ./dist/*.tar.gz
+            ./dist/*.whl
 
       - name: Generate changelog
         id: changelog
