@@ -166,3 +166,4 @@ cython_debug/
 /data/
 /logs/
 /coverage/
+pytest.ini
