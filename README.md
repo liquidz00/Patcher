@@ -32,30 +32,32 @@ The following image can be found in the `images` directory.
   - Read Patch Management Software Titles, Read Patch Policies, Read Mobile Devices, Read Mobile Device Inventory Collection, Read Mobile Device Applications, Read API Integrations, Read API Roles, and Read Patch Management Settings
   - Client ID
   - Client Secret
-  - Bearer Token (Optional, installer script can generate one for you)
 
 ### Installation
 
 > [!NOTE]
-> We are actively working on tranisitioning the installation process of Patcher from a shell installer to a more convenient method using `pip`. This aims to simplify the installation and update process, making it easier to get started with Patcher.
-> Stay tuned for updates on how to install the project via `pip`. In the meantime, the existing shell installer will remain available for use.
+> Patcher can now be conveniently installed via `pip`. Please note that while Patcher is installed as a package, it is meant to be used as a command line tool and not as an imported library.
+
+> [!TIP]
+> **About the package name**: The pip package is called `patcherctl` because the name `patcher` was already taken on PyPI. Despite this, the project itself is referred to as Patcher.
 
 **Run the Installer**
 ```shell
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/liquidz00/Patcher/main/bin/installer.sh)"
+pip install patcherctl
 ```
-**Follow the Installer Script Prompts**
-The installer script will guide you through setting up your Jamf Pro instance details and installing project dependencies. Follow the prompts to enter your Jamf Pro URL, Client ID, and Client Secret. If you already have a Bearer Token, you can pass the value to the installer script, otherwise the installer script will generate one for you. You'll also be asked to customize the report header and footer text. Optionally, you can opt to use a custom font instead of the default font [Assistant](https://fonts.google.com/specimen/Assistant).
 
 ### Usage
 After installation, you can generate reports by running the main script. You can specify the output directory for the reports and choose to generate PDF reports alongside Excel files.
 ```shell
-python3 cli.py --path '/path/to/output/directory' [--pdf]
+patcherctl --path '/path/to/output/directory' [--pdf]
 ```
 - The `--path` option specifies the directory where the reports will be saved.
 - The optional `--pdf` flag indicates if PDF reports should be generated in addition to Excel files.
 
 For additional command options to use, visit the [Command Options](https://github.com/liquidz00/patcher/wiki/Command-Options) in the Wiki.
 
+### Upcoming Features
+We are developing functionality to have Patcher automatically create the necessary API Client and API Roles to simplify the prerequisites needed before use. Any assistance and contributions in this area would be greatly welcomed!
+
 ## Authors & Contributions
-Patcher is co-authored by [Andrew Speciale - @liquidz00](https://github.com/liquidz00) and [Chris Ball - @ball42](https://github.com/ball42). Contributions to Patcher are welcome! Please feel free to submit pull requests or create issues for bugs, questions, or new feature requests.
+Patcher is co-authored by [Andrew Speciale - @liquidz00](https://github.com/liquidz00) and [Chris Ball - @ball42](https://github.com/ball42). Contributions to Patcher are welcome! We have set up templates for submitting issues, feature requests, and feedback. Please be sure to utilize these templates when contributing to the project.
