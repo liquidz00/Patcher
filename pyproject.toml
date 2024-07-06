@@ -12,7 +12,6 @@ requires-python = ">=3.10"
 dependencies = [
   "aiohttp>=3.9.5",
   "asyncclick>=8.1.7.2",
-  "asyncio>=3.4.3",
   "click>=8.1.7",
   "fpdf2>=2.7.8",
   "keyring>=25.2.1",
@@ -20,7 +19,6 @@ dependencies = [
   "pandas>=2.2.0",
   "pyarrow>=15.0.0",
   "pydantic>=2.7.4",
-  "requests>=2.32.2",
 ]
 
 classifiers = [
@@ -67,6 +65,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
+exclude = ["tests", "images"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -74,6 +73,25 @@ where = ["src"]
 [tool.setuptools.dynamic]
 version = { attr = "patcher.__about__.__version__" }
 readme = { file = ["README.md"], content-type = "text/markdown" }
+
+[tool.black]
+line-length = 88
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E101",
+  "F401",
+  "F403",
+  "I001",
+  "N801",
+  "N802",
+  "N806"
+]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
