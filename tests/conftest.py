@@ -4,11 +4,11 @@ import logging
 import threading
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock, AsyncMock, mock_open
-from src.Patcher.client.config_manager import ConfigManager
-from src.Patcher.client.token_manager import TokenManager
-from src.Patcher.client.api_client import ApiClient
-from src.Patcher.model.models import AccessToken, JamfClient
-from src.Patcher.client.report_manager import ReportManager
+from src.patcher.client.config_manager import ConfigManager
+from src.patcher.client.token_manager import TokenManager
+from src.patcher.client.api_client import ApiClient
+from src.patcher.model.models import AccessToken, JamfClient
+from src.patcher.client.report_manager import ReportManager
 from io import StringIO
 
 
@@ -323,7 +323,7 @@ def short_lived_jamf_client():
 @pytest.fixture
 def config_manager(mock_jamf_client):
     with patch(
-        "src.Patcher.client.config_manager.ConfigManager.attach_client",
+        "src.patcher.client.config_manager.ConfigManager.attach_client",
         return_value=mock_jamf_client,
     ):
         yield ConfigManager(service_name="patcher")

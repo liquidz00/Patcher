@@ -4,7 +4,7 @@ import subprocess
 import json
 from unittest.mock import patch, MagicMock
 from aioresponses import aioresponses
-from src.Patcher.client.report_manager import ReportManager
+from src.patcher.client.report_manager import ReportManager
 
 
 # Test valid response - iOS device IDs
