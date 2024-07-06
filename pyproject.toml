@@ -42,7 +42,7 @@ Documentation = "https://github.com/liquidz00/Patcher/wiki"
 Source = "https://github.com/liquidz00/Patcher"
 
 [project.scripts]
-patcherctl = "Patcher.cli:main"
+patcherctl = "patcher.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -72,7 +72,7 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.dynamic]
-version = { attr = "Patcher.__about__.__version__" }
+version = { attr = "patcher.__about__.__version__" }
 readme = { file = ["README.md"], content-type = "text/markdown" }
 
 [tool.pytest.ini_options]
