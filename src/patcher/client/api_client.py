@@ -42,7 +42,6 @@ class ApiClient:
         self.token_manager = TokenManager(config)
         self.max_concurrency = self.jamf_client.max_concurrency
         self.log.debug("Initializing ApiClient")
-        # self.connector = aiohttp.TCPConnector(limit=self.jamf_client.max_concurrency)
 
     @staticmethod
     def convert_timezone(utc_time_str: AnyStr) -> Optional[AnyStr]:
@@ -105,7 +104,7 @@ class ApiClient:
         results = []
         async with aiohttp.ClientSession() as session:
             for i in range(0, len(urls), self.max_concurrency):
-                batch = urls[i: i + self.max_concurrency]
+                batch = urls[i : i + self.max_concurrency]
                 tasks = [self.fetch_json(url, session) for url in batch]
                 batch_results = await asyncio.gather(*tasks)
                 results.extend(batch_results)
