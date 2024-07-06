@@ -4,16 +4,16 @@ import shutil
 import click
 import os
 import time
-
 from configparser import ConfigParser
 from functools import wraps
 from typing import Callable
 from pydantic import ValidationError
-from src.Patcher.model.models import AccessToken
-from src.Patcher.client.config_manager import ConfigManager
-from src.Patcher.client.ui_manager import UIConfigManager
-from src.Patcher.client.token_manager import TokenManager
-from src.Patcher import exceptions, logger
+
+from . import logger, exceptions
+from .model.models import AccessToken
+from .client.config_manager import ConfigManager
+from .client.ui_manager import UIConfigManager
+from .client.token_manager import TokenManager
 
 # Logging
 logthis = logger.setup_child_logger("wrappers", __name__)
@@ -60,7 +60,7 @@ def check_token(func: Callable):
             log.debug("Token lifetime verified successfully.")
         elif token_lifetime is False:
             log.error(
-                "Bearer token lifetime is too short. Review the Patcher Wiki for instructions to increase the token's lifetime."
+                "Bearer token lifetime is too short. Review the patcher Wiki for instructions to increase the token's lifetime."
             )
             raise exceptions.TokenLifetimeError(
                 lifetime=instance.token.seconds_remaining
@@ -75,7 +75,7 @@ def check_token(func: Callable):
 
 
 # Welcome messages
-greet = "Thanks for downloading Patcher!\n"
+greet = "Thanks for downloading patcher!\n"
 
 welcome_message = """It looks like this is your first time using the tool. We will guide you through the initial setup to get you started.
 

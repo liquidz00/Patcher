@@ -3,7 +3,7 @@ import os
 import requests
 import shutil
 from typing import Dict, AnyStr
-from src.Patcher import logger
+from src.patcher import logger
 
 logthis = logger.setup_child_logger("UIConfigManager", __name__)
 

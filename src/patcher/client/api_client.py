@@ -4,10 +4,12 @@ import subprocess
 import json
 from datetime import datetime
 from typing import AnyStr, Optional, Dict, List
-from src.Patcher import logger
-from src.Patcher.client.token_manager import TokenManager
-from src.Patcher.client.config_manager import ConfigManager
-from src.Patcher.wrappers import check_token
+
+from .. import logger
+from ..wrappers import check_token
+
+from .token_manager import TokenManager
+from .config_manager import ConfigManager
 
 logthis = logger.setup_child_logger("ApiClient", __name__)
 

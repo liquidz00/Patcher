@@ -2,23 +2,14 @@ import os
 import pandas as pd
 from datetime import datetime
 from typing import List, Dict, AnyStr, Optional
-from src.Patcher.client.config_manager import ConfigManager
-from src.Patcher import logger
 
-logthis = logger.setup_child_logger("excel_report", __name__)
+from .. import logger
+
+logthis = logger.setup_child_logger("ExcelReport", __name__)
 
 
 class ExcelReport:
     """Handles the generation of Excel reports from patch data."""
-
-    def __init__(self, config: ConfigManager):
-        """
-        Initializes the ExcelReport with the provided ConfigManager.
-
-        :param config: Instance of ConfigManager for managing configuration.
-        :type config: ConfigManager
-        """
-        self.config = config
 
     @staticmethod
     def export_to_excel(

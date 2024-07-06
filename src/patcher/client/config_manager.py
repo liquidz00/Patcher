@@ -1,9 +1,10 @@
 import keyring
 from datetime import datetime, timezone
-from src.Patcher.model.models import AccessToken, JamfClient
-from src.Patcher import logger
 from pydantic import ValidationError
 from typing import Optional, AnyStr
+
+from ..model.models import AccessToken, JamfClient
+from .. import logger
 
 logthis = logger.setup_child_logger("ConfigManager", __name__)
 

@@ -4,19 +4,19 @@ from datetime import datetime, timedelta
 from typing import AnyStr, Optional, List, Dict
 from threading import Event
 
-from src.Patcher import exceptions, logger
-from src.Patcher.logger import LogMe
-from src.Patcher.model.excel_report import ExcelReport
-from src.Patcher.model.pdf_report import PDFReport
-from src.Patcher.wrappers import check_token
-from src.Patcher.client.config_manager import ConfigManager
-from src.Patcher.client.ui_manager import UIConfigManager
-from src.Patcher.client.token_manager import TokenManager
-from src.Patcher.client.api_client import ApiClient
+from src.patcher import exceptions, logger
+from src.patcher.logger import LogMe
+from src.patcher.model.excel_report import ExcelReport
+from src.patcher.model.pdf_report import PDFReport
+from src.patcher.wrappers import check_token
+from src.patcher.client.config_manager import ConfigManager
+from src.patcher.client.ui_manager import UIConfigManager
+from src.patcher.client.token_manager import TokenManager
+from src.patcher.client.api_client import ApiClient
 
 
 class ReportManager:
-    """Main class for managing the patch reporting process in the Patcher application."""
+    """Main class for managing the patch reporting process in the patcher application."""
 
     def __init__(
         self,
@@ -29,7 +29,7 @@ class ReportManager:
         debug=False,
     ):
         """
-        Initializes the Patcher class with the provided components.
+        Initializes the patcher class with the provided components.
 
         :param config: Instance of ConfigManager for managing configuration.
         :type config: ConfigManager
@@ -138,7 +138,7 @@ class ReportManager:
 
         :return: None. Raises click.Abort on errors.
         """
-        self.log.debug("Beginning Patcher process...")
+        self.log.debug("Beginning patcher process...")
 
         with exceptions.error_handling(self.log, stop_event):
             # Validate path provided is not a file
@@ -296,7 +296,7 @@ class ReportManager:
 
             stop_event.set()
             self.log.debug(
-                "Patcher finished as expected. Additional logs can be found at '~/Library/Application Support/Patcher/logs'."
+                "patcher finished as expected. Additional logs can be found at '~/Library/Application Support/patcher/logs'."
             )
             self.log.debug(
                 f"{len(patch_reports)} patch reports saved successfully to {reports_dir}."

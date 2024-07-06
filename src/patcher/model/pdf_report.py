@@ -3,10 +3,11 @@ import os
 from fpdf import FPDF
 from datetime import datetime
 from typing import AnyStr
-from src.Patcher.client.ui_manager import UIConfigManager
-from src.Patcher import logger
 
-logthis = logger.setup_child_logger("pdf_report", __name__)
+from ..client.ui_manager import UIConfigManager
+from .. import logger
+
+logthis = logger.setup_child_logger("PDFReport", __name__)
 
 
 class PDFReport(FPDF):

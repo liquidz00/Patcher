@@ -2,7 +2,8 @@ from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, field_validator, Field
 from urllib.parse import urlparse, urlunparse
 from typing import Optional, AnyStr
-from src.Patcher import logger
+
+from .. import logger
 
 logthis = logger.setup_child_logger("models", __name__)
 

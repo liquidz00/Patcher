@@ -4,16 +4,16 @@ import threading
 import time
 
 from typing import AnyStr, Optional
-from src.Patcher.__about__ import __version__
+from .__about__ import __version__
 
-from src.Patcher.wrappers import first_run
-from src.Patcher.client.config_manager import ConfigManager
-from src.Patcher.client.ui_manager import UIConfigManager
-from src.Patcher.client.token_manager import TokenManager
-from src.Patcher.client.api_client import ApiClient
-from src.Patcher.client.report_manager import ReportManager
-from src.Patcher.model.excel_report import ExcelReport
-from src.Patcher.model.pdf_report import PDFReport
+from .wrappers import first_run
+from .client.config_manager import ConfigManager
+from .client.ui_manager import UIConfigManager
+from .client.token_manager import TokenManager
+from .client.api_client import ApiClient
+from .client.report_manager import ReportManager
+from .model.excel_report import ExcelReport
+from .model.pdf_report import PDFReport
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -106,7 +106,7 @@ async def main(
     config = ConfigManager()
     token_manager = TokenManager(config)
     api_client = ApiClient(config)
-    excel_report = ExcelReport(config)
+    excel_report = ExcelReport()
     ui_config = UIConfigManager()
     pdf_report = PDFReport(ui_config)
     api_client.jamf_client.set_max_concurrency(concurrency=concurrency)
