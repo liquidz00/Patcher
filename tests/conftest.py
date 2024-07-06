@@ -1,15 +1,16 @@
-import pytest
-import pytz
 import logging
 import threading
-from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, MagicMock, AsyncMock, mock_open
-from src.patcher.client.config_manager import ConfigManager
-from src.patcher.client.token_manager import TokenManager
-from src.patcher.client.api_client import ApiClient
-from src.patcher.model.models import AccessToken, JamfClient
-from src.patcher.client.report_manager import ReportManager
+from datetime import datetime, timedelta, timezone
 from io import StringIO
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+
+import pytest
+import pytz
+from src.patcher.client.api_client import ApiClient
+from src.patcher.client.config_manager import ConfigManager
+from src.patcher.client.report_manager import ReportManager
+from src.patcher.client.token_manager import TokenManager
+from src.patcher.model.models import AccessToken, JamfClient
 
 
 @pytest.fixture

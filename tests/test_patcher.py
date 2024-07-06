@@ -1,6 +1,7 @@
+from unittest.mock import AsyncMock, patch
+
 import click
 import pytest
-from unittest.mock import patch, AsyncMock
 
 
 # Test successful report processing

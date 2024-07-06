@@ -1,8 +1,9 @@
 import configparser
 import os
-import requests
-import shutil
-from typing import Dict, AnyStr
+from typing import AnyStr, Dict
+
+import aiohttp
+
 from .. import logger
 
 logthis = logger.setup_child_logger("UIConfigManager", __name__)
@@ -29,14 +30,23 @@ class UIConfigManager:
         self.load_ui_config()
 
     @staticmethod
-    def download_font(url: AnyStr, dest_path: AnyStr):
+    async def download_font(url: AnyStr, dest_path: AnyStr):
         """Downloads Assistant font families from specified URL to destination path"""
-        response = requests.get(url=url, stream=True)
-        if response.status_code == 200:
-            with open(dest_path, "wb") as f:
-                shutil.copyfileobj(response.raw, f)
-        else:
-            raise OSError(f"Failed to download font from {url}!")
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                resp.raise_for_status()
+                if resp.status == 200:
+                    with open(dest_path, "wb") as f:
+                        while True:
+                            chunk = await resp.content.read(1024)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                else:
+                    logthis.error(
+                        f"Unable to download default fonts! Received status: {resp.status}"
+                    )
+                    raise OSError("Unable to download default fonts!")
 
     def create_default_config(self):
         """Creates config.ini with default settings."""

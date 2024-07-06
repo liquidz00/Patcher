@@ -1,18 +1,19 @@
 import os
-from click import echo, style
 from datetime import datetime, timedelta
-from typing import AnyStr, Optional, List, Dict
 from threading import Event
+from typing import AnyStr, Dict, List, Optional
+
+from click import echo, style
 
 from .. import exceptions, logger
 from ..logger import LogMe
-from ..wrappers import check_token
 from ..model.excel_report import ExcelReport
 from ..model.pdf_report import PDFReport
-from .config_manager import ConfigManager
-from .ui_manager import UIConfigManager
-from .token_manager import TokenManager
+from ..wrappers import check_token
 from .api_client import ApiClient
+from .config_manager import ConfigManager
+from .token_manager import TokenManager
+from .ui_manager import UIConfigManager
 
 
 class ReportManager:
@@ -224,10 +225,10 @@ class ReportManager:
                 device_ids = await self.api_client.get_device_ids()
                 if not device_ids:
                     self.log.error(
-                        f"Received ClientError response when obtaining mobile device IDs",
+                        "Received ClientError response when obtaining mobile device IDs",
                     )
                     raise exceptions.DeviceIDFetchError(
-                        reason=f"Received ClientError response when obtaining mobile device IDs"
+                        reason="Received ClientError response when obtaining mobile device IDs"
                     )
 
                 self.log.debug(f"Obtained device IDs for {len(device_ids)} devices.")

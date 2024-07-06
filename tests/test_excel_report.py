@@ -1,6 +1,7 @@
 import os
-import pandas as pd
 from unittest.mock import patch
+
+import pandas as pd
 from src.patcher.model.excel_report import ExcelReport
 
 

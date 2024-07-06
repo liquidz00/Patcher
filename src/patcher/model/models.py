@@ -1,7 +1,8 @@
-from datetime import datetime, timezone, timedelta
-from pydantic import BaseModel, field_validator, Field
+from datetime import datetime, timedelta, timezone
+from typing import AnyStr, Optional
 from urllib.parse import urlparse, urlunparse
-from typing import Optional, AnyStr
+
+from pydantic import BaseModel, Field, field_validator
 
 from .. import logger
 

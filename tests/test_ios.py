@@ -1,10 +1,10 @@
+import json
+import subprocess
+from unittest.mock import MagicMock, patch
+
 import aiohttp
 import pytest
-import subprocess
-import json
-from unittest.mock import patch, MagicMock
 from aioresponses import aioresponses
-from src.patcher.client.report_manager import ReportManager
 
 
 # Test valid response - iOS device IDs

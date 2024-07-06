@@ -1,6 +1,7 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from src.patcher.logger import setup_child_logger, LogMe
+from src.patcher.logger import LogMe, setup_child_logger
 
 
 @pytest.fixture

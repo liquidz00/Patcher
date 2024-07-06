@@ -1,5 +1,6 @@
-from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, call, ANY, MagicMock
+from datetime import datetime, timedelta, timezone
+from unittest.mock import ANY, MagicMock, call, patch
+
 from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.token_manager import TokenManager
 from src.patcher.model.models import AccessToken

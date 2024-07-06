@@ -1,19 +1,20 @@
-import aiohttp
+import os
 import plistlib
 import shutil
-import click
-import os
 import time
 from configparser import ConfigParser
 from functools import wraps
 from typing import Callable
+
+import aiohttp
+import click
 from pydantic import ValidationError
 
-from . import logger, exceptions
-from .model.models import AccessToken
+from . import exceptions, logger
 from .client.config_manager import ConfigManager
-from .client.ui_manager import UIConfigManager
 from .client.token_manager import TokenManager
+from .client.ui_manager import UIConfigManager
+from .model.models import AccessToken
 
 # Logging
 logthis = logger.setup_child_logger("wrappers", __name__)

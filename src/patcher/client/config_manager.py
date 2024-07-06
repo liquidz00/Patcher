@@ -1,10 +1,11 @@
-import keyring
 from datetime import datetime, timezone
-from pydantic import ValidationError
-from typing import Optional, AnyStr
+from typing import AnyStr, Optional
 
-from ..model.models import AccessToken, JamfClient
+import keyring
+from pydantic import ValidationError
+
 from .. import logger
+from ..model.models import AccessToken, JamfClient
 
 logthis = logger.setup_child_logger("ConfigManager", __name__)
 

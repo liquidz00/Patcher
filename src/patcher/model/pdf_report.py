@@ -1,11 +1,12 @@
-import pandas as pd
 import os
-from fpdf import FPDF
 from datetime import datetime
 from typing import AnyStr
 
-from ..client.ui_manager import UIConfigManager
+import pandas as pd
+from fpdf import FPDF
+
 from .. import logger
+from ..client.ui_manager import UIConfigManager
 
 logthis = logger.setup_child_logger("PDFReport", __name__)
 

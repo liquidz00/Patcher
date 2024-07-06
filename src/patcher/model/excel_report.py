@@ -1,7 +1,8 @@
 import os
-import pandas as pd
 from datetime import datetime
-from typing import List, Dict, AnyStr, Optional
+from typing import AnyStr, Dict, List, Optional
+
+import pandas as pd
 
 from .. import logger
 

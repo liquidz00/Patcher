@@ -1,19 +1,19 @@
-import asyncclick as click
 import asyncio
 import threading
 import time
-
 from typing import AnyStr, Optional
-from .__about__ import __version__
 
-from .wrappers import first_run
-from .client.config_manager import ConfigManager
-from .client.ui_manager import UIConfigManager
-from .client.token_manager import TokenManager
+import asyncclick as click
+
+from .__about__ import __version__
 from .client.api_client import ApiClient
+from .client.config_manager import ConfigManager
 from .client.report_manager import ReportManager
+from .client.token_manager import TokenManager
+from .client.ui_manager import UIConfigManager
 from .model.excel_report import ExcelReport
 from .model.pdf_report import PDFReport
+from .wrappers import first_run
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024

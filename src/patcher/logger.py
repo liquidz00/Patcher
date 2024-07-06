@@ -2,6 +2,7 @@ import logging
 import os
 from logging import handlers
 from typing import AnyStr
+
 from click import echo, style
 
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")

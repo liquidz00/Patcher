@@ -1,7 +1,8 @@
 import asyncio
-from aiohttp import ClientSession, ClientResponseError, TCPConnector
-from typing import AnyStr, Optional
 from datetime import datetime, timedelta, timezone
+from typing import AnyStr, Optional
+
+from aiohttp import ClientResponseError, ClientSession, TCPConnector
 
 from .. import logger
 from ..model.models import AccessToken, JamfClient

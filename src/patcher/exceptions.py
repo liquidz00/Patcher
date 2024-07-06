@@ -1,7 +1,9 @@
-import click
-from typing import AnyStr
 from contextlib import contextmanager
 from threading import Event
+from typing import AnyStr
+
+import click
+
 from .logger import LogMe
 
 
