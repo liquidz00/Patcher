@@ -34,7 +34,7 @@ jobs:
       - name: Read release version
         id: read_version
         run: |
-          VERSION=$(python3 -c 'import src.Patcher.__about__ as about; print(about.__version__)')
+          VERSION=$(python3 -c 'import src.patcher.__about__ as about; print(about.__version__)')
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
 
       - name: Build binary wheel and source tarball
