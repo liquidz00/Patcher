@@ -4,15 +4,15 @@ from datetime import datetime, timedelta
 from typing import AnyStr, Optional, List, Dict
 from threading import Event
 
-from src.patcher import exceptions, logger
-from src.patcher.logger import LogMe
-from src.patcher.model.excel_report import ExcelReport
-from src.patcher.model.pdf_report import PDFReport
-from src.patcher.wrappers import check_token
-from src.patcher.client.config_manager import ConfigManager
-from src.patcher.client.ui_manager import UIConfigManager
-from src.patcher.client.token_manager import TokenManager
-from src.patcher.client.api_client import ApiClient
+from .. import exceptions, logger
+from ..logger import LogMe
+from ..wrappers import check_token
+from ..model.excel_report import ExcelReport
+from ..model.pdf_report import PDFReport
+from .config_manager import ConfigManager
+from .ui_manager import UIConfigManager
+from .token_manager import TokenManager
+from .api_client import ApiClient
 
 
 class ReportManager:

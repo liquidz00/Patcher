@@ -2,9 +2,10 @@ import asyncio
 from aiohttp import ClientSession, ClientResponseError, TCPConnector
 from typing import AnyStr, Optional
 from datetime import datetime, timedelta, timezone
-from src.patcher import logger
-from src.patcher.client.config_manager import ConfigManager
-from src.patcher.model.models import AccessToken, JamfClient
+
+from .. import logger
+from ..model.models import AccessToken, JamfClient
+from .config_manager import ConfigManager
 
 logthis = logger.setup_child_logger("TokenManager", __name__)
 
