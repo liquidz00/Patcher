@@ -1,9 +1,7 @@
 name: Publish to Test PyPi
 
 on:
-  push:
-    branches:
-      - develop
+  workflow_dispatch:
 
 jobs:
   build:
@@ -32,6 +30,7 @@ jobs:
     name: Publish distro to TestPyPI
     needs:
       - build
+    if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
 
     environment:
