@@ -38,7 +38,6 @@ The following image can be found in the `images` directory.
 > [!NOTE]
 > Patcher can now be conveniently installed via `pip`. Please note that while Patcher is installed as a package, it is meant to be used as a command line tool and not as an imported library.
 
-> [!TIP]
 > **About the package name**: The pip package is called `patcherctl` because the name `patcher` was already taken on PyPI. Despite this, the project itself is referred to as Patcher.
 
 **Run the Installer**
@@ -54,7 +53,7 @@ patcherctl --path '/path/to/output/directory' [--pdf]
 - The `--path` option specifies the directory where the reports will be saved.
 - The optional `--pdf` flag indicates if PDF reports should be generated in addition to Excel files.
 
-For additional command options to use, visit the [Command Options](https://github.com/liquidz00/patcher/wiki/Command-Options) in the Wiki.
+For additional command options to use, visit the [Command Options](https://github.com/liquidz00/patcher/wiki/Command-Options) page in the Wiki. To learn how to customize the PDF reports, visit the [Customizing PDF Reports](https://github.com/liquidz00/Patcher/wiki/Customizing-PDF-Reports) page in the Wiki.
 
 ### Upcoming Features
 We are developing functionality to have Patcher automatically create the necessary API Client and API Roles to simplify the prerequisites needed before use. Any assistance and contributions in this area would be greatly welcomed!
