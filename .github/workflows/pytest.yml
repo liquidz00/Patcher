@@ -12,7 +12,7 @@ jobs:
           - "3.10"
           - "3.11"
           - "3.12"
-    name: Test
+    name: Run unit tests
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -23,13 +23,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install pytest
-          python3 -m pip install pytest-cov
-          python3 -m pip install pytest-asyncio
-          python3 -m pip install -r requirements.txt
+      - name: Install
+        run: make install
+
+      - name: Lint and format
+        run: make lint
 
       - name: Set fallback keyring for Ubuntu
         if: matrix.os == 'ubuntu-latest'
@@ -38,5 +36,4 @@ jobs:
       - name: Run tests
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: pytest
-
+        run: pytest --cov
