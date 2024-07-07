@@ -1,5 +1,5 @@
 # Byte-compiled / optimized / DLL files
-__pycache__/
+*__pycache__/
 *.py[cod]
 *$py.class
 
@@ -54,16 +54,6 @@ cover/
 # Translations
 *.mo
 *.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
 
 # Scrapy stuff:
 .scrapy
@@ -135,6 +125,9 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
+# ruff
+.ruff_cache/
+
 # mkdocs documentation
 /site
 
@@ -163,7 +156,5 @@ cython_debug/
 *.DS_Store
 
 # Project-specific
-/data/
-/logs/
 /coverage/
 pytest.ini
