@@ -1,8 +1,8 @@
 import os
 import plistlib
 import shutil
-import time
 import sys
+import time
 from configparser import ConfigParser
 from functools import wraps
 from typing import Callable
