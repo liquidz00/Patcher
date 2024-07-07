@@ -2,6 +2,7 @@ import os
 import plistlib
 import shutil
 import time
+import sys
 from configparser import ConfigParser
 from functools import wraps
 from typing import Callable
@@ -123,6 +124,8 @@ def first_run(func: Callable):
             proceed = click.confirm("Ready to proceed?", default=False)
             if not proceed:
                 click.echo("We'll be ready when you are!")
+                logthis.info(f"User opted not to proceed with setup. User response was: {proceed}")
+                sys.exit()
             else:
                 api_url = click.prompt("Enter your Jamf Pro URL")
                 api_client_id = click.prompt("Enter your API Client ID")
