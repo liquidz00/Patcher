@@ -33,16 +33,15 @@ The following image can be found in the `images` directory.
   - Client Secret
 
 ### Installation
+Patcher can be installed via `pip`:
 
-> [!NOTE]
-> Patcher can now be conveniently installed via `pip`. Please note that while Patcher is installed as a package, it is meant to be used as a command line tool and not as an imported library.
-
-> **About the package name**: The pip package is called `patcherctl` because the name `patcher` was already taken on PyPI. Despite this, the project itself is referred to as Patcher.
-
-**Run the Installer**
 ```shell
 pip install patcherctl
 ```
+> [!NOTE]
+> Please note that while Patcher is installed as a package, it is meant to be used as a command line tool and not as an imported library.
+
+*Why `patcherctl?` The pip package is called patcherctl because the name patcher was already taken on PyPI. Despite this, the project itself is referred to as Patcher*
 
 ### Usage
 After installation, you can generate reports by running the main script. You can specify the output directory for the reports and choose to generate PDF reports alongside Excel files.
