@@ -3,7 +3,7 @@ from unittest.mock import ANY, MagicMock, call, patch
 
 from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.token_manager import TokenManager
-from src.patcher.model.models import AccessToken
+from src.patcher.models.token import AccessToken
 
 
 @patch.object(ConfigManager, "set_credential")

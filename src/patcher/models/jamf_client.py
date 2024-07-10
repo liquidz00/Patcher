@@ -1,60 +1,16 @@
-from datetime import datetime, timedelta, timezone
 from typing import AnyStr, Optional
 from urllib.parse import urlparse, urlunparse
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import field_validator
 
 from .. import logger
+from . import Model
+from .token import AccessToken
 
-logthis = logger.setup_child_logger("models", __name__)
-
-
-class AccessToken(BaseModel):
-    """
-    Represents an access token for authentication.
-
-    :param token: The access token string.
-    :type token: AnyStr
-    :param expires: the Expiration datetime of the token.
-    :type expires: datetime
-    """
-
-    token: AnyStr = ""
-    expires: datetime = Field(
-        default_factory=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc)
-    )
-
-    def __str__(self):
-        """
-        Returns the string representation of the access token.
-
-        :return: The access token string.
-        :rtype: str
-        """
-        return self.token
-
-    @property
-    def is_expired(self) -> bool:
-        """
-        Checks if the access token is expired.
-
-        :return: True if the token is expired, False otherwise.
-        :rtype: bool
-        """
-        return self.expires - timedelta(seconds=60) < datetime.now(timezone.utc)
-
-    @property
-    def seconds_remaining(self) -> int:
-        """
-        Gets the number of seconds remaining until the token expires.
-
-        :return: The number of seconds remaining.
-        :rtype: int
-        """
-        return max(0, int((self.expires - datetime.now(timezone.utc)).total_seconds()))
+logthis = logger.setup_child_logger("JamfClient", __name__)
 
 
-class JamfClient(BaseModel):
+class JamfClient(Model):
     """
     Represents a Jamf client configuration.
 
@@ -100,6 +56,7 @@ class JamfClient(BaseModel):
         new_url = urlunparse((scheme, netloc, path.rstrip("/"), "", "", ""))
         return new_url.rstrip("/")
 
+    @classmethod
     @field_validator("client_id", "client_secret", mode="before")
     def not_empty(cls, value):
         """
@@ -115,6 +72,7 @@ class JamfClient(BaseModel):
             raise ValueError("Field cannot be empty")
         return value
 
+    @classmethod
     @field_validator("server", mode="before")
     def validate_url(cls, v):
         """

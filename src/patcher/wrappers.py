@@ -15,7 +15,7 @@ from . import exceptions, logger
 from .client.config_manager import ConfigManager
 from .client.token_manager import TokenManager
 from .client.ui_manager import UIConfigManager
-from .model.models import AccessToken
+from .models.token import AccessToken
 
 # Logging
 logthis = logger.setup_child_logger("wrappers", __name__)

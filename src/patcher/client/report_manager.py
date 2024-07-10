@@ -7,8 +7,8 @@ from click import echo, style
 
 from .. import exceptions, logger
 from ..logger import LogMe
-from ..model.excel_report import ExcelReport
-from ..model.pdf_report import PDFReport
+from ..models.reports.excel_report import ExcelReport
+from ..models.reports.pdf_report import PDFReport
 from ..wrappers import check_token
 from .api_client import ApiClient
 from .config_manager import ConfigManager

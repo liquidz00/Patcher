@@ -10,7 +10,8 @@ from src.patcher.client.api_client import ApiClient
 from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.report_manager import ReportManager
 from src.patcher.client.token_manager import TokenManager
-from src.patcher.model.models import AccessToken, JamfClient
+from src.patcher.models.jamf_client import JamfClient
+from src.patcher.models.token import AccessToken
 
 
 @pytest.fixture

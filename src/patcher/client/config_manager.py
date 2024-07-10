@@ -5,7 +5,8 @@ import keyring
 from pydantic import ValidationError
 
 from .. import logger
-from ..model.models import AccessToken, JamfClient
+from ..models.jamf_client import JamfClient
+from ..models.token import AccessToken
 
 logthis = logger.setup_child_logger("ConfigManager", __name__)
 

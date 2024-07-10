@@ -11,8 +11,8 @@ from .client.config_manager import ConfigManager
 from .client.report_manager import ReportManager
 from .client.token_manager import TokenManager
 from .client.ui_manager import UIConfigManager
-from .model.excel_report import ExcelReport
-from .model.pdf_report import PDFReport
+from .models.reports.excel_report import ExcelReport
+from .models.reports.pdf_report import PDFReport
 from .wrappers import first_run
 
 DATE_FORMATS = {

@@ -2,7 +2,7 @@ import os
 from unittest.mock import patch
 
 import pandas as pd
-from src.patcher.model.excel_report import ExcelReport
+from src.patcher.models.reports.excel_report import ExcelReport
 
 
 def test_export_to_excel_success(sample_patch_reports, temp_output_dir):
