@@ -53,9 +53,9 @@ async def test_get_summaries(
             )
 
         summaries = await api_client.get_summaries(policy_ids)
-        assert summaries[0]["software_title"] == "Google Chrome"
-        assert summaries[1]["hosts_patched"] == 185
-        assert summaries[2]["completion_percent"] == 54.55
+        assert summaries[0].title == "Google Chrome"
+        assert summaries[1].hosts_patched == 185
+        assert summaries[2].completion_percent == 54.55
 
 
 @pytest.mark.asyncio

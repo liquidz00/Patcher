@@ -7,6 +7,7 @@ from typing import AnyStr, Dict, List, Optional
 import aiohttp
 
 from .. import logger
+from ..models.patch import PatchTitle
 from ..wrappers import check_token
 from .config_manager import ConfigManager
 from .token_manager import TokenManager
@@ -140,7 +141,7 @@ class ApiClient:
             return [title.get("id") for title in response]
 
     @check_token
-    async def get_summaries(self, policy_ids: List) -> Optional[List]:
+    async def get_summaries(self, policy_ids: List) -> Optional[List[PatchTitle]]:
         """
         Retrieves active patch summaries for given policy IDs using the Jamf API.
 
@@ -156,12 +157,12 @@ class ApiClient:
         summaries = await self.fetch_batch(urls)
 
         policy_summaries = [
-            {
-                "software_title": summary.get("title"),
-                "patch_released": self.convert_timezone(summary.get("releaseDate")),
-                "hosts_patched": summary.get("upToDate"),
-                "missing_patch": summary.get("outOfDate"),
-                "completion_percent": (
+            PatchTitle(
+                title=summary.get("title"),
+                released=self.convert_timezone(summary.get("releaseDate")),
+                hosts_patched=summary.get("upToDate"),
+                missing_patch=summary.get("outOfDate"),
+                completion_percent=(
                     round(
                         (
                             summary.get("upToDate")
@@ -173,8 +174,8 @@ class ApiClient:
                     if summary.get("upToDate") + summary.get("outOfDate") > 0
                     else 0
                 ),
-                "total_hosts": summary.get("upToDate") + summary.get("outOfDate"),
-            }
+                total_hosts=summary.get("upToDate") + summary.get("outOfDate"),
+            )
             for summary in summaries
             if summary
         ]

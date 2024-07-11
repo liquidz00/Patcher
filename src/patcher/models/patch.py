@@ -1,4 +1,4 @@
-from typing import AnyStr, List, Optional
+from typing import AnyStr
 
 from .. import logger
 from . import Model
@@ -13,5 +13,3 @@ class PatchTitle(Model):
     missing_patch: int
     completion_percent: float
     total_hosts: int
-    applicable_cves: Optional[List[str]] = None
-    installomator: Optional[str] = None

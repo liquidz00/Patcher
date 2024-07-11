@@ -12,11 +12,11 @@ from src.patcher.client.report_manager import ReportManager
 from src.patcher.client.token_manager import TokenManager
 from src.patcher.models.jamf_client import JamfClient
 from src.patcher.models.token import AccessToken
+from src.patcher.models.patch import PatchTitle
 
 
 @pytest.fixture
 def mock_policy_response():
-    """Fixture to provide a mock policy response."""
     yield [
         {
             "id": "3",
@@ -74,14 +74,16 @@ def mock_policy_response():
 
 @pytest.fixture
 def mock_summary_response():
-    """Fixture to provide mock summary responses for each policy."""
+    def get_iso_format(dt):
+        return dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+
     yield [
         {
             "softwareTitleId": "3",
             "softwareTitleConfigurationId": "3",
             "title": "Google Chrome",
             "latestVersion": "122.0.6261.57",
-            "releaseDate": (datetime.now(pytz.utc) - timedelta(days=3)).isoformat(),
+            "releaseDate": get_iso_format(datetime.now(pytz.utc) - timedelta(days=3)),
             "upToDate": 23,
             "outOfDate": 163,
             "onDashboard": True,
@@ -91,7 +93,7 @@ def mock_summary_response():
             "softwareTitleConfigurationId": "4",
             "title": "Jamf Connect",
             "latestVersion": "2.32.0",
-            "releaseDate": (datetime.now(pytz.utc) - timedelta(hours=24)).isoformat(),
+            "releaseDate": get_iso_format(datetime.now(pytz.utc) - timedelta(hours=24)),
             "upToDate": 185,
             "outOfDate": 19,
             "onDashboard": True,
@@ -101,7 +103,7 @@ def mock_summary_response():
             "softwareTitleConfigurationId": "5",
             "title": "Apple macOS Ventura",
             "latestVersion": "13.6.4 (22G513)",
-            "releaseDate": (datetime.now(pytz.utc) - timedelta(days=7)).isoformat(),
+            "releaseDate": get_iso_format(datetime.now(pytz.utc) - timedelta(days=7)),
             "upToDate": 6,
             "outOfDate": 5,
             "onDashboard": True,
@@ -382,14 +384,14 @@ def api_client(config_manager):
 @pytest.fixture
 def sample_patch_reports():
     return [
-        {
-            "software_title": "Example Software",
-            "patch_released": "2024-01-01",
-            "hosts_patched": 10,
-            "missing_patch": 2,
-            "completion_percent": 83.33,
-            "total_hosts": 12,
-        }
+        PatchTitle(
+            title="Example Software",
+            released="2024-01-01",
+            hosts_patched=10,
+            missing_patch=2,
+            completion_percent=83.33,
+            total_hosts=12
+        )
     ]
 
 
