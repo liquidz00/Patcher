@@ -71,9 +71,7 @@ class ReportManager:
         :return: A list with calculated data per iOS version
         """
         if not device_versions or not latest_versions:
-            self.log.error(
-                "Error calculating iOS Versions. Received None instead of a List"
-            )
+            self.log.error("Error calculating iOS Versions. Received None instead of a List")
             return None
 
         latest_versions_dict = {lv.get("OSVersion"): lv for lv in latest_versions}
@@ -154,9 +152,7 @@ class ReportManager:
                 self.log.debug(f"Output path '{output_path}' is valid.")
 
             # Ensure directories exist
-            self.log.debug(
-                "Attempting to create directories if they do not already exist..."
-            )
+            self.log.debug("Attempting to create directories if they do not already exist...")
             try:
                 os.makedirs(output_path, exist_ok=True)
                 reports_dir = os.path.join(output_path, "Patch-Reports")
@@ -184,9 +180,7 @@ class ReportManager:
                 self.log.error("Error establishing patch summaries.")
                 raise exceptions.SummaryFetchError()
             else:
-                self.log.debug(
-                    f"Received policy summaries for {len(patch_reports)} policies."
-                )
+                self.log.debug(f"Received policy summaries for {len(patch_reports)} policies.")
 
             # (option) Sort
             if sort:
@@ -232,9 +226,7 @@ class ReportManager:
                     )
 
                 self.log.debug(f"Obtained device IDs for {len(device_ids)} devices.")
-                self.log.debug(
-                    "Attempting to retrieve operating system versions for each device."
-                )
+                self.log.debug("Attempting to retrieve operating system versions for each device.")
                 device_versions = await self.api_client.get_device_os_versions(
                     device_ids=device_ids
                 )
@@ -263,33 +255,25 @@ class ReportManager:
                 )
                 self.log.debug("Appending iOS device information to dataframe...")
                 patch_reports.extend(ios_data)
-                self.log.debug(
-                    "iOS information successfully appended to patch reports."
-                )
+                self.log.debug("iOS information successfully appended to patch reports.")
 
             # Generate reports
             self.log.debug("Generating excel file...")
             try:
-                excel_file = self.excel_report.export_to_excel(
-                    patch_reports, reports_dir
-                )
+                excel_file = self.excel_report.export_to_excel(patch_reports, reports_dir)
                 self.log.debug(f"Excel file generated successfully at '{excel_file}'.")
             except ValueError as e:
                 self.log.error(f"Error exporting to excel: {e}")
                 raise exceptions.ExportError(file_path=excel_file)
 
             if pdf:
-                self.log.debug(
-                    f"Detected PDF flag set to {pdf}. Generating PDF file..."
-                )
+                self.log.debug(f"Detected PDF flag set to {pdf}. Generating PDF file...")
                 try:
                     pdf_report = PDFReport(self.ui_config)
                     pdf_report.export_excel_to_pdf(excel_file, date_format)
                     self.log.debug("PDF file generated successfully.")
                 except (OSError, PermissionError) as e:
-                    self.log.error(
-                        f"Error generating PDF file. Check file permissions: {e}"
-                    )
+                    self.log.error(f"Error generating PDF file. Check file permissions: {e}")
                     raise exceptions.ExportError(file_path=excel_file)
                 except Exception as e:
                     self.log.error(f"Unhandled error encountered: {e}")
@@ -302,7 +286,5 @@ class ReportManager:
             self.log.debug(
                 f"{len(patch_reports)} patch reports saved successfully to {reports_dir}."
             )
-            success_msg = style(
-                f"\rSuccess! Reports saved to {reports_dir}", bold=True, fg="green"
-            )
+            success_msg = style(f"\rSuccess! Reports saved to {reports_dir}", bold=True, fg="green")
             echo(success_msg)

@@ -51,9 +51,7 @@ def test_debug_logging_disabled(capture_logs):
     log_me.debug("This is a debug message when debug is disabled")
 
     capture_logs.seek(0)
-    assert (
-        "This is a debug message when debug is disabled" not in capture_logs.getvalue()
-    )
+    assert "This is a debug message when debug is disabled" not in capture_logs.getvalue()
 
 
 def test_info_logging(capture_logs):

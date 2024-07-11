@@ -62,9 +62,7 @@ class ApiClient:
             logthis.error(f"Invalid time format provided. Details: {e}")
             return None
 
-    async def fetch_json(
-        self, url: AnyStr, session: aiohttp.ClientSession
-    ) -> Optional[Dict]:
+    async def fetch_json(self, url: AnyStr, session: aiohttp.ClientSession) -> Optional[Dict]:
         """
         Asynchronously fetches JSON data from a specified URL using a session.
 
@@ -83,9 +81,7 @@ class ApiClient:
                 self.log.info(f"Successfully fetched JSON data from {url}")
                 return json_data
         except aiohttp.ClientResponseError as e:
-            self.log.error(
-                f"Received a client error while fetching JSON from {url}: {e}"
-            )
+            self.log.error(f"Received a client error while fetching JSON from {url}: {e}")
         except Exception as e:
             self.log.error(f"Error fetching JSON: {e}")
         return None
@@ -132,9 +128,7 @@ class ApiClient:
 
             # Check if all elements in the list are dictionaries
             if not all(isinstance(item, dict) for item in response):
-                self.log.error(
-                    "Unexpected response format: all items should be dictionaries."
-                )
+                self.log.error("Unexpected response format: all items should be dictionaries.")
                 return None
 
             self.log.info("Patch policies obtained as expected.")
@@ -230,10 +224,7 @@ class ApiClient:
         if not device_ids:
             self.log.error("No device IDs provided!")
             return None
-        urls = [
-            f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail"
-            for device in device_ids
-        ]
+        urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
         subsets = await self.fetch_batch(urls)
 
         if not subsets:
@@ -264,9 +255,7 @@ class ApiClient:
         command = "curl -s 'https://sofa.macadmins.io/v1/ios_data_feed.json'"
 
         try:
-            result = subprocess.run(
-                command, shell=True, capture_output=True, text=True, check=True
-            )
+            result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
         except (subprocess.CalledProcessError, aiohttp.ClientResponseError) as e:
             self.log.error(f"Encountered error executing subprocess command: {e}")
             return None
@@ -285,9 +274,7 @@ class ApiClient:
                 {
                     "OSVersion": version.get("OSVersion"),
                     "ProductVersion": version_info.get("ProductVersion"),
-                    "ReleaseDate": self.convert_timezone(
-                        version_info.get("ReleaseDate")
-                    ),
+                    "ReleaseDate": self.convert_timezone(version_info.get("ReleaseDate")),
                 }
             )
         return latest_versions

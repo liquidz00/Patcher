@@ -44,9 +44,7 @@ def check_token(func: Callable):
                 token = await token_manager.fetch_token()
                 if token is None:
                     log.error("Token refresh returned None")
-                    raise exceptions.TokenFetchError(
-                        reason="Token refresh returned None"
-                    )
+                    raise exceptions.TokenFetchError(reason="Token refresh returned None")
                 else:
                     log.info("Token successfully refreshed.")
             except aiohttp.ClientError as token_refresh_error:
@@ -64,9 +62,7 @@ def check_token(func: Callable):
             log.error(
                 "Bearer token lifetime is too short. Review the patcher Wiki for instructions to increase the token's lifetime."
             )
-            raise exceptions.TokenLifetimeError(
-                lifetime=instance.token.seconds_remaining
-            )
+            raise exceptions.TokenLifetimeError(lifetime=instance.token.seconds_remaining)
         else:
             log.debug("Token lifetime is at least 5 minutes. Continuing...")
 
@@ -114,9 +110,7 @@ def first_run(func: Callable):
                 raise exceptions.PlistError(path=plist_path)
 
         if not first_run_done:
-            logthis.info(
-                f"Detected first status as {first_run_done}. Starting setup assistant..."
-            )
+            logthis.info(f"Detected first status as {first_run_done}. Starting setup assistant...")
             click.echo(click.style(greet, fg="cyan", bold=True))
             click.echo(click.style(welcome_message, fg="white"), nl=False)
             click.echo(click.style(contribute, fg="yellow"))
@@ -124,9 +118,7 @@ def first_run(func: Callable):
             proceed = click.confirm("Ready to proceed?", default=False)
             if not proceed:
                 click.echo("We'll be ready when you are!")
-                logthis.info(
-                    f"User opted not to proceed with setup. User response was: {proceed}"
-                )
+                logthis.info(f"User opted not to proceed with setup. User response was: {proceed}")
                 sys.exit()
             else:
                 api_url = click.prompt("Enter your Jamf Pro URL")
@@ -147,12 +139,8 @@ def first_run(func: Callable):
                 if token and isinstance(token, AccessToken):
                     token_manager.save_token(token)
 
-                    header_text = click.prompt(
-                        "Enter the Header Text to use on PDF reports"
-                    )
-                    footer_text = click.prompt(
-                        "Enter the Header Text to use on PDF reports"
-                    )
+                    header_text = click.prompt("Enter the Header Text to use on PDF reports")
+                    footer_text = click.prompt("Enter the Header Text to use on PDF reports")
 
                     use_custom_font = click.confirm(
                         "Would you like to use a custom font?", default=False
@@ -161,15 +149,11 @@ def first_run(func: Callable):
                     os.makedirs(font_dir, exist_ok=True)
 
                     if use_custom_font:
-                        font_name = click.prompt(
-                            "Enter the custom font name", default="CustomFont"
-                        )
+                        font_name = click.prompt("Enter the custom font name", default="CustomFont")
                         font_regular_src_path = click.prompt(
                             "Enter the path to the regular font file"
                         )
-                        font_bold_src_path = click.prompt(
-                            "Enter the path to the bold font file"
-                        )
+                        font_bold_src_path = click.prompt("Enter the path to the bold font file")
                         font_regular_dest_path = os.path.join(
                             font_dir, os.path.basename(font_regular_src_path)
                         )
@@ -182,12 +166,8 @@ def first_run(func: Callable):
                         shutil.copy(font_bold_src_path, font_bold_dest_path)
                     else:
                         font_name = "Assistant"
-                        font_regular_dest_path = os.path.join(
-                            font_dir, "Assistant-Regular.ttf"
-                        )
-                        font_bold_dest_path = os.path.join(
-                            font_dir, "Assistant-Bold.ttf"
-                        )
+                        font_regular_dest_path = os.path.join(font_dir, "Assistant-Regular.ttf")
+                        font_bold_dest_path = os.path.join(font_dir, "Assistant-Bold.ttf")
 
                     config_parser = ConfigParser()
                     config_parser.read(ui_config.user_config_path)

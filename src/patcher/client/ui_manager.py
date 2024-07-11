@@ -13,17 +13,17 @@ class UIConfigManager:
     """Manages the user interface configuration settings (Header & Footer text of the exported PDF class,
     custom font (optional) and font paths)"""
 
-    REGULAR_FONT_URL = "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Regular.ttf"
-    BOLD_FONT_URL = "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Bold.ttf"
+    REGULAR_FONT_URL = (
+        "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Regular.ttf"
+    )
+    BOLD_FONT_URL = (
+        "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Bold.ttf"
+    )
 
     def __init__(self):
         """Initializes the UIConfigManager by loading the UI configuration."""
-        self.config = configparser.ConfigParser(
-            interpolation=configparser.ExtendedInterpolation()
-        )
-        self.user_config_dir = os.path.expanduser(
-            "~/Library/Application Support/Patcher"
-        )
+        self.config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
+        self.user_config_dir = os.path.expanduser("~/Library/Application Support/Patcher")
         self.user_config_path = os.path.join(self.user_config_dir, "config.ini")
         self.font_dir = os.path.join(self.user_config_dir, "fonts")
         os.makedirs(self.font_dir, exist_ok=True)
@@ -68,9 +68,7 @@ class UIConfigManager:
         self.download_font(
             self.REGULAR_FONT_URL, os.path.join(self.font_dir, "Assistant-Regular.ttf")
         )
-        self.download_font(
-            self.BOLD_FONT_URL, os.path.join(self.font_dir, "Assistant-Bold.ttf")
-        )
+        self.download_font(self.BOLD_FONT_URL, os.path.join(self.font_dir, "Assistant-Bold.ttf"))
 
         # Write default configuration
         with open(self.user_config_path, "w") as configfile:
@@ -94,9 +92,7 @@ class UIConfigManager:
         """
         return {
             "HEADER_TEXT": self.config.get("UI", "HEADER_TEXT"),
-            "FOOTER_TEXT": self.config.get(
-                "UI", "FOOTER_TEXT", fallback="Default footer text"
-            ),
+            "FOOTER_TEXT": self.config.get("UI", "FOOTER_TEXT", fallback="Default footer text"),
             "FONT_NAME": self.config.get("UI", "FONT_NAME", fallback="Assistant"),
             "FONT_REGULAR_PATH": self.config.get(
                 "UI",

@@ -14,9 +14,7 @@ class ExcelReport:
     """Handles the generation of Excel reports from patch data."""
 
     @staticmethod
-    def export_to_excel(
-        patch_reports: List[PatchTitle], output_dir: AnyStr
-    ) -> Optional[AnyStr]:
+    def export_to_excel(patch_reports: List[PatchTitle], output_dir: AnyStr) -> Optional[AnyStr]:
         """
         Exports patch data to an Excel spreadsheet in the specified output directory.
 
@@ -45,9 +43,7 @@ class ExcelReport:
             logthis.error(f"Error creating DataFrame: {e}")
             return None
         except Exception as e:
-            logthis.error(
-                f"Unhandled exception occurred trying to export to Excel: {e}"
-            )
+            logthis.error(f"Unhandled exception occurred trying to export to Excel: {e}")
             return None
 
         excel_path = os.path.join(output_dir, f"patch-report-{current_date}.xlsx")

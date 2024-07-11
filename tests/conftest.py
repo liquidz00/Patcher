@@ -285,9 +285,7 @@ def capture_logs():
     log_capture.setLevel(logging.DEBUG)
     stream = StringIO()
     handler = logging.StreamHandler(stream)
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     handler.setFormatter(formatter)
     log_capture.addHandler(handler)
 
@@ -313,9 +311,7 @@ def mock_jamf_client():
 
 @pytest.fixture
 def short_lived_jamf_client():
-    mock_token = AccessToken(
-        token="mocked_token", expires=(datetime.now() + timedelta(seconds=30))
-    )
+    mock_token = AccessToken(token="mocked_token", expires=(datetime.now() + timedelta(seconds=30)))
     return JamfClient(
         client_id="short-lived-client-id",
         client_secret="mocked_client_secret",

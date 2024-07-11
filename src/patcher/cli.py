@@ -44,9 +44,7 @@ def animate_search(stop_event: threading.Event, enable_animation: bool) -> None:
 
 @click.command()
 @click.version_option(version=__version__)
-@click.option(
-    "--path", "-p", type=click.Path(), required=True, help="Path to save the report"
-)
+@click.option("--path", "-p", type=click.Path(), required=True, help="Path to save the report")
 @click.option(
     "--pdf",
     "-f",
@@ -118,9 +116,7 @@ async def main(
     actual_format = DATE_FORMATS[date_format]
     stop_event = threading.Event()
     enable_animation = not debug
-    animation_thread = threading.Thread(
-        target=animate_search, args=(stop_event, enable_animation)
-    )
+    animation_thread = threading.Thread(target=animate_search, args=(stop_event, enable_animation))
     animation_thread.start()
 
     await patcher.process_reports(path, pdf, sort, omit, ios, stop_event, actual_format)

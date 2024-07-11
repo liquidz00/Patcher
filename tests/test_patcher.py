@@ -9,9 +9,7 @@ import pytest
 async def test_process_reports_success(
     stop_event_fixture, patcher_instance, mock_policy_response, mock_summary_response
 ):
-    with patch.object(
-        patcher_instance.excel_report, "export_to_excel"
-    ) as mock_export_to_excel:
+    with patch.object(patcher_instance.excel_report, "export_to_excel") as mock_export_to_excel:
         await patcher_instance.process_reports(
             path="~/",
             pdf=False,
@@ -26,9 +24,7 @@ async def test_process_reports_success(
 
 # Test process reports with invalid path
 @pytest.mark.asyncio
-@patch(
-    "os.makedirs", new_callable=AsyncMock, side_effect=OSError("Read-only file system")
-)
+@patch("os.makedirs", new_callable=AsyncMock, side_effect=OSError("Read-only file system"))
 @patch("os.path.isfile")
 async def test_process_reports_invalid_path(
     mock_isfile,
@@ -58,9 +54,7 @@ async def test_invalid_sort(
     patcher_instance,
 ):
     with pytest.raises(click.Abort):
-        with patch.object(
-            patcher_instance.excel_report, "export_to_excel"
-        ) as mock_error:
+        with patch.object(patcher_instance.excel_report, "export_to_excel") as mock_error:
             await patcher_instance.process_reports(
                 path="~/",
                 pdf=False,

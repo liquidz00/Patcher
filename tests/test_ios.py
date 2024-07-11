@@ -128,9 +128,7 @@ async def test_get_ios_version_api_error(
 # Test SOFA functionality with valid response
 @patch("subprocess.run")
 def test_sofa_valid(mock_run, api_client, mock_sofa_response):
-    mock_run.return_value = MagicMock(
-        stdout=json.dumps(mock_sofa_response), returncode=0
-    )
+    mock_run.return_value = MagicMock(stdout=json.dumps(mock_sofa_response), returncode=0)
     result = api_client.get_sofa_feed()
     expected_result = [
         {"OSVersion": "17", "ProductVersion": "17.5.1", "ReleaseDate": "May 20 2024"},
@@ -178,9 +176,7 @@ async def test_calculate_ios_on_latest_success(patcher_instance):
         },
     ]
     with patch.object(patcher_instance, "log", MagicMock()):
-        result = patcher_instance.calculate_ios_on_latest(
-            device_versions, latest_versions
-        )
+        result = patcher_instance.calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
         {
             "software_title": "iOS 17.5.1",
@@ -223,9 +219,7 @@ async def test_calculate_ios_on_latest_no_devices_on_latest(patcher_instance):
         },
     ]
     with patch.object(patcher_instance, "log", MagicMock()):
-        result = patcher_instance.calculate_ios_on_latest(
-            device_versions, latest_versions
-        )
+        result = patcher_instance.calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
         {
             "software_title": "iOS 17.5.1",
@@ -264,9 +258,7 @@ async def test_calculate_ios_on_latest_all_devices_on_latest(patcher_instance):
     ]
 
     with patch.object(patcher_instance, "log", MagicMock()):
-        result = patcher_instance.calculate_ios_on_latest(
-            device_versions, latest_versions
-        )
+        result = patcher_instance.calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
         {
             "software_title": "iOS 17.5.1",
@@ -297,9 +289,7 @@ async def test_calculate_ios_on_latest_some_devices_on_latest(patcher_instance):
     ]
 
     with patch.object(patcher_instance, "log", MagicMock()):
-        result = patcher_instance.calculate_ios_on_latest(
-            device_versions, latest_versions
-        )
+        result = patcher_instance.calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
         {
             "software_title": "iOS 17.5.1",

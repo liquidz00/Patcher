@@ -30,9 +30,7 @@ class TokenManager:
             self.token = self.jamf_client.token
             logthis.info("JamfClient and token successfully attached")
         else:
-            logthis.error(
-                "Invalid JamfClient configuration was detected and ValueError raised."
-            )
+            logthis.error("Invalid JamfClient configuration was detected and ValueError raised.")
             raise ValueError("Invalid JamfClient configuration detected!")
         self.lock = asyncio.Lock()
 
@@ -118,9 +116,7 @@ class TokenManager:
             logthis.error("Token life time is less than 1 minute.")
         elif 5 <= minutes <= 10:
             # Throws warning if token lifetime is between 5-10 minutes
-            logthis.warning(
-                "Token lifetime is between 5-10 minutes, consider increasing duration."
-            )
+            logthis.warning("Token lifetime is between 5-10 minutes, consider increasing duration.")
         else:
             logthis.info(
                 f"Token lifetime is sfficient for {client.client_id}. Remaining Lifetime: {client.token.seconds_remaining}"
@@ -166,9 +162,7 @@ class TokenManager:
                         logthis.error("Received invalid token response")
                         return None
 
-                    expiration = datetime.now(timezone.utc) + timedelta(
-                        seconds=expires_in
-                    )
+                    expiration = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
                     access_token = AccessToken(token=token, expires=expiration)
 
                     self.save_token(token=access_token)

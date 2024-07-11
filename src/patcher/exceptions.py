@@ -99,9 +99,7 @@ class ExportError(PatcherError):
 class PolicyFetchError(PatcherError):
     """Raised when unable to fetch policy IDs from Jamf instance"""
 
-    def __init__(
-        self, message="Error obtaining policy information from Jamf instance", url=None
-    ):
+    def __init__(self, message="Error obtaining policy information from Jamf instance", url=None):
         self.url = url
         if url:
             message = f"{message} - URL: {url}"
@@ -117,9 +115,7 @@ class PolicyFetchError(PatcherError):
 class SummaryFetchError(PatcherError):
     """Raised when there is an error fetching summaries"""
 
-    def __init__(
-        self, message="Error obtaining patch summaries from Jamf instance", url=None
-    ):
+    def __init__(self, message="Error obtaining patch summaries from Jamf instance", url=None):
         self.url = url
         if url:
             message = f"{message} - URL: {url}"
@@ -135,9 +131,7 @@ class SummaryFetchError(PatcherError):
 class DeviceIDFetchError(PatcherError):
     """Raised when there is an error fetching device IDs from Jamf instance"""
 
-    def __init__(
-        self, message="Error retreiving device IDs from Jamf instance", reason=None
-    ):
+    def __init__(self, message="Error retreiving device IDs from Jamf instance", reason=None):
         self.reason = reason
         if reason:
             message = f"{message} - Reason: {reason}"
@@ -153,9 +147,7 @@ class DeviceIDFetchError(PatcherError):
 class DeviceOSFetchError(PatcherError):
     """Raised when there is an error fetching device IDs from Jamf instance"""
 
-    def __init__(
-        self, message="Error retreiving OS information from Jamf instance", reason=None
-    ):
+    def __init__(self, message="Error retreiving OS information from Jamf instance", reason=None):
         self.reason = reason
         if reason:
             message = f"{message} - Reason: {reason}"

@@ -45,9 +45,7 @@ class JamfClient(Model):
         """
         parsed_url = urlparse(url=url)
         scheme = "https" if not parsed_url.scheme else parsed_url.scheme
-        netloc = (
-            parsed_url.netloc if parsed_url.netloc else parsed_url.path.split("/")[0]
-        )
+        netloc = parsed_url.netloc if parsed_url.netloc else parsed_url.path.split("/")[0]
         path = (
             "/" + "/".join(parsed_url.path.split("/")[1:])
             if len(parsed_url.path.split("/")) > 1

@@ -20,9 +20,7 @@ class AccessToken(Model):
     """
 
     token: AnyStr = ""
-    expires: datetime = Field(
-        default_factory=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc)
-    )
+    expires: datetime = Field(default_factory=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc))
 
     def __str__(self):
         """

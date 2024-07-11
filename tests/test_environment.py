@@ -56,9 +56,7 @@ def test_token_manager_initialization(config_manager):
 @patch.object(ConfigManager, "set_credential")
 def test_save_token(mock_set_credential, config_manager):
     token_manager = TokenManager(config=config_manager)
-    token = AccessToken(
-        token="new_token", expires=datetime(2031, 1, 1, tzinfo=timezone.utc)
-    )
+    token = AccessToken(token="new_token", expires=datetime(2031, 1, 1, tzinfo=timezone.utc))
     token_manager.save_token(token)
 
     expected_calls = [

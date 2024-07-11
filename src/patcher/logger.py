@@ -16,9 +16,7 @@ def setup_logger(
     log_name=logger_name, log_filename=f"{logger_name}.log", log_level=default_log_level
 ):
     log_path = os.path.abspath(
-        os.path.join(
-            os.path.expanduser("~/Library/Application Support/Patcher"), "logs"
-        )
+        os.path.join(os.path.expanduser("~/Library/Application Support/Patcher"), "logs")
     )
     if not os.path.isdir(log_path):
         os.makedirs(log_path)

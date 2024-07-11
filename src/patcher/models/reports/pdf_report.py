@@ -40,12 +40,8 @@ class PDFReport(FPDF):
         self.date_format = date_format
         self.config = ui_config.get_ui_config()
 
-        self.add_font(
-            self.config.get("FONT_NAME"), "", self.config.get("FONT_REGULAR_PATH")
-        )
-        self.add_font(
-            self.config.get("FONT_NAME"), "B", self.config.get("FONT_BOLD_PATH")
-        )
+        self.add_font(self.config.get("FONT_NAME"), "", self.config.get("FONT_REGULAR_PATH"))
+        self.add_font(self.config.get("FONT_NAME"), "B", self.config.get("FONT_BOLD_PATH"))
 
         self.table_headers = []
         self.column_widths = []
@@ -83,9 +79,7 @@ class PDFReport(FPDF):
         footer_text = f"{self.config.get('FOOTER_TEXT')} | Page " + str(self.page_no())
         self.cell(0, 10, footer_text, 0, 0, "R")
 
-    def export_excel_to_pdf(
-        self, excel_file: AnyStr, date_format: AnyStr = "%B %d %Y"
-    ) -> None:
+    def export_excel_to_pdf(self, excel_file: AnyStr, date_format: AnyStr = "%B %d %Y") -> None:
         """
         Creates a PDF report from an Excel file containing patch data.
 
