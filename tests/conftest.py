@@ -11,8 +11,8 @@ from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.report_manager import ReportManager
 from src.patcher.client.token_manager import TokenManager
 from src.patcher.models.jamf_client import JamfClient
-from src.patcher.models.token import AccessToken
 from src.patcher.models.patch import PatchTitle
+from src.patcher.models.token import AccessToken
 
 
 @pytest.fixture
@@ -390,7 +390,7 @@ def sample_patch_reports():
             hosts_patched=10,
             missing_patch=2,
             completion_percent=83.33,
-            total_hosts=12
+            total_hosts=12,
         )
     ]
 
