@@ -9,11 +9,11 @@ from .__about__ import __version__
 from .client.api_client import ApiClient
 from .client.config_manager import ConfigManager
 from .client.report_manager import ReportManager
+from .client.setup import Setup
 from .client.token_manager import TokenManager
 from .client.ui_manager import UIConfigManager
 from .models.reports.excel_report import ExcelReport
 from .models.reports.pdf_report import PDFReport
-from .wrappers import first_run
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -90,7 +90,6 @@ def animate_search(stop_event: threading.Event, enable_animation: bool) -> None:
     default=False,
     help="Enable debug logging to see detailed debug messages.",
 )
-@first_run
 async def main(
     path: AnyStr,
     pdf: bool,
@@ -108,6 +107,9 @@ async def main(
     ui_config = UIConfigManager()
     pdf_report = PDFReport(ui_config)
     api_client.jamf_client.set_max_concurrency(concurrency=concurrency)
+    setup = Setup(config=config, token_manager=token_manager, ui_config=ui_config)
+    if not setup.completed:
+        await setup.launch()
 
     patcher = ReportManager(
         config, token_manager, api_client, excel_report, pdf_report, ui_config, debug
