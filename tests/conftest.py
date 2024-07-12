@@ -10,6 +10,7 @@ from src.patcher.client.api_client import ApiClient
 from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.report_manager import ReportManager
 from src.patcher.client.token_manager import TokenManager
+from src.patcher.client.ui_manager import UIConfigManager
 from src.patcher.models.jamf_client import JamfClient
 from src.patcher.models.patch import PatchTitle
 from src.patcher.models.token import AccessToken
@@ -418,3 +419,8 @@ def mock_open_file():
 def mock_click():
     with patch("click.prompt"), patch("click.confirm"):
         yield
+
+
+@pytest.fixture
+def ui_config():
+    return UIConfigManager()
