@@ -33,10 +33,13 @@ def test_completed_property(setup_instance):
 
 
 def test_is_complete(setup_instance):
-    with patch("os.path.exists", return_value=True):
-        with patch("plistlib.load", return_value={"first_run_done": True}):
-            setup_instance._is_complete()
-            assert setup_instance._completed is True
+    with (
+        patch("os.path.exists", return_value=True),
+        patch("plistlib.load", return_value={"first_run_done": True}),
+        patch("builtins.open", mock_open(read_data=b"")),
+    ):
+        setup_instance._is_complete()
+        assert setup_instance._completed is True
 
 
 def test_is_complete_error(setup_instance):
