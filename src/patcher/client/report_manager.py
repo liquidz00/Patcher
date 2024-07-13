@@ -4,8 +4,8 @@ from typing import AnyStr, Dict, List, Optional
 
 from click import echo, style
 
-from ..models.reports.excel_report import ExcelReport
 from ..models.patch import PatchTitle
+from ..models.reports.excel_report import ExcelReport
 from ..models.reports.pdf_report import PDFReport
 from ..utils import exceptions, logger
 from ..utils.animation import Animation
@@ -100,7 +100,7 @@ class ReportManager:
                         hosts_patched=counts["count"],
                         missing_patch=counts["total"] - counts["count"],
                         completion_percent=completion_percent,
-                        total_hosts=counts["total"]
+                        total_hosts=counts["total"],
                     )
                 )
 
