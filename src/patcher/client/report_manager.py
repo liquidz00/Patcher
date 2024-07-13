@@ -1,16 +1,15 @@
 import os
 from datetime import datetime, timedelta
-from threading import Event
 from typing import AnyStr, Dict, List, Optional
 
 from click import echo, style
 
-from patcher.utils.logger import LogMe
-from patcher.utils.wrappers import check_token
-
 from ..models.reports.excel_report import ExcelReport
 from ..models.reports.pdf_report import PDFReport
 from ..utils import exceptions, logger
+from ..utils.animation import Animation
+from ..utils.logger import LogMe
+from ..utils.wrappers import check_token
 from .api_client import ApiClient
 from .config_manager import ConfigManager
 from .token_manager import TokenManager
@@ -114,7 +113,6 @@ class ReportManager:
         sort: Optional[AnyStr],
         omit: bool,
         ios: bool,
-        stop_event: Event,
         date_format: AnyStr = "%B %d %Y",
     ) -> None:
         """
@@ -131,16 +129,15 @@ class ReportManager:
         :type omit: bool
         :param ios: Include iOS device data if True
         :type ios: bool
-        :param stop_event: Event to signal completion or abortion (used solely for animation).
-        :type stop_event: threading.Event
         :param date_format: Format for dates in the header. Default is "%B %d %Y" (Month Day Year)
         :type date_format: AnyStr
 
         :return: None. Raises click.Abort on errors.
         """
-        self.log.debug("Beginning patcher process...")
+        animation = Animation(enable_animation=not self.debug)
 
-        with exceptions.error_handling(self.log, stop_event):
+        async with animation.error_handling(self.log):
+            self.log.debug("Beginning patcher process...")
             # Validate path provided is not a file
             self.log.debug("Validating path provided is not a file...")
             output_path = os.path.expanduser(path)
@@ -280,7 +277,8 @@ class ReportManager:
                     self.log.error(f"Unhandled error encountered: {e}")
                     raise exceptions.ExportError()
 
-            stop_event.set()
+            # Manually stop animation to show success message cleanly
+            animation.stop_event.set()
             self.log.debug(
                 "patcher finished as expected. Additional logs can be found at '~/Library/Application Support/patcher/logs'."
             )
