@@ -205,7 +205,9 @@ class Setup:
                         )
                     response = await resp.json()
                     if not response:
-                        self.log.error("API call was successful, but response was empty. Exiting...")
+                        self.log.error(
+                            "API call was successful, but response was empty. Exiting..."
+                        )
                         click.echo(
                             click.style(
                                 text="API response was empty. Unable to retrieve a token", fg="red"
