@@ -1,10 +1,6 @@
-from contextlib import contextmanager
-from threading import Event
 from typing import AnyStr
 
 import click
-
-from patcher.utils.logger import LogMe
 
 
 class PatcherError(Exception):
@@ -216,28 +212,3 @@ class APIPrivilegeError(PatcherError):
         if self.reason:
             return f"{self.message} - Reason: {self.reason}"
         return self.message
-
-
-@contextmanager
-def error_handling(log: LogMe, stop_event: Event):
-    default_exceptions = (
-        TokenFetchError,
-        TokenLifetimeError,
-        DirectoryCreationError,
-        ExportError,
-        PolicyFetchError,
-        SummaryFetchError,
-        DeviceIDFetchError,
-        DeviceOSFetchError,
-        SortError,
-        SofaFeedError,
-        APIPrivilegeError,
-        PlistError,
-    )
-    try:
-        yield
-    except default_exceptions as e:
-        log.error(f"{e}")
-        raise click.Abort()
-    finally:
-        stop_event.set()
