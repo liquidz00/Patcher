@@ -9,8 +9,8 @@ from typing import AnyStr, Optional, Tuple
 import aiohttp
 import click
 
-from .. import exceptions, logger
 from ..models.token import AccessToken
+from ..utils import exceptions, logger
 from .config_manager import ConfigManager
 from .token_manager import TokenManager
 from .ui_manager import UIConfigManager
@@ -62,6 +62,7 @@ class Setup:
         self.token = None
         self.jamf_url = None
         self.lock = Lock()
+        self.log = logthis
 
     @property
     def completed(self) -> bool:
@@ -73,20 +74,30 @@ class Setup:
         """
         return self._completed
 
+    @completed.setter
+    def completed(self, value: bool):
+        """
+        Sets the setup process completion status.
+
+        :param value: True if setup completed, False otherwise.
+        :type value: bool
+        """
+        self._completed = value
+
     def _is_complete(self):
         """
         Checks for the presence of the plist file to determine if setup has been completed.
 
         :raises exceptions.PlistError: If there is an error reading the plist file.
         """
-        logthis.debug("Checking for presence of .plist file")
+        self.log.debug("Checking for presence of .plist file")
         if os.path.exists(self.plist_path):
             try:
                 with open(self.plist_path, "rb") as fp:
                     plist_data = plistlib.load(fp)
-                    self._completed = plist_data.get("first_run_done", False)
+                    self.completed = plist_data.get("first_run_done", False)
             except Exception as e:
-                logthis.error(f"Error reading plist file: {e}")
+                self.log.error(f"Error reading plist file: {e}")
                 raise exceptions.PlistError
 
     @staticmethod
@@ -109,9 +120,9 @@ class Setup:
             os.makedirs(os.path.dirname(self.plist_path), exist_ok=True)
             with open(self.plist_path, "wb") as fp:
                 plistlib.dump(plist_data, fp)
-            self._completed = True
+            self.completed = True
         except Exception as e:
-            logthis.error(f"Error writing to plist file: {e}")
+            self.log.error(f"Error writing to plist file: {e}")
             raise exceptions.PlistError(path=self.plist_path)
 
     def _setup_ui(self):
@@ -181,12 +192,12 @@ class Setup:
                     url=token_url, auth=aiohttp.BasicAuth(username, password), headers=headers
                 ) as resp:
                     if resp.status == 401:
-                        logthis.error(
+                        self.log.error(
                             f"Received 401 response trying to obtain access token with basic auth: {resp.status} - {await resp.text()}"
                         )
                         return False
                     elif resp.status != 200:
-                        logthis.error(
+                        self.log.error(
                             f"Unsuccessful API call to retrieve access token with basic auth: {resp.status} - {await resp.text()}"
                         )
                         raise exceptions.TokenFetchError(
@@ -194,7 +205,7 @@ class Setup:
                         )
                     response = await resp.json()
                     if not response:
-                        logthis.error("API call was successful, but response was empty. Exiting...")
+                        self.log.error("API call was successful, but response was empty. Exiting...")
                         click.echo(
                             click.style(
                                 text="API response was empty. Unable to retrieve a token", fg="red"
@@ -263,7 +274,7 @@ class Setup:
                 resp.raise_for_status()
                 client_response = await resp.json()
                 if not client_response:
-                    logthis.error(
+                    self.log.error(
                         f"API returned empty response during client creation. Status: {resp.status} - {await resp.text()}"
                     )
                 client_id = client_response.get("clientId")
@@ -275,7 +286,7 @@ class Setup:
                 resp.raise_for_status()
                 secret_response = await resp.json()
                 if not secret_response:
-                    logthis.error(
+                    self.log.error(
                         f"Unable to obtain client secret for Patcher client: {resp.status}"
                     )
                 client_secret = secret_response.get("clientSecret")
@@ -288,15 +299,15 @@ class Setup:
         :raises SystemExit: If the user opts not to proceed with the setup.
         :raises exceptions.TokenFetchError: If there is an error fetching the token.
         """
-        logthis.debug("Initializing first_run check")
+        self.log.debug("Initializing first_run check")
         self._is_complete()
         if not self.completed:
-            logthis.info("Detected first run has not been completed. Starting setup assistant...")
+            self.log.info("Detected first run has not been completed. Starting setup assistant...")
             self._greet()
             proceed = click.confirm("Ready to proceed?", default=False)
             if not proceed:
                 click.echo("We'll be ready when you are!")
-                logthis.info(f"User opted not to proceed with setup. User response was: {proceed}")
+                self.log.info(f"User opted not to proceed with setup. User response was: {proceed}")
                 sys.exit()
             else:
                 api_url = click.prompt("Enter your Jamf Pro URL")
@@ -319,10 +330,10 @@ class Setup:
                     self._setup_ui()
                     self._set_complete()
                 else:
-                    logthis.error("Failed to fetch a valid token!")
+                    self.log.error("Failed to fetch a valid token!")
                     raise exceptions.TokenFetchError(reason="Token failed pydantic verification")
         else:
-            logthis.debug("First run already completed.")
+            self.log.debug("First run already completed.")
 
     async def launch(self):
         """
@@ -332,7 +343,7 @@ class Setup:
         :raises exceptions.TokenFetchError: If the API call to retrieve a token fails.
         :raises aiohttp.ClientError: If there is an error making the HTTP request.
         """
-        logthis.debug("Detected first run has not been completed. Starting setup assistant...")
+        self.log.debug("Detected first run has not been completed. Starting setup assistant...")
         self._greet()
 
         # Prompt end user to proceed when ready
@@ -340,7 +351,7 @@ class Setup:
 
         if not proceed:
             click.echo("We'll be ready when you are!")
-            logthis.info(f"User opted not to proceed with setup. User response was: {proceed}")
+            self.log.info(f"User opted not to proceed with setup. User response was: {proceed}")
             sys.exit()
 
         self.jamf_url = click.prompt("Enter your Jamf Pro URL")
@@ -377,7 +388,7 @@ class Setup:
 
         role_created = await self._create_roles()
         if not role_created:
-            logthis.error("Failed creating API roles. Exiting...")
+            self.log.error("Failed creating API roles. Exiting...")
             click.echo(click.style("Failed to create API roles.", fg="red"), err=True)
 
         client_id, client_secret = await self._create_client()
@@ -411,7 +422,7 @@ class Setup:
         if token and isinstance(token, AccessToken):
             self.token_manager.save_token(token)
         else:
-            logthis.error("Token failed validation. Notifying user and exiting...")
+            self.log.error("Token failed validation. Notifying user and exiting...")
             click.echo(
                 click.style(
                     text="Token retrieved failed verification and we're unable to proceed!",
@@ -425,3 +436,22 @@ class Setup:
 
         # Set first run flag to True upon completion
         self._set_complete()
+
+    async def reset(self):
+        """
+        Resets the setup process by setting _completed to False, updating the `first_run_done` flag in the plist file to False, and retriggers the function.
+        """
+        # Set completed to False
+        self.completed = False
+
+        # Update the plist file
+        plist_data = {"first_run_done": False}
+        try:
+            with open(self.plist_path, "wb") as fp:
+                plistlib.dump(plist_data, fp)
+        except Exception as e:
+            self.log.error(f"Error writing to plist file: {e}")
+            raise exceptions.PlistError(path=self.plist_path)
+
+        # Retrigger launch
+        await self.launch()

@@ -107,6 +107,7 @@ async def main(
     ui_config = UIConfigManager()
     pdf_report = PDFReport(ui_config)
     api_client.jamf_client.set_max_concurrency(concurrency=concurrency)
+
     setup = Setup(config=config, token_manager=token_manager, ui_config=ui_config)
     if not setup.completed:
         await setup.launch()
