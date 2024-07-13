@@ -16,7 +16,6 @@ async def test_process_reports_success(
             sort=None,
             omit=False,
             ios=False,
-            stop_event=stop_event_fixture,
         )
 
         assert mock_export_to_excel.called
@@ -41,7 +40,6 @@ async def test_process_reports_invalid_path(
             sort=None,
             omit=False,
             ios=False,
-            stop_event=stop_event_fixture,
         )
 
         mock_error.assert_called_once()
@@ -61,7 +59,6 @@ async def test_invalid_sort(
                 sort="sort_column",
                 omit=False,
                 ios=False,
-                stop_event=stop_event_fixture,
             )
 
             mock_error.assert_called_once()
