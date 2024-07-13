@@ -4,7 +4,7 @@ from typing import AnyStr
 
 import click
 
-from .logger import LogMe
+from patcher.utils.logger import LogMe
 
 
 class PatcherError(Exception):

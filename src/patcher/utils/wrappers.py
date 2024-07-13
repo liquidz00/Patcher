@@ -5,7 +5,7 @@ import aiohttp
 import click
 from pydantic import ValidationError
 
-from . import exceptions, logger
+from patcher.utils import exceptions, logger
 
 # Logging
 logthis = logger.setup_child_logger("wrappers", __name__)
