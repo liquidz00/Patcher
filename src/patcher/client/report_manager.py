@@ -5,6 +5,7 @@ from typing import AnyStr, Dict, List, Optional
 from click import echo, style
 
 from ..models.reports.excel_report import ExcelReport
+from ..models.patch import PatchTitle
 from ..models.reports.pdf_report import PDFReport
 from ..utils import exceptions, logger
 from ..utils.animation import Animation
@@ -60,7 +61,7 @@ class ReportManager:
         self,
         device_versions: List[Dict[AnyStr, AnyStr]],
         latest_versions: List[Dict[AnyStr, AnyStr]],
-    ) -> Optional[List[Dict]]:
+    ) -> Optional[List[PatchTitle]]:
         """
         Calculates the amount of enrolled devices are on the latest version of their respective operating system.
 
@@ -93,14 +94,14 @@ class ReportManager:
             if counts["total"] > 0:
                 completion_percent = round((counts["count"] / counts["total"]) * 100, 2)
                 mapped.append(
-                    {
-                        "software_title": f"iOS {latest_versions_dict[version]['ProductVersion']}",
-                        "patch_released": latest_versions_dict[version]["ReleaseDate"],
-                        "hosts_patched": counts["count"],
-                        "missing_patch": counts["total"] - counts["count"],
-                        "completion_percent": completion_percent,
-                        "total_hosts": counts["total"],
-                    }
+                    PatchTitle(
+                        title=f"iOS {latest_versions_dict[version]['ProductVersion']}",
+                        released=latest_versions_dict[version]["ReleaseDate"],
+                        hosts_patched=counts["count"],
+                        missing_patch=counts["total"] - counts["count"],
+                        completion_percent=completion_percent,
+                        total_hosts=counts["total"]
+                    )
                 )
 
         return mapped
