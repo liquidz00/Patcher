@@ -1,10 +1,11 @@
 import asyncio
+import inspect
 from contextlib import asynccontextmanager
 from typing import AnyStr
 
 import click
 
-from .exceptions import *
+from . import exceptions
 from .logger import LogMe
 
 
@@ -72,20 +73,12 @@ class Animation:
         Context manager for error handling with animation.
 
         :param log: The log object for logging errors.
+        :type log: logger.LogMe
         """
-        default_exceptions = (
-            TokenFetchError,
-            TokenLifetimeError,
-            DirectoryCreationError,
-            ExportError,
-            PolicyFetchError,
-            SummaryFetchError,
-            DeviceIDFetchError,
-            DeviceOSFetchError,
-            SortError,
-            SofaFeedError,
-            APIPrivilegeError,
-            PlistError,
+        default_exceptions = tuple(
+            cls
+            for _, cls in inspect.getmembers(exceptions, inspect.isclass)
+            if issubclass(cls, Exception)
         )
 
         await self.start()
