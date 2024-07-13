@@ -1,6 +1,4 @@
 import asyncio
-import threading
-import time
 from typing import AnyStr, Optional
 
 import asyncclick as click
@@ -14,6 +12,8 @@ from .client.token_manager import TokenManager
 from .client.ui_manager import UIConfigManager
 from .models.reports.excel_report import ExcelReport
 from .models.reports.pdf_report import PDFReport
+from .utils.animation import Animation
+from .utils.logger import LogMe, setup_child_logger
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -22,24 +22,6 @@ DATE_FORMATS = {
     "Day-Month-Year": "%d %B %Y",  # 16 April 2024
     "Full": "%A %B %d %Y",  # Thursday September 26 2013
 }
-
-
-def animate_search(stop_event: threading.Event, enable_animation: bool) -> None:
-    """Animates ellipsis in 'Processing...' message."""
-    if not enable_animation:
-        return
-
-    i = 0
-    max_length = 0
-    while not stop_event.is_set():
-        message = "\rProcessing" + "." * (i % 4)
-        max_length = max(max_length, len(message))
-        click.echo(message, nl=False)
-        i += 1
-        time.sleep(0.5)
-
-    # Clear animation line after stopping
-    click.echo("\r" + " " * max_length + "\r", nl=False)
 
 
 @click.command()
@@ -90,6 +72,13 @@ def animate_search(stop_event: threading.Event, enable_animation: bool) -> None:
     default=False,
     help="Enable debug logging to see detailed debug messages.",
 )
+@click.option(
+    "--reset",
+    "-r",
+    is_flag=True,
+    default=False,
+    help="Resets the setup process and triggers the setup assistant again.",
+)
 async def main(
     path: AnyStr,
     pdf: bool,
@@ -99,6 +88,7 @@ async def main(
     ios: bool,
     concurrency: int,
     debug: bool,
+    reset: bool,
 ) -> None:
     config = ConfigManager()
     token_manager = TokenManager(config)
@@ -108,21 +98,23 @@ async def main(
     pdf_report = PDFReport(ui_config)
     api_client.jamf_client.set_max_concurrency(concurrency=concurrency)
 
+    log = LogMe(setup_child_logger("patcherctl", __name__, debug=debug))
+    animation = Animation(enable_animation=not debug)
+
     setup = Setup(config=config, token_manager=token_manager, ui_config=ui_config)
-    if not setup.completed:
-        await setup.launch()
 
-    patcher = ReportManager(
-        config, token_manager, api_client, excel_report, pdf_report, ui_config, debug
-    )
+    async with animation.error_handling(log):
+        if reset:
+            await setup.reset()
+        elif not setup.completed:
+            await setup.launch()
 
-    actual_format = DATE_FORMATS[date_format]
-    stop_event = threading.Event()
-    enable_animation = not debug
-    animation_thread = threading.Thread(target=animate_search, args=(stop_event, enable_animation))
-    animation_thread.start()
+        patcher = ReportManager(
+            config, token_manager, api_client, excel_report, pdf_report, ui_config, debug
+        )
 
-    await patcher.process_reports(path, pdf, sort, omit, ios, stop_event, actual_format)
+        actual_format = DATE_FORMATS[date_format]
+        await patcher.process_reports(path, pdf, sort, omit, ios, actual_format)
 
 
 if __name__ == "__main__":
