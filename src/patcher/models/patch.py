@@ -1,6 +1,6 @@
 from typing import AnyStr
 
-from .. import logger
+from ..utils import logger
 from . import Model
 
 logthis = logger.setup_child_logger("PatchTitle", __name__)
