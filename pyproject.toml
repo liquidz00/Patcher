@@ -91,6 +91,7 @@ select = [
   "N802",
   "N806"
 ]
+per-file-ignores = {"utils/animation.py" = ["F403"]}
 
 [tool.pytest.ini_options]
 minversion = "6.0"
