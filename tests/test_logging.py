@@ -1,12 +1,13 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from src.patcher.logger import LogMe, setup_child_logger
+
+from patcher.utils.logger import LogMe, setup_child_logger
 
 
 @pytest.fixture
 def mock_setup_child_logger():
-    with patch("src.patcher.logger.setup_child_logger") as mock:
+    with patch("src.patcher.utils.logger.setup_child_logger") as mock:
         mock_logger = MagicMock()
         mock.return_value = mock_logger
         yield mock

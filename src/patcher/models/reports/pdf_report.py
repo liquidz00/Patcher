@@ -5,8 +5,8 @@ from typing import AnyStr
 import pandas as pd
 from fpdf import FPDF
 
-from ... import logger
 from ...client.ui_manager import UIConfigManager
+from ...utils import logger
 
 logthis = logger.setup_child_logger("PDFReport", __name__)
 

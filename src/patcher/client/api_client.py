@@ -6,9 +6,10 @@ from typing import AnyStr, Dict, List, Optional
 
 import aiohttp
 
-from .. import logger
+from patcher.utils.wrappers import check_token
+
 from ..models.patch import PatchTitle
-from ..wrappers import check_token
+from ..utils import logger
 from .config_manager import ConfigManager
 from .token_manager import TokenManager
 

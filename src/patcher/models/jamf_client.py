@@ -3,7 +3,7 @@ from urllib.parse import urlparse, urlunparse
 
 from pydantic import field_validator
 
-from .. import logger
+from ..utils import logger
 from . import Model
 from .token import AccessToken
 

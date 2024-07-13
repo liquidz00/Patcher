@@ -4,7 +4,7 @@ from typing import AnyStr, Dict
 
 import aiohttp
 
-from .. import logger
+from ..utils import logger
 
 logthis = logger.setup_child_logger("UIConfigManager", __name__)
 

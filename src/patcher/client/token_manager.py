@@ -4,9 +4,9 @@ from typing import AnyStr, Optional
 
 from aiohttp import ClientResponseError, ClientSession, TCPConnector
 
-from .. import logger
 from ..models.jamf_client import JamfClient
 from ..models.token import AccessToken
+from ..utils import logger
 from .config_manager import ConfigManager
 
 logthis = logger.setup_child_logger("TokenManager", __name__)

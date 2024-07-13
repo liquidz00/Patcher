@@ -4,9 +4,9 @@ from typing import AnyStr, Optional
 import keyring
 from pydantic import ValidationError
 
-from .. import logger
 from ..models.jamf_client import JamfClient
 from ..models.token import AccessToken
+from ..utils import logger
 
 logthis = logger.setup_child_logger("ConfigManager", __name__)
 

@@ -4,7 +4,7 @@ from typing import AnyStr, List, Optional
 
 import pandas as pd
 
-from ... import logger
+from ...utils import logger
 from ..patch import PatchTitle
 
 logthis = logger.setup_child_logger("ExcelReport", __name__)
