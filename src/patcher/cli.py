@@ -26,7 +26,13 @@ DATE_FORMATS = {
 
 @click.command()
 @click.version_option(version=__version__)
-@click.option("--path", "-p", type=click.Path(), required=True, help="Path to save the report")
+@click.option(
+    "--path",
+    "-p",
+    type=click.Path(),
+    required=False,  # Defaulting to false in favor of `--reset`
+    help="Path to save the report(s)",
+)
 @click.option(
     "--pdf",
     "-f",
@@ -79,7 +85,9 @@ DATE_FORMATS = {
     default=False,
     help="Resets the setup process and triggers the setup assistant again.",
 )
+@click.pass_context
 async def main(
+    ctx: click.Context,
     path: AnyStr,
     pdf: bool,
     sort: Optional[AnyStr],
@@ -90,24 +98,50 @@ async def main(
     debug: bool,
     reset: bool,
 ) -> None:
+    if not ctx.params["reset"] and not ctx.params["path"]:
+        raise click.UsageError("The --path option is required unless --reset is specified.")
+
     config = ConfigManager()
-    token_manager = TokenManager(config)
-    api_client = ApiClient(config)
-    excel_report = ExcelReport()
     ui_config = UIConfigManager()
-    pdf_report = PDFReport(ui_config)
-    api_client.jamf_client.set_max_concurrency(concurrency=concurrency)
+    setup = Setup(config=config, ui_config=ui_config)
 
     log = LogMe(setup_child_logger("patcherctl", __name__, debug=debug))
     animation = Animation(enable_animation=not debug)
 
-    setup = Setup(config=config, token_manager=token_manager, ui_config=ui_config)
-
     async with animation.error_handling(log):
         if reset:
-            await setup.reset()
+            click.echo(
+                click.style(
+                    text="Warning! This will remove Patcher client credentials from keychain",
+                    fg="yellow",
+                    bold=True,
+                )
+            )
+            proceed = click.confirm(text="Proceed with reset?", default=False)
+            if proceed:
+                await setup.reset(animator=animation)
+                click.echo(
+                    click.style(text="Reset has completed as expected!", fg="green", bold=True)
+                )
+                return
+            else:
+                return
         elif not setup.completed:
-            await setup.launch()
+            await setup.launch(animator=animation)
+            click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
+            click.echo("Patcher is now ready for use.")
+            click.echo("You can use the --help flag to view available options.")
+            click.echo(
+                "For more information, visit our project wiki: https://github.com/liquidz00/Patcher/wiki"
+            )
+            return
+
+        token_manager = TokenManager(config)
+
+        api_client = ApiClient(config)
+        excel_report = ExcelReport()
+        pdf_report = PDFReport(ui_config)
+        api_client.jamf_client.set_max_concurrency(concurrency=concurrency)
 
         patcher = ReportManager(
             config, token_manager, api_client, excel_report, pdf_report, ui_config, debug
