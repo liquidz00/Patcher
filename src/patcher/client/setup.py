@@ -18,16 +18,17 @@ from .ui_manager import UIConfigManager
 logthis = logger.setup_child_logger("Setup", __name__)
 
 # Welcome messages
-GREET = "Thanks for downloading patcher!\n"
+GREET = "Thanks for downloading Patcher!\n"
 
 WELCOME = """It looks like this is your first time using the tool. We will guide you through the initial setup to get you started.
 
-The setup assistant will prompt you for your Jamf URL, your Jamf Pro username and your Jamf Pro password. Patcher ONLY uses this information to create the necessary API roles and Clients on your behalf, your credentials are not stored whatsoever. A Client ID, Client Secret, and Bearer Token will be generated for you and saved to your keychain.
-Once the token has been retrieved and saved, you will be prompted to enter in the header and footer text for PDF reports, should you choose to generate them.
+The setup assistant will prompt you for your Jamf URL, your Jamf Pro username and your Jamf Pro password. Patcher ONLY uses this information to create the necessary API role and client on your behalf, your credentials are not stored whatsoever. Once generated, these client credentials (and generated bearer token) can be found in your keychain.
 
-For more information, visit our project wiki: https://github.com/liquidz00/Patcher/wiki
+You will be prompted to enter in the header and footer text for PDF reports, should you choose to generate them. These can be configured later by modifying the 'config.ini' file in Patcher's Application Support directory stored in the user library.
 
 """
+WIKI = "For more information, visit our project wiki: https://github.com/liquidz00/Patcher/wiki\n"
+
 CONTRIBUTE = "Want to contribute? We'd welcome it! Submit a feature request on the repository and we will reach out as soon as possible!\n"
 
 
@@ -106,8 +107,9 @@ class Setup:
         Displays the greeting and welcome messages.
         """
         click.echo(click.style(GREET, fg="cyan", bold=True))
-        click.echo(click.style(WELCOME, fg="white"), nl=False)
-        click.echo(click.style(CONTRIBUTE, fg="yellow"))
+        click.echo(click.style(WELCOME), nl=False)
+        click.echo(click.style(WIKI, fg="yellow", bold=True))
+        click.echo(click.style(CONTRIBUTE, fg="magenta"))
 
     def _set_complete(self):
         """
