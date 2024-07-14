@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import AnyStr, Optional
 
 import keyring
+from keyring.errors import PasswordDeleteError
 from pydantic import ValidationError
 
 from ..models.jamf_client import JamfClient
@@ -14,7 +15,7 @@ logthis = logger.setup_child_logger("ConfigManager", __name__)
 class ConfigManager:
     """Manages configuration settings, mainly loading and saving credentials in keychain"""
 
-    def __init__(self, service_name: AnyStr = "patcher"):
+    def __init__(self, service_name: AnyStr = "Patcher"):
         """
         Initializes the ConfigManager with a specific service name.
 
@@ -55,6 +56,25 @@ class ConfigManager:
         keyring.set_password(self.service_name, key, value)
         logthis.info(f"Credential for key '{key}' set successfully")
 
+    def delete_credential(self, key: AnyStr) -> bool:
+        """
+        Deletes a credential in the keyring.
+
+        :param key: The key of the credential to delete.
+        :type key: AnyStr
+        :raises keyring.errors.PasswordDeleteError: If credential could not be deleted.
+        :return: True if credential was able to be removed, False otherwise.
+        :rtype: bool
+        """
+        logthis.debug(f"Deleting credential for key: {key}")
+        try:
+            keyring.delete_password(self.service_name, key)
+            logthis.info(f"Credential {key} deleted as expected.")
+            return True
+        except PasswordDeleteError as e:
+            logthis.warning(f"Could not delete credential for {key}: {e}")
+            return False
+
     def load_token(self) -> AccessToken:
         """
         Loads the access token from the keyring.
@@ -91,3 +111,16 @@ class ConfigManager:
         except ValidationError as e:
             logthis.error(f"Jamf Client failed validation: {e}")
             return None
+
+    def create_client(self, client: JamfClient):
+        logthis.debug(f"Setting Jamf client: {client.client_id}")
+        credentials = {
+            "CLIENT_ID": client.client_id,
+            "CLIENT_SECRET": client.client_secret,
+            "URL": client.server,
+            "TOKEN": client.token.token,
+            "TOKEN_EXPIRATION": client.token.expires.isoformat(),
+        }
+        for key, value in credentials.items():
+            self.set_credential(key, value)
+        logthis.info("Jamf client credentials and token saved successfully")
