@@ -12,6 +12,22 @@ class PatcherError(Exception):
         raise click.Abort()
 
 
+class CredentialDeletionError(PatcherError):
+    """Raised when there is an error fetching a bearer token from Jamf API."""
+
+    def __init__(self, message="Unable to delete credential", cred=None):
+        self.cred = cred
+        if cred:
+            message = f"{message} - Reason: {cred}"
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self):
+        if self.cred:
+            return f"{self.message} - Reason: {self.cred}"
+        return self.message
+
+
 class TokenFetchError(PatcherError):
     """Raised when there is an error fetching a bearer token from Jamf API."""
 
