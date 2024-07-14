@@ -4,15 +4,17 @@ import shutil
 import sys
 from asyncio import Lock, sleep
 from configparser import ConfigParser
+from datetime import datetime, timedelta, timezone
 from typing import AnyStr, Optional, Tuple
 
 import aiohttp
 import click
 
+from ..models.jamf_client import JamfClient
 from ..models.token import AccessToken
 from ..utils import exceptions, logger
+from ..utils.animation import Animation
 from .config_manager import ConfigManager
-from .token_manager import TokenManager
 from .ui_manager import UIConfigManager
 
 logthis = logger.setup_child_logger("Setup", __name__)
@@ -29,8 +31,6 @@ You will be prompted to enter in the header and footer text for PDF reports, sho
 """
 WIKI = "For more information, visit our project wiki: https://github.com/liquidz00/Patcher/wiki\n"
 
-CONTRIBUTE = "Want to contribute? We'd welcome it! Submit a feature request on the repository and we will reach out as soon as possible!\n"
-
 
 class Setup:
     """
@@ -40,21 +40,17 @@ class Setup:
     def __init__(
         self,
         config: ConfigManager,
-        token_manager: TokenManager,
         ui_config: UIConfigManager,
     ):
         """
-        Initializes the Setup class with the provided configuration, token manager, and UI configuration.
+        Initializes the Setup class with the provided configuration and UI configuration.
 
         :param config: The configuration manager instance.
         :type config: ConfigManager
-        :param token_manager: The token manager instance.
-        :type token_manager: TokenManager
         :param ui_config: The UI configuration manager instance.
         :type ui_config: UIConfigManager
         """
         self.config = config
-        self.token_manager = token_manager
         self.ui_config = ui_config
         self.plist_path = os.path.expanduser(
             "~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist"
@@ -108,8 +104,7 @@ class Setup:
         """
         click.echo(click.style(GREET, fg="cyan", bold=True))
         click.echo(click.style(WELCOME), nl=False)
-        click.echo(click.style(WIKI, fg="yellow", bold=True))
-        click.echo(click.style(CONTRIBUTE, fg="magenta"))
+        click.echo(click.style(WIKI, fg="bright_magenta", bold=True))
 
     def _set_complete(self):
         """
@@ -134,7 +129,7 @@ class Setup:
         :raises FileNotFoundError: IF the specified font file paths do not exist.
         """
         header_text = click.prompt("Enter the Header Text to use on PDF reports")
-        footer_text = click.prompt("Enter the Header Text to use on PDF reports")
+        footer_text = click.prompt("Enter the Footer Text to use on PDF reports")
 
         use_custom_font = click.confirm("Would you like to use a custom font?", default=False)
         font_dir = os.path.join(self.ui_config.user_config_dir, "fonts")
@@ -251,9 +246,13 @@ class Setup:
             ],
         }
         role_url = f"{self.jamf_url}/api/v1/api-roles"
-        headers = {"accept": "application/json", "Authorization": f"Bearer {token}"}
+        headers = {
+            "accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        }
         async with aiohttp.ClientSession() as session:
-            async with session.post(url=role_url, data=payload, headers=headers) as resp:
+            async with session.post(url=role_url, json=payload, headers=headers) as resp:
                 resp.raise_for_status()
                 return resp.status == 200
 
@@ -272,9 +271,13 @@ class Setup:
             "enabled": True,
             "accessTokenLifetimeSeconds": 1800,  # 30 minutes in seconds
         }
-        headers = {"accept": "application/json", "Authorization": f"Bearer {self.token}"}
+        headers = {
+            "accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.token}",
+        }
         async with aiohttp.ClientSession() as session:
-            async with session.post(url=client_url, data=payload, headers=headers) as resp:
+            async with session.post(url=client_url, json=payload, headers=headers) as resp:
                 resp.raise_for_status()
                 client_response = await resp.json()
                 if not client_response:
@@ -295,6 +298,38 @@ class Setup:
                     )
                 client_secret = secret_response.get("clientSecret")
         return client_id, client_secret
+
+    async def _fetch_bearer(
+        self, url: AnyStr, client_id: AnyStr, client_secret: AnyStr
+    ) -> Optional[AccessToken]:
+        async with self.lock:
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    "client_id": client_id,
+                    "grant_type": "client_credentials",
+                    "client_secret": client_secret,
+                }
+                headers = {"Content-Type": "application/x-www-form-urlencoded"}
+                async with session.post(
+                    url=f"{url}/api/oauth/token", data=payload, headers=headers
+                ) as resp:
+                    resp.raise_for_status()
+                    try:
+                        json_response = await resp.json()
+                    except aiohttp.ClientResponseError as e:
+                        logthis.error(f"Failed to fetch a token: {e}")
+                        return None
+
+                    bearer_token = json_response.get("access_token")
+                    expires_in = json_response.get("expires_in", 0)
+
+                    if not isinstance(bearer_token, str) or expires_in <= 0:
+                        logthis.error("Received invalid token response")
+                        return None
+
+                    expiration = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+                    access_token = AccessToken(token=bearer_token, expires=expiration)
+                    return access_token
 
     async def first_run(self):
         """
@@ -327,10 +362,18 @@ class Setup:
                 await sleep(3)
 
                 # Generate bearer token and save it
-                token = await self.token_manager.fetch_token()
+                token = await self._fetch_bearer(
+                    url=api_url, client_id=api_client_id, client_secret=api_client_secret
+                )
 
-                if token and isinstance(token, AccessToken):
-                    self.token_manager.save_token(token)
+                if token:
+                    jamf_client = JamfClient(
+                        client_id=api_client_id,
+                        client_secret=api_client_secret,
+                        server=api_url,
+                        token=token,
+                    )
+                    self.config.create_client(jamf_client)
                     self._setup_ui()
                     self._set_complete()
                 else:
@@ -339,7 +382,7 @@ class Setup:
         else:
             self.log.debug("First run already completed.")
 
-    async def launch(self):
+    async def launch(self, animator: Animation, show_msg: bool = True, confirm: bool = True):
         """
         Launches the setup assistant, prompting the user for necessary information and handling the setup process.
 
@@ -348,22 +391,27 @@ class Setup:
         :raises aiohttp.ClientError: If there is an error making the HTTP request.
         """
         self.log.debug("Detected first run has not been completed. Starting setup assistant...")
-        self._greet()
+        if show_msg:
+            self._greet()
 
-        # Prompt end user to proceed when ready
-        proceed = click.confirm("Ready to proceed?", default=False)
+        if confirm:
+            # Prompt end user to proceed when ready
+            proceed = click.confirm("Ready to proceed?", default=False)
 
-        if not proceed:
-            click.echo("We'll be ready when you are!")
-            self.log.info(f"User opted not to proceed with setup. User response was: {proceed}")
-            sys.exit()
+            if not proceed:
+                click.echo("We'll be ready when you are!")
+                self.log.info(f"User opted not to proceed with setup. User response was: {proceed}")
+                sys.exit()
 
         self.jamf_url = click.prompt("Enter your Jamf Pro URL")
         username = click.prompt("Enter your Jamf Pro username")
         password = click.prompt("Enter your Jamf Pro password", hide_input=True)
 
+        await animator.update_msg("Retrieving basic token")
         try:
-            token_success = await self._basic_token(username=username, password=password)
+            token_success = await self._basic_token(
+                username=username, password=password, jamf_url=self.jamf_url
+            )
             if not token_success:
                 use_sso = click.confirm(
                     "We received a 401 response. Are you using SSO?", default=False
@@ -390,11 +438,13 @@ class Setup:
                 err=True,
             )
 
+        await animator.update_msg("Creating roles")
         role_created = await self._create_roles()
         if not role_created:
             self.log.error("Failed creating API roles. Exiting...")
             click.echo(click.style("Failed to create API roles.", fg="red"), err=True)
 
+        await animator.update_msg("Creating client")
         client_id, client_secret = await self._create_client()
         if not client_id:
             click.echo(
@@ -413,6 +463,7 @@ class Setup:
                 err=True,
             )
 
+        await animator.update_msg("Saving URL and client credentials")
         # Create ConfigManager, save credentials
         self.config.set_credential("URL", self.jamf_url)
         self.config.set_credential("CLIENT_ID", client_id)
@@ -421,10 +472,17 @@ class Setup:
         # Wait a short time to ensure creds are saved
         await sleep(3)
 
+        await animator.update_msg("Fetching bearer token")
         # Fetch Token and save if successful
-        token = await self.token_manager.fetch_token()
-        if token and isinstance(token, AccessToken):
-            self.token_manager.save_token(token)
+        token = await self._fetch_bearer(
+            url=self.jamf_url, client_id=client_id, client_secret=client_secret
+        )
+        if token:
+            # Create JamfClient object with all credentials
+            jamf_client = JamfClient(
+                client_id=client_id, client_secret=client_secret, server=self.jamf_url, token=token
+            )
+            self.config.create_client(jamf_client)
         else:
             self.log.error("Token failed validation. Notifying user and exiting...")
             click.echo(
@@ -435,18 +493,27 @@ class Setup:
                 err=True,
             )
 
+        await animator.update_msg("Bearer token retrieved!")
+        animator.stop_event.set()
         # Setup UI Configuration
         self._setup_ui()
 
         # Set first run flag to True upon completion
         self._set_complete()
 
-    async def reset(self):
+    async def reset(self, animator: Animation):
         """
-        Resets the setup process by setting _completed to False, updating the `first_run_done` flag in the plist file to False, and retriggers the function.
+        Resets the setup process by setting _completed to False, updating the `first_run_done` flag in the plist file to False, removing any Patcher credentials from keychain and retriggers the setup function.
         """
         # Set completed to False
         self.completed = False
+
+        # Delete any patcher credentials stored in keychain
+        creds = ["URL", "CLIENT_ID", "CLIENT_SECRET", "TOKEN", "TOKEN_EXPIRATION"]
+        cred_check = [self.config.delete_credential(cred) for cred in creds]
+        if not cred_check:
+            self.log.warning("Unable to remove all Patcher credentials from keychain.")
+            raise exceptions.CredentialDeletionError()
 
         # Update the plist file
         plist_data = {"first_run_done": False}
@@ -458,4 +525,4 @@ class Setup:
             raise exceptions.PlistError(path=self.plist_path)
 
         # Retrigger launch
-        await self.launch()
+        await self.launch(show_msg=False, confirm=False, animator=animator)

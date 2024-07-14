@@ -8,16 +8,15 @@ from src.patcher.client.setup import Setup
 
 
 @pytest.fixture
-def setup_instance(config_manager, token_manager, ui_config, mock_jamf_client):
-    instance = Setup(config=config_manager, token_manager=token_manager, ui_config=ui_config)
+def setup_instance(config_manager, ui_config, mock_jamf_client):
+    instance = Setup(config=config_manager, ui_config=ui_config)
     instance.config.attach_client.return_value = mock_jamf_client
     return instance
 
 
 @pytest.mark.asyncio
-async def test_init(setup_instance, config_manager, token_manager, ui_config):
+async def test_init(setup_instance, config_manager, ui_config):
     assert setup_instance.config == config_manager
-    assert setup_instance.token_manager == token_manager
     assert setup_instance.ui_config == ui_config
     assert setup_instance.plist_path == os.path.expanduser(
         "~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist"
