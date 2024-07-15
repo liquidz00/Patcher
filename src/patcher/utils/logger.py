@@ -48,15 +48,17 @@ def setup_logger(
 
 
 def setup_child_logger(
-    name_of_logger: AnyStr, name_of_child: AnyStr, debug: Optional[bool] = False
+    name_of_child: AnyStr,
+    name_of_logger: Optional[AnyStr] = logger_name,
+    debug: Optional[bool] = False,
 ) -> logging.Logger:
     """
     Setup a child logger for a specified context.
 
-    :param name_of_logger: The name of the parent logger.
-    :type name_of_logger: AnyStr
     :param name_of_child: The name of the child logger.
     :type name_of_child: AnyStr
+    :param name_of_logger: The name of the parent logger, defaults to 'patcher'
+    :type name_of_logger: AnyStr
     :param debug: Whether to set the child logger level to DEBUG, defaults to False.
     :type debug: Optional[bool]
     :return:
@@ -76,12 +78,14 @@ class LogMe:
     """
     A wrapper class for logging with additional output to console using click.
 
-    :param logger: The logger instance to wrap.
-    :type logger: logging.Logger
+    :param class_name: The name of the class for which the logger is being set up.
+    :type class_name: AnyStr
+    :param debug: Whether to set the child logger level to DEBUG, defaults to False.
+    :type debug: Optional[bool]
     """
 
-    def __init__(self, logger: logging.Logger):
-        self.logger = logger
+    def __init__(self, class_name: AnyStr, debug: Optional[bool] = False):
+        self.logger = setup_child_logger(logger_name, class_name, debug)
 
     def is_debug_enabled(self) -> bool:
         """
