@@ -38,20 +38,20 @@ class PDFReport(FPDF):
         """
         super().__init__(orientation=orientation, unit=unit, format=format)
         self.date_format = date_format
-        self.config = ui_config.get_ui_config()
+        self.ui_config = ui_config.get_ui_config()
 
-        self.add_font(self.config.get("FONT_NAME"), "", self.config.get("FONT_REGULAR_PATH"))
-        self.add_font(self.config.get("FONT_NAME"), "B", self.config.get("FONT_BOLD_PATH"))
+        self.add_font(self.ui_config.get("FONT_NAME"), "", self.ui_config.get("FONT_REGULAR_PATH"))
+        self.add_font(self.ui_config.get("FONT_NAME"), "B", self.ui_config.get("FONT_BOLD_PATH"))
 
         self.table_headers = []
         self.column_widths = []
 
     def header(self):
         """Creates the header section for each page of the PDF report."""
-        self.set_font(self.config.get("FONT_NAME"), "B", 24)
-        self.cell(0, 10, self.config.get("HEADER_TEXT"), new_x="LMARGIN", new_y="NEXT")
+        self.set_font(self.ui_config.get("FONT_NAME"), "B", 24)
+        self.cell(0, 10, self.ui_config.get("HEADER_TEXT"), new_x="LMARGIN", new_y="NEXT")
 
-        self.set_font(self.config.get("FONT_NAME"), "", 18)
+        self.set_font(self.ui_config.get("FONT_NAME"), "", 18)
         self.cell(
             0,
             10,
@@ -66,7 +66,7 @@ class PDFReport(FPDF):
     def add_table_header(self):
         """Adds the table header to the PDF report."""
         self.set_y(30)
-        self.set_font(self.config.get("FONT_NAME"), "B", 11)
+        self.set_font(self.ui_config.get("FONT_NAME"), "B", 11)
         for header, width in zip(self.table_headers, self.column_widths):
             self.cell(width, 10, header, border=1, align="C")
         self.ln(10)
@@ -74,9 +74,9 @@ class PDFReport(FPDF):
     def footer(self):
         """Creates the footer section for each page of the PDF report."""
         self.set_y(-15)
-        self.set_font(self.config.get("FONT_NAME"), "", 6)
+        self.set_font(self.ui_config.get("FONT_NAME"), "", 6)
         self.set_text_color(175, 175, 175)
-        footer_text = f"{self.config.get('FOOTER_TEXT')} | Page " + str(self.page_no())
+        footer_text = f"{self.ui_config.get('FOOTER_TEXT')} | Page " + str(self.page_no())
         self.cell(0, 10, footer_text, 0, 0, "R")
 
     def export_excel_to_pdf(self, excel_file: AnyStr, date_format: AnyStr = "%B %d %Y") -> None:
@@ -100,7 +100,7 @@ class PDFReport(FPDF):
             pdf.add_table_header()
 
             # Data rows
-            pdf.set_font(self.config.get("FONT_NAME"), "", 9)
+            pdf.set_font(self.ui_config.get("FONT_NAME"), "", 9)
             for index, row in df.iterrows():
                 for data, width in zip(row, pdf.column_widths):
                     pdf.cell(width, 10, str(data), border=1, align="C")
