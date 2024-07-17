@@ -85,7 +85,7 @@ class LogMe:
     """
 
     def __init__(self, class_name: AnyStr, debug: Optional[bool] = False):
-        self.logger = setup_child_logger(logger_name, class_name, debug)
+        self.logger = setup_child_logger(class_name, logger_name, debug)
 
     def is_debug_enabled(self) -> bool:
         """
@@ -116,8 +116,9 @@ class LogMe:
         :type msg: AnyStr
         """
         self.logger.info(msg)
-        std_output = style(text=f"\rINFO: {msg.strip()}", fg="blue", bold=False)
-        echo(message=std_output, err=False)
+        if self.is_debug_enabled():
+            std_output = style(text=f"\rINFO: {msg.strip()}", fg="blue", bold=False)
+            echo(message=std_output, err=False)
 
     def warning(self, msg: AnyStr):
         """
@@ -127,8 +128,9 @@ class LogMe:
         :type msg: AnyStr
         """
         self.logger.warning(msg)
-        warn_out = style(text=f"\rWARNING: {msg.strip()}", fg="yellow", bold=True)
-        echo(message=warn_out, err=False)
+        if self.is_debug_enabled():
+            warn_out = style(text=f"\rWARNING: {msg.strip()}", fg="yellow", bold=True)
+            echo(message=warn_out, err=False)
 
     def error(self, msg: AnyStr):
         """

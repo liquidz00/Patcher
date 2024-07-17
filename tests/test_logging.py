@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from patcher.utils.logger import LogMe, setup_child_logger
+from patcher.utils.logger import LogMe
 
 
 @pytest.fixture
@@ -16,7 +16,8 @@ def mock_setup_child_logger():
 # Test logging functionality - Info
 def test_log_me_info(mock_setup_child_logger, capsys):
     mock_logger = mock_setup_child_logger.return_value
-    log_me = LogMe(mock_logger)
+    log_me = LogMe("TestClass", debug=True)
+    log_me.logger = mock_logger
     log_me.info("This is an info message")
     mock_logger.info.assert_called_once_with("This is an info message")
 
@@ -27,7 +28,8 @@ def test_log_me_info(mock_setup_child_logger, capsys):
 # Test logging functionality - Error
 def test_log_me_error(mock_setup_child_logger, capsys):
     mock_logger = mock_setup_child_logger.return_value
-    log_me = LogMe(mock_logger)
+    log_me = LogMe("TestClass", debug=True)
+    log_me.logger = mock_logger
     log_me.error("This is an error message")
     mock_logger.error.assert_called_once_with("This is an error message")
 
@@ -35,31 +37,28 @@ def test_log_me_error(mock_setup_child_logger, capsys):
     assert "This is an error message" in captured.err
 
 
-def test_debug_logging_enabled(capture_logs):
-    child_logger = setup_child_logger("patcher", "test_debug_enabled", debug=True)
-    log_me = LogMe(child_logger)
-
+def test_debug_logging_enabled(mock_setup_child_logger, capsys):
+    child_logger = mock_setup_child_logger.return_value
+    log_me = LogMe("TestClass", debug=True)
+    log_me.logger = child_logger
     log_me.debug("This is a debug message")
+    child_logger.debug.assert_called_once_with("This is a debug message")
 
-    capture_logs.seek(0)
-    assert "This is a debug message" in capture_logs.getvalue()
+    # capture_logs.seek(0)
+    captured = capsys.readouterr()
+    assert "This is a debug message" in captured.out
 
 
-def test_debug_logging_disabled(capture_logs):
-    child_logger = setup_child_logger("patcher", "test_debug_disabled")
-    log_me = LogMe(child_logger)
-
+def test_debug_logging_disabled(mock_setup_child_logger, capsys):
+    child_logger = mock_setup_child_logger.return_value
+    child_logger.isEnabledFor.return_value = False
+    log_me = LogMe("TestClass", debug=False)
+    log_me.logger = child_logger
     log_me.debug("This is a debug message when debug is disabled")
+    child_logger.debug.assert_called_once_with("This is a debug message when debug is disabled")
 
-    capture_logs.seek(0)
-    assert "This is a debug message when debug is disabled" not in capture_logs.getvalue()
+    captured = capsys.readouterr()
+    print("Captured stdout:", captured.out)
+    print("Captured stderr:", captured.err)
 
-
-def test_info_logging(capture_logs):
-    child_logger = setup_child_logger("patcher", "test_debug_disabled")
-    log_me = LogMe(child_logger)
-
-    log_me.info("This is an info message")
-
-    capture_logs.seek(0)
-    assert "This is an info message" in capture_logs.getvalue()
+    assert "This is a debug message when debug is disabled" not in captured.out
