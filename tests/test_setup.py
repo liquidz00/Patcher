@@ -21,7 +21,7 @@ async def test_init(setup_instance, config_manager, ui_config):
     assert setup_instance.plist_path == os.path.expanduser(
         "~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist"
     )
-    assert setup_instance._completed is False
+    assert setup_instance._completed is None
     assert setup_instance.token is None
     assert setup_instance.jamf_url is None
 
