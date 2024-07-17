@@ -120,7 +120,7 @@ class TokenManager:
             )
         else:
             self.log.info(
-                f"Token lifetime is sfficient for {client.client_id}. Remaining Lifetime: {client.token.seconds_remaining}"
+                f"Token lifetime is sufficient for {client.client_id}. Remaining Lifetime: {client.token.seconds_remaining}"
             )
             return True
 
