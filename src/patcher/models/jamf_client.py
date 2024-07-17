@@ -3,11 +3,8 @@ from urllib.parse import urlparse, urlunparse
 
 from pydantic import field_validator
 
-from ..utils import logger
 from . import Model
 from .token import AccessToken
-
-logthis = logger.setup_child_logger("JamfClient", __name__)
 
 
 class JamfClient(Model):
@@ -103,6 +100,5 @@ class JamfClient(Model):
         :type concurrency: int
         """
         if concurrency < 1:
-            logthis.error("Concurrency level must be at least 1!")
             raise ValueError("Concurrency level must be at least 1. ")
         self.max_concurrency = concurrency

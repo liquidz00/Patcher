@@ -3,10 +3,7 @@ from typing import AnyStr
 
 from pydantic import Field
 
-from ..utils import logger
 from . import Model
-
-logthis = logger.setup_child_logger("AccessToken", __name__)
 
 
 class AccessToken(Model):
