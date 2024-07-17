@@ -25,6 +25,8 @@ class ApiClient:
         :type config: ConfigManager
         :raises ValueError: If the JamfClient configuration is invalid.
         """
+        self.log = logger.LogMe(self.__class__.__name__)
+        self.log.debug("Initializing ApiClient")
         self.config = config
         self.jamf_client = config.attach_client()
         if self.jamf_client:
@@ -40,8 +42,6 @@ class ApiClient:
         }
         self.token_manager = TokenManager(config)
         self.max_concurrency = self.jamf_client.max_concurrency
-        self.log = logger.LogMe(self.__class__.__name__)
-        self.log.debug("Initializing ApiClient")
 
     def convert_timezone(self, utc_time_str: AnyStr) -> Optional[AnyStr]:
         """
