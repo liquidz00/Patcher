@@ -53,11 +53,11 @@ class Setup:
         self.plist_path = os.path.expanduser(
             "~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist"
         )
-        self._completed = False
         self.token = None
         self.jamf_url = None
         self.lock = Lock()
         self.log = logger.LogMe(self.__class__.__name__)
+        self._completed = None
 
     @property
     def completed(self) -> bool:
@@ -67,6 +67,8 @@ class Setup:
         :return: True if setup completed, False otherwise.
         :rtype: bool
         """
+        if self._completed is None:
+            self._is_complete()
         return self._completed
 
     @completed.setter
@@ -90,19 +92,10 @@ class Setup:
             try:
                 with open(self.plist_path, "rb") as fp:
                     plist_data = plistlib.load(fp)
-                    self.completed = plist_data.get("first_run_done", False)
+                    self._completed = plist_data.get("first_run_done", False)
             except Exception as e:
                 self.log.error(f"Error reading plist file: {e}")
                 raise exceptions.PlistError()
-
-    @staticmethod
-    def _greet():
-        """
-        Displays the greeting and welcome messages.
-        """
-        click.echo(click.style(GREET, fg="cyan", bold=True))
-        click.echo(click.style(WELCOME), nl=False)
-        click.echo(click.style(WIKI, fg="bright_magenta", bold=True))
 
     def _set_complete(self):
         """
@@ -119,6 +112,15 @@ class Setup:
         except Exception as e:
             self.log.error(f"Error writing to plist file: {e}")
             raise exceptions.PlistError(path=self.plist_path)
+
+    @staticmethod
+    def _greet():
+        """
+        Displays the greeting and welcome messages.
+        """
+        click.echo(click.style(GREET, fg="cyan", bold=True))
+        click.echo(click.style(WELCOME), nl=False)
+        click.echo(click.style(WIKI, fg="bright_magenta", bold=True))
 
     def _setup_ui(self):
         """
