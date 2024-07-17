@@ -1,8 +1,8 @@
 import configparser
 import os
+import urllib.request
 from typing import AnyStr, Dict
-
-import aiohttp
+from urllib.error import URLError
 
 from ..utils import logger
 
@@ -24,29 +24,27 @@ class UIConfigManager:
         self.user_config_dir = os.path.expanduser("~/Library/Application Support/Patcher")
         self.user_config_path = os.path.join(self.user_config_dir, "config.ini")
         self.font_dir = os.path.join(self.user_config_dir, "fonts")
-        os.makedirs(self.font_dir, exist_ok=True)
         self.log = logger.LogMe(self.__class__.__name__)
         self.load_ui_config()
 
-    async def download_font(self, url: AnyStr, dest_path: AnyStr):
+    def download_font(self, url: AnyStr, dest_path: AnyStr):
         """Downloads Assistant font families from specified URL to destination path"""
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                resp.raise_for_status()
-                if resp.status == 200:
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+        try:
+            with urllib.request.urlopen(url=url) as response:
+                if response.status == 200:
                     with open(dest_path, "wb") as f:
-                        while True:
-                            chunk = await resp.content.read(1024)
-                            if not chunk:
-                                break
-                            f.write(chunk)
+                        f.write(response.read())
                 else:
                     self.log.error(
-                        f"Unable to download default fonts! Received status: {resp.status}"
+                        f"Unable to download default fonts! Received status: {response.status}"
                     )
-                    raise OSError("Unable to download default fonts!")
+                    raise OSError("Unable to download default fonts.")
+        except URLError as e:
+            self.log.error(f"Unable to download default fonts: {e}")
+            raise OSError(f"Unable to download default fonts: {e}")
 
-    async def create_default_config(self):
+    def create_default_config(self):
         """Creates config.ini with default settings."""
         default_config = {
             "Settings": {"patcher_path": self.user_config_dir},
@@ -63,22 +61,20 @@ class UIConfigManager:
         os.makedirs(self.user_config_dir, exist_ok=True)
 
         # Download fonts
-        await self.download_font(
+        self.download_font(
             self.REGULAR_FONT_URL, os.path.join(self.font_dir, "Assistant-Regular.ttf")
         )
-        await self.download_font(
-            self.BOLD_FONT_URL, os.path.join(self.font_dir, "Assistant-Bold.ttf")
-        )
+        self.download_font(self.BOLD_FONT_URL, os.path.join(self.font_dir, "Assistant-Bold.ttf"))
 
         # Write default configuration
         with open(self.user_config_path, "w") as configfile:
             self.config.read_dict(default_config)
             self.config.write(configfile)
 
-    async def load_ui_config(self):
+    def load_ui_config(self):
         """Loads the UI configuration from the default and user configuration files."""
         if not os.path.exists(self.user_config_path):
-            await self.create_default_config()
+            self.create_default_config()
 
         # Load configs
         self.config.read(self.user_config_path)
