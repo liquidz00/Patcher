@@ -9,8 +9,6 @@ from ..models.jamf_client import JamfClient
 from ..models.token import AccessToken
 from ..utils import logger
 
-logthis = logger.setup_child_logger("ConfigManager", __name__)
-
 
 class ConfigManager:
     """Manages configuration settings, mainly loading and saving credentials in keychain"""
@@ -23,8 +21,9 @@ class ConfigManager:
             Defaults to 'patcher'.
         :type service_name: AnyStr
         """
-        logthis.debug(f"Initializing ConfigManager with service name: {service_name}")
+        self.log = logger.LogMe(self.__class__.__name__)
         self.service_name = service_name
+        self.log.debug(f"Initializing ConfigManager with service name: {service_name}")
 
     def get_credential(self, key: AnyStr) -> AnyStr:
         """
@@ -35,12 +34,12 @@ class ConfigManager:
         :return: The retrieved credential value.
         :rtype: AnyStr
         """
-        logthis.debug(f"Retrieving credential for key: {key}")
+        self.log.debug(f"Retrieving credential for key: {key}")
         credential = keyring.get_password(self.service_name, key)
         if credential:
-            logthis.info(f"Credential for key '{key}' retrieved successfully")
+            self.log.info(f"Credential for key '{key}' retrieved successfully")
         else:
-            logthis.warning(f"No credential found for key: {key}")
+            self.log.warning(f"No credential found for key: {key}")
         return credential
 
     def set_credential(self, key: AnyStr, value: AnyStr):
@@ -52,9 +51,9 @@ class ConfigManager:
         :param value: The value of the credential to set.
         :type value: AnyStr
         """
-        logthis.debug(f"Setting credential for key: {key}")
+        self.log.debug(f"Setting credential for key: {key}")
         keyring.set_password(self.service_name, key, value)
-        logthis.info(f"Credential for key '{key}' set successfully")
+        self.log.info(f"Credential for key '{key}' set successfully")
 
     def delete_credential(self, key: AnyStr) -> bool:
         """
@@ -66,13 +65,13 @@ class ConfigManager:
         :return: True if credential was able to be removed, False otherwise.
         :rtype: bool
         """
-        logthis.debug(f"Deleting credential for key: {key}")
+        self.log.debug(f"Deleting credential for key: {key}")
         try:
             keyring.delete_password(self.service_name, key)
-            logthis.info(f"Credential {key} deleted as expected.")
+            self.log.info(f"Credential {key} deleted as expected.")
             return True
         except PasswordDeleteError as e:
-            logthis.warning(f"Could not delete credential for {key}: {e}")
+            self.log.warning(f"Could not delete credential for {key}: {e}")
             return False
 
     def load_token(self) -> AccessToken:
@@ -82,13 +81,13 @@ class ConfigManager:
         :return: The access token with its expiration date.
         :rtype: AccessToken
         """
-        logthis.debug("Loading token from keyring")
+        self.log.debug("Loading token from keyring")
         token = self.get_credential("TOKEN") or ""
         expires = (
             self.get_credential("TOKEN_EXPIRATION")
             or datetime(1970, 1, 1, tzinfo=timezone.utc).isoformat()
         )
-        logthis.info("Token and expiration loaded from keyring")
+        self.log.info("Token and expiration loaded from keyring")
         return AccessToken(token=token, expires=expires)
 
     def attach_client(self) -> Optional[JamfClient]:
@@ -98,7 +97,7 @@ class ConfigManager:
         :return: The Jamf client if validation is successful, None otherwise.
         :rtype: Optional[JamfClient]
         """
-        logthis.debug("Attaching Jamf client with stored credentials")
+        self.log.debug("Attaching Jamf client with stored credentials")
         try:
             client = JamfClient(
                 client_id=self.get_credential("CLIENT_ID"),
@@ -106,14 +105,14 @@ class ConfigManager:
                 server=self.get_credential("URL"),
                 token=self.load_token(),
             )
-            logthis.info("Jamf client attached successfully")
+            self.log.info("Jamf client attached successfully")
             return client
         except ValidationError as e:
-            logthis.error(f"Jamf Client failed validation: {e}")
+            self.log.error(f"Jamf Client failed validation: {e}")
             return None
 
     def create_client(self, client: JamfClient):
-        logthis.debug(f"Setting Jamf client: {client.client_id}")
+        self.log.debug(f"Setting Jamf client: {client.client_id}")
         credentials = {
             "CLIENT_ID": client.client_id,
             "CLIENT_SECRET": client.client_secret,
@@ -123,4 +122,4 @@ class ConfigManager:
         }
         for key, value in credentials.items():
             self.set_credential(key, value)
-        logthis.info("Jamf client credentials and token saved successfully")
+        self.log.info("Jamf client credentials and token saved successfully")

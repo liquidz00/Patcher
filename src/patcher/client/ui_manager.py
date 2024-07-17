@@ -6,8 +6,6 @@ import aiohttp
 
 from ..utils import logger
 
-logthis = logger.setup_child_logger("UIConfigManager", __name__)
-
 
 class UIConfigManager:
     """Manages the user interface configuration settings (Header & Footer text of the exported PDF class,
@@ -27,10 +25,10 @@ class UIConfigManager:
         self.user_config_path = os.path.join(self.user_config_dir, "config.ini")
         self.font_dir = os.path.join(self.user_config_dir, "fonts")
         os.makedirs(self.font_dir, exist_ok=True)
+        self.log = logger.LogMe(self.__class__.__name__)
         self.load_ui_config()
 
-    @staticmethod
-    async def download_font(url: AnyStr, dest_path: AnyStr):
+    async def download_font(self, url: AnyStr, dest_path: AnyStr):
         """Downloads Assistant font families from specified URL to destination path"""
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
@@ -43,12 +41,12 @@ class UIConfigManager:
                                 break
                             f.write(chunk)
                 else:
-                    logthis.error(
+                    self.log.error(
                         f"Unable to download default fonts! Received status: {resp.status}"
                     )
                     raise OSError("Unable to download default fonts!")
 
-    def create_default_config(self):
+    async def create_default_config(self):
         """Creates config.ini with default settings."""
         default_config = {
             "Settings": {"patcher_path": self.user_config_dir},
@@ -65,20 +63,22 @@ class UIConfigManager:
         os.makedirs(self.user_config_dir, exist_ok=True)
 
         # Download fonts
-        self.download_font(
+        await self.download_font(
             self.REGULAR_FONT_URL, os.path.join(self.font_dir, "Assistant-Regular.ttf")
         )
-        self.download_font(self.BOLD_FONT_URL, os.path.join(self.font_dir, "Assistant-Bold.ttf"))
+        await self.download_font(
+            self.BOLD_FONT_URL, os.path.join(self.font_dir, "Assistant-Bold.ttf")
+        )
 
         # Write default configuration
         with open(self.user_config_path, "w") as configfile:
             self.config.read_dict(default_config)
             self.config.write(configfile)
 
-    def load_ui_config(self):
+    async def load_ui_config(self):
         """Loads the UI configuration from the default and user configuration files."""
         if not os.path.exists(self.user_config_path):
-            self.create_default_config()
+            await self.create_default_config()
 
         # Load configs
         self.config.read(self.user_config_path)

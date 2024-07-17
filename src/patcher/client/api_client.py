@@ -13,8 +13,6 @@ from ..utils import logger
 from .config_manager import ConfigManager
 from .token_manager import TokenManager
 
-logthis = logger.setup_child_logger("ApiClient", __name__)
-
 
 class ApiClient:
     """Provides methods for interacting with the Jamf API."""
@@ -27,7 +25,6 @@ class ApiClient:
         :type config: ConfigManager
         :raises ValueError: If the JamfClient configuration is invalid.
         """
-        self.log = logthis
         self.config = config
         self.jamf_client = config.attach_client()
         if self.jamf_client:
@@ -43,10 +40,10 @@ class ApiClient:
         }
         self.token_manager = TokenManager(config)
         self.max_concurrency = self.jamf_client.max_concurrency
+        self.log = logger.LogMe(self.__class__.__name__)
         self.log.debug("Initializing ApiClient")
 
-    @staticmethod
-    def convert_timezone(utc_time_str: AnyStr) -> Optional[AnyStr]:
+    def convert_timezone(self, utc_time_str: AnyStr) -> Optional[AnyStr]:
         """
         Converts a UTC time string to a formatted string without timezone information.
 
@@ -60,7 +57,7 @@ class ApiClient:
             time_str = utc_time.strftime("%b %d %Y")
             return time_str
         except ValueError as e:
-            logthis.error(f"Invalid time format provided. Details: {e}")
+            self.log.error(f"Invalid time format provided. Details: {e}")
             return None
 
     async def fetch_json(self, url: AnyStr, session: aiohttp.ClientSession) -> Optional[Dict]:
@@ -74,7 +71,7 @@ class ApiClient:
         :return: JSON data as a dictionary or an empty dictionary on error.
         :rtype: Optional[Dict]
         """
-        logthis.debug(f"Fetching JSON data from URL: {url}")
+        self.log.debug(f"Fetching JSON data from URL: {url}")
         try:
             async with session.get(url, headers=self.headers) as response:
                 response.raise_for_status()

@@ -17,8 +17,6 @@ from ..utils.animation import Animation
 from .config_manager import ConfigManager
 from .ui_manager import UIConfigManager
 
-logthis = logger.setup_child_logger("Setup", __name__)
-
 # Welcome messages
 GREET = "Thanks for downloading Patcher!\n"
 
@@ -59,7 +57,7 @@ class Setup:
         self.token = None
         self.jamf_url = None
         self.lock = Lock()
-        self.log = logthis
+        self.log = logger.LogMe(self.__class__.__name__)
 
     @property
     def completed(self) -> bool:
@@ -95,7 +93,7 @@ class Setup:
                     self.completed = plist_data.get("first_run_done", False)
             except Exception as e:
                 self.log.error(f"Error reading plist file: {e}")
-                raise exceptions.PlistError
+                raise exceptions.PlistError()
 
     @staticmethod
     def _greet():
@@ -317,14 +315,14 @@ class Setup:
                     try:
                         json_response = await resp.json()
                     except aiohttp.ClientResponseError as e:
-                        logthis.error(f"Failed to fetch a token: {e}")
+                        self.log.error(f"Failed to fetch a token: {e}")
                         return None
 
                     bearer_token = json_response.get("access_token")
                     expires_in = json_response.get("expires_in", 0)
 
                     if not isinstance(bearer_token, str) or expires_in <= 0:
-                        logthis.error("Received invalid token response")
+                        self.log.error("Received invalid token response")
                         return None
 
                     expiration = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
@@ -338,8 +336,8 @@ class Setup:
         :raises SystemExit: If the user opts not to proceed with the setup.
         :raises exceptions.TokenFetchError: If there is an error fetching the token.
         """
-        self.log.debug("Initializing first_run check")
         self._is_complete()
+        self.log.debug("Initializing first_run check")
         if not self.completed:
             self.log.info("Detected first run has not been completed. Starting setup assistant...")
             self._greet()
@@ -390,6 +388,7 @@ class Setup:
         :raises exceptions.TokenFetchError: If the API call to retrieve a token fails.
         :raises aiohttp.ClientError: If there is an error making the HTTP request.
         """
+        self._is_complete()
         self.log.debug("Detected first run has not been completed. Starting setup assistant...")
         if show_msg:
             self._greet()

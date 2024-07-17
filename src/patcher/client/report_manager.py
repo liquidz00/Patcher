@@ -9,7 +9,6 @@ from ..models.reports.excel_report import ExcelReport
 from ..models.reports.pdf_report import PDFReport
 from ..utils import exceptions, logger
 from ..utils.animation import Animation
-from ..utils.logger import LogMe
 from ..utils.wrappers import check_token
 from .api_client import ApiClient
 from .config_manager import ConfigManager
@@ -55,7 +54,7 @@ class ReportManager:
         self.pdf_report = pdf_report
         self.ui_config = ui_config
         self.debug = debug
-        self.log = LogMe(logger.setup_child_logger("patcher", __name__, debug=debug))
+        self.log = logger.LogMe(self.__class__.__name__, debug=self.debug)
 
     def calculate_ios_on_latest(
         self,
