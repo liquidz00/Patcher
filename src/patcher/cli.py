@@ -13,7 +13,7 @@ from .client.ui_manager import UIConfigManager
 from .models.reports.excel_report import ExcelReport
 from .models.reports.pdf_report import PDFReport
 from .utils.animation import Animation
-from .utils.logger import LogMe, setup_child_logger
+from .utils.logger import LogMe
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -105,11 +105,20 @@ async def main(
     ui_config = UIConfigManager()
     setup = Setup(config=config, ui_config=ui_config)
 
-    log = LogMe(setup_child_logger("patcherctl", __name__, debug=debug))
+    log = LogMe(__name__, debug=debug)
     animation = Animation(enable_animation=not debug)
 
     async with animation.error_handling(log):
-        if reset:
+        if not setup.completed:
+            await setup.launch(animator=animation)
+            click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
+            click.echo("Patcher is now ready for use.")
+            click.echo("You can use the --help flag to view available options.")
+            click.echo(
+                "For more information, visit our project wiki: https://github.com/liquidz00/Patcher/wiki"
+            )
+            return
+        elif reset:
             click.echo(
                 click.style(
                     text="Warning! This will remove Patcher client credentials from keychain",
@@ -126,15 +135,6 @@ async def main(
                 return
             else:
                 return
-        elif not setup.completed:
-            await setup.launch(animator=animation)
-            click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
-            click.echo("Patcher is now ready for use.")
-            click.echo("You can use the --help flag to view available options.")
-            click.echo(
-                "For more information, visit our project wiki: https://github.com/liquidz00/Patcher/wiki"
-            )
-            return
 
         token_manager = TokenManager(config)
 
