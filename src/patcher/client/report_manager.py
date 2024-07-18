@@ -185,7 +185,7 @@ class ReportManager:
                 self.log.debug(f"Detected sorting option '{sort}'")
                 sort = sort.lower().replace(" ", "_")
                 try:
-                    patch_reports = sorted(patch_reports, key=lambda x: x[sort])
+                    patch_reports = sorted(patch_reports, key=lambda x: getattr(x, sort))
                     self.log.debug(f"Patch reports sorted by '{sort}'.")
                 except KeyError:
                     self.log.error(
@@ -203,7 +203,7 @@ class ReportManager:
                 patch_reports = [
                     report
                     for report in patch_reports
-                    if datetime.strptime(report["patch_released"], "%b %d %Y") < cutoff
+                    if datetime.strptime(report.released, "%b %d %Y") < cutoff
                 ]
                 omitted_count = original_count - len(patch_reports)
                 self.log.debug(f"Omitted {omitted_count} policies with recent patches.")
