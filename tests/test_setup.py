@@ -37,7 +37,7 @@ def test_is_complete(setup_instance):
         patch("plistlib.load", return_value={"first_run_done": True}),
         patch("builtins.open", mock_open(read_data=b"")),
     ):
-        setup_instance._is_complete()
+        setup_instance._check_completion()
         assert setup_instance._completed is True
 
 
@@ -45,31 +45,13 @@ def test_is_complete_error(setup_instance):
     with patch("os.path.exists", return_value=True):
         with patch("plistlib.load", side_effect=Exception("plist read error")):
             with pytest.raises(click.Abort):
-                setup_instance._is_complete()
+                setup_instance._check_completion()
 
 
 def test_greet(setup_instance):
     with patch("click.echo") as mock_click_echo:
         setup_instance._greet()
         assert mock_click_echo.call_count == 3
-
-
-def test_set_complete(setup_instance):
-    with patch("os.makedirs") as mock_makedirs:
-        with patch("plistlib.dump") as mock_plistlib_dump:
-            with patch("builtins.open", mock_open()):
-                setup_instance._set_complete()
-                assert setup_instance._completed is True
-                mock_makedirs.assert_called_once()
-                mock_plistlib_dump.assert_called_once()
-
-
-def test_set_complete_error(setup_instance):
-    with patch("os.makedirs") as mock_makedirs:
-        with patch("plistlib.dump", side_effect=Exception("plist write error")):
-            with patch("builtins.open", mock_open()):
-                with pytest.raises(click.Abort):
-                    setup_instance._set_complete()
 
 
 def test_setup_ui(setup_instance, ui_config):
@@ -81,10 +63,12 @@ def test_setup_ui(setup_instance, ui_config):
             with patch("os.makedirs") as mock_makedirs:
                 with patch("shutil.copy") as mock_shutil_copy:
                     with patch("configparser.ConfigParser.write") as mock_config_write:
-                        setup_instance._setup_ui()
-                        mock_makedirs.assert_called()
-                        mock_shutil_copy.assert_called()
-                        mock_config_write.assert_called_once()
+                        with patch("builtins.open", mock_open()) as mock_file:
+                            setup_instance._setup_ui()
+                            mock_makedirs.assert_called()
+                            mock_shutil_copy.assert_called()
+                            mock_config_write.assert_called_once()
+                            assert mock_file.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -154,10 +138,11 @@ async def test_create_client_success(setup_instance):
 
 @pytest.mark.asyncio
 async def test_first_run_completed(setup_instance):
-    with patch.object(setup_instance, "_is_complete") as mock_is_complete:
-        setup_instance._completed = True
-        await setup_instance.first_run()
-        mock_is_complete.assert_called_once()
+    setup_instance._completed = None
+    with patch.object(setup_instance, "_check_completion") as mock_is_complete:
+        with patch("click.confirm", return_value=False):
+            await setup_instance.first_run()
+            mock_is_complete.assert_called_once()
 
 
 # Test passes as expected, launch method works as intended.

@@ -1,7 +1,8 @@
 import logging
+import plistlib
 import threading
 from datetime import datetime, timedelta, timezone
-from io import StringIO
+from io import BytesIO, StringIO
 from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
@@ -10,7 +11,6 @@ from src.patcher.client.api_client import ApiClient
 from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.report_manager import ReportManager
 from src.patcher.client.token_manager import TokenManager
-from src.patcher.client.ui_manager import UIConfigManager
 from src.patcher.models.jamf_client import JamfClient
 from src.patcher.models.patch import PatchTitle
 from src.patcher.models.token import AccessToken
@@ -423,4 +423,22 @@ def mock_click():
 
 @pytest.fixture
 def ui_config():
-    return UIConfigManager()
+    ui = MagicMock()
+    ui.user_config_path = "/mock/path/to/config.ini"
+    return ui
+
+
+@pytest.fixture
+def mock_plist_file(request):
+    first_run_done_value = request.param
+    plist_data = {"first_run_done": first_run_done_value}
+    plist_bytes = plistlib.dumps(plist_data, fmt=plistlib.FMT_XML)
+
+    mock_file = BytesIO(plist_bytes)
+
+    with (
+        patch("builtins.open", return_value=mock_file),
+        patch("os.path.exists", return_value=True),
+        patch("os.path.expanduser", return_value="/mock/path/to/plist"),
+    ):
+        yield first_run_done_value

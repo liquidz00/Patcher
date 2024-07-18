@@ -1,3 +1,4 @@
+import configparser
 import os
 import plistlib
 import shutil
@@ -19,7 +20,6 @@ from .ui_manager import UIConfigManager
 
 # Welcome messages
 GREET = "Thanks for downloading Patcher!\n"
-
 WELCOME = """It looks like this is your first time using the tool. We will guide you through the initial setup to get you started.
 
 The setup assistant will prompt you for your Jamf URL, your Jamf Pro username and your Jamf Pro password. Patcher ONLY uses this information to create the necessary API role and client on your behalf, your credentials are not stored whatsoever. Once generated, these client credentials (and generated bearer token) can be found in your keychain.
@@ -67,24 +67,14 @@ class Setup:
         :return: True if setup completed, False otherwise.
         :rtype: bool
         """
-        if self._completed is None:
-            self._is_complete()
-        return self._completed
+        return self._completed if self._completed is not None else self._check_completion()
 
-    @completed.setter
-    def completed(self, value: bool):
-        """
-        Sets the setup process completion status.
-
-        :param value: True if setup completed, False otherwise.
-        :type value: bool
-        """
-        self._completed = value
-
-    def _is_complete(self):
+    def _check_completion(self):
         """
         Checks for the presence of the plist file to determine if setup has been completed.
 
+        :return: True if setup has been completed, False otherwise.
+        :rtype: bool
         :raises exceptions.PlistError: If there is an error reading the plist file.
         """
         self.log.debug("Checking for presence of .plist file")
@@ -95,20 +85,25 @@ class Setup:
                     self._completed = plist_data.get("first_run_done", False)
             except Exception as e:
                 self.log.error(f"Error reading plist file: {e}")
-                raise exceptions.PlistError()
+                print("PlistError is being raised")
+                raise exceptions.PlistError(path=self.plist_path)
+        else:
+            self._completed = False
+        return self._completed
 
-    def _set_complete(self):
+    def _set_plist(self, value: bool = False):
         """
-        Sets the setup completion flag to True by updating the plist file.
+        Sets the passed value to the `first_run_done` key in the property list file in the user library.
 
+        :param value: The value to set in the property list.
+        :type value: bool
         :raises exceptions.PlistError: If there is an error writing to the plist file.
         """
-        plist_data = {"first_run_done": True}
+        plist_data = {"first_run_done": value}
         try:
             os.makedirs(os.path.dirname(self.plist_path), exist_ok=True)
             with open(self.plist_path, "wb") as fp:
                 plistlib.dump(plist_data, fp)
-            self.completed = True
         except Exception as e:
             self.log.error(f"Error writing to plist file: {e}")
             raise exceptions.PlistError(path=self.plist_path)
@@ -130,27 +125,65 @@ class Setup:
         """
         header_text = click.prompt("Enter the Header Text to use on PDF reports")
         footer_text = click.prompt("Enter the Footer Text to use on PDF reports")
-
         use_custom_font = click.confirm("Would you like to use a custom font?", default=False)
         font_dir = os.path.join(self.ui_config.user_config_dir, "fonts")
         os.makedirs(font_dir, exist_ok=True)
 
+        font_name, font_regular_path, font_bold_path = self._configure_font(
+            use_custom_font, font_dir
+        )
+
+        self._save_ui_config(header_text, footer_text, font_name, font_regular_path, font_bold_path)
+
+    @staticmethod
+    def _configure_font(use_custom_font: bool, font_dir: AnyStr) -> Tuple[AnyStr, AnyStr, AnyStr]:
+        """
+        Configures the font settings based on user input.
+
+        :param use_custom_font: Indicates whether to use a custom font.
+        :type use_custom_font: bool
+        :param font_dir:  The directory to store the font files.
+        :type font_dir: AnyStr
+        :return: A tuple containing the font name, regular font path and bold font path.
+        :rtype: Tuple[AnyStr, AnyStr, AnyStr]
+        """
         if use_custom_font:
             font_name = click.prompt("Enter the custom font name", default="CustomFont")
             font_regular_src_path = click.prompt("Enter the path to the regular font file")
             font_bold_src_path = click.prompt("Enter the path to the bold font file")
             font_regular_dest_path = os.path.join(font_dir, os.path.basename(font_regular_src_path))
             font_bold_dest_path = os.path.join(font_dir, os.path.basename(font_bold_src_path))
-
-            # Copy files
             shutil.copy(font_regular_src_path, font_regular_dest_path)
             shutil.copy(font_bold_src_path, font_bold_dest_path)
         else:
             font_name = "Assistant"
             font_regular_dest_path = os.path.join(font_dir, "Assistant-Regular.ttf")
             font_bold_dest_path = os.path.join(font_dir, "Assistant-Bold.ttf")
+        return font_name, font_regular_dest_path, font_bold_dest_path
 
-        parser = ConfigParser()
+    def _save_ui_config(
+        self,
+        header_text: AnyStr,
+        footer_text: AnyStr,
+        font_name: AnyStr,
+        font_regular_path: AnyStr,
+        font_bold_path: AnyStr,
+    ):
+        """
+        Saves the UI configuration settings to the configuration file.
+
+        :param header_text: The header text for PDF reports.
+        :type header_text: AnyStr
+        :param footer_text: The footer text for PDF reports.
+        :type footer_text: AnyStr
+        :param font_name: The name of the font to use.
+        :type font_name: AnyStr
+        :param font_regular_path: The path to the regular font file.
+        :type font_regular_path: AnyStr
+        :param font_bold_path: The path to the bold font file.
+        :type font_bold_path: AnyStr
+        """
+        parser = ConfigParser(interpolation=configparser.ExtendedInterpolation())
         parser.read(self.ui_config.user_config_path)
 
         if "UI" not in parser.sections():
@@ -158,8 +191,8 @@ class Setup:
         parser.set("UI", "HEADER_TEXT", header_text)
         parser.set("UI", "FOOTER_TEXT", footer_text)
         parser.set("UI", "FONT_NAME", font_name)
-        parser.set("UI", "FONT_REGULAR_PATH", font_regular_dest_path)
-        parser.set("UI", "FONT_BOLD_PATH", font_bold_dest_path)
+        parser.set("UI", "FONT_REGULAR_PATH", font_regular_path)
+        parser.set("UI", "FONT_BOLD_PATH", font_bold_path)
 
         with open(self.ui_config.user_config_path, "w") as configfile:
             parser.write(configfile)
@@ -168,7 +201,9 @@ class Setup:
         self, password: AnyStr, username: AnyStr, jamf_url: Optional[AnyStr] = None
     ) -> bool:
         """
-        Asynchronously retrieves a bearer token using basic auth. This function should not be used outside of initial setup/configuration to retrieve a bearer token as this is meant only to obtain client credentials for created API clients and roles.
+        Asynchronously retrieves a bearer token using basic auth.
+
+        This function should not be used outside of initial setup/configuration to retrieve a bearer token as this is meant only to obtain client credentials for created API clients and roles.
 
         :param username: Username of admin Jamf Pro account for authentication. Not permanently stored, only used for initial token retrieval.
         :type username: AnyStr
@@ -176,11 +211,11 @@ class Setup:
         :type password: AnyStr
         :param jamf_url: Jamf Server URL (same as `server_url` in `JamfClient` class)
         :type jamf_url: Optional[AnyStr]
-        :raises: TokenFetchError or click.Abort if call is unauthorized or unsuccessful.
+        :raises exceptions.TokenFetchError: If the call is unauthorized or unsuccessful.
         :returns: True if basic token was generated, False if 401 encountered (SSO)
+        :rtype: bool
         """
-        if jamf_url is None:
-            self.jamf_url = jamf_url
+        self.jamf_url = jamf_url or self.jamf_url
         token_url = f"{jamf_url}/api/v1/auth/token"
         headers = {"accept": "application/json"}
         async with self.lock:
@@ -224,8 +259,7 @@ class Setup:
         :rtype: bool
         :raises aiohttp.ClientError: If there is an error making the HTTP request.
         """
-        if token is None:
-            token = self.token
+        token = token or self.token
         payload = {
             "displayName": "Patcher-Role",
             "privileges": [
@@ -302,6 +336,18 @@ class Setup:
     async def _fetch_bearer(
         self, url: AnyStr, client_id: AnyStr, client_secret: AnyStr
     ) -> Optional[AccessToken]:
+        """
+        Fetches a bearer token using client credentials.
+
+        :param url: The URL to fetch the bearer token from.
+        :type url: AnyStr
+        :param client_id: The client ID.
+        :type client_id: AnyStr
+        :param client_secret: The client secret.
+        :type client_secret: AnyStr
+        :return: An AccessToken object if successful, None otherwise.
+        :rtype: Optional[AccessToken]
+        """
         async with self.lock:
             async with aiohttp.ClientSession() as session:
                 payload = {
@@ -338,8 +384,6 @@ class Setup:
         :raises SystemExit: If the user opts not to proceed with the setup.
         :raises exceptions.TokenFetchError: If there is an error fetching the token.
         """
-        self._is_complete()
-        self.log.debug("Initializing first_run check")
         if not self.completed:
             self.log.info("Detected first run has not been completed. Starting setup assistant...")
             self._greet()
@@ -375,7 +419,8 @@ class Setup:
                     )
                     self.config.create_client(jamf_client)
                     self._setup_ui()
-                    self._set_complete()
+                    self._set_plist(value=True)
+                    self._completed = True
                 else:
                     self.log.error("Failed to fetch a valid token!")
                     raise exceptions.TokenFetchError(reason="Token failed pydantic verification")
@@ -386,128 +431,146 @@ class Setup:
         """
         Launches the setup assistant, prompting the user for necessary information and handling the setup process.
 
+        :param animator: The animation instance to update messages.
+        :type animator: Animation
+        :param show_msg: Whether to show the greeting message.
+        :type show_msg: bool
+        :param confirm: Whether to ask for user confirmation before proceeding.
+        :type confirm: bool
         :raises SystemExit: If the user opts not to proceed with the setup.
         :raises exceptions.TokenFetchError: If the API call to retrieve a token fails.
         :raises aiohttp.ClientError: If there is an error making the HTTP request.
         """
-        self._is_complete()
-        self.log.debug("Detected first run has not been completed. Starting setup assistant...")
-        if show_msg:
-            self._greet()
+        if not self.completed:
+            self.log.debug("Detected first run has not been completed. Starting setup assistant...")
+            if show_msg:
+                self._greet()
 
-        if confirm:
-            # Prompt end user to proceed when ready
-            proceed = click.confirm("Ready to proceed?", default=False)
+            if confirm:
+                # Prompt end user to proceed when ready
+                proceed = click.confirm("Ready to proceed?", default=False)
 
-            if not proceed:
-                click.echo("We'll be ready when you are!")
-                self.log.info(f"User opted not to proceed with setup. User response was: {proceed}")
-                sys.exit()
+                if not proceed:
+                    click.echo("We'll be ready when you are!")
+                    self.log.info(
+                        f"User opted not to proceed with setup. User response was: {proceed}"
+                    )
+                    sys.exit()
 
-        self.jamf_url = click.prompt("Enter your Jamf Pro URL")
-        username = click.prompt("Enter your Jamf Pro username")
-        password = click.prompt("Enter your Jamf Pro password", hide_input=True)
+            self.jamf_url = click.prompt("Enter your Jamf Pro URL")
+            username = click.prompt("Enter your Jamf Pro username")
+            password = click.prompt("Enter your Jamf Pro password", hide_input=True)
 
-        await animator.update_msg("Retrieving basic token")
-        try:
-            token_success = await self._basic_token(
-                username=username, password=password, jamf_url=self.jamf_url
-            )
-            if not token_success:
-                use_sso = click.confirm(
-                    "We received a 401 response. Are you using SSO?", default=False
+            await animator.update_msg("Retrieving basic token")
+            try:
+                token_success = await self._basic_token(
+                    username=username, password=password, jamf_url=self.jamf_url
                 )
-                if use_sso:
-                    await self.first_run()
-                    return
-                else:
-                    token_success = await self._basic_token(username=username, password=password)
-                    if not token_success:
-                        click.echo(
-                            click.style(
-                                text="Unfortunately we received a 401 response again. Please verify your account does not use SSO.",
-                                fg="red",
-                            ),
-                            err=True,
+                if not token_success:
+                    use_sso = click.confirm(
+                        "We received a 401 response. Are you using SSO?", default=False
+                    )
+                    if use_sso:
+                        await self.first_run()
+                        return
+                    else:
+                        token_success = await self._basic_token(
+                            username=username, password=password
                         )
-        except exceptions.TokenFetchError():
-            click.echo(
-                click.style(
-                    text="Unfortunately we received an error trying to obtain a token. Please verify your account details and try again.",
-                    fg="red",
-                ),
-                err=True,
+                        if not token_success:
+                            click.echo(
+                                click.style(
+                                    text="Unfortunately we received a 401 response again. Please verify your account does not use SSO.",
+                                    fg="red",
+                                ),
+                                err=True,
+                            )
+            except exceptions.TokenFetchError():
+                click.echo(
+                    click.style(
+                        text="Unfortunately we received an error trying to obtain a token. Please verify your account details and try again.",
+                        fg="red",
+                    ),
+                    err=True,
+                )
+
+            await animator.update_msg("Creating roles")
+            role_created = await self._create_roles()
+            if not role_created:
+                self.log.error("Failed creating API roles. Exiting...")
+                click.echo(click.style("Failed to create API roles.", fg="red"), err=True)
+
+            await animator.update_msg("Creating client")
+            client_id, client_secret = await self._create_client()
+            if not client_id:
+                click.echo(
+                    click.style(
+                        text="Unable to create API client. Received invalid response.",
+                        fg="red",
+                    ),
+                    err=True,
+                )
+            elif not client_secret:
+                click.echo(
+                    click.style(
+                        text=f"Unable to retrieve client secret. Received invalid response",
+                        fg="red",
+                    ),
+                    err=True,
+                )
+
+            await animator.update_msg("Saving URL and client credentials")
+            # Create ConfigManager, save credentials
+            self.config.set_credential("URL", self.jamf_url)
+            self.config.set_credential("CLIENT_ID", client_id)
+            self.config.set_credential("CLIENT_SECRET", client_secret)
+
+            # Wait a short time to ensure creds are saved
+            await sleep(3)
+
+            await animator.update_msg("Fetching bearer token")
+            # Fetch Token and save if successful
+            token = await self._fetch_bearer(
+                url=self.jamf_url, client_id=client_id, client_secret=client_secret
             )
+            if token:
+                # Create JamfClient object with all credentials
+                jamf_client = JamfClient(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    server=self.jamf_url,
+                    token=token,
+                )
+                self.config.create_client(jamf_client)
+            else:
+                self.log.error("Token failed validation. Notifying user and exiting...")
+                click.echo(
+                    click.style(
+                        text="Token retrieved failed verification and we're unable to proceed!",
+                        fg="red",
+                    ),
+                    err=True,
+                )
 
-        await animator.update_msg("Creating roles")
-        role_created = await self._create_roles()
-        if not role_created:
-            self.log.error("Failed creating API roles. Exiting...")
-            click.echo(click.style("Failed to create API roles.", fg="red"), err=True)
+            await animator.update_msg("Bearer token retrieved and JamfClient saved!")
+            animator.stop_event.set()
+            # Setup UI Configuration
+            self._setup_ui()
 
-        await animator.update_msg("Creating client")
-        client_id, client_secret = await self._create_client()
-        if not client_id:
-            click.echo(
-                click.style(
-                    text="Unable to create API client. Received invalid response.",
-                    fg="red",
-                ),
-                err=True,
-            )
-        elif not client_secret:
-            click.echo(
-                click.style(
-                    text=f"Unable to retrieve client secret. Received invalid response",
-                    fg="red",
-                ),
-                err=True,
-            )
-
-        await animator.update_msg("Saving URL and client credentials")
-        # Create ConfigManager, save credentials
-        self.config.set_credential("URL", self.jamf_url)
-        self.config.set_credential("CLIENT_ID", client_id)
-        self.config.set_credential("CLIENT_SECRET", client_secret)
-
-        # Wait a short time to ensure creds are saved
-        await sleep(3)
-
-        await animator.update_msg("Fetching bearer token")
-        # Fetch Token and save if successful
-        token = await self._fetch_bearer(
-            url=self.jamf_url, client_id=client_id, client_secret=client_secret
-        )
-        if token:
-            # Create JamfClient object with all credentials
-            jamf_client = JamfClient(
-                client_id=client_id, client_secret=client_secret, server=self.jamf_url, token=token
-            )
-            self.config.create_client(jamf_client)
-        else:
-            self.log.error("Token failed validation. Notifying user and exiting...")
-            click.echo(
-                click.style(
-                    text="Token retrieved failed verification and we're unable to proceed!",
-                    fg="red",
-                ),
-                err=True,
-            )
-
-        await animator.update_msg("Bearer token retrieved!")
-        animator.stop_event.set()
-        # Setup UI Configuration
-        self._setup_ui()
-
-        # Set first run flag to True upon completion
-        self._set_complete()
+            # Set first run flag to True upon completion
+            self._set_plist(value=True)
+            self._completed = True
 
     async def reset(self, animator: Animation):
         """
         Resets the setup process by setting _completed to False, updating the `first_run_done` flag in the plist file to False, removing any Patcher credentials from keychain and retriggers the setup function.
+
+        :param animator: The animation instance to update messages.
+        :type animator: Animation
+        :raises exceptions.CredentialDeletionError: If there is an error removing credentials.
         """
         # Set completed to False
-        self.completed = False
+        self._completed = False
 
         # Delete any patcher credentials stored in keychain
         creds = ["URL", "CLIENT_ID", "CLIENT_SECRET", "TOKEN", "TOKEN_EXPIRATION"]
@@ -517,13 +580,7 @@ class Setup:
             raise exceptions.CredentialDeletionError()
 
         # Update the plist file
-        plist_data = {"first_run_done": False}
-        try:
-            with open(self.plist_path, "wb") as fp:
-                plistlib.dump(plist_data, fp)
-        except Exception as e:
-            self.log.error(f"Error writing to plist file: {e}")
-            raise exceptions.PlistError(path=self.plist_path)
+        self._set_plist(value=False)
 
         # Retrigger launch
         await self.launch(show_msg=False, confirm=False, animator=animator)
