@@ -111,6 +111,59 @@ def mock_summary_response():
         },
     ]
 
+@pytest.fixture
+def mock_patch_title_response():
+    def get_iso_format(dt):
+        return dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+    yield [
+        PatchTitle(
+            title="Google Chrome",
+            released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=3)),
+            hosts_patched=23,
+            missing_patch=163,
+            completion_percent=(
+                round(
+                    (23 / (23 + 163)) * 100,
+                    2,
+                )
+                if 23 + 163 > 0
+                else 0
+            ),
+            total_hosts=23 + 163,
+        ),
+        PatchTitle(
+            title="Jamf Connect",
+            released=get_iso_format(datetime.now(pytz.utc) - timedelta(hours=24)),
+            hosts_patched=185,
+            missing_patch=19,
+            completion_percent=(
+                round(
+                    (185 / (185 + 19)) * 100,
+                    2,
+                )
+                if 185 + 19 > 0
+                else 0
+            ),
+            total_hosts=185 + 19,
+        ),
+        PatchTitle(
+            title="Apple macOS Ventura",
+            released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=7)),
+            hosts_patched=6,
+            missing_patch=5,
+            completion_percent=(
+                round(
+                    (6 / (6 + 5)) * 100,
+                    2,
+                )
+                if 6 + 5 > 0
+                else 0
+            ),
+            total_hosts=6 + 5,
+        ),
+    ]
+
 
 @pytest.fixture
 def mock_api_integration_response():
@@ -338,14 +391,14 @@ def stop_event_fixture():
 
 
 @pytest.fixture
-def patcher_instance(mock_policy_response, mock_summary_response):
+def patcher_instance(mock_policy_response, mock_patch_title_response):
     config = MagicMock()
     ui_config = MagicMock()
     token_manager = AsyncMock()
     api_client = AsyncMock()
 
     api_client.get_policies.return_value = mock_policy_response
-    api_client.get_summaries.return_value = mock_summary_response
+    api_client.get_summaries.return_value = mock_patch_title_response
 
     excel_report = MagicMock()
     pdf_report = MagicMock()
