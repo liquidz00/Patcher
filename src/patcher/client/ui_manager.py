@@ -1,7 +1,7 @@
 import configparser
 import os
 import urllib.request
-from typing import AnyStr, Dict
+from typing import AnyStr, Dict, Optional
 from urllib.error import URLError
 
 from ..utils import logger
@@ -117,3 +117,28 @@ class UIConfigManager:
 
     def get(self, key: AnyStr, fallback: AnyStr = None) -> AnyStr:
         return self.get_ui_config().get(key, fallback)
+
+    def reset_config(self, config_path: Optional[AnyStr] = None) -> bool:
+        """
+        Resets User Interface values in config.ini file.
+
+        :param config_path: The path of the configuration file. Defaults to self.user_config_path
+        :type config_path: Optional[AnyStr]
+        :return: True if reset is successful, False otherwise.
+        :rtype: bool
+        """
+        config_path = config_path or self.user_config_path
+        parser = configparser.ConfigParser()
+        try:
+            parser.read(config_path)
+            if "UI" in parser:
+                for key in parser["UI"]:
+                    parser.remove_option("UI", key)
+                with open(config_path, "w") as configfile:
+                    parser.write(configfile)
+                    return True
+            else:
+                return False
+        except Exception as e:
+            self.log.error(f"An unexpected error occurred: {e}")
+            return False
