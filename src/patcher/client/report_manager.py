@@ -187,7 +187,7 @@ class ReportManager:
                 try:
                     patch_reports = sorted(patch_reports, key=lambda x: getattr(x, sort))
                     self.log.debug(f"Patch reports sorted by '{sort}'.")
-                except KeyError:
+                except (KeyError, AttributeError):
                     self.log.error(
                         f"Invalid column name for sorting: {sort.title().replace('_', ' ')}. Aborting...",
                     )
