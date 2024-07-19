@@ -1,4 +1,4 @@
-from typing import AnyStr, Optional
+from typing import AnyStr, List, Optional
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import field_validator
@@ -102,3 +102,31 @@ class JamfClient(Model):
         if concurrency < 1:
             raise ValueError("Concurrency level must be at least 1. ")
         self.max_concurrency = concurrency
+
+
+class ApiRole(Model):
+    display_name: AnyStr = "Patcher-Role"
+    privileges: List[AnyStr] = [
+        "Read Patch Management Software Titles",
+        "Read Patch Policies",
+        "Read Mobile Devices",
+        "Read Mobile Device Inventory Collection",
+        "Read Mobile Device Applications",
+        "Read Patch Management Settings",
+        "Create API Integrations",
+        "Create API Roles",
+        "Read API Integrations",
+        "Read API Roles",
+        "Update API Integrations",
+        "Update API Roles",
+        "Delete API Integrations",
+        "Delete API Roles",
+    ]
+
+
+class ApiClient(Model):
+    # integration_id: int
+    auth_scopes: List[AnyStr] = ["Patcher-Role"]
+    display_name: AnyStr = "Patcher-Client"
+    enabled: bool = True
+    token_lifetime: int = 1800
