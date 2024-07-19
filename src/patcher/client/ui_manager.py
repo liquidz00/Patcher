@@ -25,7 +25,17 @@ class UIConfigManager:
         self.user_config_path = os.path.join(self.user_config_dir, "config.ini")
         self.font_dir = os.path.join(self.user_config_dir, "fonts")
         self.log = logger.LogMe(self.__class__.__name__)
+        self._fonts_saved = None
         self.load_ui_config()
+
+    @property
+    def fonts_present(self) -> bool:
+        """Check if default fonts have already been downloaded"""
+        if self._fonts_saved is None:
+            regular_font_path = os.path.join(self.font_dir, "Assistant-Regular.ttf")
+            bold_font_path = os.path.join(self.font_dir, "Assistant-Bold.ttf")
+            self._fonts_saved = os.path.exists(regular_font_path) and os.path.exists(bold_font_path)
+        return self._fonts_saved
 
     def download_font(self, url: AnyStr, dest_path: AnyStr):
         """Downloads Assistant font families from specified URL to destination path"""
@@ -60,11 +70,14 @@ class UIConfigManager:
         # Ensure directory exists
         os.makedirs(self.user_config_dir, exist_ok=True)
 
-        # Download fonts
-        self.download_font(
-            self.REGULAR_FONT_URL, os.path.join(self.font_dir, "Assistant-Regular.ttf")
-        )
-        self.download_font(self.BOLD_FONT_URL, os.path.join(self.font_dir, "Assistant-Bold.ttf"))
+        # Download fonts if not already present
+        if not self.fonts_present:
+            self.download_font(
+                self.REGULAR_FONT_URL, os.path.join(self.font_dir, "Assistant-Regular.ttf")
+            )
+            self.download_font(
+                self.BOLD_FONT_URL, os.path.join(self.font_dir, "Assistant-Bold.ttf")
+            )
 
         # Write default configuration
         with open(self.user_config_path, "w") as configfile:
