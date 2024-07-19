@@ -11,7 +11,7 @@ from typing import AnyStr, Optional, Tuple
 import aiohttp
 import click
 
-from ..models.jamf_client import JamfClient
+from ..models.jamf_client import ApiClient, ApiRole, JamfClient
 from ..models.token import AccessToken
 from ..utils import exceptions, logger
 from ..utils.animation import Animation
@@ -260,24 +260,10 @@ class Setup:
         :raises aiohttp.ClientError: If there is an error making the HTTP request.
         """
         token = token or self.token
+        role = ApiRole()
         payload = {
-            "displayName": "Patcher-Role",
-            "privileges": [
-                "Read Patch Management Software Titles",
-                "Read Patch Policies",
-                "Read Mobile Devices",
-                "Read Mobile Device Inventory Collection",
-                "Read Mobile Device Applications",
-                "Read Patch Management Settings",
-                "Create API Integrations",
-                "Create API Roles",
-                "Read API Integrations",
-                "Read API Roles",
-                "Update API Integrations",
-                "Update API Roles",
-                "Delete API Integrations",
-                "Delete API Roles",
-            ],
+            "displayName": role.display_name,
+            "privileges": role.privileges,
         }
         role_url = f"{self.jamf_url}/api/v1/api-roles"
         headers = {
@@ -290,7 +276,7 @@ class Setup:
                 resp.raise_for_status()
                 return resp.status == 200
 
-    async def _create_client(self) -> Tuple[AnyStr, AnyStr]:
+    async def _create_client(self, token: Optional[AnyStr] = None) -> Tuple[AnyStr, AnyStr]:
         """
         Creates an API client and retrieves its client ID and client secret.
 
@@ -298,17 +284,19 @@ class Setup:
         :rtype: tuple[AnyStr, AnyStr]
         :raises aiohttp.ClientError: If there is an error making the HTTP request.
         """
+        token = token or self.token
+        client = ApiClient()
         client_url = f"{self.jamf_url}/api/v1/api-integrations"
         payload = {
-            "authorizationScopes": ["Patcher-Role"],
-            "displayName": "Patcher-Client",
-            "enabled": True,
-            "accessTokenLifetimeSeconds": 1800,  # 30 minutes in seconds
+            "authorizationScopes": client.auth_scopes,
+            "displayName": client.display_name,
+            "enabled": client.enabled,
+            "accessTokenLifetimeSeconds": client.token_lifetime,  # 30 minutes in seconds
         }
         headers = {
             "accept": "application/json",
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.token}",
+            "Authorization": f"Bearer {token}",
         }
         async with aiohttp.ClientSession() as session:
             async with session.post(url=client_url, json=payload, headers=headers) as resp:
@@ -563,24 +551,15 @@ class Setup:
 
     async def reset(self, animator: Animation):
         """
-        Resets the setup process by setting _completed to False, updating the `first_run_done` flag in the plist file to False, removing any Patcher credentials from keychain and retriggers the setup function.
+        Resets the user interface elements of PDF reports by modifying config.ini
 
         :param animator: The animation instance to update messages.
         :type animator: Animation
-        :raises exceptions.CredentialDeletionError: If there is an error removing credentials.
         """
-        # Set completed to False
-        self._completed = False
-
-        # Delete any patcher credentials stored in keychain
-        creds = ["URL", "CLIENT_ID", "CLIENT_SECRET", "TOKEN", "TOKEN_EXPIRATION"]
-        cred_check = [self.config.delete_credential(cred) for cred in creds]
-        if not cred_check:
-            self.log.warning("Unable to remove all Patcher credentials from keychain.")
-            raise exceptions.CredentialDeletionError()
-
-        # Update the plist file
-        self._set_plist(value=False)
-
-        # Retrigger launch
-        await self.launch(show_msg=False, confirm=False, animator=animator)
+        # Clear exisiting UI configuration
+        reset_config = self.ui_config.reset_config()
+        if not reset_config:
+            self.log.error("Encountered an issue resetting elements in config.ini.")
+            raise OSError("The UI element configuration file could not be reset as expected.")
+        else:
+            self._setup_ui()

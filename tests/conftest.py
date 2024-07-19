@@ -111,6 +111,7 @@ def mock_summary_response():
         },
     ]
 
+
 @pytest.fixture
 def mock_patch_title_response():
     def get_iso_format(dt):
