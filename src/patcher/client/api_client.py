@@ -49,8 +49,8 @@ class ApiClient:
 
         :param utc_time_str: UTC time string in ISO 8601 format.
         :type utc_time_str: AnyStr
-        :return: Formatted time string or error message.
-        :rtype: AnyStr
+        :return: Formatted time string or None on error.
+        :rtype: Optional[AnyStr]
         """
         try:
             utc_time = datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S%z")
@@ -68,7 +68,7 @@ class ApiClient:
         :type url: AnyStr
         :param session: Async session used to make the request, instance of aiohttp.ClientSession.
         :type session: aiohttp.ClientSession
-        :return: JSON data as a dictionary or an empty dictionary on error.
+        :return: JSON data as a dictionary or None on error.
         :rtype: Optional[Dict]
         """
         self.log.debug(f"Fetching JSON data from URL: {url}")
@@ -139,8 +139,8 @@ class ApiClient:
 
         :param policy_ids: List of policy IDs to retrieve summaries for.
         :type policy_ids: List
-        :return: List of dictionaries containing patch summaries or None on error.
-        :rtype: Optional[List]
+        :return: List of `PatchTitle` objects containing patch summaries or None on error.
+        :rtype: Optional[List[PatchTitle]]
         """
         urls = [
             f"{self.jamf_url}/api/v2/patch-software-title-configurations/{policy}/patch-summary"
