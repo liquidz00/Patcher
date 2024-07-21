@@ -128,7 +128,7 @@ async def main(
             )
             proceed = click.confirm(text="Proceed with reset?", default=False)
             if proceed:
-                await setup.reset(animator=animation)
+                await setup.reset()
                 click.echo(
                     click.style(text="Reset has completed as expected!", fg="green", bold=True)
                 )
