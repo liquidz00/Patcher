@@ -28,6 +28,7 @@ class PatchTitle(Model):
         completion_percent (float): The percentage of hosts that have applied the patch.
         total_hosts (int): The total number of hosts.
     """
+
     title: AnyStr
     released: AnyStr
     hosts_patched: int

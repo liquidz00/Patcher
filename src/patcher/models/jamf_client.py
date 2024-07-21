@@ -131,6 +131,7 @@ class ApiRole(Model):
             - "Delete API Integrations"
             - "Delete API Roles"
     """
+
     display_name: AnyStr = "Patcher-Role"
     privileges: List[AnyStr] = [
         "Read Patch Management Software Titles",
@@ -169,6 +170,7 @@ class ApiClient(Model):
         enabled (bool): Indicates whether the API client is enabled. Default is True.
         token_lifetime (int): The lifetime of the token in seconds. Default is 1800.
     """
+
     auth_scopes: List[AnyStr] = ["Patcher-Role"]
     display_name: AnyStr = "Patcher-Client"
     enabled: bool = True
