@@ -62,13 +62,13 @@ class ReportManager:
         latest_versions: List[Dict[AnyStr, AnyStr]],
     ) -> Optional[List[PatchTitle]]:
         """
-        Calculates the amount of enrolled devices are on the latest version of their respective operating system.
+        Calculates the amount of enrolled devices on the latest version of their respective operating system.
 
-        :param device_versions: A list of nested dictionaries containing devices and corresponding operating system versions
+        :param device_versions: A list of nested dictionaries containing devices and corresponding operating system versions.
         :type device_versions: List[Dict[AnyStr, AnyStr]]
-        :param latest_versions: A list of latest available iOS versions, from SOFA feed
+        :param latest_versions: A list of latest available iOS versions, from SOFA feed.
         :type latest_versions: List[Dict[AnyStr, AnyStr]]
-        :return: A list with calculated data per iOS version
+        :return: A list with calculated data per iOS version, or None on error.
         """
         if not device_versions or not latest_versions:
             self.log.error("Error calculating iOS Versions. Received None instead of a List")
@@ -119,20 +119,28 @@ class ReportManager:
         Asynchronously generates and saves patch reports in Excel format at the specified path,
         optionally generating PDF versions, sorting by a specified column, and omitting recent entries.
 
-        :param path: Directory path to save the reports
+        :param path: Directory path to save the reports.
         :type path: AnyStr
         :param pdf: Generate PDF versions of the reports if True.
         :type pdf: bool
         :param sort: Column name to sort the reports.
         :type sort: Optional[AnyStr]
-        :param omit: Omit reports based on a condition if True.
+        :param omit: Omit patches released within 48 hours if True.
         :type omit: bool
-        :param ios: Include iOS device data if True
+        :param ios: Include iOS device data if True.
         :type ios: bool
-        :param date_format: Format for dates in the header. Default is "%B %d %Y" (Month Day Year)
+        :param date_format: Format for dates in the header. Default is "%B %d %Y" (Month Day Year).
         :type date_format: AnyStr
 
-        :return: None. Raises click.Abort on errors.
+        :return: None.
+        :raises exceptions.DirectoryCreationError: If the provided path is a file or directories cannot be created.
+        :raises exceptions.PolicyFetchError: If no policy IDs are retrieved.
+        :raises exceptions.SummaryFetchError: If no patch summaries are retrieved.
+        :raises exceptions.SortError: If sorting by an invalid column name.
+        :raises exceptions.DeviceIDFetchError: If mobile device IDs cannot be retrieved.
+        :raises exceptions.DeviceOSFetchError: If device OS versions cannot be retrieved.
+        :raises exceptions.SofaFeedError: If there is an issue with retrieving data from the SOFA feed.
+        :raises exceptions.ExportError: If there is an error exporting reports to Excel or PDF.
         """
         animation = Animation(enable_animation=not self.debug)
 
