@@ -19,8 +19,7 @@ class JamfClient(Model):
     :type server: AnyStr
     :param token: The access token for the Jamf client.
     :type token: Optional[AccessToken]
-    :param max_concurrency: The maximum concurrency level for API calls.
-        Defaults to 5 per Jamf Developer documentation.
+    :param max_concurrency: The maximum concurrency level for API calls. Defaults to 5 per Jamf Developer documentation.
     :type max_concurrency: int
     """
 
@@ -112,24 +111,6 @@ class ApiRole(Model):
     :type display_name: AnyStr
     :ivar privileges: A list of privileges assigned ot the API role.
     :type privileges: List[AnyStr]
-
-    Attributes:
-        display_name (AnyStr): The name of the API role. Default is "Patcher-Role".
-        privileges (List[AnyStr]): The list of privileges associated with this role. Defaults to:
-        - "Read Patch Management Software Titles"
-            - "Read Patch Policies"
-            - "Read Mobile Devices"
-            - "Read Mobile Device Inventory Collection"
-            - "Read Mobile Device Applications"
-            - "Read Patch Management Settings"
-            - "Create API Integrations"
-            - "Create API Roles"
-            - "Read API Integrations"
-            - "Read API Roles"
-            - "Update API Integrations"
-            - "Update API Roles"
-            - "Delete API Integrations"
-            - "Delete API Roles"
     """
 
     display_name: AnyStr = "Patcher-Role"
@@ -163,12 +144,6 @@ class ApiClient(Model):
     :type enabled: bool
     :ivar token_lifetime: The lifetime of the token in seconds.
     :type token_lifetime: int
-
-    Attributes:
-        auth_scopes (List[AnyStr]): The list of authentication scopes assigned to the API client. Default is ["Patcher-Role"]
-        display_name (AnyStr): The name of the API client. Default is "Patcher-Client".
-        enabled (bool): Indicates whether the API client is enabled. Default is True.
-        token_lifetime (int): The lifetime of the token in seconds. Default is 1800.
     """
 
     auth_scopes: List[AnyStr] = ["Patcher-Role"]
