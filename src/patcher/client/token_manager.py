@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import AnyStr, Optional
+from typing import AnyStr, Optional, Tuple
 
 from aiohttp import ClientResponseError, ClientSession, TCPConnector
 
@@ -57,12 +57,12 @@ class TokenManager:
         self.log.debug(f"Token validity check: {valid}")
         return valid
 
-    def get_credentials(self):
+    def get_credentials(self) -> Tuple[AnyStr, AnyStr]:
         """
         Retrieves the client ID and client secret from the JamfClient.
 
         :return: Tuple containing the client ID and client secret.
-        :rtype: tuple
+        :rtype: Tuple[AnyStr, AnyStr]
         """
         self.log.debug("Retrieving credentials from JamfClient")
         return self.jamf_client.client_id, self.jamf_client.client_secret
@@ -128,7 +128,7 @@ class TokenManager:
         """
         Asynchronously fetches a new token from the Jamf API.
 
-        :return: The fetched access token, or None if fetching fails.
+        :return: The fetched AccessToken, or None if fetching fails.
         :rtype: Optional[AccessToken]
         """
         async with self.lock:
