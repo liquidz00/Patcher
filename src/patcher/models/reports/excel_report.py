@@ -27,15 +27,6 @@ class ExcelReport:
         """
         current_date = datetime.now().strftime("%m-%d-%y")
 
-        # column_order = [
-        #     "software_title",
-        #     "patch_released",
-        #     "hosts_patched",
-        #     "missing_patch",
-        #     "completion_percent",
-        #     "total_hosts",
-        # ]
-
         try:
             df = pd.DataFrame([patch.model_dump() for patch in patch_reports])
             df.columns = [column.replace("_", " ").title() for column in df.columns]
