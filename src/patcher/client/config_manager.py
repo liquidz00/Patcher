@@ -18,7 +18,7 @@ class ConfigManager:
         Initializes the ConfigManager with a specific service name.
 
         :param service_name: The name of the service for storing credentials in the keyring.
-            Defaults to 'patcher'.
+            Defaults to 'Patcher'.
         :type service_name: AnyStr
         """
         self.log = logger.LogMe(self.__class__.__name__)
@@ -61,7 +61,6 @@ class ConfigManager:
 
         :param key: The key of the credential to delete.
         :type key: AnyStr
-        :raises keyring.errors.PasswordDeleteError: If credential could not be deleted.
         :return: True if credential was able to be removed, False otherwise.
         :rtype: bool
         """
@@ -78,7 +77,7 @@ class ConfigManager:
         """
         Loads the access token from the keyring.
 
-        :return: The access token with its expiration date.
+        :return: The access token and token expiration.
         :rtype: AccessToken
         """
         self.log.debug("Loading token from keyring")
@@ -92,9 +91,9 @@ class ConfigManager:
 
     def attach_client(self) -> Optional[JamfClient]:
         """
-        Attaches a Jamf client using the stored credentials.
+        Attaches a `JamfClient` object using the stored credentials.
 
-        :return: The Jamf client if validation is successful, None otherwise.
+        :return: The JamfClient object if validation is successful, None otherwise.
         :rtype: Optional[JamfClient]
         """
         self.log.debug("Attaching Jamf client with stored credentials")
@@ -112,6 +111,12 @@ class ConfigManager:
             return None
 
     def create_client(self, client: JamfClient):
+        """
+        Creates a `JamfClient` object with necessary attributes. Predominantly used by `Setup` class methods.
+
+        :param client: The JamfClient object to create.
+        :type client: JamfClient
+        """
         self.log.debug(f"Setting Jamf client: {client.client_id}")
         credentials = {
             "CLIENT_ID": client.client_id,
