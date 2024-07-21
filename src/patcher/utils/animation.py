@@ -15,7 +15,9 @@ class Animation:
         Initialize the Animation object.
 
         :param message_template: The base message to display.
+        :type message_template: AnyStr
         :param enable_animation: Flag to enable or disable animation.
+        :type enable_animation: bool
         """
         self.stop_event = asyncio.Event()
         self.message_template = message_template
@@ -40,7 +42,12 @@ class Animation:
             await self.task
 
     async def update_msg(self, new_message_template: AnyStr):
-        """Update the message template."""
+        """
+        Update the message template.
+
+        :param new_message_template: The new animation message to show.
+        :type new_message_template: AnyStr
+        """
         async with self.lock:
             clear_message = "\r" + " " * self.last_message_length + "\r"
             click.echo(clear_message, nl=False)
