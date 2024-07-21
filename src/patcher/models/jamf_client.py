@@ -105,6 +105,32 @@ class JamfClient(Model):
 
 
 class ApiRole(Model):
+    """
+    Represents an API role with specific privileges required for Patcher to operate.
+
+    :ivar display_name: The name of the API role.
+    :type display_name: AnyStr
+    :ivar privileges: A list of privileges assigned ot the API role.
+    :type privileges: List[AnyStr]
+
+    Attributes:
+        display_name (AnyStr): The name of the API role. Default is "Patcher-Role".
+        privileges (List[AnyStr]): The list of privileges associated with this role. Defaults to:
+        - "Read Patch Management Software Titles"
+            - "Read Patch Policies"
+            - "Read Mobile Devices"
+            - "Read Mobile Device Inventory Collection"
+            - "Read Mobile Device Applications"
+            - "Read Patch Management Settings"
+            - "Create API Integrations"
+            - "Create API Roles"
+            - "Read API Integrations"
+            - "Read API Roles"
+            - "Update API Integrations"
+            - "Update API Roles"
+            - "Delete API Integrations"
+            - "Delete API Roles"
+    """
     display_name: AnyStr = "Patcher-Role"
     privileges: List[AnyStr] = [
         "Read Patch Management Software Titles",
@@ -125,7 +151,24 @@ class ApiRole(Model):
 
 
 class ApiClient(Model):
-    # integration_id: int
+    """
+    Represents an API client with specific authentication scopes and settings required for Patcher.
+
+    :ivar auth_scopes: A list of authentication scopes assigned to the API client.
+    :type auth_scopes: List[AnyStr]
+    :ivar display_name: The name of the API client.
+    :type display_name: AnyStr
+    :ivar enabled: Indicates whether the API client is enabled.
+    :type enabled: bool
+    :ivar token_lifetime: The lifetime of the token in seconds.
+    :type token_lifetime: int
+
+    Attributes:
+        auth_scopes (List[AnyStr]): The list of authentication scopes assigned to the API client. Default is ["Patcher-Role"]
+        display_name (AnyStr): The name of the API client. Default is "Patcher-Client".
+        enabled (bool): Indicates whether the API client is enabled. Default is True.
+        token_lifetime (int): The lifetime of the token in seconds. Default is 1800.
+    """
     auth_scopes: List[AnyStr] = ["Patcher-Role"]
     display_name: AnyStr = "Patcher-Client"
     enabled: bool = True
