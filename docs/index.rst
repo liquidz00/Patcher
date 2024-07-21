@@ -3,15 +3,39 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Patcher documentation
+Patcher
 =====================
 
-Add your content using ``reStructuredText`` syntax. See the
-`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
-documentation for details.
+Patcher is crafted with the needs of Mac Admins in mind, offering a streamlined approach to the often complex and time-consuming task of patch management. By automating the extraction and formatting of patch data, Patcher not only saves time but also ensures accuracy and consistency in the management of software updates.
 
+
+Getting Started
+---------------
+
+Setting yourself up for success--ensuring prerequisites are satisfied, installation instructions, and running through the setup assistant.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
 
+   getting_started/index
+
+
+Reference
+---------
+
+Learn about the different command options and examples, along with customizing PDF reports to your needs.
+
+.. toctree::
+   :maxdepth: 2
+
+   reference/index
+
+Contributing
+------------
+
+Submitting feature requests using the templates provided on our repository, and detailed instructions for forking and cloning the repository to ensure all development dependencies are installed correctly.
+
+.. toctree::
+   :maxdepth: 2
+
+   contributing/index
