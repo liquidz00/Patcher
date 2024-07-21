@@ -30,7 +30,12 @@ class UIConfigManager:
 
     @property
     def fonts_present(self) -> bool:
-        """Check if default fonts have already been downloaded"""
+        """
+        Check if default fonts have already been downloaded
+
+        :return: True if fonts are present, False otherwise.
+        :rtype: bool
+        """
         if self._fonts_saved is None:
             regular_font_path = os.path.join(self.font_dir, "Assistant-Regular.ttf")
             bold_font_path = os.path.join(self.font_dir, "Assistant-Bold.ttf")
@@ -38,7 +43,15 @@ class UIConfigManager:
         return self._fonts_saved
 
     def download_font(self, url: AnyStr, dest_path: AnyStr):
-        """Downloads Assistant font families from specified URL to destination path"""
+        """
+        Downloads Assistant font families from specified URL to destination path.
+
+        :param url: The URL to download default fonts from.
+        :type url: AnyStr
+        :param dest_path: Destination path to save the fonts.
+        :type dest_path: AnyStr
+        :raises OSError: If fonts are unable to be downloaded due to urllib.error.URLError.
+        """
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
         try:
             with urllib.request.urlopen(url=url) as response:
@@ -122,7 +135,7 @@ class UIConfigManager:
         """
         Resets User Interface values in config.ini file.
 
-        :param config_path: The path of the configuration file. Defaults to self.user_config_path
+        :param config_path: The path of the configuration file. Defaults to self.user_config_path.
         :type config_path: Optional[AnyStr]
         :return: True if reset is successful, False otherwise.
         :rtype: bool
