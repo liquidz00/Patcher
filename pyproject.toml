@@ -48,7 +48,7 @@ dev = [
   "autodoc-pydantic",
   "black>=24.3.0",
   "build",
-  "furo",
+  "pydata-sphinx-theme",
   "pytest>=8.2.2",
   "pytest-asyncio>=0.23.5",
   "pytest-cov>=4.0.0",
