@@ -93,7 +93,7 @@ class Setup:
 
     def _set_plist(self, value: bool = False):
         """
-        Sets the passed value to the `first_run_done` key in the property list file in the user library.
+        Sets the value of the `first_run_done` key in the property list file in the user library.
 
         :param value: The value to set in the property list.
         :type value: bool
@@ -209,7 +209,7 @@ class Setup:
         :type username: AnyStr
         :param password: Password of admin Jamf Pro account. Not permanently stored, only used for initial token retrieval.
         :type password: AnyStr
-        :param jamf_url: Jamf Server URL (same as `server_url` in `JamfClient` class)
+        :param jamf_url: Jamf Server URL (same as `server_url` in `JamfClient` class).
         :type jamf_url: Optional[AnyStr]
         :raises exceptions.TokenFetchError: If the call is unauthorized or unsuccessful.
         :returns: True if basic token was generated, False if 401 encountered (SSO)
@@ -298,6 +298,7 @@ class Setup:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
         }
+
         async with aiohttp.ClientSession() as session:
             async with session.post(url=client_url, json=payload, headers=headers) as resp:
                 resp.raise_for_status()
@@ -308,6 +309,7 @@ class Setup:
                     )
                 client_id = client_response.get("clientId")
                 integration_id = client_response.get("id")
+
         # Obtain client secret for client created
         secret_url = f"{self.jamf_url}/api/v1/api-integrations/{integration_id}/client-credentials"
         async with aiohttp.ClientSession() as session:
@@ -549,12 +551,9 @@ class Setup:
             self._set_plist(value=True)
             self._completed = True
 
-    async def reset(self, animator: Animation):
+    async def reset(self):
         """
-        Resets the user interface elements of PDF reports by modifying config.ini
-
-        :param animator: The animation instance to update messages.
-        :type animator: Animation
+        Resets the user interface elements of PDF reports by modifying config.ini in the user library. UI elements are then reconfigured by calling the setup UI function.
         """
         # Clear exisiting UI configuration
         reset_config = self.ui_config.reset_config()
