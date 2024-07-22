@@ -2,10 +2,9 @@ Reference
 =========
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 4
     :caption: Reference
 
-    modules
     patcher.client
     patcher.models.reports
     patcher.models
