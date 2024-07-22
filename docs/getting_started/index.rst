@@ -7,5 +7,4 @@ Getting Started
 
     introduction
     installation
-    usage
-    customization
+    setup
