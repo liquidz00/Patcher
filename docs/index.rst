@@ -6,6 +6,8 @@
 Patcher
 =====================
 
+*Patch reporting simplified*
+
 Patcher is crafted with the needs of Mac Admins in mind, offering a streamlined approach to the often complex and time-consuming task of patch management. By automating the extraction and formatting of patch data, Patcher not only saves time but also ensures accuracy and consistency in the management of software updates.
 
 
@@ -33,7 +35,7 @@ Learn about the different command options and examples, along with customizing P
 Contributing
 ------------
 
-Submitting feature requests using the templates provided on our repository, and detailed instructions for forking and cloning the repository to ensure all development dependencies are installed correctly.
+Resources and guides for contributors.
 
 .. toctree::
    :maxdepth: 2
