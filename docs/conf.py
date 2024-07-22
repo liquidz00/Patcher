@@ -36,20 +36,9 @@ templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 add_module_names = False
-
 autodoc_typehints = "both"
-
 autodoc_member_order = "bysource"
 autosectionlabel_prefix_document = True
-
-autodoc_pydantic_model_show_json = False
-autodoc_pydantic_model_summary_list_order = "bysource"
-autodoc_pydantic_model_show_config = False
-autodoc_pydantic_model_show_config_summary = False
-# autodoc_pydantic_model_undoc_members = False
-autodoc_pydantic_model_show_field_summary = False
-autodoc_pydantic_model_member_order = "bysource"
-
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
