@@ -250,7 +250,7 @@ class ApiClient:
         """
 
         # Utilize curl to avoid SSL Verification errors for end-users on managed devices
-        command = "curl -s 'https://sofa.macadmins.io/v1/ios_data_feed.json'"
+        command = "curl -s 'https://sofafeed.macadmins.io/v1/ios_data_feed.json'"
 
         try:
             result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
