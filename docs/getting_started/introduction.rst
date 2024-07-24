@@ -15,7 +15,11 @@ Features
 Prerequisites
 -------------
 
-Ensure you have Python 3.10 or higher, and access to a Jamf Pro instance with administrator privileges. It is **required** to create a dedicated API client for Patcher use, with the following roles:
+Ensure you have Python 3.10 or higher, and access to a Jamf Pro instance with administrator privileges.
+
+**For versions 1.3.4 and later**: Patcher can automatically handle the creation of API clients and roles, provided SSO is not used for Jamf Pro accounts. If SSO is used, you will need to manually create and provide an API client and role for Patcher.
+
+If manual creation is required, create a dedicated API client for Patcher use with the following roles:
 
 - Read Patch Management Software Titles
 - Read Patch Policies
@@ -27,3 +31,23 @@ Ensure you have Python 3.10 or higher, and access to a Jamf Pro instance with ad
 - Read Patch Management Settings
 
 Refer to the `Jamf Pro Documentation <https://learn.jamf.com/bundle/jamf-pro-documentation-current/page/API_Roles_and_Clients.html>`_ on API Roles and Clients for more information.
+
+Installation
+============
+
+Once prerequisites have been satisfied, Patcher can be installed via ``pip``:
+
+.. code-block:: console
+
+    python3 -m pip install --upgrade patcherctl
+
+Optionally, beta releases of Patcher are released to `Test PyPI <https://test.pypi.org/project/patcherctl/>`_ and can be installed via the following command:
+
+.. code-block:: bash
+
+    python3 -m pip install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple patcherctl=={VERSION}
+
+Where ``{VERSION}`` is the beta version you are looking to install, e.g. ``1.3.4b2``.
+
+.. note::
+    Installing beta versions of Patcher are meant only for testing features being developed and implemented. We encourage installing these versions for contribution purposes. For more information, visit the :ref:`contributing` page.
