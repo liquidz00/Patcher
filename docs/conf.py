@@ -24,9 +24,10 @@ release = f"v{__version__}"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
+    "sphinx_design",
     "sphinx.ext.autodoc",
     "sphinx.ext.viewcode",
-    "sphinx.ext.todo",
+    "sphinx.ext.githubpages",
     "sphinx.ext.autosummary",
     "sphinx.ext.autosectionlabel",
     "sphinxcontrib.autodoc_pydantic",
@@ -45,14 +46,14 @@ autosectionlabel_prefix_document = True
 
 html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
-html_title = f"Patcher {release}"
+html_title = "Patcher"
 
 html_theme_options = {
     "navbar_align": "left",
     "show_prev_next": False,
     "navbar_start": ["navbar-logo"],
     "navbar_center": ["navbar-nav"],
-    "navbar_end": ["navbar-icon-links"],
+    "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "icon_links": [
         {
             "name": "GitHub",
@@ -68,12 +69,17 @@ html_theme_options = {
 }
 
 # Remove ethical ads from the sidebar
-html_sidebars = {"**": ["sidebar-nav-bs"]}  # Removed 'sidebar-ethical-ads'
+html_sidebars = {"**": ["sidebar-nav-bs"]}
 
 html_context = {
     "navbar_links": [
         ("Getting Started", "getting_started/index.html"),
+        ("User Guide", "user/index.html"),
         ("Reference", "reference/index.html"),
         ("Contributing", "contributing/index.html"),
-    ]
+    ],
+    "github_user": "liquidz00",
+    "github_repo": "Patcher",
+    "github_version": "main",
+    "doc_path": "docs",
 }
