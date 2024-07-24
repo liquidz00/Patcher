@@ -3,6 +3,8 @@
 Contributing
 ============
 
+*This page is currently under construction*
+
 .. toctree::
     :maxdepth: 2
     :caption: Contributing
