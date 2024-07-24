@@ -22,7 +22,7 @@ Patcher is crafted with the needs of Mac Admins in mind, offering a streamlined 
 
         +++
 
-        .. button-ref:: getting_started/index
+        .. button-ref:: getting_started_index
             :ref-type: ref
             :click-parent:
             :color: secondary
@@ -38,7 +38,7 @@ Patcher is crafted with the needs of Mac Admins in mind, offering a streamlined 
 
         +++
 
-        .. button-ref:: user/index
+        .. button-ref:: user_index
             :ref-type: ref
             :click-parent:
             :color: secondary
@@ -54,7 +54,7 @@ Patcher is crafted with the needs of Mac Admins in mind, offering a streamlined 
 
         +++
 
-        .. button-ref:: reference/index
+        .. button-ref:: reference_index
             :ref-type: ref
             :click-parent:
             :color: secondary
@@ -70,7 +70,7 @@ Patcher is crafted with the needs of Mac Admins in mind, offering a streamlined 
 
         +++
 
-        .. button-ref:: contributing/index
+        .. button-ref:: contributing_index
             :ref-type: ref
             :click-parent:
             :color: secondary
