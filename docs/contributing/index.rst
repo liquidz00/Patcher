@@ -1,3 +1,5 @@
+.. _contributing_index:
+
 Contributing
 ============
 

@@ -1,3 +1,5 @@
+.. _getting_started_index:
+
 Getting Started
 ===============
 
@@ -6,5 +8,4 @@ Getting Started
     :caption: Getting Started
 
     introduction
-    installation
     setup

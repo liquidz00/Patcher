@@ -1,3 +1,5 @@
+.. _user_index:
+
 User Guide
 ==========
 
