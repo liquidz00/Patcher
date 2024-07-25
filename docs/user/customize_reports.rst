@@ -19,7 +19,7 @@ Tailor the user interface elements of your exported PDF reports. You have the fl
 Setup
 -----
 
-When you first launch Patcher, a :ref:`setup assistant <setup-assistant>` will automatically create the necessary ``config.ini`` file and copy the required fonts to the appropriate directory.
+When you first launch Patcher, a :ref:`setup assistant <setup>` will automatically create the necessary ``config.ini`` file and copy the required fonts to the appropriate directory.
 
 Modifying the file
 ^^^^^^^^^^^^^^^^^^
@@ -49,7 +49,7 @@ Sample configuration
     font_regular_path = /Users/jappleseed/Library/Application Support/Patcher/fonts/Assistant-Regular.ttf
     font_bold_path = /Users/jappleseed/Library/Application Support/Patcher/fonts/Assistant-Bold.ttf
 
-The above example would result in a PDF report that looks identical to the :ref:`example PDF image <example-pdf-image` at the top of this page.
+The above example would result in a PDF report that looks identical to the :ref:`example PDF image <example-pdf-image>` at the top of this page.
 
 .. warning::
     Altering the ``[Settings]`` section of the configuration file is not recommended. Patcher references this path throughout the codebase and modifying it incorrectly may lead to unintended results or errors.
