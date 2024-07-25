@@ -7,5 +7,6 @@ User Guide
     :maxdepth: 3
     :caption: User Guide
 
+    jamf_deployment
     usage
     customize_reports

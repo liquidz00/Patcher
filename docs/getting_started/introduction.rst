@@ -19,18 +19,10 @@ Ensure you have Python 3.10 or higher, and access to a Jamf Pro instance with ad
 
 **For versions 1.3.4 and later**: Patcher can automatically handle the creation of API clients and roles, provided SSO is not used for Jamf Pro accounts. If SSO is used, you will need to manually create and provide an API client and role for Patcher.
 
-If manual creation is required, create a dedicated API client for Patcher use with the following roles:
+If manual creation is required, create a dedicated API client for Patcher use. Reference the :ref:`Jamf Deployment Guide <jamf-guide>` for assistance.
 
-- Read Patch Management Software Titles
-- Read Patch Policies
-- Read Mobile Devices
-- Read Mobile Device Inventory Collection
-- Read Mobile Device Applications
-- Read API Integrations
-- Read API Roles
-- Read Patch Management Settings
-
-Refer to the `Jamf Pro Documentation <https://learn.jamf.com/bundle/jamf-pro-documentation-current/page/API_Roles_and_Clients.html>`_ on API Roles and Clients for more information.
+.. dropdown:: Still have questions on API Roles and Clients?
+    Refer to the `Jamf Pro Documentation <https://learn.jamf.com/bundle/jamf-pro-documentation-current/page/API_Roles_and_Clients.html>`_ on API Roles and Clients for more information.
 
 Installation
 ============
