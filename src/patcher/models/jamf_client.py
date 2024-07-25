@@ -91,9 +91,13 @@ class JamfClient(Model):
 
     def set_max_concurrency(self, concurrency: int):
         """
-        Sets the maximum concurrency level for API calls. It is **strongly
-            recommended** to limit API call concurrency to no more than 5 connections.
-            See https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices
+        Sets the maximum concurrency level for API calls.
+
+        .. warning::
+            Changing this value could lead to your Jamf server being unable to perform other basic tasks. See the :ref:`Concurrency <concurrency>` option in the usage documentation.
+
+        It is **strongly recommended** to limit API call concurrency to no more than 5 connections.
+        See `Jamf Developer Guide <https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices>`_ for more information.
 
         :param concurrency: The new maximum concurrency level.
         :type concurrency: int

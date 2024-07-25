@@ -16,17 +16,17 @@ def setup_logger(
     log_name: Optional[AnyStr] = logger_name,
     log_filename: Optional[AnyStr] = f"{logger_name}.log",
     log_level: Optional[int] = default_log_level,
-):
+) -> logging.Logger:
     """
     Set up the main logger with rotating file handler.
 
     :param log_name: The name of the logger, defaults to 'patcher'.
     :type log_name: Optional[AnyStr]
-    :param log_filename: The log file name, defaults to `{log_name}.log`.
+    :param log_filename: The log file name, defaults to ``{log_name}.log``.
     :type log_filename: Optional[AnyStr]
     :param log_level: The logging level, defaults to logging.INFO.
     :type log_level: Optional[int]
-    :return:The configured logger.
+    :return: The configured logger.
     :rtype: logging.Logger
     """
     log_path = os.path.abspath(
@@ -61,7 +61,8 @@ def setup_child_logger(
     :type name_of_logger: AnyStr
     :param debug: Whether to set the child logger level to DEBUG, defaults to False.
     :type debug: Optional[bool]
-    :return:
+    :return: The configured child logger.
+    :rtype: logging.Logger
     """
     child_logger = logging.getLogger(name_of_logger).getChild(name_of_child)
     if debug:
