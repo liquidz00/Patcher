@@ -4,8 +4,8 @@ User Guide
 ==========
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 3
     :caption: User Guide
 
     usage
-    customization
+    customize_reports
