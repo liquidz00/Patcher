@@ -5,7 +5,6 @@ Reference
 
 .. toctree::
     :maxdepth: 4
-    :caption: Reference
 
     patcher.client
     patcher.models.reports
