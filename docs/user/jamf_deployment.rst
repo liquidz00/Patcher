@@ -24,6 +24,7 @@ Before creating an API client, you must establish an API role with the necessary
 4. Click **New** to create a new role.
 5. Provide a meaningful display name for the API role (e.g., "Patch Reports Access").
 6. In the **Jamf Pro API Role privileges** field, type the following privileges required for use with Patcher:
+
     - Read Patch Management Software Titles
     - Read Patch Policies
     - Read Mobile Devices
@@ -32,6 +33,7 @@ Before creating an API client, you must establish an API role with the necessary
     - Read API Integrations
     - Read API Roles
     - Read Patch Management Settings
+
 7. Click **Save** to create the role.
 
 API Client
