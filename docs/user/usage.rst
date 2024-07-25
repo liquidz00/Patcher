@@ -97,6 +97,9 @@ Usage & Sample output
     DEBUG: Patcher finished as expected. Additional logs can be found at '~/Library/Application Support/Patcher/logs'.
     DEBUG: 41 patch reports saved successfully to /path/to/save/Patch-Reports.
 
+
+.. _concurrency:
+
 Concurrency
 -----------
 
