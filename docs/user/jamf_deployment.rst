@@ -18,6 +18,7 @@ API Role & Privileges
 ---------------------
 
 Before creating an API client, you must establish an API role with the necessary privileges:
+
 1. Navigate to **Settings** in the Jamf Pro sidebar.
 2. Under **System**, select **API Roles and Clients**.
 3. Switch to the **API Roles** tab.
@@ -25,14 +26,14 @@ Before creating an API client, you must establish an API role with the necessary
 5. Provide a meaningful display name for the API role (e.g., "Patch Reports Access").
 6. In the **Jamf Pro API Role privileges** field, type the following privileges required for use with Patcher:
 
-    - Read Patch Management Software Titles
-    - Read Patch Policies
-    - Read Mobile Devices
-    - Read Mobile Device Inventory Collection
-    - Read Mobile Device Applications
-    - Read API Integrations
-    - Read API Roles
-    - Read Patch Management Settings
+    * Read Patch Management Software Titles
+    * Read Patch Policies
+    * Read Mobile Devices
+    * Read Mobile Device Inventory Collection
+    * Read Mobile Device Applications
+    * Read API Integrations
+    * Read API Roles
+    * Read Patch Management Settings
 
 7. Click **Save** to create the role.
 
@@ -40,6 +41,7 @@ API Client
 ----------
 
 Once your API role is ready, proceed to create an API client:
+
 1. Follow steps 1-2 from above to navigate back to the **API Roles and Clients** section if not already there.
 2. Click on the **API Clients** tab.
 3. Select **New** to initiate a new API client creation.
@@ -73,6 +75,7 @@ Token Generation
 In situations where AccessTokens need to be generated manually, copy the bash script below into the code editor of your choice. Substitute your Jamf Pro URL in the ``url`` variable, and modify the ``client_id`` and ``client_secret`` values with the Client ID and secret generated from the steps above.
 
 .. dropdown:: Additional Reference
+
     For more details, reference the `Client Credentials Authorization Recipe <https://developer.jamf.com/jamf-pro/recipes/client-credentials-authorization>`_ Jamf Developer documentation.
 
 .. code-block:: bash

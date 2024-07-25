@@ -22,6 +22,7 @@ Ensure you have Python 3.10 or higher, and access to a Jamf Pro instance with ad
 If manual creation is required, create a dedicated API client for Patcher use. Reference the :ref:`Jamf Deployment Guide <jamf-guide>` for assistance.
 
 .. dropdown:: Still have questions on API Roles and Clients?
+
     Refer to the `Jamf Pro Documentation <https://learn.jamf.com/bundle/jamf-pro-documentation-current/page/API_Roles_and_Clients.html>`_ on API Roles and Clients for more information.
 
 Installation
