@@ -30,6 +30,8 @@ No additional arguments are required for the omit option. It is simply a flag th
 
     patcherctl --path '/path/to/save' --omit
 
+.. _date-format:
+
 Date Format
 -----------
 
