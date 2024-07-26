@@ -45,6 +45,9 @@ autosectionlabel_prefix_document = True
 autodoc_pydantic_model_show_json = False
 autodoc_pydantic_model_show_field_summary = False
 
+# Add 'init' DocStrings to class DocStrings
+autoclass_content = "both"
+
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
@@ -54,7 +57,6 @@ html_title = "Patcher"
 html_show_sourcelink = False
 
 html_theme_options = {
-    "collapse_navigation": True,
     "navbar_align": "left",
     "show_prev_next": False,
     "navbar_start": ["navbar-logo"],
