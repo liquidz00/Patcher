@@ -1,0 +1,6 @@
+=========
+Animation
+=========
+
+.. automodule:: patcher.utils.animation
+   :members:
