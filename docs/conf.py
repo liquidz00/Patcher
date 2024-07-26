@@ -41,12 +41,17 @@ autodoc_typehints = "both"
 autodoc_member_order = "bysource"
 autosectionlabel_prefix_document = True
 
+# Pydantic options
+autodoc_pydantic_model_show_json = False
+autodoc_pydantic_model_show_field_summary = False
+
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
 html_title = "Patcher"
+html_show_sourcelink = False
 
 html_theme_options = {
     "collapse_navigation": True,
@@ -67,6 +72,9 @@ html_theme_options = {
             "icon": "fab fa-python",
         },
     ],
+    "footer_start": ["copyright"],
+    "footer_center": ["sphinx-version"],
+    "footer_end": ["theme-version"],
 }
 
 # Remove ethical ads from the sidebar
