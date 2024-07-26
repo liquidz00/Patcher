@@ -98,6 +98,47 @@ async def main(
     debug: bool,
     reset: bool,
 ) -> None:
+    """
+    The main entry point for the Patcher CLI (patcherctl). Works in conjunction with the :mod:`report_manager` class.
+
+    :param ctx: Click context object. Used to ensure either the ``--path`` argument OR the ``--reset`` argument is supplied at runtime.
+    :type ctx: click.Context
+
+    :param path: The path to save the report(s).
+    :type path: AnyStr
+
+    :param pdf: If passed, Patcher will generate a PDF report along with the Excel spreadsheet using the :mod:`pdf_report` model.
+    :type pdf: bool
+
+    :param sort: Sort patch reports by a specified column.
+    :type sort: Optional[AnyStr]
+
+    .. note:
+        Patcher handles the automatic conversion of the column name on your behalf. For example, if sorting by completion percent, simply pass "Completion Percent" at runtime.
+
+    :param omit: If passed, software titles with patches released in the last 48 hours will be omitted from the exported report(s).
+    :type omit: bool
+
+    :param date_format: Specify the date format for the PDF header from predefined choices. See :ref:`date format <date-format>` for more information.
+    :type date_format: AnyStr
+
+    :param ios: Include the amount of enrolled mobile devices on the latest version of their respective OS. This flag uses `SOFA <https://sofa.macadmins.io>`_ to pull latest iOS versioning data.
+    :type ios: bool
+
+    :param concurrency: Set the maximum concurrency level for API calls.
+    :type concurrency: int
+
+    .. danger:
+        Before using this argument, **please see** the :ref:`concurrency <concurrency>` documentation first.
+
+    :param debug: Enable debug logging to see detailed debug messages. Providing this option replaces the animation usually shown to ``stdout``.
+    :type debug: bool
+
+    :param reset: Resets the ``config.ini`` file used for customizable elements in exported PDF reports, then triggers :func:`patcher.client.setup._setup_ui` method. See :ref:`Customizing Reports <customize_reports>` for more information.
+    :type reset: bool
+
+    :return: None
+    """
     if not ctx.params["reset"] and not ctx.params["path"]:
         raise click.UsageError("The --path option is required unless --reset is specified.")
 
