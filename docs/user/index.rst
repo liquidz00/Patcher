@@ -4,8 +4,8 @@ User Guide
 ==========
 
 .. toctree::
-    :maxdepth: 3
+    :maxdepth: 2
 
+    customize_reports
     jamf_deployment
     usage
-    customize_reports
