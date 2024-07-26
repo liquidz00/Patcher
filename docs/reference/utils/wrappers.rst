@@ -8,3 +8,4 @@ Wrappers
 
 .. automodule:: patcher.utils.wrappers
    :members:
+   :undoc-members:
