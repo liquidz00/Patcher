@@ -49,6 +49,7 @@ html_static_path = ["_static"]
 html_title = "Patcher"
 
 html_theme_options = {
+    "collapse_navigation": True,
     "navbar_align": "left",
     "show_prev_next": False,
     "navbar_start": ["navbar-logo"],
@@ -72,6 +73,7 @@ html_theme_options = {
 html_sidebars = {"**": ["sidebar-nav-bs"]}
 
 html_context = {
+    "default_mode": "auto",
     "navbar_links": [
         ("Getting Started", "getting_started/index.html"),
         ("User Guide", "user/index.html"),
