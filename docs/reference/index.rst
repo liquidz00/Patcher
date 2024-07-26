@@ -6,8 +6,7 @@ Reference
 .. toctree::
     :maxdepth: 2
 
-    patcher.client
-    patcher.models.reports
-    patcher.models
-    patcher
-    patcher.utils
+    client/index
+    cli/index
+    models/index
+    utils/index
