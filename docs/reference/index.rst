@@ -4,9 +4,9 @@ Reference
 =========
 
 .. toctree::
-    :maxdepth: 2
+   :maxdepth: 2
 
-    client/index
-    cli/index
-    models/index
-    utils/index
+   client/index
+   models/index
+   utils/index
+   cli
