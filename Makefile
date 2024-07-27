@@ -20,6 +20,10 @@ lint:
 	black --check src tests
 	ruff check src tests
 
+format:
+	black src tests
+	ruff check src tests --fix
+
 build:
 	python3 -m build --sdist --wheel
 
