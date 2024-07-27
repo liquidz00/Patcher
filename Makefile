@@ -10,6 +10,9 @@ uninstall:
 restore:
 	rm -rf build/ dist/ src/*.egg-info **/__pycache__ .coverage .pytest_cache/ .ruff_cache/
 
+clean:
+	rm -rf docs/_build/*
+
 test:
 	pytest tests
 
