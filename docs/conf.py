@@ -54,7 +54,6 @@ autoclass_content = "both"
 html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
 html_title = "Patcher"
-html_show_sourcelink = False
 
 html_theme_options = {
     "navbar_align": "left",
@@ -80,7 +79,10 @@ html_theme_options = {
 }
 
 # Remove ethical ads from the sidebar
-html_sidebars = {"**": ["sidebar-nav-bs"]}
+html_sidebars = {
+    "**": ["sidebar-nav-bs"],
+    "contributing/index": []
+}
 
 html_context = {
     "default_mode": "auto",
@@ -90,8 +92,4 @@ html_context = {
         ("Reference", "reference/index.html"),
         ("Contributing", "contributing/index.html"),
     ],
-    "github_user": "liquidz00",
-    "github_repo": "Patcher",
-    "github_version": "main",
-    "doc_path": "docs",
 }
