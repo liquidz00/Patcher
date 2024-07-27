@@ -1,3 +1,5 @@
+.. _report-manager:
+
 ==============
 Report Manager
 ==============
