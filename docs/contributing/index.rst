@@ -20,7 +20,7 @@ First and foremost, get in touch! Ideally, this would be done by submitting a fe
 Pull Requests
 ^^^^^^^^^^^^^
 
-All pull requests should be made against the ``main`` branch of the repository. The recommended approach is to fork the Patcher repository, and create a feature branch that roughly describes the changes implemented (i.e., ``kandji`` if introducing functionality with Kandji). Be sure to pull any new commits to the ``main`` branch before submitting your PR.
+All pull requests should be made against the ``main`` branch of the repository. The recommended approach is to fork the Patcher repository, and create a feature branch that roughly describes the changes implemented (i.e., ``kandji`` if introducing functionality with Kandji). Be sure to pull any new commits from the ``main`` branch before submitting your PR.
 
 The pull request will be reviewed by project maintainers, and **must** pass the pytest unit tests before it is merged. Unit tests can be found in the `tests <https://github.com/liquidz00/Patcher/tree/main/tests>`_ directory in the repository. Tests are triggered automatically by a GitHub action which can be found in the `pytest.yml <https://github.com/liquidz00/Patcher/blob/main/.github/workflows/pytest.yml>`_ file.
 
