@@ -6,7 +6,12 @@ keywords = ["jamf", "pro", "jss", "patch", "macOS"]
 license = { file = "LICENSE.txt" }
 authors = [
   { name = "Andrew Speciale" },
-  { name = "Chris Ball" }
+  { name = "Chris Ball" },
+  { email = "info@liquidzoo.io" },
+]
+maintainers = [
+  { name = "Andrew Speciale" },
+  { name = "Chris Ball" },
 ]
 requires-python = ">=3.10"
 dependencies = [
