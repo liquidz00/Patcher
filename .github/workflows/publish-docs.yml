@@ -32,15 +32,18 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Install dependencies
+        run: make install
+
       - name: Build Sphinx Docs
-        run: |
-          make install
-          make docs
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: make docs
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v2
         with:
-          path: 'build/docs/'
+          path: 'docs/_build'
 
       - name: Deploy to GH Pages
         id: deployment
