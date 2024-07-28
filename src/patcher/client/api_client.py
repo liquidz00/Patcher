@@ -1,17 +1,17 @@
-import aiohttp
 import asyncio
-import subprocess
 import json
+import subprocess
 from datetime import datetime
-from typing import AnyStr, Optional, Dict, List
+from typing import AnyStr, Dict, List, Optional
 
-from .. import logger
-from ..wrappers import check_token
+import aiohttp
 
-from .token_manager import TokenManager
+from patcher.utils.wrappers import check_token
+
+from ..models.patch import PatchTitle
+from ..utils import logger
 from .config_manager import ConfigManager
-
-logthis = logger.setup_child_logger("ApiClient", __name__)
+from .token_manager import TokenManager
 
 
 class ApiClient:
@@ -25,7 +25,8 @@ class ApiClient:
         :type config: ConfigManager
         :raises ValueError: If the JamfClient configuration is invalid.
         """
-        self.log = logthis
+        self.log = logger.LogMe(self.__class__.__name__)
+        self.log.debug("Initializing ApiClient")
         self.config = config
         self.jamf_client = config.attach_client()
         if self.jamf_client:
@@ -41,30 +42,25 @@ class ApiClient:
         }
         self.token_manager = TokenManager(config)
         self.max_concurrency = self.jamf_client.max_concurrency
-        self.log.debug("Initializing ApiClient")
-        # self.connector = aiohttp.TCPConnector(limit=self.jamf_client.max_concurrency)
 
-    @staticmethod
-    def convert_timezone(utc_time_str: AnyStr) -> Optional[AnyStr]:
+    def convert_timezone(self, utc_time_str: AnyStr) -> Optional[AnyStr]:
         """
         Converts a UTC time string to a formatted string without timezone information.
 
         :param utc_time_str: UTC time string in ISO 8601 format.
         :type utc_time_str: AnyStr
-        :return: Formatted time string or error message.
-        :rtype: AnyStr
+        :return: Formatted time string or None on error.
+        :rtype: Optional[AnyStr]
         """
         try:
             utc_time = datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S%z")
             time_str = utc_time.strftime("%b %d %Y")
             return time_str
         except ValueError as e:
-            logthis.error(f"Invalid time format provided. Details: {e}")
+            self.log.error(f"Invalid time format provided. Details: {e}")
             return None
 
-    async def fetch_json(
-        self, url: AnyStr, session: aiohttp.ClientSession
-    ) -> Optional[Dict]:
+    async def fetch_json(self, url: AnyStr, session: aiohttp.ClientSession) -> Optional[Dict]:
         """
         Asynchronously fetches JSON data from a specified URL using a session.
 
@@ -72,10 +68,10 @@ class ApiClient:
         :type url: AnyStr
         :param session: Async session used to make the request, instance of aiohttp.ClientSession.
         :type session: aiohttp.ClientSession
-        :return: JSON data as a dictionary or an empty dictionary on error.
+        :return: JSON data as a dictionary or None on error.
         :rtype: Optional[Dict]
         """
-        logthis.debug(f"Fetching JSON data from URL: {url}")
+        self.log.debug(f"Fetching JSON data from URL: {url}")
         try:
             async with session.get(url, headers=self.headers) as response:
                 response.raise_for_status()
@@ -83,9 +79,7 @@ class ApiClient:
                 self.log.info(f"Successfully fetched JSON data from {url}")
                 return json_data
         except aiohttp.ClientResponseError as e:
-            self.log.error(
-                f"Received a client error while fetching JSON from {url}: {e}"
-            )
+            self.log.error(f"Received a client error while fetching JSON from {url}: {e}")
         except Exception as e:
             self.log.error(f"Error fetching JSON: {e}")
         return None
@@ -105,7 +99,7 @@ class ApiClient:
         results = []
         async with aiohttp.ClientSession() as session:
             for i in range(0, len(urls), self.max_concurrency):
-                batch = urls[i: i + self.max_concurrency]
+                batch = urls[i : i + self.max_concurrency]
                 tasks = [self.fetch_json(url, session) for url in batch]
                 batch_results = await asyncio.gather(*tasks)
                 results.extend(batch_results)
@@ -132,23 +126,21 @@ class ApiClient:
 
             # Check if all elements in the list are dictionaries
             if not all(isinstance(item, dict) for item in response):
-                self.log.error(
-                    "Unexpected response format: all items should be dictionaries."
-                )
+                self.log.error("Unexpected response format: all items should be dictionaries.")
                 return None
 
             self.log.info("Patch policies obtained as expected.")
             return [title.get("id") for title in response]
 
     @check_token
-    async def get_summaries(self, policy_ids: List) -> Optional[List]:
+    async def get_summaries(self, policy_ids: List) -> Optional[List[PatchTitle]]:
         """
         Retrieves active patch summaries for given policy IDs using the Jamf API.
 
         :param policy_ids: List of policy IDs to retrieve summaries for.
         :type policy_ids: List
-        :return: List of dictionaries containing patch summaries or None on error.
-        :rtype: Optional[List]
+        :return: List of `PatchTitle` objects containing patch summaries or None on error.
+        :rtype: Optional[List[PatchTitle]]
         """
         urls = [
             f"{self.jamf_url}/api/v2/patch-software-title-configurations/{policy}/patch-summary"
@@ -157,12 +149,12 @@ class ApiClient:
         summaries = await self.fetch_batch(urls)
 
         policy_summaries = [
-            {
-                "software_title": summary.get("title"),
-                "patch_released": self.convert_timezone(summary.get("releaseDate")),
-                "hosts_patched": summary.get("upToDate"),
-                "missing_patch": summary.get("outOfDate"),
-                "completion_percent": (
+            PatchTitle(
+                title=summary.get("title"),
+                released=self.convert_timezone(summary.get("releaseDate")),
+                hosts_patched=summary.get("upToDate"),
+                missing_patch=summary.get("outOfDate"),
+                completion_percent=(
                     round(
                         (
                             summary.get("upToDate")
@@ -174,8 +166,8 @@ class ApiClient:
                     if summary.get("upToDate") + summary.get("outOfDate") > 0
                     else 0
                 ),
-                "total_hosts": summary.get("upToDate") + summary.get("outOfDate"),
-            }
+                total_hosts=summary.get("upToDate") + summary.get("outOfDate"),
+            )
             for summary in summaries
             if summary
         ]
@@ -230,10 +222,7 @@ class ApiClient:
         if not device_ids:
             self.log.error("No device IDs provided!")
             return None
-        urls = [
-            f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail"
-            for device in device_ids
-        ]
+        urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
         subsets = await self.fetch_batch(urls)
 
         if not subsets:
@@ -261,12 +250,10 @@ class ApiClient:
         """
 
         # Utilize curl to avoid SSL Verification errors for end-users on managed devices
-        command = "curl -s 'https://sofa.macadmins.io/v1/ios_data_feed.json'"
+        command = "curl -s 'https://sofafeed.macadmins.io/v1/ios_data_feed.json'"
 
         try:
-            result = subprocess.run(
-                command, shell=True, capture_output=True, text=True, check=True
-            )
+            result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
         except (subprocess.CalledProcessError, aiohttp.ClientResponseError) as e:
             self.log.error(f"Encountered error executing subprocess command: {e}")
             return None
@@ -285,9 +272,7 @@ class ApiClient:
                 {
                     "OSVersion": version.get("OSVersion"),
                     "ProductVersion": version_info.get("ProductVersion"),
-                    "ReleaseDate": self.convert_timezone(
-                        version_info.get("ReleaseDate")
-                    ),
+                    "ReleaseDate": self.convert_timezone(version_info.get("ReleaseDate")),
                 }
             )
         return latest_versions

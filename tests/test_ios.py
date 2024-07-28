@@ -1,10 +1,11 @@
+import json
+import subprocess
+from unittest.mock import MagicMock, patch
+
 import aiohttp
 import pytest
-import subprocess
-import json
-from unittest.mock import patch, MagicMock
 from aioresponses import aioresponses
-from src.patcher.client.report_manager import ReportManager
+from src.patcher.models.patch import PatchTitle
 
 
 # Test valid response - iOS device IDs
@@ -128,9 +129,7 @@ async def test_get_ios_version_api_error(
 # Test SOFA functionality with valid response
 @patch("subprocess.run")
 def test_sofa_valid(mock_run, api_client, mock_sofa_response):
-    mock_run.return_value = MagicMock(
-        stdout=json.dumps(mock_sofa_response), returncode=0
-    )
+    mock_run.return_value = MagicMock(stdout=json.dumps(mock_sofa_response), returncode=0)
     result = api_client.get_sofa_feed()
     expected_result = [
         {"OSVersion": "17", "ProductVersion": "17.5.1", "ReleaseDate": "May 20 2024"},
@@ -178,26 +177,24 @@ async def test_calculate_ios_on_latest_success(patcher_instance):
         },
     ]
     with patch.object(patcher_instance, "log", MagicMock()):
-        result = patcher_instance.calculate_ios_on_latest(
-            device_versions, latest_versions
-        )
+        result = patcher_instance.calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
-        {
-            "software_title": "iOS 17.5.1",
-            "patch_released": "2024-05-20T00:00:00Z",
-            "hosts_patched": 2,
-            "missing_patch": 0,
-            "completion_percent": 100.0,
-            "total_hosts": 2,
-        },
-        {
-            "software_title": "iOS 16.7.8",
-            "patch_released": "2024-05-13T00:00:00Z",
-            "hosts_patched": 1,
-            "missing_patch": 0,
-            "completion_percent": 100.0,
-            "total_hosts": 1,
-        },
+        PatchTitle(
+            title="iOS 17.5.1",
+            released="2024-05-20T00:00:00Z",
+            hosts_patched=2,
+            missing_patch=0,
+            completion_percent=100.0,
+            total_hosts=2,
+        ),
+        PatchTitle(
+            title="iOS 16.7.8",
+            released="2024-05-13T00:00:00Z",
+            hosts_patched=1,
+            missing_patch=0,
+            completion_percent=100.0,
+            total_hosts=1,
+        ),
     ]
 
     assert result == expected_result
@@ -223,26 +220,24 @@ async def test_calculate_ios_on_latest_no_devices_on_latest(patcher_instance):
         },
     ]
     with patch.object(patcher_instance, "log", MagicMock()):
-        result = patcher_instance.calculate_ios_on_latest(
-            device_versions, latest_versions
-        )
+        result = patcher_instance.calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
-        {
-            "software_title": "iOS 17.5.1",
-            "patch_released": "2024-05-20T00:00:00Z",
-            "hosts_patched": 0,
-            "missing_patch": 1,
-            "completion_percent": 0.0,
-            "total_hosts": 1,
-        },
-        {
-            "software_title": "iOS 16.7.8",
-            "patch_released": "2024-05-13T00:00:00Z",
-            "hosts_patched": 0,
-            "missing_patch": 1,
-            "completion_percent": 0.0,
-            "total_hosts": 1,
-        },
+        PatchTitle(
+            title="iOS 17.5.1",
+            released="2024-05-20T00:00:00Z",
+            hosts_patched=0,
+            missing_patch=1,
+            completion_percent=0.0,
+            total_hosts=1,
+        ),
+        PatchTitle(
+            title="iOS 16.7.8",
+            released="2024-05-13T00:00:00Z",
+            hosts_patched=0,
+            missing_patch=1,
+            completion_percent=0.0,
+            total_hosts=1,
+        ),
     ]
 
     assert result == expected_result
@@ -264,18 +259,16 @@ async def test_calculate_ios_on_latest_all_devices_on_latest(patcher_instance):
     ]
 
     with patch.object(patcher_instance, "log", MagicMock()):
-        result = patcher_instance.calculate_ios_on_latest(
-            device_versions, latest_versions
-        )
+        result = patcher_instance.calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
-        {
-            "software_title": "iOS 17.5.1",
-            "patch_released": "2024-05-20T00:00:00Z",
-            "hosts_patched": 2,
-            "missing_patch": 0,
-            "completion_percent": 100.0,
-            "total_hosts": 2,
-        }
+        PatchTitle(
+            title="iOS 17.5.1",
+            released="2024-05-20T00:00:00Z",
+            hosts_patched=2,
+            missing_patch=0,
+            completion_percent=100.0,
+            total_hosts=2,
+        ),
     ]
 
     assert result == expected_result
@@ -297,18 +290,16 @@ async def test_calculate_ios_on_latest_some_devices_on_latest(patcher_instance):
     ]
 
     with patch.object(patcher_instance, "log", MagicMock()):
-        result = patcher_instance.calculate_ios_on_latest(
-            device_versions, latest_versions
-        )
+        result = patcher_instance.calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
-        {
-            "software_title": "iOS 17.5.1",
-            "patch_released": "2024-05-20T00:00:00Z",
-            "hosts_patched": 1,
-            "missing_patch": 1,
-            "completion_percent": 50.0,
-            "total_hosts": 2,
-        }
+        PatchTitle(
+            title="iOS 17.5.1",
+            released="2024-05-20T00:00:00Z",
+            hosts_patched=1,
+            missing_patch=1,
+            completion_percent=50.0,
+            total_hosts=2,
+        ),
     ]
 
     assert result == expected_result

@@ -1,59 +1,13 @@
-from datetime import datetime, timezone, timedelta
-from pydantic import BaseModel, field_validator, Field
+from typing import AnyStr, List, Optional
 from urllib.parse import urlparse, urlunparse
-from typing import Optional, AnyStr
 
-from .. import logger
+from pydantic import field_validator
 
-logthis = logger.setup_child_logger("models", __name__)
-
-
-class AccessToken(BaseModel):
-    """
-    Represents an access token for authentication.
-
-    :param token: The access token string.
-    :type token: AnyStr
-    :param expires: the Expiration datetime of the token.
-    :type expires: datetime
-    """
-
-    token: AnyStr = ""
-    expires: datetime = Field(
-        default_factory=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc)
-    )
-
-    def __str__(self):
-        """
-        Returns the string representation of the access token.
-
-        :return: The access token string.
-        :rtype: str
-        """
-        return self.token
-
-    @property
-    def is_expired(self) -> bool:
-        """
-        Checks if the access token is expired.
-
-        :return: True if the token is expired, False otherwise.
-        :rtype: bool
-        """
-        return self.expires - timedelta(seconds=60) < datetime.now(timezone.utc)
-
-    @property
-    def seconds_remaining(self) -> int:
-        """
-        Gets the number of seconds remaining until the token expires.
-
-        :return: The number of seconds remaining.
-        :rtype: int
-        """
-        return max(0, int((self.expires - datetime.now(timezone.utc)).total_seconds()))
+from . import Model
+from .token import AccessToken
 
 
-class JamfClient(BaseModel):
+class JamfClient(Model):
     """
     Represents a Jamf client configuration.
 
@@ -65,8 +19,7 @@ class JamfClient(BaseModel):
     :type server: AnyStr
     :param token: The access token for the Jamf client.
     :type token: Optional[AccessToken]
-    :param max_concurrency: The maximum concurrency level for API calls.
-        Defaults to 5 per Jamf Developer documentation.
+    :param max_concurrency: The maximum concurrency level for API calls. Defaults to 5 per Jamf Developer documentation.
     :type max_concurrency: int
     """
 
@@ -88,9 +41,7 @@ class JamfClient(BaseModel):
         """
         parsed_url = urlparse(url=url)
         scheme = "https" if not parsed_url.scheme else parsed_url.scheme
-        netloc = (
-            parsed_url.netloc if parsed_url.netloc else parsed_url.path.split("/")[0]
-        )
+        netloc = parsed_url.netloc if parsed_url.netloc else parsed_url.path.split("/")[0]
         path = (
             "/" + "/".join(parsed_url.path.split("/")[1:])
             if len(parsed_url.path.split("/")) > 1
@@ -99,6 +50,7 @@ class JamfClient(BaseModel):
         new_url = urlunparse((scheme, netloc, path.rstrip("/"), "", "", ""))
         return new_url.rstrip("/")
 
+    @classmethod
     @field_validator("client_id", "client_secret", mode="before")
     def not_empty(cls, value):
         """
@@ -114,6 +66,7 @@ class JamfClient(BaseModel):
             raise ValueError("Field cannot be empty")
         return value
 
+    @classmethod
     @field_validator("server", mode="before")
     def validate_url(cls, v):
         """
@@ -138,14 +91,66 @@ class JamfClient(BaseModel):
 
     def set_max_concurrency(self, concurrency: int):
         """
-        Sets the maximum concurrency level for API calls. It is **strongly
-            recommended** to limit API call concurrency to no more than 5 connections.
-            See https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices
+        Sets the maximum concurrency level for API calls.
+
+        .. warning::
+            Changing this value could lead to your Jamf server being unable to perform other basic tasks. See the :ref:`Concurrency <concurrency>` option in the usage documentation.
+
+        It is **strongly recommended** to limit API call concurrency to no more than 5 connections.
+        See `Jamf Developer Guide <https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices>`_ for more information.
 
         :param concurrency: The new maximum concurrency level.
         :type concurrency: int
         """
         if concurrency < 1:
-            logthis.error("Concurrency level must be at least 1!")
             raise ValueError("Concurrency level must be at least 1. ")
         self.max_concurrency = concurrency
+
+
+class ApiRole(Model):
+    """
+    Represents an API role with specific privileges required for Patcher to operate.
+
+    :ivar display_name: The name of the API role.
+    :type display_name: AnyStr
+    :ivar privileges: A list of privileges assigned ot the API role.
+    :type privileges: List[AnyStr]
+    """
+
+    display_name: AnyStr = "Patcher-Role"
+    privileges: List[AnyStr] = [
+        "Read Patch Management Software Titles",
+        "Read Patch Policies",
+        "Read Mobile Devices",
+        "Read Mobile Device Inventory Collection",
+        "Read Mobile Device Applications",
+        "Read Patch Management Settings",
+        "Create API Integrations",
+        "Create API Roles",
+        "Read API Integrations",
+        "Read API Roles",
+        "Update API Integrations",
+        "Update API Roles",
+        "Delete API Integrations",
+        "Delete API Roles",
+    ]
+
+
+class ApiClient(Model):
+    """
+    Represents an API client with specific authentication scopes and settings required for Patcher.
+
+    :ivar auth_scopes: A list of authentication scopes assigned to the API client.
+    :type auth_scopes: List[AnyStr]
+    :ivar display_name: The name of the API client.
+    :type display_name: AnyStr
+    :ivar enabled: Indicates whether the API client is enabled.
+    :type enabled: bool
+    :ivar token_lifetime: The lifetime of the token in seconds.
+    :type token_lifetime: int
+    """
+
+    auth_scopes: List[AnyStr] = ["Patcher-Role"]
+    display_name: AnyStr = "Patcher-Client"
+    enabled: bool = True
+    token_lifetime: int = 1800

@@ -3,9 +3,7 @@ from aioresponses import aioresponses
 
 
 @pytest.mark.asyncio
-async def test_get_policies(
-    api_client, mock_policy_response, mock_api_integration_response
-):
+async def test_get_policies(api_client, mock_policy_response, mock_api_integration_response):
     base_url = api_client.jamf_url
     api_client.jamf_client.client_id = "a1234567-abcd-1234-efgh-123456789abc"
     with aioresponses() as m:
@@ -53,9 +51,9 @@ async def test_get_summaries(
             )
 
         summaries = await api_client.get_summaries(policy_ids)
-        assert summaries[0]["software_title"] == "Google Chrome"
-        assert summaries[1]["hosts_patched"] == 185
-        assert summaries[2]["completion_percent"] == 54.55
+        assert summaries[0].title == "Google Chrome"
+        assert summaries[1].hosts_patched == 185
+        assert summaries[2].completion_percent == 54.55
 
 
 @pytest.mark.asyncio

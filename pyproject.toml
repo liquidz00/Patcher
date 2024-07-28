@@ -12,15 +12,13 @@ requires-python = ">=3.10"
 dependencies = [
   "aiohttp>=3.9.5",
   "asyncclick>=8.1.7.2",
-  "asyncio>=3.4.3",
   "click>=8.1.7",
   "fpdf2>=2.7.8",
-  "keyring>=25.2.1",
+  "keyring>=24.3.1",
   "openpyxl>=3.1.2",
   "pandas>=2.2.0",
   "pyarrow>=15.0.0",
   "pydantic>=2.7.4",
-  "requests>=2.32.2",
 ]
 
 classifiers = [
@@ -46,16 +44,17 @@ patcherctl = "patcher.cli:main"
 
 [project.optional-dependencies]
 dev = [
+  "aioresponses>=0.7.6",
+  "autodoc-pydantic",
   "black>=24.3.0",
-  "mypy-extensions>=1.0.0",
-  "packaging>=23.2",
-  "pathspec>=0.12.1",
-  "platformdirs>=4.2.0",
-  "pluggy>=1.5.0",
+  "build",
+  "pydata-sphinx-theme",
   "pytest>=8.2.2",
   "pytest-asyncio>=0.23.5",
   "pytest-cov>=4.0.0",
-  "tomli>=2.0.1",
+  "ruff>=0.5.1",
+  "sphinx>=7.3.7",
+  "sphinx-design",
 ]
 
 [build-system]
@@ -75,6 +74,26 @@ where = ["src"]
 version = { attr = "patcher.__about__.__version__" }
 readme = { file = ["README.md"], content-type = "text/markdown" }
 
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E101",
+  "F401",
+  "F403",
+  "I001",
+  "N801",
+  "N802",
+  "N806"
+]
+per-file-ignores = {"utils/animation.py" = ["F403"]}
+
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = [
@@ -82,6 +101,7 @@ addopts = [
   "--color=yes",
   "--cov=src",
   "--cov-report=html:coverage/htmlcov",
+  "--cov-report=term-missing",
 ]
 testpaths = ["./tests"]
 filterwarnings = [

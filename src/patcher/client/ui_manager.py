@@ -1,42 +1,71 @@
 import configparser
 import os
-import requests
-import shutil
-from typing import Dict, AnyStr
-from .. import logger
+import urllib.request
+from typing import AnyStr, Dict, Optional
+from urllib.error import URLError
 
-logthis = logger.setup_child_logger("UIConfigManager", __name__)
+from ..utils import logger
 
 
 class UIConfigManager:
     """Manages the user interface configuration settings (Header & Footer text of the exported PDF class,
     custom font (optional) and font paths)"""
 
-    REGULAR_FONT_URL = "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Regular.ttf"
-    BOLD_FONT_URL = "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Bold.ttf"
+    REGULAR_FONT_URL = (
+        "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Regular.ttf"
+    )
+    BOLD_FONT_URL = (
+        "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Bold.ttf"
+    )
 
     def __init__(self):
         """Initializes the UIConfigManager by loading the UI configuration."""
-        self.config = configparser.ConfigParser(
-            interpolation=configparser.ExtendedInterpolation()
-        )
-        self.user_config_dir = os.path.expanduser(
-            "~/Library/Application Support/Patcher"
-        )
+        self.config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
+        self.user_config_dir = os.path.expanduser("~/Library/Application Support/Patcher")
         self.user_config_path = os.path.join(self.user_config_dir, "config.ini")
         self.font_dir = os.path.join(self.user_config_dir, "fonts")
-        os.makedirs(self.font_dir, exist_ok=True)
+        self.log = logger.LogMe(self.__class__.__name__)
+        self._fonts_saved = None
         self.load_ui_config()
 
-    @staticmethod
-    def download_font(url: AnyStr, dest_path: AnyStr):
-        """Downloads Assistant font families from specified URL to destination path"""
-        response = requests.get(url=url, stream=True)
-        if response.status_code == 200:
-            with open(dest_path, "wb") as f:
-                shutil.copyfileobj(response.raw, f)
-        else:
-            raise OSError(f"Failed to download font from {url}!")
+    @property
+    def fonts_present(self) -> bool:
+        """
+        Check if default fonts have already been downloaded
+
+        :return: True if fonts are present, False otherwise.
+        :rtype: bool
+        """
+        if self._fonts_saved is None:
+            regular_font_path = os.path.join(self.font_dir, "Assistant-Regular.ttf")
+            bold_font_path = os.path.join(self.font_dir, "Assistant-Bold.ttf")
+            self._fonts_saved = os.path.exists(regular_font_path) and os.path.exists(bold_font_path)
+        return self._fonts_saved
+
+    def download_font(self, url: AnyStr, dest_path: AnyStr):
+        """
+        Downloads Assistant font families from specified URL to destination path.
+
+        :param url: The URL to download default fonts from.
+        :type url: AnyStr
+        :param dest_path: Destination path to save the fonts.
+        :type dest_path: AnyStr
+        :raises OSError: If fonts are unable to be downloaded due to urllib.error.URLError.
+        """
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+        try:
+            with urllib.request.urlopen(url=url) as response:
+                if response.status == 200:
+                    with open(dest_path, "wb") as f:
+                        f.write(response.read())
+                else:
+                    self.log.error(
+                        f"Unable to download default fonts! Received status: {response.status}"
+                    )
+                    raise OSError("Unable to download default fonts.")
+        except URLError as e:
+            self.log.error(f"Unable to download default fonts: {e}")
+            raise OSError(f"Unable to download default fonts: {e}")
 
     def create_default_config(self):
         """Creates config.ini with default settings."""
@@ -54,13 +83,14 @@ class UIConfigManager:
         # Ensure directory exists
         os.makedirs(self.user_config_dir, exist_ok=True)
 
-        # Download fonts
-        self.download_font(
-            self.REGULAR_FONT_URL, os.path.join(self.font_dir, "Assistant-Regular.ttf")
-        )
-        self.download_font(
-            self.BOLD_FONT_URL, os.path.join(self.font_dir, "Assistant-Bold.ttf")
-        )
+        # Download fonts if not already present
+        if not self.fonts_present:
+            self.download_font(
+                self.REGULAR_FONT_URL, os.path.join(self.font_dir, "Assistant-Regular.ttf")
+            )
+            self.download_font(
+                self.BOLD_FONT_URL, os.path.join(self.font_dir, "Assistant-Bold.ttf")
+            )
 
         # Write default configuration
         with open(self.user_config_path, "w") as configfile:
@@ -84,9 +114,7 @@ class UIConfigManager:
         """
         return {
             "HEADER_TEXT": self.config.get("UI", "HEADER_TEXT"),
-            "FOOTER_TEXT": self.config.get(
-                "UI", "FOOTER_TEXT", fallback="Default footer text"
-            ),
+            "FOOTER_TEXT": self.config.get("UI", "FOOTER_TEXT", fallback="Default footer text"),
             "FONT_NAME": self.config.get("UI", "FONT_NAME", fallback="Assistant"),
             "FONT_REGULAR_PATH": self.config.get(
                 "UI",
@@ -102,3 +130,28 @@ class UIConfigManager:
 
     def get(self, key: AnyStr, fallback: AnyStr = None) -> AnyStr:
         return self.get_ui_config().get(key, fallback)
+
+    def reset_config(self, config_path: Optional[AnyStr] = None) -> bool:
+        """
+        Resets User Interface values in config.ini file.
+
+        :param config_path: The path of the configuration file. Defaults to self.user_config_path.
+        :type config_path: Optional[AnyStr]
+        :return: True if reset is successful, False otherwise.
+        :rtype: bool
+        """
+        config_path = config_path or self.user_config_path
+        parser = configparser.ConfigParser()
+        try:
+            parser.read(config_path)
+            if "UI" in parser:
+                for key in parser["UI"]:
+                    parser.remove_option("UI", key)
+                with open(config_path, "w") as configfile:
+                    parser.write(configfile)
+                    return True
+            else:
+                return False
+        except Exception as e:
+            self.log.error(f"An unexpected error occurred: {e}")
+            return False

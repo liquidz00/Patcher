@@ -1,7 +1,8 @@
 import os
-import pandas as pd
 from unittest.mock import patch
-from src.patcher.model.excel_report import ExcelReport
+
+import pandas as pd
+from src.patcher.models.reports.excel_report import ExcelReport
 
 
 def test_export_to_excel_success(sample_patch_reports, temp_output_dir):
@@ -14,8 +15,8 @@ def test_export_to_excel_success(sample_patch_reports, temp_output_dir):
     df = pd.read_excel(excel_path)
     assert not df.empty
     assert list(df.columns) == [
-        "Software Title",
-        "Patch Released",
+        "Title",
+        "Released",
         "Hosts Patched",
         "Missing Patch",
         "Completion Percent",

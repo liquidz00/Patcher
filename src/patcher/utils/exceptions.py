@@ -1,8 +1,6 @@
-import click
 from typing import AnyStr
-from contextlib import contextmanager
-from threading import Event
-from .logger import LogMe
+
+import click
 
 
 class PatcherError(Exception):
@@ -12,6 +10,22 @@ class PatcherError(Exception):
         super().__init__(message, *args)
         click.echo(click.style(f"\nError: {message}", fg="red", bold=True), err=True)
         raise click.Abort()
+
+
+class CredentialDeletionError(PatcherError):
+    """Raised when there is an error fetching a bearer token from Jamf API."""
+
+    def __init__(self, message="Unable to delete credential", cred=None):
+        self.cred = cred
+        if cred:
+            message = f"{message} - Reason: {cred}"
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self):
+        if self.cred:
+            return f"{self.message} - Reason: {self.cred}"
+        return self.message
 
 
 class TokenFetchError(PatcherError):
@@ -97,9 +111,7 @@ class ExportError(PatcherError):
 class PolicyFetchError(PatcherError):
     """Raised when unable to fetch policy IDs from Jamf instance"""
 
-    def __init__(
-        self, message="Error obtaining policy information from Jamf instance", url=None
-    ):
+    def __init__(self, message="Error obtaining policy information from Jamf instance", url=None):
         self.url = url
         if url:
             message = f"{message} - URL: {url}"
@@ -115,9 +127,7 @@ class PolicyFetchError(PatcherError):
 class SummaryFetchError(PatcherError):
     """Raised when there is an error fetching summaries"""
 
-    def __init__(
-        self, message="Error obtaining patch summaries from Jamf instance", url=None
-    ):
+    def __init__(self, message="Error obtaining patch summaries from Jamf instance", url=None):
         self.url = url
         if url:
             message = f"{message} - URL: {url}"
@@ -133,9 +143,7 @@ class SummaryFetchError(PatcherError):
 class DeviceIDFetchError(PatcherError):
     """Raised when there is an error fetching device IDs from Jamf instance"""
 
-    def __init__(
-        self, message="Error retreiving device IDs from Jamf instance", reason=None
-    ):
+    def __init__(self, message="Error retreiving device IDs from Jamf instance", reason=None):
         self.reason = reason
         if reason:
             message = f"{message} - Reason: {reason}"
@@ -151,9 +159,7 @@ class DeviceIDFetchError(PatcherError):
 class DeviceOSFetchError(PatcherError):
     """Raised when there is an error fetching device IDs from Jamf instance"""
 
-    def __init__(
-        self, message="Error retreiving OS information from Jamf instance", reason=None
-    ):
+    def __init__(self, message="Error retreiving OS information from Jamf instance", reason=None):
         self.reason = reason
         if reason:
             message = f"{message} - Reason: {reason}"
@@ -222,28 +228,3 @@ class APIPrivilegeError(PatcherError):
         if self.reason:
             return f"{self.message} - Reason: {self.reason}"
         return self.message
-
-
-@contextmanager
-def error_handling(log: LogMe, stop_event: Event):
-    default_exceptions = (
-        TokenFetchError,
-        TokenLifetimeError,
-        DirectoryCreationError,
-        ExportError,
-        PolicyFetchError,
-        SummaryFetchError,
-        DeviceIDFetchError,
-        DeviceOSFetchError,
-        SortError,
-        SofaFeedError,
-        APIPrivilegeError,
-        PlistError,
-    )
-    try:
-        yield
-    except default_exceptions as e:
-        log.error(f"{e}")
-        raise click.Abort()
-    finally:
-        stop_event.set()

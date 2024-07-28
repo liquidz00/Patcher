@@ -1,6 +1,7 @@
+from unittest.mock import AsyncMock, patch
+
 import click
 import pytest
-from unittest.mock import patch, AsyncMock
 
 
 # Test successful report processing
@@ -8,16 +9,13 @@ from unittest.mock import patch, AsyncMock
 async def test_process_reports_success(
     stop_event_fixture, patcher_instance, mock_policy_response, mock_summary_response
 ):
-    with patch.object(
-        patcher_instance.excel_report, "export_to_excel"
-    ) as mock_export_to_excel:
+    with patch.object(patcher_instance.excel_report, "export_to_excel") as mock_export_to_excel:
         await patcher_instance.process_reports(
             path="~/",
             pdf=False,
             sort=None,
             omit=False,
             ios=False,
-            stop_event=stop_event_fixture,
         )
 
         assert mock_export_to_excel.called
@@ -25,9 +23,7 @@ async def test_process_reports_success(
 
 # Test process reports with invalid path
 @pytest.mark.asyncio
-@patch(
-    "os.makedirs", new_callable=AsyncMock, side_effect=OSError("Read-only file system")
-)
+@patch("os.makedirs", new_callable=AsyncMock, side_effect=OSError("Read-only file system"))
 @patch("os.path.isfile")
 async def test_process_reports_invalid_path(
     mock_isfile,
@@ -44,7 +40,6 @@ async def test_process_reports_invalid_path(
             sort=None,
             omit=False,
             ios=False,
-            stop_event=stop_event_fixture,
         )
 
         mock_error.assert_called_once()
@@ -57,16 +52,13 @@ async def test_invalid_sort(
     patcher_instance,
 ):
     with pytest.raises(click.Abort):
-        with patch.object(
-            patcher_instance.excel_report, "export_to_excel"
-        ) as mock_error:
+        with patch.object(patcher_instance.excel_report, "export_to_excel") as mock_error:
             await patcher_instance.process_reports(
                 path="~/",
                 pdf=False,
                 sort="sort_column",
                 omit=False,
                 ios=False,
-                stop_event=stop_event_fixture,
             )
 
             mock_error.assert_called_once()

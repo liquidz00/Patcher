@@ -1,19 +1,19 @@
-import asyncclick as click
 import asyncio
-import threading
-import time
-
 from typing import AnyStr, Optional
-from .__about__ import __version__
 
-from .wrappers import first_run
-from .client.config_manager import ConfigManager
-from .client.ui_manager import UIConfigManager
-from .client.token_manager import TokenManager
+import asyncclick as click
+
+from .__about__ import __version__
 from .client.api_client import ApiClient
+from .client.config_manager import ConfigManager
 from .client.report_manager import ReportManager
-from .model.excel_report import ExcelReport
-from .model.pdf_report import PDFReport
+from .client.setup import Setup
+from .client.token_manager import TokenManager
+from .client.ui_manager import UIConfigManager
+from .models.reports.excel_report import ExcelReport
+from .models.reports.pdf_report import PDFReport
+from .utils.animation import Animation
+from .utils.logger import LogMe
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -24,28 +24,14 @@ DATE_FORMATS = {
 }
 
 
-def animate_search(stop_event: threading.Event, enable_animation: bool) -> None:
-    """Animates ellipsis in 'Processing...' message."""
-    if not enable_animation:
-        return
-
-    i = 0
-    max_length = 0
-    while not stop_event.is_set():
-        message = "\rProcessing" + "." * (i % 4)
-        max_length = max(max_length, len(message))
-        click.echo(message, nl=False)
-        i += 1
-        time.sleep(0.5)
-
-    # Clear animation line after stopping
-    click.echo("\r" + " " * max_length + "\r", nl=False)
-
-
 @click.command()
 @click.version_option(version=__version__)
 @click.option(
-    "--path", "-p", type=click.Path(), required=True, help="Path to save the report"
+    "--path",
+    "-p",
+    type=click.Path(),
+    required=False,  # Defaulting to false in favor of `--reset`
+    help="Path to save the report(s)",
 )
 @click.option(
     "--pdf",
@@ -92,8 +78,16 @@ def animate_search(stop_event: threading.Event, enable_animation: bool) -> None:
     default=False,
     help="Enable debug logging to see detailed debug messages.",
 )
-@first_run
+@click.option(
+    "--reset",
+    "-r",
+    is_flag=True,
+    default=False,
+    help="Resets the setup process and triggers the setup assistant again.",
+)
+@click.pass_context
 async def main(
+    ctx: click.Context,
     path: AnyStr,
     pdf: bool,
     sort: Optional[AnyStr],
@@ -102,28 +96,59 @@ async def main(
     ios: bool,
     concurrency: int,
     debug: bool,
+    reset: bool,
 ) -> None:
+    if not ctx.params["reset"] and not ctx.params["path"]:
+        raise click.UsageError("The --path option is required unless --reset is specified.")
+
     config = ConfigManager()
-    token_manager = TokenManager(config)
-    api_client = ApiClient(config)
-    excel_report = ExcelReport()
     ui_config = UIConfigManager()
-    pdf_report = PDFReport(ui_config)
-    api_client.jamf_client.set_max_concurrency(concurrency=concurrency)
+    setup = Setup(config=config, ui_config=ui_config)
 
-    patcher = ReportManager(
-        config, token_manager, api_client, excel_report, pdf_report, ui_config, debug
-    )
+    log = LogMe(__name__, debug=debug)
+    animation = Animation(enable_animation=not debug)
 
-    actual_format = DATE_FORMATS[date_format]
-    stop_event = threading.Event()
-    enable_animation = not debug
-    animation_thread = threading.Thread(
-        target=animate_search, args=(stop_event, enable_animation)
-    )
-    animation_thread.start()
+    async with animation.error_handling(log):
+        if not setup.completed:
+            await setup.launch(animator=animation)
+            click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
+            click.echo("Patcher is now ready for use.")
+            click.echo("You can use the --help flag to view available options.")
+            click.echo(
+                "For more information, visit our project wiki: https://github.com/liquidz00/Patcher/wiki"
+            )
+            return
+        elif reset:
+            click.echo(
+                click.style(
+                    text="Warning! This will remove Patcher client credentials from keychain",
+                    fg="yellow",
+                    bold=True,
+                )
+            )
+            proceed = click.confirm(text="Proceed with reset?", default=False)
+            if proceed:
+                await setup.reset()
+                click.echo(
+                    click.style(text="Reset has completed as expected!", fg="green", bold=True)
+                )
+                return
+            else:
+                return
 
-    await patcher.process_reports(path, pdf, sort, omit, ios, stop_event, actual_format)
+        token_manager = TokenManager(config)
+
+        api_client = ApiClient(config)
+        excel_report = ExcelReport()
+        pdf_report = PDFReport(ui_config)
+        api_client.jamf_client.set_max_concurrency(concurrency=concurrency)
+
+        patcher = ReportManager(
+            config, token_manager, api_client, excel_report, pdf_report, ui_config, debug
+        )
+
+        actual_format = DATE_FORMATS[date_format]
+        await patcher.process_reports(path, pdf, sort, omit, ios, actual_format)
 
 
 if __name__ == "__main__":

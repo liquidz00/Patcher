@@ -1,20 +1,23 @@
+import logging
+import plistlib
+import threading
+from datetime import datetime, timedelta, timezone
+from io import BytesIO, StringIO
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+
 import pytest
 import pytz
-import logging
-import threading
-from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, MagicMock, AsyncMock, mock_open
-from src.patcher.client.config_manager import ConfigManager
-from src.patcher.client.token_manager import TokenManager
 from src.patcher.client.api_client import ApiClient
-from src.patcher.model.models import AccessToken, JamfClient
+from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.report_manager import ReportManager
-from io import StringIO
+from src.patcher.client.token_manager import TokenManager
+from src.patcher.models.jamf_client import JamfClient
+from src.patcher.models.patch import PatchTitle
+from src.patcher.models.token import AccessToken
 
 
 @pytest.fixture
 def mock_policy_response():
-    """Fixture to provide a mock policy response."""
     yield [
         {
             "id": "3",
@@ -72,14 +75,16 @@ def mock_policy_response():
 
 @pytest.fixture
 def mock_summary_response():
-    """Fixture to provide mock summary responses for each policy."""
+    def get_iso_format(dt):
+        return dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+
     yield [
         {
             "softwareTitleId": "3",
             "softwareTitleConfigurationId": "3",
             "title": "Google Chrome",
             "latestVersion": "122.0.6261.57",
-            "releaseDate": (datetime.now(pytz.utc) - timedelta(days=3)).isoformat(),
+            "releaseDate": get_iso_format(datetime.now(pytz.utc) - timedelta(days=3)),
             "upToDate": 23,
             "outOfDate": 163,
             "onDashboard": True,
@@ -89,7 +94,7 @@ def mock_summary_response():
             "softwareTitleConfigurationId": "4",
             "title": "Jamf Connect",
             "latestVersion": "2.32.0",
-            "releaseDate": (datetime.now(pytz.utc) - timedelta(hours=24)).isoformat(),
+            "releaseDate": get_iso_format(datetime.now(pytz.utc) - timedelta(hours=24)),
             "upToDate": 185,
             "outOfDate": 19,
             "onDashboard": True,
@@ -99,11 +104,65 @@ def mock_summary_response():
             "softwareTitleConfigurationId": "5",
             "title": "Apple macOS Ventura",
             "latestVersion": "13.6.4 (22G513)",
-            "releaseDate": (datetime.now(pytz.utc) - timedelta(days=7)).isoformat(),
+            "releaseDate": get_iso_format(datetime.now(pytz.utc) - timedelta(days=7)),
             "upToDate": 6,
             "outOfDate": 5,
             "onDashboard": True,
         },
+    ]
+
+
+@pytest.fixture
+def mock_patch_title_response():
+    def get_iso_format(dt):
+        return dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+    yield [
+        PatchTitle(
+            title="Google Chrome",
+            released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=3)),
+            hosts_patched=23,
+            missing_patch=163,
+            completion_percent=(
+                round(
+                    (23 / (23 + 163)) * 100,
+                    2,
+                )
+                if 23 + 163 > 0
+                else 0
+            ),
+            total_hosts=23 + 163,
+        ),
+        PatchTitle(
+            title="Jamf Connect",
+            released=get_iso_format(datetime.now(pytz.utc) - timedelta(hours=24)),
+            hosts_patched=185,
+            missing_patch=19,
+            completion_percent=(
+                round(
+                    (185 / (185 + 19)) * 100,
+                    2,
+                )
+                if 185 + 19 > 0
+                else 0
+            ),
+            total_hosts=185 + 19,
+        ),
+        PatchTitle(
+            title="Apple macOS Ventura",
+            released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=7)),
+            hosts_patched=6,
+            missing_patch=5,
+            completion_percent=(
+                round(
+                    (6 / (6 + 5)) * 100,
+                    2,
+                )
+                if 6 + 5 > 0
+                else 0
+            ),
+            total_hosts=6 + 5,
+        ),
     ]
 
 
@@ -281,9 +340,7 @@ def capture_logs():
     log_capture.setLevel(logging.DEBUG)
     stream = StringIO()
     handler = logging.StreamHandler(stream)
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     handler.setFormatter(formatter)
     log_capture.addHandler(handler)
 
@@ -309,9 +366,7 @@ def mock_jamf_client():
 
 @pytest.fixture
 def short_lived_jamf_client():
-    mock_token = AccessToken(
-        token="mocked_token", expires=(datetime.now() + timedelta(seconds=30))
-    )
+    mock_token = AccessToken(token="mocked_token", expires=(datetime.now() + timedelta(seconds=30)))
     return JamfClient(
         client_id="short-lived-client-id",
         client_secret="mocked_client_secret",
@@ -337,14 +392,14 @@ def stop_event_fixture():
 
 
 @pytest.fixture
-def patcher_instance(mock_policy_response, mock_summary_response):
+def patcher_instance(mock_policy_response, mock_patch_title_response):
     config = MagicMock()
     ui_config = MagicMock()
     token_manager = AsyncMock()
     api_client = AsyncMock()
 
     api_client.get_policies.return_value = mock_policy_response
-    api_client.get_summaries.return_value = mock_summary_response
+    api_client.get_summaries.return_value = mock_patch_title_response
 
     excel_report = MagicMock()
     pdf_report = MagicMock()
@@ -380,14 +435,14 @@ def api_client(config_manager):
 @pytest.fixture
 def sample_patch_reports():
     return [
-        {
-            "software_title": "Example Software",
-            "patch_released": "2024-01-01",
-            "hosts_patched": 10,
-            "missing_patch": 2,
-            "completion_percent": 83.33,
-            "total_hosts": 12,
-        }
+        PatchTitle(
+            title="Example Software",
+            released="2024-01-01",
+            hosts_patched=10,
+            missing_patch=2,
+            completion_percent=83.33,
+            total_hosts=12,
+        )
     ]
 
 
@@ -418,3 +473,26 @@ def mock_open_file():
 def mock_click():
     with patch("click.prompt"), patch("click.confirm"):
         yield
+
+
+@pytest.fixture
+def ui_config():
+    ui = MagicMock()
+    ui.user_config_path = "/mock/path/to/config.ini"
+    return ui
+
+
+@pytest.fixture
+def mock_plist_file(request):
+    first_run_done_value = request.param
+    plist_data = {"first_run_done": first_run_done_value}
+    plist_bytes = plistlib.dumps(plist_data, fmt=plistlib.FMT_XML)
+
+    mock_file = BytesIO(plist_bytes)
+
+    with (
+        patch("builtins.open", return_value=mock_file),
+        patch("os.path.exists", return_value=True),
+        patch("os.path.expanduser", return_value="/mock/path/to/plist"),
+    ):
+        yield first_run_done_value

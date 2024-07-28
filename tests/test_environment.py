@@ -1,8 +1,9 @@
-from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, call, ANY, MagicMock
+from datetime import datetime, timedelta, timezone
+from unittest.mock import ANY, MagicMock, call, patch
+
 from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.token_manager import TokenManager
-from src.patcher.model.models import AccessToken
+from src.patcher.models.token import AccessToken
 
 
 @patch.object(ConfigManager, "set_credential")
@@ -55,9 +56,7 @@ def test_token_manager_initialization(config_manager):
 @patch.object(ConfigManager, "set_credential")
 def test_save_token(mock_set_credential, config_manager):
     token_manager = TokenManager(config=config_manager)
-    token = AccessToken(
-        token="new_token", expires=datetime(2031, 1, 1, tzinfo=timezone.utc)
-    )
+    token = AccessToken(token="new_token", expires=datetime(2031, 1, 1, tzinfo=timezone.utc))
     token_manager.save_token(token)
 
     expected_calls = [
