@@ -101,6 +101,7 @@ addopts = [
   "--color=yes",
   "--cov=src",
   "--cov-report=html:coverage/htmlcov",
+  "--cov-report=term-missing",
 ]
 testpaths = ["./tests"]
 filterwarnings = [
