@@ -369,7 +369,7 @@ class Setup:
 
     async def first_run(self):
         """
-        Similar to `launch` method, but triggered when SSO is being utilized by end-user.
+        Similar to the ``launch`` method, but triggered when SSO is being utilized by end-user.
 
         :raises SystemExit: If the user opts not to proceed with the setup.
         :raises exceptions.TokenFetchError: If there is an error fetching the token.
