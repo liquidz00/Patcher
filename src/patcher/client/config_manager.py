@@ -91,9 +91,9 @@ class ConfigManager:
 
     def attach_client(self) -> Optional[JamfClient]:
         """
-        Attaches a `JamfClient` object using the stored credentials.
+        Attaches a :mod:`patcher.models.jamf_client` object using the stored credentials.
 
-        :return: The JamfClient object if validation is successful, None otherwise.
+        :return: The ``JamfClient`` object if validation is successful, None otherwise.
         :rtype: Optional[JamfClient]
         """
         self.log.debug("Attaching Jamf client with stored credentials")
@@ -112,10 +112,10 @@ class ConfigManager:
 
     def create_client(self, client: JamfClient):
         """
-        Creates a `JamfClient` object with necessary attributes. Predominantly used by `Setup` class methods.
+        Creates a :mod:`patcher.models.jamf_client` object with necessary attributes. Predominantly used by :mod:`patcher.client.setup` class methods.
 
-        :param client: The JamfClient object to create.
-        :type client: JamfClient
+        :param client: The ``JamfClient`` object to create.
+        :type client: ``JamfClient``
         """
         self.log.debug(f"Setting Jamf client: {client.client_id}")
         credentials = {

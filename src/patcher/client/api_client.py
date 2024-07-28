@@ -87,7 +87,7 @@ class ApiClient:
     async def fetch_batch(self, urls: List[AnyStr]) -> List[Optional[Dict]]:
         """
         Fetches JSON data in batches to respect the concurrency limit. Data is fetched
-        from each URL in the provided list, ensuring that no more than `max_concurrency`
+        from each URL in the provided list, ensuring that no more than ``max_concurrency``
         requests are sent concurrently.
 
         :param urls: A list of URLs to fetch JSON data from

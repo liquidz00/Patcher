@@ -18,8 +18,8 @@ class TokenManager:
         Initializes the TokenManager with the provided ConfigManager.
 
         :param config: Instance of ConfigManager for loading and storing credentials.
-        :type config: ConfigManager
-        :raises ValueError: If the JamfClient configuration is invalid.
+        :type config: :mod:`patcher.client.config_manager`
+        :raises ValueError: If the ``JamfClient`` configuration is invalid.
         """
         self.config = config
         self.jamf_client = self.config.attach_client()
@@ -38,7 +38,7 @@ class TokenManager:
         Saves the token and its expiration date in the keyring.
 
         :param token: The access token to save.
-        :type token: AccessToken
+        :type token: :mod:`patcher.models.token`
         """
         self.log.debug(f"Saving token: {token.token}")
         self.config.set_credential("TOKEN", token.token)

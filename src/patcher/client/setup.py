@@ -209,7 +209,7 @@ class Setup:
         :type username: AnyStr
         :param password: Password of admin Jamf Pro account. Not permanently stored, only used for initial token retrieval.
         :type password: AnyStr
-        :param jamf_url: Jamf Server URL (same as `server_url` in `JamfClient` class).
+        :param jamf_url: Jamf Server URL (same as ``server_url`` in :mod:`patcher.models.jamf_client` class).
         :type jamf_url: Optional[AnyStr]
         :raises exceptions.TokenFetchError: If the call is unauthorized or unsuccessful.
         :returns: True if basic token was generated, False if 401 encountered (SSO)
@@ -335,7 +335,7 @@ class Setup:
         :type client_id: AnyStr
         :param client_secret: The client secret.
         :type client_secret: AnyStr
-        :return: An AccessToken object if successful, None otherwise.
+        :return: An :mod:`patcher.models.token` object if successful, None otherwise.
         :rtype: Optional[AccessToken]
         """
         async with self.lock:
@@ -422,7 +422,7 @@ class Setup:
         Launches the setup assistant, prompting the user for necessary information and handling the setup process.
 
         :param animator: The animation instance to update messages.
-        :type animator: Animation
+        :type animator: :mod:`patcher.utils.animation`
         :param show_msg: Whether to show the greeting message.
         :type show_msg: bool
         :param confirm: Whether to ask for user confirmation before proceeding.

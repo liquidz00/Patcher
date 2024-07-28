@@ -33,17 +33,17 @@ class ReportManager:
         Initializes the patcher class with the provided components.
 
         :param config: Instance of ConfigManager for managing configuration.
-        :type config: ConfigManager
+        :type config: :mod:`patcher.client.config_manager`
         :param token_manager: Instance of TokenManager for managing tokens.
-        :type token_manager: TokenManager
+        :type token_manager: :mod:`patcher.client.token_manager`
         :param api_client: Instance of ApiClient for interacting with the Jamf API.
-        :type api_client: ApiClient
+        :type api_client: :mod:`patcher.client.api_client`
         :param excel_report: Instance of ExcelReport for generating Excel reports.
-        :type excel_report: ExcelReport
+        :type excel_report: :mod:`patcher.models.reports.excel_report`
         :param pdf_report: Instance of PDFReport for generating PDF reports.
-        :type pdf_report: PDFReport
+        :type pdf_report: :mod:`patcher.models.reports.pdf_report`
         :param ui_config: Instance of UIConfigManager for UI configuration.
-        :type ui_config: UIConfigManager
+        :type ui_config: :mod:`patcher.client.ui_manager`
         :param debug: Enable or disable debug mode. Defaults to False.
         :type debug: bool
         """

@@ -133,7 +133,7 @@ class UIConfigManager:
 
     def reset_config(self, config_path: Optional[AnyStr] = None) -> bool:
         """
-        Resets User Interface values in config.ini file.
+        Resets User Interface values in ``config.ini`` file.
 
         :param config_path: The path of the configuration file. Defaults to self.user_config_path.
         :type config_path: Optional[AnyStr]
