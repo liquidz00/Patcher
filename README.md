@@ -31,7 +31,7 @@ After installation, you can generate reports by running the main script. You can
 patcherctl --path '/path/to/output/directory' [--pdf]
 ```
 
-For a list of all available command options, visit the usage page of our documentation. 
+For a list of all available command options, visit the [usage page](https://patcher.liquidzoo.io/user/usage.html) of our documentation. 
 
 ## Authors & Contributions
-Patcher is co-authored by [Andrew Speciale - @liquidz00](https://github.com/liquidz00) and [Chris Ball - @ball42](https://github.com/ball42). Contributions to Patcher are welcome! We have set up templates for submitting issues, feature requests, and feedback. Please be sure to utilize these templates when contributing to the project.
+Patcher is co-authored by [Andrew Speciale - @liquidz00](https://github.com/liquidz00) and [Chris Ball - @ball42](https://github.com/ball42). [Contributions](https://patcher.liquidzoo.io/contributing/index.html) to Patcher are welcome! We have set up templates for submitting issues, feature requests, and feedback. Please be sure to utilize these templates when contributing to the project.
