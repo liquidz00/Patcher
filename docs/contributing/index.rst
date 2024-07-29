@@ -3,7 +3,7 @@
 Contributing
 ============
 
-Contributions to Patcher are encouraged and welcomed. Contributing does not *have* to mean writing Python code! Project documentation can always be improved and `feature requests <https://github.com/liquidz00/Patcher/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=%5BFEATURE%5D+Your+feature+request+title>`_ can be submitted for new ideas or functionality. We, the developers of this tool, **firmly believe** that diverse backgrounds strenthen a product. Therefore, we encourage you to share your ideas and thoughts, regardless of your programming experience.
+Contributions to Patcher are encouraged and welcomed. Contributing does not *have* to mean writing Python code! Project documentation can always be improved and `feature requests <https://github.com/liquidz00/Patcher/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=%5BFEATURE%5D+Your+feature+request+title>`_ can be submitted for new ideas or functionality. We, the developers of this tool, **firmly believe** that diverse backgrounds strengthen a product. Therefore, we encourage you to share your ideas and thoughts, regardless of your programming experience.
 
 Some topics we are hoping to develop in future versions of Patcher are:
 
@@ -34,15 +34,15 @@ Virtual Environment
 
 After forking the repository, create a virtual environment by executing the following command:
 
-.. code-block:: console
+.. code-block:: shell
 
-    python3 -m venv venv
+    % python3 -m venv venv
 
 Once created, activate the virtual environment:
 
-.. code-block:: console
+.. code-block:: shell
 
-    source venv/bin/activate
+    % source venv/bin/activate
 
 .. dropdown:: Virtual Environment Reference
 
