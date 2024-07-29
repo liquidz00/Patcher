@@ -21,7 +21,7 @@ Patcher needs to know whether it is being run for the first time. This is import
 API credential creation
 -----------------------
 
-Beginning with Patcher version 1.3.4, the Setup Assistant handled in the :mod:`patcher.client.setup` class will prompt for a Jamf Pro username and password. The admin credentials are not stored permanently--they are **only** used for initial authentication for creating the API roles and client.
+Beginning with Patcher version 1.3.4, the Setup Assistant handled in the :mod:`~patcher.client.setup` class will prompt for a Jamf Pro username and password. The admin credentials are not stored permanently--they are **only** used for initial authentication for creating the API roles and client.
 
 The setup assistant also has checks in place to account for the use of SSO. As the Jamf Pro API `does not support the use of SSO, <https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#authentication-and-authorization>`_ you may be prompted to verify your account is not configured with SSO. In the event it is, creating an :ref:`API Role and Client will have to be done manually <jamf-guide>`.
 
