@@ -28,9 +28,9 @@ Any resource Patcher interacts with can be found in the Application Support dire
 
 Open this file in your text editor of choice, or execute the command below in Terminal to open the file in the TextEdit app.
 
-.. code-block:: console
+.. code-block:: shell
 
-    open -a "TextEdit.app" ~/Library/Application\ Support/Patcher/config.ini
+    % open -a "TextEdit.app" ~/Library/Application\ Support/Patcher/config.ini
 
 Sample configuration
 ^^^^^^^^^^^^^^^^^^^^
