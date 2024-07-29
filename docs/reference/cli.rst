@@ -6,7 +6,7 @@ Command Line Interface
 
 .. note::
 
-    The CLI entry point collaborates with the :mod:`patcher.client.report_manager` module. Most of the operations are managed by the Report Manager class, where debug logs are also generated, rather than within the CLI entry point.
+    The CLI entry point collaborates with the :mod:`~patcher.client.report_manager` module. Most of the operations are managed by the Report Manager class, where debug logs are also generated, rather than within the CLI entry point.
 
 The main entry point for the Patcher CLI (patcherctl).
 
@@ -20,7 +20,7 @@ Parameters
   The path to save the report(s).
 
 - **pdf** (*bool*):
-  If passed, Patcher will generate a PDF report along with the Excel spreadsheet using the :mod:`pdf_report` model.
+  If passed, Patcher will generate a PDF report along with the Excel spreadsheet using the :mod:`~patcher.models.reports.pdf_report` model.
 
 - **sort** (*Optional[AnyStr]*):
   Sort patch reports by a specified column.
@@ -47,4 +47,4 @@ Parameters
   Enable debug logging to see detailed debug messages. Providing this option replaces the animation usually shown to ``stdout``.
 
 - **reset** (*bool*):
-  Resets the ``config.ini`` file used for customizable elements in exported PDF reports, then triggers :func:`patcher.client.setup._setup_ui` method. See :ref:`Customizing Reports <customize_reports>` for more information.
+  Resets the ``config.ini`` file used for customizable elements in exported PDF reports, then triggers :func:`~patcher.client.setup._setup_ui` method. See :ref:`Customizing Reports <customize_reports>` for more information.
