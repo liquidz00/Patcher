@@ -13,9 +13,9 @@ The ``--sort`` option allows users to sort patch reports based upon a specified 
 
 To use the ``--sort`` option, add ``--sort`` or ``-s`` followed by the column nameyou want to sort the report by. Patcher will automatically handle column name conversion to match column titles in the data frame.
 
-.. code-block:: console
+.. code-block:: shell
 
-    patcherctl --path '/path/to/save' --sort "Column Name"
+    % patcherctl --path '/path/to/save' --sort "Column Name"
 
 Ensure that the column name provided is valid and exists in the report. Invalid column names will result in an error and the script will abort.
 
@@ -26,9 +26,9 @@ The ``--omit`` option enables users to omit software titles from the report that
 
 No additional arguments are required for the omit option. It is simply a flag that can be passed to Patcher:
 
-.. code-block:: console
+.. code-block:: shell
 
-    patcherctl --path '/path/to/save' --omit
+    % patcherctl --path '/path/to/save' --omit
 
 .. _date-format:
 
@@ -39,9 +39,9 @@ Specify the format of the date used in the header of exported PDF reports. This 
 
 To use the ``--date-format`` option, add ``-d`` or ``--date-format`` followed by one of the predefined format names.
 
-.. code-block:: console
+.. code-block:: shell
 
-    patcherctl --path '/path/to/save' --date-format "Month-Year"
+    % patcherctl --path '/path/to/save' --date-format "Month-Year"
 
 Options:
 ^^^^^^^^
@@ -61,9 +61,9 @@ The ``--ios`` or ``-m`` flags will append the amount of enrolled mobile devices 
 
 Similar to the ``--omit`` option, the ``--ios`` option is a flag. To include iOS data information in your report, simply pass the ``--ios`` or ``-m`` arguments to Patcher.
 
-.. code-block:: console
+.. code-block:: shell
 
-    patcherctl --path '/path/to/save' --ios
+    % patcherctl --path '/path/to/save' --ios
 
 Debug
 -----
@@ -73,9 +73,9 @@ Passing ``--debug`` or ``-x`` to Patcher will output debug logs to standard out 
 Usage & Sample output
 ^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: bash
+.. code-block:: shell
 
-    user@computer$: patcherctl --path '/path/to/save' --debug
+    % patcherctl --path '/path/to/save' --debug
 
 .. code-block:: text
 
@@ -108,9 +108,9 @@ Concurrency
 
 The ``--concurrency`` option sets the *maximum* number of concurrent API requests. By default, this is set to 5. Passing in a different integer to this option will modify this setting.
 
-.. code-block:: console
+.. code-block:: shell
 
-    patcherctl --path '/path/to/save' --concurrency 10
+    % patcherctl --path '/path/to/save' --concurrency 10
 
 Reset
 -----
@@ -120,6 +120,6 @@ Reset
 
 To streamline the customization process, you can use the ``--reset`` flag with Patcher. This option will clear the existing header and footer text from the PDF configuration and initiate the UI setup process again. This allows you to specify a custom font and modify the header and footer text options.
 
-.. code-block:: console
+.. code-block:: shell
 
-    patcherctl --reset
+    % patcherctl --reset
