@@ -41,8 +41,10 @@ classifiers = [
 
 
 [project.urls]
-Documentation = "https://github.com/liquidz00/Patcher/wiki"
-Source = "https://github.com/liquidz00/Patcher"
+Homepage = "https://patcher.liquidzoo.io"
+Documentation = "https://patcher.liquidzoo.io"
+Repository = "https://github.com/liquidz00/Patcher"
+Issues = "https://github.com/liquidz00/Patcher/issues/new?assignees=&labels=bug&projects=&template=issue.md&title=%5BISSUE%5D+Your+Issue+Title"
 
 [project.scripts]
 patcherctl = "patcher.cli:main"
