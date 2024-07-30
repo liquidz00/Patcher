@@ -6,7 +6,8 @@ import sys
 from asyncio import Lock, sleep
 from configparser import ConfigParser
 from datetime import datetime, timedelta, timezone
-from typing import AnyStr, Optional, Tuple
+from pathlib import Path
+from typing import AnyStr, Optional, Tuple, Union
 
 import aiohttp
 import click
@@ -27,7 +28,7 @@ The setup assistant will prompt you for your Jamf URL, your Jamf Pro username an
 You will be prompted to enter in the header and footer text for PDF reports, should you choose to generate them. These can be configured later by modifying the 'config.ini' file in Patcher's Application Support directory stored in the user library.
 
 """
-WIKI = "For more information, visit our project wiki: https://github.com/liquidz00/Patcher/wiki\n"
+DOC = "For more information, visit the project documentation: https://patcher.liquidzoo.io\n"
 
 
 class Setup:
@@ -115,7 +116,7 @@ class Setup:
         """
         click.echo(click.style(GREET, fg="cyan", bold=True))
         click.echo(click.style(WELCOME), nl=False)
-        click.echo(click.style(WIKI, fg="bright_magenta", bold=True))
+        click.echo(click.style(DOC, fg="bright_magenta", bold=True))
 
     def _setup_ui(self):
         """
@@ -136,17 +137,25 @@ class Setup:
         self._save_ui_config(header_text, footer_text, font_name, font_regular_path, font_bold_path)
 
     @staticmethod
-    def _configure_font(use_custom_font: bool, font_dir: AnyStr) -> Tuple[AnyStr, AnyStr, AnyStr]:
+    def _configure_font(
+        use_custom_font: bool, font_dir: Union[str, Path]
+    ) -> Tuple[AnyStr, str, str]:
         """
         Configures the font settings based on user input.
 
         :param use_custom_font: Indicates whether to use a custom font.
         :type use_custom_font: bool
         :param font_dir:  The directory to store the font files.
-        :type font_dir: AnyStr
+        :type font_dir: Union[str, Path]
         :return: A tuple containing the font name, regular font path and bold font path.
-        :rtype: Tuple[AnyStr, AnyStr, AnyStr]
+        :rtype: Tuple[AnyStr, str, str]
         """
+        # Convert font_dir to a string if passed a Path object
+        # This is intentional based upon how ``os.path.join`` handles str objects natively
+        #   and may not work as expected if passed a Path object
+        if isinstance(font_dir, Path):
+            font_dir = str(font_dir)
+
         if use_custom_font:
             font_name = click.prompt("Enter the custom font name", default="CustomFont")
             font_regular_src_path = click.prompt("Enter the path to the regular font file")
@@ -159,6 +168,7 @@ class Setup:
             font_name = "Assistant"
             font_regular_dest_path = os.path.join(font_dir, "Assistant-Regular.ttf")
             font_bold_dest_path = os.path.join(font_dir, "Assistant-Bold.ttf")
+
         return font_name, font_regular_dest_path, font_bold_dest_path
 
     def _save_ui_config(
@@ -166,8 +176,8 @@ class Setup:
         header_text: AnyStr,
         footer_text: AnyStr,
         font_name: AnyStr,
-        font_regular_path: AnyStr,
-        font_bold_path: AnyStr,
+        font_regular_path: Union[str, Path],
+        font_bold_path: Union[str, Path],
     ):
         """
         Saves the UI configuration settings to the configuration file.
@@ -179,9 +189,9 @@ class Setup:
         :param font_name: The name of the font to use.
         :type font_name: AnyStr
         :param font_regular_path: The path to the regular font file.
-        :type font_regular_path: AnyStr
+        :type font_regular_path: Union[str, Path]
         :param font_bold_path: The path to the bold font file.
-        :type font_bold_path: AnyStr
+        :type font_bold_path: Union[str, Path]
         """
         parser = ConfigParser(interpolation=configparser.ExtendedInterpolation())
         parser.read(self.ui_config.user_config_path)
@@ -555,7 +565,8 @@ class Setup:
         """
         Resets the user interface elements of PDF reports by modifying config.ini in the user library. UI elements are then reconfigured by calling the setup UI function.
         """
-        # Clear exisiting UI configuration
+        # Clear existing UI configuration
+
         reset_config = self.ui_config.reset_config()
         if not reset_config:
             self.log.error("Encountered an issue resetting elements in config.ini.")

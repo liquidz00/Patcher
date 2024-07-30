@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
-from typing import AnyStr, List, Optional
+from pathlib import Path
+from typing import List, Optional, Union
 
 import pandas as pd
 
@@ -14,17 +15,22 @@ class ExcelReport:
     """Handles the generation of Excel reports from patch data."""
 
     @staticmethod
-    def export_to_excel(patch_reports: List[PatchTitle], output_dir: AnyStr) -> Optional[AnyStr]:
+    def export_to_excel(
+        patch_reports: List[PatchTitle], output_dir: Union[str, Path]
+    ) -> Optional[str]:
         """
         Exports patch data to an Excel spreadsheet in the specified output directory.
 
         :param patch_reports: List of PatchTitle instances containing patch report data.
         :type patch_reports: List[PatchTitle]
         :param output_dir: Directory to save the Excel spreadsheet.
-        :type output_dir: AnyStr
+        :type output_dir: Union[str, Path]
         :return: Path to the created Excel spreadsheet or None on error.
-        :rtype: Optional[AnyStr]
+        :rtype: Optional[str]
         """
+        if isinstance(output_dir, Path):
+            output_dir = str(output_dir)
+
         current_date = datetime.now().strftime("%m-%d-%y")
 
         try:

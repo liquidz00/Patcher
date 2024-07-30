@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta
-from typing import AnyStr, Dict, List, Optional
+from pathlib import Path
+from typing import AnyStr, Dict, List, Optional, Union
 
 from click import echo, style
 
@@ -108,7 +109,7 @@ class ReportManager:
     @check_token
     async def process_reports(
         self,
-        path: AnyStr,
+        path: Union[str, Path],
         pdf: bool,
         sort: Optional[AnyStr],
         omit: bool,
@@ -120,7 +121,7 @@ class ReportManager:
         optionally generating PDF versions, sorting by a specified column, and omitting recent entries.
 
         :param path: Directory path to save the reports.
-        :type path: AnyStr
+        :type path: Union[str, Path]
         :param pdf: Generate PDF versions of the reports if True.
         :type pdf: bool
         :param sort: Column name to sort the reports.
