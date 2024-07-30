@@ -80,10 +80,7 @@ html_theme_options = {
 }
 
 # Remove ethical ads from the sidebar
-html_sidebars = {
-    "**": ["sidebar-nav-bs"],
-    "contributing/index": []
-}
+html_sidebars = {"**": ["sidebar-nav-bs"], "contributing/index": []}
 
 html_context = {
     "default_mode": "auto",
