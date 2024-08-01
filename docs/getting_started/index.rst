@@ -48,3 +48,9 @@ Where ``{VERSION}`` is the beta version you are looking to install, e.g. ``1.3.4
 
 .. note::
     Installing beta versions of Patcher are meant only for testing features being developed and implemented. We encourage installing these versions for contribution purposes. For more information, visit the :ref:`contributing <contributing_index>` page.
+
+.. toctree::
+    :maxdepth: 2
+    :hidden:
+
+    setup
