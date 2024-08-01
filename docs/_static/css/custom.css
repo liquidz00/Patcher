@@ -1,0 +1,27 @@
+:root {
+/* Override primary and secondary theme colors */
+    --pst-color-primary: #4bb3fdff; /* Dodger Blue */
+    --pst-color-secondary: #6432bdff; /* Grape */
+
+    /* Override hover colors */
+    --pst-color-link-hover: #2a9df4; /* Lighter Dodger Blue for hover */
+    --pst-color-button-hover-bg: #3C1E71; /* Grape for button hover background */
+    --pst-color-button-hover-text: #ffffff; /* White text for button hover */
+
+    /* If buttons have a secondary hover color */
+    --pst-color-button-secondary-hover-bg: #3C1E71; /* Darker Grape for secondary button hover */
+}
+
+html[data-theme="light"] {
+/* Custom colors for the light theme */
+    --pst-color-primary: #4bb3fdff; /* Dodger Blue */
+    --pst-color-secondary: #6432bdff; /* Grape */
+    --pst-color-link-hover: #2a9df4; /* Lighter Dodger Blue */
+}
+
+html[data-theme="dark"] {
+/* Custom colors for the dark theme */
+    --pst-color-primary: #4bb3fdff; /* Dodger Blue */
+    --pst-color-secondary: #9d7eea; /* Lighter Grape */
+    --pst-color-link-hover: #2a9df4; /* Lighter Dodger Blue */
+}

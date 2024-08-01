@@ -67,6 +67,8 @@ html_favicon = "_static/logo.svg"
 html_static_path = ["_static"]
 html_title = "Patcher"
 
+html_css_files = ["css/custom.css"]
+
 html_theme_options = {
     "navbar_align": "left",
     "announcement": "https://raw.githubusercontent.com/liquidz00/Patcher/main/docs/_templates/custom-template.html",
@@ -98,7 +100,9 @@ html_theme_options = {
 }
 
 # Remove ethical ads from the sidebar
-html_sidebars = {"**": ["sidebar-nav-bs"], "contributing/index": []}
+html_sidebars = {
+    "contributing/index": [],
+}
 
 html_context = {
     "default_mode": "auto",
