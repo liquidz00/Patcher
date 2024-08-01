@@ -93,6 +93,8 @@ html_theme_options = {
     "footer_start": ["copyright"],
     "footer_center": ["sphinx-version"],
     "footer_end": ["theme-version"],
+    "pygments_light_style": "github-light",
+    "pygments_dark_style": "github-dark",
 }
 
 # Remove ethical ads from the sidebar
