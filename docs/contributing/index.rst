@@ -34,15 +34,15 @@ Virtual Environment
 
 After forking the repository, create a virtual environment by executing the following command:
 
-.. code-block:: shell
+.. code-block:: console
 
-    % python3 -m venv venv
+    $ python3 -m venv venv
 
 Once created, activate the virtual environment:
 
-.. code-block:: shell
+.. code-block:: console
 
-    % source venv/bin/activate
+    $ source venv/bin/activate
 
 .. dropdown:: Virtual Environment Reference
 
