@@ -62,6 +62,7 @@ dev = [
   "ruff>=0.5.1",
   "sphinx>=7.3.7",
   "sphinx-design",
+  "sphinx-copybutton",
 ]
 
 [build-system]
