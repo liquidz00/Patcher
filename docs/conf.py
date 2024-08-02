@@ -34,6 +34,7 @@ extensions = [
     "sphinx.ext.autosectionlabel",
     "sphinxcontrib.autodoc_pydantic",
     "sphinx_copybutton",
+    "myst_parser",
 ]
 
 templates_path = ["_templates"]
@@ -51,6 +52,10 @@ autodoc_pydantic_model_show_field_summary = False
 
 # Add 'init' DocStrings to class DocStrings
 autoclass_content = "both"
+
+# MyST Options
+myst_enable_extensions = ["colon_fence", "substitution"]
+myst_heading_anchors = 2
 
 # -- Options for copy button  ------------------------------------------------
 # https://sphinx-copybutton.readthedocs.io/en/latest/use.html
