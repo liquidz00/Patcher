@@ -63,6 +63,7 @@ dev = [
   "sphinx>=7.3.7",
   "sphinx-design",
   "sphinx-copybutton",
+  "myst-parser",
 ]
 
 [build-system]
