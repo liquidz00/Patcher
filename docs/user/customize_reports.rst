@@ -1,7 +1,7 @@
 .. _customize_reports:
 
 =====================
-Customize PDF Reports
+Customizing Reports
 =====================
 
 Tailor the user interface elements of your exported PDF reports. You have the flexibility to modify the font, and customize the header and footer text according to your preferences. See the sample PDF image below for an illustration of these customizable features.
@@ -35,7 +35,7 @@ Open this file in your text editor of choice, or execute the command below in Te
 Sample configuration
 ^^^^^^^^^^^^^^^^^^^^
 
-**Still assuming the logged in user is jappleseed**, a ``config.ini`` file could look like the following:
+Still assuming the logged in user is jappleseed, a ``config.ini`` file could look like the following:
 
 .. code-block:: ini
 
