@@ -1,4 +1,6 @@
-[//]: # (.. _reference_index:)
+---
+html_theme.sidebar_secondary.remove: True
+---
 
 # Reference
 
@@ -39,7 +41,7 @@ wrappers
 
 ```{toctree}
 :maxdepth: 2
-:caption: Command Line Interface
+:caption: Command Line Interface (CLI)
 
 cli
 ```
