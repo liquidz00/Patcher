@@ -131,8 +131,6 @@ class ApiRole(Model):
         "Read API Roles",
         "Update API Integrations",
         "Update API Roles",
-        "Delete API Integrations",
-        "Delete API Roles",
     ]
 
 
