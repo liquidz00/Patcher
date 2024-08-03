@@ -54,7 +54,7 @@ autodoc_pydantic_model_show_field_summary = False
 autoclass_content = "both"
 
 # MyST Options
-myst_enable_extensions = ["colon_fence", "substitution"]
+myst_enable_extensions = ["colon_fence", "substitution", "attrs_block"]
 myst_heading_anchors = 2
 
 # -- Options for copy button  ------------------------------------------------
