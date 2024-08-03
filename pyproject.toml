@@ -64,6 +64,7 @@ dev = [
   "sphinx-design",
   "sphinx-copybutton",
   "myst-parser",
+  "sphinx-togglebutton",
 ]
 
 [build-system]
