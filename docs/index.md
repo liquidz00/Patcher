@@ -44,8 +44,8 @@ Patcher's source-code documentation for reference.
 
 +++
 
-```{button-ref} reference_index
-:ref-type: ref
+```{button-ref} reference/index
+:ref-type: myst
 :click-parent:
 :color: secondary
 :expand:
