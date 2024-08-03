@@ -2,6 +2,6 @@
 Animation
 =========
 
-.. automodule:: patcher.utils.animation
-   :members:
-   :undoc-members:
+.. autoclass:: patcher.utils.animation.Animation
+    :members:
+

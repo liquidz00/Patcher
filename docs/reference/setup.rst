@@ -4,9 +4,8 @@ Setup
 
 .. dropdown:: Summary
 
-    The ``Setup`` class handles the initial setup of Patcher the first time it is executed. For additional reference, visit the :ref:`Setup <setup>` page in the Getting Started section.
+    The ``Setup`` class handles the initial setup of Patcher the first time it is executed. For additional reference, visit the :ref:`Setup <setup>` page in the User Guide.
 
-.. automodule:: patcher.client.setup
+.. autoclass:: patcher.client.setup.Setup
     :members:
-    :undoc-members:
-    :show-inheritance:
+
