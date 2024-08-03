@@ -20,9 +20,18 @@ First and foremost, get in touch! Ideally, this would be done by submitting a fe
 Pull Requests
 ^^^^^^^^^^^^^
 
-All pull requests should be made against the ``main`` branch of the repository. The recommended approach is to fork the Patcher repository, and create a feature branch that roughly describes the changes implemented (i.e., ``kandji`` if introducing functionality with Kandji). Be sure to pull any new commits from the ``main`` branch before submitting your PR.
+We recommend following the typical `GitHub workflow <https://docs.github.com/en/get-started/using-github/github-flow>`_:
 
-The pull request will be reviewed by project maintainers, and **must** pass the pytest unit tests before it is merged. Unit tests can be found in the `tests <https://github.com/liquidz00/Patcher/tree/main/tests>`_ directory in the repository. Tests are triggered automatically by a GitHub action which can be found in the `pytest.yml <https://github.com/liquidz00/Patcher/blob/main/.github/workflows/pytest.yml>`_ file.
+- `Fork <https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo>`_ the Patcher repository
+- Clone the repository locally in the directory of your choosing
+- Create a feature branch that roughly describes the changes implemented (i.e., ``kandji`` if introducing functionality with Kandji)
+- Work through code review
+
+.. important::
+
+    Be sure to pull any changes from the ``main`` branch before submitting a pull request.
+
+All pull requests should be made against the ``main`` branch of the repository. The pull request will be reviewed by project maintainers, and must pass the pytest unit tests before it is merged. Unit tests can be found in the `tests <https://github.com/liquidz00/Patcher/tree/main/tests>`_ directory in the repository. Tests are triggered automatically by a GitHub action which can be found in the `pytest.yml <https://github.com/liquidz00/Patcher/blob/main/.github/workflows/pytest.yml>`_ file.
 
 Environment Setup
 -----------------
@@ -32,17 +41,11 @@ Patcher uses both ``ruff`` and ``black`` to format and lint code before any chan
 Virtual Environment
 ^^^^^^^^^^^^^^^^^^^
 
-After forking the repository, create a virtual environment by executing the following command:
+After forking the repository, create and activate a virtual environment with the following command:
 
 .. code-block:: console
 
-    $ python3 -m venv venv
-
-Once created, activate the virtual environment:
-
-.. code-block:: console
-
-    $ source venv/bin/activate
+    $ python3 -m venv venv && source venv/bin/activate
 
 .. dropdown:: Virtual Environment Reference
 
@@ -55,7 +58,7 @@ Makefile commands
 
     Be sure to install the ``Xcode Command Line Tools`` in order to use the ``make`` command.
 
-With the virtual environment (``venv``) activate, execute the command ``make install``. This will ensure all project dependencies (including development dependencies) are installed properly.
+With the virtual environment (``venv``) activated, execute the command ``make install``. This will ensure all project dependencies (including development dependencies) are installed properly.
 
 Other command options available are:
 
