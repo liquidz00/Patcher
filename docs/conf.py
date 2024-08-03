@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 
+from sphinx.locale import _
 from src.patcher.__about__ import __version__
 
 sys.path.insert(0, os.path.abspath(".."))
@@ -35,6 +36,7 @@ extensions = [
     "sphinxcontrib.autodoc_pydantic",
     "sphinx_copybutton",
     "myst_parser",
+    "sphinx_togglebutton",
 ]
 
 templates_path = ["_templates"]
@@ -62,6 +64,10 @@ myst_heading_anchors = 2
 copybutton_prompt_text = r">>> |\.\.\. |\$ "
 copybutton_prompt_is_regexp = True
 
+# -- sphinx_togglebutton options ---------------------------------------------
+togglebutton_hint = str(_("Click to expand"))
+togglebutton_hint_hide = str(_("Click to collapse"))
+
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
@@ -75,6 +81,16 @@ html_title = "Patcher"
 html_css_files = ["css/custom.css"]
 
 html_theme_options = {
+    "external_links": [
+        {"url": "https://www.macadmins.org", "name": "MacAdmins Foundation"},
+        {"url": "https://community.jamf.com", "name": "JamfNation"},
+        {
+            "url": "https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Jamf_Pro_Documentation.html",
+            "name": "Jamf Pro Documentation",
+        },
+        {"url": "https://pypi.org/project/patcherctl", "name": "PyPi"},
+    ],
+    "header_links_before_dropdown": 3,
     "navbar_align": "left",
     "announcement": "https://raw.githubusercontent.com/liquidz00/Patcher/main/docs/_templates/custom-template.html",
     "show_prev_next": False,
@@ -98,21 +114,19 @@ html_theme_options = {
         "image_dark": "_static/logo-dark.svg",
     },
     "footer_start": ["copyright"],
-    "footer_center": ["sphinx-version"],
     "footer_end": ["theme-version"],
-    "pygments_light_style": "github-light",
-    "pygments_dark_style": "github-dark",
+    "back_to_top_button": False,
 }
 
-# Remove ethical ads from the sidebar
+# Remove primary sidebar from contributing page
 html_sidebars = {
     "contributing/index": [],
+    "macadmins/index": [],
 }
 
 html_context = {
     "default_mode": "auto",
     "navbar_links": [
-        ("Getting Started", "getting_started/index.html"),
         ("User Guide", "user/index.html"),
         ("Reference", "reference/index.html"),
         ("Contributing", "contributing/index.html"),
