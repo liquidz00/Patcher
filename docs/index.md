@@ -83,4 +83,5 @@ Contributing Guide
 user/index
 reference/index
 contributing/index
+macadmins/index
 ```
