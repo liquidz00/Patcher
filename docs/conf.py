@@ -117,7 +117,7 @@ html_theme_options = {
     "footer_end": ["theme-version"],
     "back_to_top_button": False,
     "secondary_sidebar_items": {
-        "reference/**": [],
+        "**/*": ["page-toc", "sourcelink"],
     },
 }
 
