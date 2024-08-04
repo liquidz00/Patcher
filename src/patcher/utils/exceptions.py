@@ -13,7 +13,7 @@ class PatcherError(Exception):
 
 
 class CredentialDeletionError(PatcherError):
-    """Raised when there is an error fetching a bearer token from Jamf API."""
+    """Raised when there is a specified credential could not be removed from keychain."""
 
     def __init__(self, message="Unable to delete credential", cred=None):
         self.cred = cred
