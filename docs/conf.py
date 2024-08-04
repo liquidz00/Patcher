@@ -56,8 +56,8 @@ autodoc_pydantic_model_show_field_summary = False
 autoclass_content = "both"
 
 # MyST Options
-myst_enable_extensions = ["colon_fence", "substitution", "attrs_block"]
-myst_heading_anchors = 2
+myst_enable_extensions = ["colon_fence", "substitution", "attrs_block", "attrs_inline"]
+myst_heading_anchors = 4
 
 # -- Options for copy button  ------------------------------------------------
 # https://sphinx-copybutton.readthedocs.io/en/latest/use.html
