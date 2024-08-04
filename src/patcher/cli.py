@@ -110,31 +110,21 @@ async def main(
 
     async with animation.error_handling(log):
         if not setup.completed:
-            await setup.launch(animator=animation)
+            await setup.prompt_method(animator=animation)
             click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
             click.echo("Patcher is now ready for use.")
             click.echo("You can use the --help flag to view available options.")
             click.echo(
-                "For more information, visit our project wiki: https://github.com/liquidz00/Patcher/wiki"
+                "For more information, visit the project docs: https://patcher.liquidzoo.io"
             )
             return
         elif reset:
+            await animation.update_msg("Resetting elements...")
+            await setup.reset()
             click.echo(
-                click.style(
-                    text="Warning! This will remove Patcher client credentials from keychain",
-                    fg="yellow",
-                    bold=True,
-                )
+                click.style(text="Reset has completed as expected!", fg="green", bold=True)
             )
-            proceed = click.confirm(text="Proceed with reset?", default=False)
-            if proceed:
-                await setup.reset()
-                click.echo(
-                    click.style(text="Reset has completed as expected!", fg="green", bold=True)
-                )
-                return
-            else:
-                return
+            return
 
         token_manager = TokenManager(config)
 

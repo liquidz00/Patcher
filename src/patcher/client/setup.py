@@ -59,6 +59,7 @@ class Setup:
         self.lock = Lock()
         self.log = logger.LogMe(self.__class__.__name__)
         self._completed = None
+        self.animator = Animation()
 
     @property
     def completed(self) -> bool:
@@ -283,6 +284,9 @@ class Setup:
         }
         async with aiohttp.ClientSession() as session:
             async with session.post(url=role_url, json=payload, headers=headers) as resp:
+                if resp.status == 400:
+                    click.echo(click.style("Whoops, theres an existing API role for Patcher in your instance! The credentials can be found in keychain, be sure to choose the SSO setup method when prompted."))
+                    raise exceptions.PatcherError(message="")
                 resp.raise_for_status()
                 return resp.status == 200
 
@@ -377,6 +381,28 @@ class Setup:
                     access_token = AccessToken(token=bearer_token, expires=expiration)
                     return access_token
 
+    async def prompt_method(self, animator: Optional[Animation] = None):
+        """
+        :param animator: Animation object to pass to methods. Defaults to `self.animator`
+        :type animator: Optional[:class:~`patcher.utils.animation.Animation`]
+        Allows users to choose between the setup methods.
+        Intended to enhance end user experience when going through setup assistant.
+        """
+        if self.completed:
+            return
+        self._greet()
+        anim = animator or self.animator
+        choice = click.prompt(
+            "Choose setup method (1: Standard setup, 2: SSO setup)", type=int, default=1
+        )
+        if choice == 1:
+            await self.launch(animator=anim)
+        elif choice == 2:
+            await self.first_run()
+        else:
+            click.echo(click.style("Invalid choice, please choose 1 or 2.", fg="red"))
+            await self.prompt_method()
+
     async def first_run(self):
         """
         Similar to the ``launch`` method, but triggered when SSO is being utilized by end-user.
@@ -386,7 +412,6 @@ class Setup:
         """
         if not self.completed:
             self.log.info("Detected first run has not been completed. Starting setup assistant...")
-            self._greet()
             proceed = click.confirm("Ready to proceed?", default=False)
             if not proceed:
                 click.echo("We'll be ready when you are!")
@@ -427,35 +452,19 @@ class Setup:
         else:
             self.log.debug("First run already completed.")
 
-    async def launch(self, animator: Animation, show_msg: bool = True, confirm: bool = True):
+    async def launch(self, animator: Optional[Animation] = None):
         """
         Launches the setup assistant, prompting the user for necessary information and handling the setup process.
 
         :param animator: The animation instance to update messages.
-        :type animator: :mod:`patcher.utils.animation`
-        :param show_msg: Whether to show the greeting message.
-        :type show_msg: bool
-        :param confirm: Whether to ask for user confirmation before proceeding.
-        :type confirm: bool
+        :type animator: Optional[:class:~`patcher.utils.animation.Animation`]
         :raises SystemExit: If the user opts not to proceed with the setup.
         :raises exceptions.TokenFetchError: If the API call to retrieve a token fails.
         :raises aiohttp.ClientError: If there is an error making the HTTP request.
         """
+        animator = animator or self.animator
         if not self.completed:
             self.log.debug("Detected first run has not been completed. Starting setup assistant...")
-            if show_msg:
-                self._greet()
-
-            if confirm:
-                # Prompt end user to proceed when ready
-                proceed = click.confirm("Ready to proceed?", default=False)
-
-                if not proceed:
-                    click.echo("We'll be ready when you are!")
-                    self.log.info(
-                        f"User opted not to proceed with setup. User response was: {proceed}"
-                    )
-                    sys.exit()
 
             self.jamf_url = click.prompt("Enter your Jamf Pro URL")
             username = click.prompt("Enter your Jamf Pro username")
