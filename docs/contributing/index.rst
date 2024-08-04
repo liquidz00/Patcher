@@ -48,6 +48,8 @@ After forking the repository, create and activate a virtual environment with the
     $ python3 -m venv venv && source venv/bin/activate
 
 .. dropdown:: Virtual Environment Reference
+    :color: info
+    :icon: code
 
     For more information on creating virtual environments, reference `the python packaging guide <https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/#create-and-use-virtual-environments>`_
 
