@@ -285,7 +285,11 @@ class Setup:
         async with aiohttp.ClientSession() as session:
             async with session.post(url=role_url, json=payload, headers=headers) as resp:
                 if resp.status == 400:
-                    click.echo(click.style("Whoops, theres an existing API role for Patcher in your instance! The credentials can be found in keychain, be sure to choose the SSO setup method when prompted."))
+                    click.echo(
+                        click.style(
+                            "Whoops, theres an existing API role for Patcher in your instance! The credentials can be found in keychain, be sure to choose the SSO setup method when prompted."
+                        )
+                    )
                     raise exceptions.PatcherError(message="")
                 resp.raise_for_status()
                 return resp.status == 200

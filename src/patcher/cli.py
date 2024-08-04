@@ -114,16 +114,12 @@ async def main(
             click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
             click.echo("Patcher is now ready for use.")
             click.echo("You can use the --help flag to view available options.")
-            click.echo(
-                "For more information, visit the project docs: https://patcher.liquidzoo.io"
-            )
+            click.echo("For more information, visit the project docs: https://patcher.liquidzoo.io")
             return
         elif reset:
             await animation.update_msg("Resetting elements...")
             await setup.reset()
-            click.echo(
-                click.style(text="Reset has completed as expected!", fg="green", bold=True)
-            )
+            click.echo(click.style(text="Reset has completed as expected!", fg="green", bold=True))
             return
 
         token_manager = TokenManager(config)
