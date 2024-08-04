@@ -1,4 +1,5 @@
 from typing import AnyStr
+from pydantic import model_validator
 
 from . import Model
 
@@ -19,19 +20,32 @@ class PatchTitle(Model):
     :type completion_percent: float
     :ivar total_hosts: The total number of hosts.
     :type total_hosts: int
-
-    Attributes:
-        title (AnyStr): The name of the patch title.
-        released (AnyStr): The release date of the patch title.
-        hosts_patched (int): The number of hosts that have applied the patch.
-        missing_patch (int): The number of hosts missing the patch.
-        completion_percent (float): The percentage of hosts that have applied the patch.
-        total_hosts (int): The total number of hosts.
     """
 
     title: AnyStr
     released: AnyStr
     hosts_patched: int
     missing_patch: int
-    completion_percent: float
-    total_hosts: int
+    completion_percent: float = 0.0
+    total_hosts: int = 0
+
+    # Calculate completion percent via model validator
+    @model_validator(mode='after')
+    def calculate_completion_percent(self):
+        """
+        Calculates the completion percentage and total hosts of a :class:`~patcher.models.patch.PatchTitle` object based on hosts_patched and missing_patch.
+
+        See :meth:`~patcher.clients.api_client.ApiClient.get_summaries`
+        """
+        # Calculate total hosts
+        self.total_hosts = self.hosts_patched + self.missing_patch
+
+        # Calculate completion percent
+        if self.total_hosts > 0:
+            self.completion_percent = round(
+                (self.hosts_patched / self.total_hosts) * 100, 2
+            )
+        else:
+            self.completion_percent = 0.0
+
+        return self

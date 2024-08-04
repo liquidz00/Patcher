@@ -154,19 +154,6 @@ class ApiClient:
                 released=self.convert_timezone(summary.get("releaseDate")),
                 hosts_patched=summary.get("upToDate"),
                 missing_patch=summary.get("outOfDate"),
-                completion_percent=(
-                    round(
-                        (
-                            summary.get("upToDate")
-                            / (summary.get("upToDate") + summary.get("outOfDate"))
-                        )
-                        * 100,
-                        2,
-                    )
-                    if summary.get("upToDate") + summary.get("outOfDate") > 0
-                    else 0
-                ),
-                total_hosts=summary.get("upToDate") + summary.get("outOfDate"),
             )
             for summary in summaries
             if summary
