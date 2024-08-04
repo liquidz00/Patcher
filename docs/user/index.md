@@ -26,9 +26,11 @@ Patcher is an innovative tool designed for Mac Admins. Leveraging the Jamf Pro A
 :class-card: sd-text-left
 
 ```{toctree}
+:maxdepth: 2
 :caption: Getting Started
 
 prereqs
+jamf_deployment
 install
 ```
 :::
@@ -40,8 +42,7 @@ install
 :maxdepth: 2
 :caption: Setup
 
-jamf_deployment
-setup
+setup_assistant
 customize_reports
 ```
 :::
