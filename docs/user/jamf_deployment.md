@@ -18,16 +18,14 @@ Before creating an API client, you must establish an API role with the necessary
 4. Click **New** to create a new role.
 5. Provide a meaningful display name for the API role (e.g., "Patch Reports Access").
 6. In the **Jamf Pro API Role privileges** field, type the following privileges required for use with Patcher
-
-   * Read Patch Management Software Titles
-   * Read Patch Policies
-   * Read Mobile Devices
-   * Read Mobile Device Inventory Collection
-   * Read Mobile Device Applications
-   * Read API Integrations
-   * Read API Roles
-   * Read Patch Management Settings
-
+   - Read Patch Management Software Titles
+   - Read Patch Policies
+   - Read Mobile Devices
+   - Read Mobile Device Inventory Collection
+   - Read Mobile Device Applications
+   - Read API Integrations
+   - Read API Roles
+   - Read Patch Management Settings
 7. Click **Save** to create the role.
 
 ### API Client
@@ -39,7 +37,7 @@ Once your API role is ready, proceed to create an API client:
 3. Select **New** to initiate a new API client creation.
 4. Assign a clear and descriptive display name for the API client (e.g., "Patcher Client").
 5. In the **API Roles** field, assign the previously created API role to this client.
-6. Define the **Access Token Lifetime**. This defines how long each token remains valid. See `Access Token Lifetime`_ below for more information.
+6. Define the **Access Token Lifetime**. This defines how long each token remains valid. See [Access Token Lifetime](#access-token-lifetime) below for more information.
 7. Enable the API client by clicking **Enable API Client**.
 8. Click **Save**.
 9. Record the **Client ID** value for safe-keeping.
@@ -89,6 +87,6 @@ You can now pass the Client ID, Client Secret, and Token values when prompted by
 
 ## Adding Software Titles
 
-When utilizing the Patcher tool with Jamf Pro, it's crucial to understand that the tool exclusively pulls data from configured patch management titles. As it relies on the Jamf Pro API, patch data of software titles not available in the [Patch Management Software Titles] (https://learn.jamf.com/en-US/bundle/jamf-app-catalog/page/Patch_Management_Software_Titles.html) list in Jamf App Catalog or Title Editor will **not be exported**. Therefore, ensure that all necessary software titles are properly configured within Jamf Pro to ensure accurate and comprehensive patch management.
+When utilizing the Patcher tool with Jamf Pro, it's crucial to understand that the tool exclusively pulls data from configured patch management titles. As it relies on the Jamf Pro API, patch data of software titles not available in the [Patch Management Software Titles](https://learn.jamf.com/en-US/bundle/jamf-app-catalog/page/Patch_Management_Software_Titles.html) list in Jamf App Catalog or Title Editor will **not be exported**. Therefore, ensure that all necessary software titles are properly configured within Jamf Pro to ensure accurate and comprehensive patch management.
 
 Refer to [Configuring a Patch Management Software Title](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Configuring_a_Patch_Management_Software_Title.html) in the Jamf Pro Documentation for instructions on setting up software titles for patch management purposes.
