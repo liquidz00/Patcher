@@ -5,6 +5,7 @@ UI Config Manager
 =================
 
 .. dropdown:: Summary
+    :icon: archive
 
     The ``UIConfigManager`` handles managing the customizable UI elements of exported PDF reports. For additional reference, see :ref:`Customizing Reports <customize_reports>`.
 
