@@ -1,8 +1,8 @@
 .. _setup:
 
-=====
-Setup
-=====
+===============
+Setup Assistant
+===============
 
 Our aim as developers of this tool is to streamline the setup and installation process to be as straightforward as possible. We understand there's nothing more frustrating than the anticipation of using a new tool, only to be bogged down by extensive configuration or setup steps before you can even start. To address this, we introduced a setup assistant in version ``1.3.2`` (and up) that automates the initial configuration. This page will demonstrate how the tool operates under the hood, giving you the end-user insight into how to trigger it again if necessary.
 
