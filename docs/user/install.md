@@ -2,7 +2,7 @@
 
 Once prerequisites have been satisfied, Patcher can be installed via `pip`:
 
-```shell
+```console
 $ python3 -m pip install --upgrade patcherctl
 ```
 :::
@@ -10,7 +10,7 @@ $ python3 -m pip install --upgrade patcherctl
 :::
 Patcher beta releases are published to [Test PyPI](https://test.pypi.org/project/patcherctl/). To install a beta version, you must specify the TestPyPI index:
 
-```shell
+```console
 $ python3 -m pip install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple patcherctl=={VERSION}
 ```
 
@@ -24,7 +24,7 @@ Using the `--pre` option alone will not install beta releases from TestPyPI sinc
 
 After installation, you can verify Patcher is installed correctly by running: 
 
-```shell
+```console
 $ patcherctl --version
 ```
 
@@ -62,7 +62,7 @@ Options:
 
 When using Patcher, you may encounter SSL verification issues, particularly if your network environment uses self-signed certificates or custom Certificate Authorities (CAs). Patcher uses both the `aiohttp` and `urllib` libraries to make API calls.
 
-:::{note}
+:::{hint}
 :class: dropdown
 
 We are actively working on introducing the ability to pass the path of the certificate(s) to Patcher to handle SSL verification. 
@@ -77,7 +77,7 @@ If you are on a managed host, chances are this has already been done for you as 
 3. Locate the Certificate in question and double-click to open it
 4. Set the certificate to "Always Trust" under the Trust section
 
-#### Export the Certificate (Optional)
+#### Exporting the Certificate
 
 Alternatively, you may need to export the certificate in `.pem` format. If so, export the certificate from Keychain by right-clicking and selecting **Export** from the dialog menu. Be sure to select the file format as `.pem` when exporting. 
 
@@ -96,7 +96,7 @@ First, determine where Python is currently looking for certificates. You can fin
 ::::{tab-set}
 
 :::{tab-item} Command Prompt
-```shell
+```console
 $ python3 -c "import ssl; print(ssl.get_default_verify_paths())"
 ```
 :::
@@ -116,9 +116,9 @@ The command will output paths where Python looks for certificates, usually point
 
 #### Add the Self-Signed Certificate
 
-If not completed already, [export](#export-the-certificate-optional) the certificate to a file location of your choosing. The certificate can then be added to the default bundle with the following command: 
+If not completed already, [export](#exporting-the-certificate) the certificate to a file location of your choosing. The certificate can then be added to the default bundle with the following command: 
 
-```shell
+```console
 $ cat /path/to/exported/certificate.pem >> /path/to/default/certificate/location/cert.pem
 ```
 
