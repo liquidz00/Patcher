@@ -10,7 +10,7 @@ html_theme.sidebar_secondary.remove: True
 
 Patcher is crafted with the needs of Mac Admins in mind, offering a streamlined approach to the often complex and time-consuming task of patch management. By automating the extraction and formatting of patch data, Patcher not only saves time but also ensures accuracy and consistency in the management of software updates.
 
-::::{grid} 1 2 2 1
+::::{grid} 1 1 1 3
 :gutter: 2
 :padding: 2 2 0 0
 :class-container: sd-text-center
