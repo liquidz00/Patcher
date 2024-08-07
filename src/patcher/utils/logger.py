@@ -1,5 +1,6 @@
 import logging
 import os
+import traceback
 from logging import handlers
 from typing import AnyStr, Optional
 
@@ -73,6 +74,17 @@ def setup_child_logger(
 
 
 logthis = setup_logger(logger_name, f"{logger_name}.log")
+
+
+def handle_traceback(exception: Exception):
+    """
+    Write tracebacks to logs instead of to console for readability purposes.
+
+    :param exception: The exception instance to log.
+    :type exception: Exception
+    """
+    full_traceback = traceback.format_exc()
+    logthis.error(f"Exception occurred: {str(exception)}\nTraceback:\n{full_traceback}")
 
 
 class LogMe:

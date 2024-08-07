@@ -1,10 +1,10 @@
 import os
 from unittest.mock import AsyncMock, mock_open, patch
 
-import click
 import pytest
 from aioresponses import aioresponses
 from src.patcher.client.setup import Setup
+from src.patcher.utils import exceptions
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ def test_is_complete(setup_instance):
 def test_is_complete_error(setup_instance):
     with patch("os.path.exists", return_value=True):
         with patch("plistlib.load", side_effect=Exception("plist read error")):
-            with pytest.raises(click.Abort):
+            with pytest.raises(exceptions.PlistError):
                 setup_instance._check_completion()
 
 
@@ -101,7 +101,7 @@ async def test_basic_token_error(setup_instance):
         mock_response.status = 500
         mock_response.text.return_value = "Server Error"
         mock_post.return_value.__aenter__.return_value = mock_response
-        with pytest.raises(click.Abort):
+        with pytest.raises(exceptions.TokenFetchError):
             await setup_instance._basic_token("password", "username", "https://mocked.url")
 
 
