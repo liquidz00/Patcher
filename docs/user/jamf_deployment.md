@@ -118,7 +118,6 @@ echo "Token and expiration time have been saved to the Keychain."
 ```python
 import requests
 import keyring
-import json
 
 # Define the server URL and API credentials
 url = "https://yourserver.jamfcloud.com/api/oauth/token"
