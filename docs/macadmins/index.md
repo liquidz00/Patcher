@@ -14,7 +14,7 @@ There are a vast amount of tools to assist you as a MacAdmin; projects listed he
 
 * * *
 
-::::{grid} 4 4 2 1
+::::{grid} 1
 :gutter: 2
 :class-container: sd-text-left
 
