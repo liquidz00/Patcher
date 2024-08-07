@@ -62,7 +62,7 @@ Options:
 
 When using Patcher, you may encounter SSL verification issues, particularly if your network environment uses self-signed certificates or custom Certificate Authorities (CAs). Patcher uses both the `aiohttp` and `urllib` libraries to make API calls.
 
-:::{hint}
+:::{note}
 :class: dropdown
 
 We are actively working on introducing the ability to pass the path of the certificate(s) to Patcher to handle SSL verification. 
