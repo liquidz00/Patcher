@@ -93,6 +93,6 @@ class Animation:
             yield
         except default_exceptions as e:
             log.error(f"{e}")
-            raise click.Abort()
+            raise
         finally:
             await self.stop()
