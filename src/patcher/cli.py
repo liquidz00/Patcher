@@ -13,6 +13,7 @@ from .client.ui_manager import UIConfigManager
 from .models.reports.excel_report import ExcelReport
 from .models.reports.pdf_report import PDFReport
 from .utils.animation import Animation
+from .utils.exceptions import PatcherError
 from .utils.logger import LogMe
 
 DATE_FORMATS = {
@@ -85,6 +86,12 @@ DATE_FORMATS = {
     default=False,
     help="Resets the setup process and triggers the setup assistant again.",
 )
+@click.option(
+    "--custom-ca-file",
+    type=click.Path(),
+    required=False,
+    help="Path to a custom CA file for SSL verification.",
+)
 @click.pass_context
 async def main(
     ctx: click.Context,
@@ -97,13 +104,14 @@ async def main(
     concurrency: int,
     debug: bool,
     reset: bool,
+    custom_ca_file: Optional[str],
 ) -> None:
     if not ctx.params["reset"] and not ctx.params["path"]:
         raise click.UsageError("The --path option is required unless --reset is specified.")
 
     config = ConfigManager()
     ui_config = UIConfigManager()
-    setup = Setup(config=config, ui_config=ui_config)
+    setup = Setup(config=config, ui_config=ui_config, custom_ca_file=custom_ca_file)
 
     log = LogMe(__name__, debug=debug)
     animation = Animation(enable_animation=not debug)
@@ -122,9 +130,14 @@ async def main(
             click.echo(click.style(text="Reset has completed as expected!", fg="green", bold=True))
             return
 
+        jamf_client = config.attach_client(custom_ca_file=custom_ca_file)
+        if jamf_client is None:
+            raise PatcherError(message="Invalid JamfClient configuration detected!")
+
         token_manager = TokenManager(config)
 
         api_client = ApiClient(config)
+        api_client.jamf_client = jamf_client
         excel_report = ExcelReport()
         pdf_report = PDFReport(ui_config)
         api_client.jamf_client.set_max_concurrency(concurrency=concurrency)

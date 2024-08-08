@@ -1,5 +1,6 @@
 import asyncio
 import json
+import ssl
 import subprocess
 from datetime import datetime
 from typing import AnyStr, Dict, List, Optional
@@ -42,6 +43,7 @@ class ApiClient:
         }
         self.token_manager = TokenManager(config)
         self.max_concurrency = self.jamf_client.max_concurrency
+        self.ssl_context = ssl.create_default_context(cafile=self.jamf_client.cafile)
 
     def convert_timezone(self, utc_time_str: AnyStr) -> Optional[AnyStr]:
         """
@@ -73,7 +75,7 @@ class ApiClient:
         """
         self.log.debug(f"Fetching JSON data from URL: {url}")
         try:
-            async with session.get(url, headers=self.headers) as response:
+            async with session.get(url, headers=self.headers, ssl=self.ssl_context) as response:
                 response.raise_for_status()
                 json_data = await response.json()
                 self.log.info(f"Successfully fetched JSON data from {url}")

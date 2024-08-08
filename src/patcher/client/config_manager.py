@@ -89,10 +89,13 @@ class ConfigManager:
         self.log.info("Token and expiration loaded from keyring")
         return AccessToken(token=token, expires=expires)
 
-    def attach_client(self) -> Optional[JamfClient]:
+    def attach_client(self, custom_ca_file: Optional[str] = None) -> Optional[JamfClient]:
         """
         Attaches a :mod:`patcher.models.jamf_client` object using the stored credentials.
+        Allows for an optional custom CA file to be passed.
 
+        :param custom_ca_file: Path to a custom CA file for SSL verification.
+        :type custom_ca_file: Optional[str]
         :return: The ``JamfClient`` object if validation is successful, None otherwise.
         :rtype: Optional[JamfClient]
         """
@@ -103,6 +106,7 @@ class ConfigManager:
                 client_secret=self.get_credential("CLIENT_SECRET"),
                 server=self.get_credential("URL"),
                 token=self.load_token(),
+                custom_ca_file=custom_ca_file,
             )
             self.log.info("Jamf client attached successfully")
             return client

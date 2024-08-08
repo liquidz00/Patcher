@@ -1,4 +1,6 @@
-from typing import AnyStr, List, Optional
+import ssl
+from pathlib import Path
+from typing import AnyStr, List, Optional, Union
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import field_validator
@@ -21,6 +23,10 @@ class JamfClient(Model):
     :type token: Optional[AccessToken]
     :param max_concurrency: The maximum concurrency level for API calls. Defaults to 5 per Jamf Developer documentation.
     :type max_concurrency: int
+    :param ssl_path: The SSL paths for verification. ``aiohttp`` and ``urllib`` both use Python's ``ssl`` library for SSL verification. For environments with security software, SSL verification errors can be thrown and intermediate certificates appended.
+    :type ssl_path: ssl.DefaultVerifyPaths
+    :param custom_ca_file: Path to a custom CA file that can be appended to default SSL certificate paths.
+    :type custom_ca_file: Optional[Union[str, Path]]
     """
 
     client_id: AnyStr
@@ -28,6 +34,8 @@ class JamfClient(Model):
     server: AnyStr
     token: Optional[AccessToken] = None
     max_concurrency: int = 5
+    ssl_path: ssl.DefaultVerifyPaths = ssl.get_default_verify_paths()
+    custom_ca_file: Optional[Union[str, Path]] = None
 
     @staticmethod
     def valid_url(url: AnyStr) -> AnyStr:
@@ -79,6 +87,38 @@ class JamfClient(Model):
         """
         return cls.valid_url(v)
 
+    @classmethod
+    @field_validator("ssl_path", mode="before")
+    def validate_ssl_paths(cls, v):
+        """
+        Validates the cafile property of the ``ssl_path`` is not None.
+
+        :param v: The ssl_path value to validate (defaults to ``cafile``)
+        :type v: ssl.DefaultVerifyPaths
+        :raises ssl.SSLCertVerificationError: If the cafile property is None.
+        :return: the validated ssl_path.
+        """
+        if v.cafile is None:
+            raise ssl.SSLCertVerificationError(
+                "SSL certificate file is missing or not configured properly, verification has failed."
+            )
+        return v
+
+    @classmethod
+    @field_validator("custom_ca_file", mode="before")
+    def validate_custom_ca(cls, v):
+        """
+        Validates the custom CA file path to ensure it is a string.
+
+        :param v: The custom CA file path value to validate.
+        :type v: Union[str, Path]
+        :return: The validated custom CA file path as a string.
+        :rtype: str
+        """
+        if isinstance(v, Path):
+            return str(v)
+        return v
+
     @property
     def base_url(self):
         """
@@ -88,6 +128,18 @@ class JamfClient(Model):
         :rtype: AnyStr
         """
         return self.server
+
+    @property
+    def cafile(self) -> str:
+        """
+        Gets the path to the CA file used for SSL verification. If a custom CA file is provided, it is used.
+
+        :return: The path to the CA file.
+        :rtype: str
+        """
+        if self.custom_ca_file:
+            return self.custom_ca_file
+        return self.ssl_path.cafile
 
     def set_max_concurrency(self, concurrency: int):
         """

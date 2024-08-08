@@ -2,6 +2,7 @@ import configparser
 import os
 import plistlib
 import shutil
+import ssl
 import sys
 from asyncio import Lock, sleep
 from configparser import ConfigParser
@@ -40,6 +41,7 @@ class Setup:
         self,
         config: ConfigManager,
         ui_config: UIConfigManager,
+        custom_ca_file: Optional[str] = None,
     ):
         """
         Initializes the Setup class with the provided configuration and UI configuration.
@@ -48,9 +50,12 @@ class Setup:
         :type config: ConfigManager
         :param ui_config: The UI configuration manager instance.
         :type ui_config: UIConfigManager
+        :param custom_ca_file: Path to a custom CA file for SSL verification.
+        :type custom_ca_file: Optional[str]
         """
         self.config = config
         self.ui_config = ui_config
+        self.custom_ca_file = custom_ca_file
         self.plist_path = os.path.expanduser(
             "~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist"
         )
@@ -229,10 +234,18 @@ class Setup:
         self.jamf_url = jamf_url or self.jamf_url
         token_url = f"{jamf_url}/api/v1/auth/token"
         headers = {"accept": "application/json"}
+
+        ssl_context = None
+        if self.custom_ca_file:
+            ssl_context = ssl.create_default_context(cafile=self.custom_ca_file)
+
         async with self.lock:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    url=token_url, auth=aiohttp.BasicAuth(username, password), headers=headers
+                    url=token_url,
+                    auth=aiohttp.BasicAuth(username, password),
+                    headers=headers,
+                    ssl=ssl_context,
                 ) as resp:
                     if resp.status == 401:
                         self.log.error(
@@ -282,8 +295,15 @@ class Setup:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
         }
+
+        ssl_context = None
+        if self.custom_ca_file:
+            ssl_context = ssl.create_default_context(cafile=self.custom_ca_file)
+
         async with aiohttp.ClientSession() as session:
-            async with session.post(url=role_url, json=payload, headers=headers) as resp:
+            async with session.post(
+                url=role_url, json=payload, headers=headers, ssl=ssl_context
+            ) as resp:
                 if resp.status == 400:
                     click.echo(
                         click.style(
@@ -317,8 +337,14 @@ class Setup:
             "Authorization": f"Bearer {token}",
         }
 
+        ssl_context = None
+        if self.custom_ca_file:
+            ssl_context = ssl.create_default_context(cafile=self.custom_ca_file)
+
         async with aiohttp.ClientSession() as session:
-            async with session.post(url=client_url, json=payload, headers=headers) as resp:
+            async with session.post(
+                url=client_url, json=payload, headers=headers, ssl=ssl_context
+            ) as resp:
                 resp.raise_for_status()
                 client_response = await resp.json()
                 if not client_response:
@@ -356,6 +382,10 @@ class Setup:
         :return: An :mod:`patcher.models.token` object if successful, None otherwise.
         :rtype: Optional[AccessToken]
         """
+        ssl_context = None
+        if self.custom_ca_file:
+            ssl_context = ssl.create_default_context(cafile=self.custom_ca_file)
+
         async with self.lock:
             async with aiohttp.ClientSession() as session:
                 payload = {
@@ -365,7 +395,7 @@ class Setup:
                 }
                 headers = {"Content-Type": "application/x-www-form-urlencoded"}
                 async with session.post(
-                    url=f"{url}/api/oauth/token", data=payload, headers=headers
+                    url=f"{url}/api/oauth/token", data=payload, headers=headers, ssl=ssl_context
                 ) as resp:
                     resp.raise_for_status()
                     try:
