@@ -259,7 +259,11 @@ class Setup:
                         raise exceptions.TokenFetchError(
                             reason=f"{resp.status} - {await resp.text()}"
                         )
-                    response = await resp.json()
+                    try:
+                        response = await resp.json()
+                    except ssl.SSLCertVerificationError as e:
+                        self.log.error(f"SSL failed verification: {e}")
+                        raise ssl.SSLCertVerificationError("SSL failed verification. Please see https://patcher.liquidzoo.io/user/install.html#ssl-verification-and-self-signed-certificates for next steps.")
                     if not response:
                         self.log.error(
                             "API call was successful, but response was empty. Exiting..."
@@ -400,6 +404,9 @@ class Setup:
                     resp.raise_for_status()
                     try:
                         json_response = await resp.json()
+                    except ssl.SSLCertVerificationError as e:
+                        self.log.error(f"SSL Verification failed: {e}")
+                        raise
                     except aiohttp.ClientResponseError as e:
                         self.log.error(f"Failed to fetch a token: {e}")
                         return None
@@ -446,43 +453,41 @@ class Setup:
         """
         if not self.completed:
             self.log.info("Detected first run has not been completed. Starting setup assistant...")
-            proceed = click.confirm("Ready to proceed?", default=False)
-            if not proceed:
-                click.echo("We'll be ready when you are!")
-                self.log.info(f"User opted not to proceed with setup. User response was: {proceed}")
-                sys.exit()
-            else:
-                api_url = click.prompt("Enter your Jamf Pro URL")
-                api_client_id = click.prompt("Enter your API Client ID")
-                api_client_secret = click.prompt("Enter your API Client Secret")
+            api_url = click.prompt("Enter your Jamf Pro URL")
+            api_client_id = click.prompt("Enter your API Client ID")
+            api_client_secret = click.prompt("Enter your API Client Secret")
 
-                # Store credentials
-                self.config.set_credential("URL", api_url)
-                self.config.set_credential("CLIENT_ID", api_client_id)
-                self.config.set_credential("CLIENT_SECRET", api_client_secret)
+            # Store credentials
+            self.config.set_credential("URL", api_url)
+            self.config.set_credential("CLIENT_ID", api_client_id)
+            self.config.set_credential("CLIENT_SECRET", api_client_secret)
 
-                # Wait a short time to ensure creds are saved
-                await sleep(3)
+            # Wait a short time to ensure creds are saved
+            await sleep(3)
 
-                # Generate bearer token and save it
+            # Generate bearer token and save it
+            try:
                 token = await self._fetch_bearer(
                     url=api_url, client_id=api_client_id, client_secret=api_client_secret
                 )
+            except ssl.SSLCertVerificationError as e:
+                self.log.error(f"SSL failed verification: {e}")
+                raise ssl.SSLCertVerificationError("SSL failed verification. Please see https://patcher.liquidzoo.io/user/install.html#ssl-verification-and-self-signed-certificates for next steps.")
 
-                if token:
-                    jamf_client = JamfClient(
-                        client_id=api_client_id,
-                        client_secret=api_client_secret,
-                        server=api_url,
-                        token=token,
-                    )
-                    self.config.create_client(jamf_client)
-                    self._setup_ui()
-                    self._set_plist(value=True)
-                    self._completed = True
-                else:
-                    self.log.error("Failed to fetch a valid token!")
-                    raise exceptions.TokenFetchError(reason="Token failed pydantic verification")
+            if token:
+                jamf_client = JamfClient(
+                    client_id=api_client_id,
+                    client_secret=api_client_secret,
+                    server=api_url,
+                    token=token,
+                )
+                self.config.create_client(jamf_client)
+                self._setup_ui()
+                self._set_plist(value=True)
+                self._completed = True
+            else:
+                self.log.error("Failed to fetch a valid token!")
+                raise exceptions.TokenFetchError(reason="Token failed verification")
         else:
             self.log.debug("First run already completed.")
 
