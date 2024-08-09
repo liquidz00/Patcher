@@ -39,7 +39,7 @@ def check_token(func: Callable):
                     log.info("Token successfully refreshed.")
             except aiohttp.ClientError as token_refresh_error:
                 log.error(f"Failed to refresh token: {token_refresh_error}")
-                raise exceptions.TokenFetchError(reason=token_refresh_error)
+                raise exceptions.TokenFetchError(reason=str(token_refresh_error))
         else:
             log.debug("Bearer token passed validity checks.")
 
