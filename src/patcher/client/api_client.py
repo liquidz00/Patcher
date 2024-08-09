@@ -16,11 +16,20 @@ from .token_manager import TokenManager
 
 
 class ApiClient:
-    """Provides methods for interacting with the Jamf API."""
+    """
+    Provides methods for interacting with the Jamf API, specifically fetching patch data, device information, and OS versions.
+
+    The ``ApiClient`` manages authentication and session handling, ensuring efficient and secure communication with the Jamf API.
+    """
 
     def __init__(self, config: ConfigManager):
         """
-        Initializes the ApiClient with the provided ConfigManager.
+        Initializes the ApiClient with the provided :class:`~patcher.client.config_manager.ConfigManager`.
+
+        This sets up the API client with necessary credentials and session parameters for interacting with the Jamf API.
+
+        .. seealso::
+            :mod:`~patcher.models.jamf_client`
 
         :param config: Instance of ConfigManager for loading and storing credentials.
         :type config: ConfigManager
@@ -49,10 +58,21 @@ class ApiClient:
         """
         Converts a UTC time string to a formatted string without timezone information.
 
-        :param utc_time_str: UTC time string in ISO 8601 format.
+        :param utc_time_str: UTC time string in ISO 8601 format (e.g., "2023-08-09T12:34:56+0000").
         :type utc_time_str: AnyStr
-        :return: Formatted time string or None on error.
+        :return: Formatted date string (e.g., "Aug 09 2023") or None if the input format is invalid.
         :rtype: Optional[AnyStr]
+        :example:
+
+        .. code-block:: python
+
+            formatted_date = api_client.convert_timezone("2023-08-09T12:34:56+0000")
+            print(formatted_date)   # Outputs: "Aug 09 2023"
+
+        .. note::
+
+            This function is primarily used 'privately' by methods and classes and is not designed to be called explicitly.
+
         """
         try:
             utc_time = datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S%z")
@@ -68,10 +88,18 @@ class ApiClient:
 
         :param url: URL to fetch the JSON data from.
         :type url: AnyStr
-        :param session: Async session used to make the request, instance of aiohttp.ClientSession.
+        :param session: An aiohttp.ClientSession instance used to make the request.
         :type session: aiohttp.ClientSession
-        :return: JSON data as a dictionary or None on error.
+        :return: JSON data as a dictionary or None if an error occurs.
         :rtype: Optional[Dict]
+        :example:
+
+        .. code-block:: python
+
+            async with aiohttp.ClientSession() as session:
+                json_data = await api_client.fetch_json("https://api.example.com/data", session)
+                if json_data:
+                    print(json_data)
         """
         self.log.debug(f"Fetching JSON data from URL: {url}")
         try:
@@ -92,10 +120,9 @@ class ApiClient:
         from each URL in the provided list, ensuring that no more than ``max_concurrency``
         requests are sent concurrently.
 
-        :param urls: A list of URLs to fetch JSON data from
+        :param urls: List of URLs to fetch data from.
         :type urls: List[AnyStr]
-        :return: A list of dictionaries containing the JSON data fetched from each URL,
-            or None on error.
+        :return: A list of JSON dictionaries or None for URLs that fail to retrieve data.
         :rtype: List[Optional[Dict]]
         """
         results = []
@@ -110,9 +137,10 @@ class ApiClient:
     @check_token
     async def get_policies(self) -> Optional[List]:
         """
-        Asynchronously retrieves all patch software titles' IDs using the Jamf API.
+        Retrieves a list of patch software title IDs from the Jamf API. This function
+        requires a valid authentication token, which is managed automatically.
 
-        :return: List of software title IDs or None on error.
+        :return: A list of software title IDs or None if an error occurs.
         :rtype: Optional[List]
         """
         async with aiohttp.ClientSession() as session:
@@ -137,11 +165,12 @@ class ApiClient:
     @check_token
     async def get_summaries(self, policy_ids: List) -> Optional[List[PatchTitle]]:
         """
-        Retrieves active patch summaries for given policy IDs using the Jamf API.
+        Retrieves patch summaries for the specified policy IDs from the Jamf API. This function
+        fetches data asynchronously and compiles the results into a list of ``PatchTitle`` objects.
 
         :param policy_ids: List of policy IDs to retrieve summaries for.
         :type policy_ids: List
-        :return: List of `PatchTitle` objects containing patch summaries or None on error.
+        :return: List of ``PatchTitle`` objects containing patch summaries or None if an error occurs.
         :rtype: Optional[List[PatchTitle]]
         """
         urls = [
@@ -169,6 +198,7 @@ class ApiClient:
     async def get_device_ids(self) -> Optional[List[int]]:
         """
         Asynchronously fetches the list of mobile device IDs from the Jamf Pro API.
+        This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
 
         :return: A list of mobile device IDs or None on error.
         :rtype: Optional[List[int]]
@@ -201,11 +231,12 @@ class ApiClient:
         device_ids: List[int],
     ) -> Optional[List[Dict[AnyStr, AnyStr]]]:
         """
-        Asynchronously fetches the OS version and serial number for each device ID from the Jamf Pro API.
+        Asynchronously fetches the OS version and serial number for each device ID provided.
+        This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
 
-        :param device_ids: A list of mobile device IDs.
+        :param device_ids: A list of mobile device IDs to retrieve information for.
         :type device_ids: List[int]
-        :return: A list of dictionaries containing the serial number and OS version, or None on error.
+        :return: A list of dictionaries containing the serial numbers and OS versions, or None on error.
         :rtype: Optional[List[Dict[AnyStr, AnyStr]]]
         """
         if not device_ids:
@@ -231,10 +262,13 @@ class ApiClient:
 
     def get_sofa_feed(self) -> Optional[List[Dict[AnyStr, AnyStr]]]:
         """
-        Fetches iOS Data feeds from SOFA and extracts latest OS version information
+        Fetches iOS Data feeds from SOFA and extracts latest OS version information.
+        To limit the amount of possible SSL verification checks, this method utilizes a subprocess call
+        instead.
+        This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
 
-        :return: A list of dictionaries containing Base OS Version, latest iOS Version and release date,
-            or None on error.
+        :return: A list of dictionaries containing base OS versions, latest iOS versions and release dates,
+                or None on error.
         :rtype: Optional[List[Dict[AnyStr, AnyStr]]]
         """
 

@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 from typing import AnyStr, Optional
 
 import keyring
-from keyring.errors import PasswordDeleteError
 from pydantic import ValidationError
 
 from ..models.jamf_client import JamfClient
@@ -11,15 +10,28 @@ from ..utils import logger
 
 
 class ConfigManager:
-    """Manages configuration settings, mainly loading and saving credentials in keychain"""
+    """
+    Manages configuration settings, primarily focused on handling credentials stored in the macOS keychain.
+
+    This class provides methods to securely store, retrieve, and manage sensitive information such as
+    API tokens and client credentials. It integrates with the ``keyring`` library to interface with the macOS keychain.
+    """
 
     def __init__(self, service_name: AnyStr = "Patcher"):
         """
         Initializes the ConfigManager with a specific service name.
 
+        This service name is used as a namespace for storing and retrieving credentials in the keyring,
+        allowing you to organize credentials by the service they pertain to.
+
         :param service_name: The name of the service for storing credentials in the keyring.
             Defaults to 'Patcher'.
         :type service_name: AnyStr
+        :example:
+
+        .. code-block:: python
+
+            config = ConfigManager("MyService")
         """
         self.log = logger.LogMe(self.__class__.__name__)
         self.service_name = service_name
@@ -27,12 +39,20 @@ class ConfigManager:
 
     def get_credential(self, key: AnyStr) -> AnyStr:
         """
-        Retrieves a specified credential from the keyring.
+        Retrieves a specified credential from the keyring associated with the given key.
 
-        :param key: The key of the credential to retrieve.
+        This method is useful for accessing stored credentials without hardcoding them in scripts.
+        It ensures that sensitive data like passwords or API tokens are securely stored and retrieved.
+
+        :param key: The key of the credential to retrieve, typically a descriptive name like 'API_KEY'.
         :type key: AnyStr
-        :return: The retrieved credential value.
+        :return: The retrieved credential value. If the key does not exist, returns ``None``.
         :rtype: AnyStr
+        :example:
+
+        .. code-block:: python
+
+            token = config.get_credential("API_TOKEN")
         """
         self.log.debug(f"Retrieving credential for key: {key}")
         credential = keyring.get_password(self.service_name, key)
@@ -44,40 +64,26 @@ class ConfigManager:
 
     def set_credential(self, key: AnyStr, value: AnyStr):
         """
-        Sets a credential in the keyring.
+        Stores a credential in the keyring under the specified key.
 
-        :param key: The key of the credential to set.
+        Method is used to securely store sensitive data such as Jamf URL, API Tokens, usernames
+        and passwords.
+
+        :param key: The key under which the credential will be stored. This acts as an identifier for the credential.
         :type key: AnyStr
-        :param value: The value of the credential to set.
+        :param value: The value of the credential to store, such as a password or API token.
         :type value: AnyStr
         """
         self.log.debug(f"Setting credential for key: {key}")
         keyring.set_password(self.service_name, key, value)
         self.log.info(f"Credential for key '{key}' set successfully")
 
-    def delete_credential(self, key: AnyStr) -> bool:
-        """
-        Deletes a credential in the keyring.
-
-        :param key: The key of the credential to delete.
-        :type key: AnyStr
-        :return: True if credential was able to be removed, False otherwise.
-        :rtype: bool
-        """
-        self.log.debug(f"Deleting credential for key: {key}")
-        try:
-            keyring.delete_password(self.service_name, key)
-            self.log.info(f"Credential {key} deleted as expected.")
-            return True
-        except PasswordDeleteError as e:
-            self.log.warning(f"Could not delete credential for {key}: {e}")
-            return False
-
     def load_token(self) -> AccessToken:
         """
-        Loads the access token from the keyring.
+        Loads the access token and its expiration from the keyring.
 
-        :return: The access token and token expiration.
+        :return: An :class:`~patcher.models.token.AccessToken` object containing the token and its
+            expiration date.
         :rtype: AccessToken
         """
         self.log.debug("Loading token from keyring")
@@ -91,10 +97,11 @@ class ConfigManager:
 
     def attach_client(self, custom_ca_file: Optional[str] = None) -> Optional[JamfClient]:
         """
-        Attaches a :mod:`patcher.models.jamf_client` object using the stored credentials.
-        Allows for an optional custom CA file to be passed.
+        Creates and returns a :mod:`patcher.models.jamf_client` object using the stored credentials.
+        Allows for an optional custom CA file to be passed, which can be useful for environments
+        with custom certificate authorities.
 
-        :param custom_ca_file: Path to a custom CA file for SSL verification.
+        :param custom_ca_file: Optional path to a custom CA file for SSL verification.
         :type custom_ca_file: Optional[str]
         :return: The ``JamfClient`` object if validation is successful, None otherwise.
         :rtype: Optional[JamfClient]
@@ -116,10 +123,13 @@ class ConfigManager:
 
     def create_client(self, client: JamfClient):
         """
-        Creates a :mod:`patcher.models.jamf_client` object with necessary attributes. Predominantly used by :mod:`patcher.client.setup` class methods.
+        Stores a `JamfClient` object's credentials in the keyring.
 
-        :param client: The ``JamfClient`` object to create.
-        :type client: ``JamfClient``
+        This method is typically used during the setup process to save the credentials and token of a `JamfClient`
+        object into the keyring for secure storage and later use.
+
+        :param client: The `JamfClient` object whose credentials will be stored.
+        :type client: JamfClient
         """
         self.log.debug(f"Setting Jamf client: {client.client_id}")
         credentials = {

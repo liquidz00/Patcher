@@ -18,7 +18,12 @@ from .ui_manager import UIConfigManager
 
 
 class ReportManager:
-    """Main class for managing the patch reporting process in the patcher application."""
+    """
+    Handles the generation and management of patch reports within the patcher CLI tool.
+
+    This class coordinates various components such as configuration, token management, API interaction,
+    and report generation (both Excel and PDF) to produce comprehensive reports on patch statuses.
+    """
 
     def __init__(
         self,
@@ -33,19 +38,25 @@ class ReportManager:
         """
         Initializes the patcher class with the provided components.
 
-        :param config: Instance of ConfigManager for managing configuration.
-        :type config: :mod:`patcher.client.config_manager`
-        :param token_manager: Instance of TokenManager for managing tokens.
-        :type token_manager: :mod:`patcher.client.token_manager`
-        :param api_client: Instance of ApiClient for interacting with the Jamf API.
-        :type api_client: :mod:`patcher.client.api_client`
-        :param excel_report: Instance of ExcelReport for generating Excel reports.
-        :type excel_report: :mod:`patcher.models.reports.excel_report`
-        :param pdf_report: Instance of PDFReport for generating PDF reports.
-        :type pdf_report: :mod:`patcher.models.reports.pdf_report`
-        :param ui_config: Instance of UIConfigManager for UI configuration.
-        :type ui_config: :mod:`patcher.client.ui_manager`
-        :param debug: Enable or disable debug mode. Defaults to False.
+        :param config: Manages the configuration settings, including credentials.
+        :type config: :class:`~patcher.client.config_manager.ConfigManager`
+
+        :param token_manager: Handles the authentication tokens required for API access..
+        :type token_manager: :class:`~patcher.client.token_manager.TokenManager`
+
+        :param api_client: Interacts with the Jamf API to retrieve data needed for reporting.
+        :type api_client: :class:`~patcher.client.api_client.ApiClient`
+
+        :param excel_report: Generates Excel reports from collected patch data.
+        :type excel_report: :class:`~patcher.models.reports.excel_report.ExcelReport`
+
+        :param pdf_report: Generates PDF reports from the Excel files, adding visual elements..
+        :type pdf_report: :class:`~patcher.models.reports.pdf_report.PDFReport`
+
+        :param ui_config: Manages the UI configuration for PDF report generation.
+        :type ui_config: :class:`~patcher.client.ui_manager.UIConfigManager`
+
+        :param debug: Enables debug mode if True, providing detailed logging.
         :type debug: bool
         """
         self.config = config
@@ -63,13 +74,20 @@ class ReportManager:
         latest_versions: List[Dict[AnyStr, AnyStr]],
     ) -> Optional[List[PatchTitle]]:
         """
-        Calculates the amount of enrolled devices on the latest version of their respective operating system.
+        Analyzes the iOS version data to determine how many enrolled devices are on the latest version.
 
-        :param device_versions: A list of nested dictionaries containing devices and corresponding operating system versions.
+        This method compares the operating system versions of managed devices with the latest versions
+        provided by the SOFA feed, calculating how many devices are fully updated.
+
+        :param device_versions: A list of dictionaries containing devices and their respective iOS versions.
         :type device_versions: List[Dict[AnyStr, AnyStr]]
-        :param latest_versions: A list of latest available iOS versions, from SOFA feed.
+        :param latest_versions: A list of the most recent iOS versions available.
         :type latest_versions: List[Dict[AnyStr, AnyStr]]
-        :return: A list with calculated data per iOS version, or None on error.
+        :return: A list of ``PatchTitle`` objects, each representing a summary of the patch status for an iOS version.
+        :rtype: Optional[List[PatchTitle]]
+
+        This method does not interact directly with the user but is crucial in the internal process
+        of generating accurate reports that reflect the patch status across iOS devices.
         """
         if not device_versions or not latest_versions:
             self.log.error("Error calculating iOS Versions. Received None instead of a List")
@@ -117,23 +135,33 @@ class ReportManager:
         date_format: AnyStr = "%B %d %Y",
     ) -> None:
         """
-        Asynchronously generates and saves patch reports in Excel format at the specified path,
-        optionally generating PDF versions, sorting by a specified column, and omitting recent entries.
+        Asynchronously generates and saves patch reports, with options for customization.
 
-        :param path: Directory path to save the reports.
+        This method is the core of the report generation process, orchestrating the collection
+        of patch data, sorting, filtering, and ultimately saving the data to an Excel file.
+        It can also generate a PDF report and include additional iOS device data.
+
+        :param path: The directory where the reports will be saved. It must be a valid directory, not a file.
         :type path: Union[str, Path]
-        :param pdf: Generate PDF versions of the reports if True.
+
+        :param pdf: If True, generates PDF versions of the reports in addition to Excel.
         :type pdf: bool
-        :param sort: Column name to sort the reports.
+
+        :param sort: Specifies the column by which to sort the reports (e.g., 'released' or 'completion_percent').
         :type sort: Optional[AnyStr]
-        :param omit: Omit patches released within 48 hours if True.
+
+        :param omit: If True, omits patches that were released within the last 48 hours.
         :type omit: bool
-        :param ios: Include iOS device data if True.
+
+        :param ios: If True, includes iOS device data in the reports.
         :type ios: bool
-        :param date_format: Format for dates in the header. Default is "%B %d %Y" (Month Day Year).
+
+        :param date_format: Specifies the date format for headers in the reports. Default is "%B %d %Y" (Month Day Year).
         :type date_format: AnyStr
 
-        :return: None.
+        :return: None
+        :rtype: None
+
         :raises exceptions.DirectoryCreationError: If the provided path is a file or directories cannot be created.
         :raises exceptions.PolicyFetchError: If no policy IDs are retrieved.
         :raises exceptions.SummaryFetchError: If no patch summaries are retrieved.
@@ -142,6 +170,10 @@ class ReportManager:
         :raises exceptions.DeviceOSFetchError: If device OS versions cannot be retrieved.
         :raises exceptions.SofaFeedError: If there is an issue with retrieving data from the SOFA feed.
         :raises exceptions.ExportError: If there is an error exporting reports to Excel or PDF.
+
+        This function is not intended to be called directly by users, but rather is a key part of the CLI's
+        automated reporting process. It handles all the necessary steps from data collection to file generation,
+        ensuring that reports are accurate, complete, and formatted according to the user's preferences.
         """
         animation = Animation(enable_animation=not self.debug)
 

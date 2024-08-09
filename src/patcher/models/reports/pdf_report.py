@@ -13,7 +13,13 @@ logthis = logger.setup_child_logger("PDFReport", __name__)
 
 
 class PDFReport(FPDF):
-    """Handles the generation of PDF reports from Excel files."""
+    """
+    Handles the generation of PDF reports from Excel files.
+
+    The ``PDFReport`` class extends FPDF to create a PDF report from an Excel file
+    containing patch data. It supports custom headers, footers, and font styles
+    based on the UI configuration.
+    """
 
     def __init__(
         self,
@@ -26,7 +32,7 @@ class PDFReport(FPDF):
         """
         Initializes the PDFReport with the provided parameters and UIConfigManager.
 
-        :param ui_config: Instance of UIConfigManager for managing UI configuration.
+        :param ui_config: An instance of ``UIConfigManager`` for managing UI configuration.
         :type ui_config: UIConfigManager
         :param orientation: Orientation of the PDF, default is "L" (landscape).
         :type orientation: str
@@ -48,7 +54,12 @@ class PDFReport(FPDF):
         self.column_widths = []
 
     def header(self):
-        """Creates the header section for each page of the PDF report."""
+        """
+        Creates the header section for each page of the PDF report.
+
+        The header includes the configured header text and the current date formatted
+        according to ``self.date_format``. On subsequent pages, the table header is also added.
+        """
         self.set_font(self.ui_config.get("FONT_NAME"), "B", 24)
         self.cell(0, 10, self.ui_config.get("HEADER_TEXT"), new_x="LMARGIN", new_y="NEXT")
 
@@ -65,7 +76,13 @@ class PDFReport(FPDF):
             self.add_table_header()
 
     def add_table_header(self):
-        """Adds the table header to the PDF report."""
+        """
+        Adds the table header to the PDF report.
+
+        This method is called on pages after the first to add column headers for
+        the data table in the PDF report. The headers and their widths are defined
+        by ``self.table_headers`` and ``self.column_widths``.
+        """
         self.set_y(30)
         self.set_font(self.ui_config.get("FONT_NAME"), "B", 11)
         for header, width in zip(self.table_headers, self.column_widths):
@@ -73,7 +90,12 @@ class PDFReport(FPDF):
         self.ln(10)
 
     def footer(self):
-        """Creates the footer section for each page of the PDF report."""
+        """
+        Creates the footer section for each page of the PDF report.
+
+        The footer includes the configured footer text and the current page number.
+        The footer text is styled with a smaller font and a light gray color.
+        """
         self.set_y(-15)
         self.set_font(self.ui_config.get("FONT_NAME"), "", 6)
         self.set_text_color(175, 175, 175)
@@ -85,6 +107,10 @@ class PDFReport(FPDF):
     ) -> None:
         """
         Creates a PDF report from an Excel file containing patch data.
+
+        This method reads an Excel file, extracts the data, and populates it into a PDF
+        report using the defined headers and column widths. The PDF is then saved to
+        the same directory as the Excel file.
 
         :param excel_file: Path to the Excel file to convert to PDF.
         :type excel_file: Union[str, Path]

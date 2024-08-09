@@ -1,8 +1,7 @@
 from functools import wraps
-from typing import Callable
+from typing import Any, Callable
 
 import aiohttp
-import click
 from pydantic import ValidationError
 
 from patcher.utils import exceptions, logger
@@ -12,7 +11,31 @@ logthis = logger.setup_child_logger("wrappers", __name__)
 
 
 # Automatic checking/refreshing of AccessToken
-def check_token(func: Callable):
+def check_token(func: Callable) -> Any:
+    """
+    Decorator that ensures the validity of an access token before executing a function.
+
+    The ``check_token`` decorator performs several key tasks before the decorated
+    function is executed:
+
+    1. It validates the configuration of the token manager's client.
+    2. It checks if the current access token is valid. If the token is invalid,
+       it attempts to refresh the token.
+    3. It ensures that the token has a sufficient remaining lifetime (at least 5 minutes).
+       If the token's lifetime is insufficient, it raises a ``TokenLifetimeError``.
+
+    This decorator is intended for use with asynchronous methods that require
+    a valid and sufficiently long-lived access token to interact with the Jamf API.
+
+    :param func: The asynchronous function to be decorated.
+    :type func: Callable
+    :raises pydantic.ValidationError: If the configuration validation fails.
+    :raises TokenFetchError: If token refresh fails or returns ``None``.
+    :raises TokenLifetimeError: If the token's remaining lifetime is too short.
+    :return: The result of the decorated function.
+    :rtype: Any
+    """
+
     @wraps(func)
     async def wrapper(*args, **kwargs):
         instance = args[0]
@@ -24,7 +47,7 @@ def check_token(func: Callable):
             config.attach_client()
         except ValidationError as e:
             log.error(f"Failed validation: {e}")
-            raise click.Abort()
+            raise
 
         # Check if token is valid
         log.debug("Checking bearer token validity")

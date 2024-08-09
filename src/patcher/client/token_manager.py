@@ -11,14 +11,21 @@ from .config_manager import ConfigManager
 
 
 class TokenManager:
-    """Manages the Bearer Token for accessing the Jamf API."""
+    """
+    Manages the Bearer Token required for accessing the Jamf API.
+
+    The ``TokenManager`` class handles all operations related to the token lifecycle,
+    including fetching, saving, and validating the access token. It is initialized
+    with a :class:`~patcher.client.config_manager.ConfigManager` instance, which provides the necessary configuration
+    and credentials.
+    """
 
     def __init__(self, config: ConfigManager):
         """
-        Initializes the TokenManager with the provided ConfigManager.
+        Initializes the TokenManager with a provided ``ConfigManager`` instance.
 
-        :param config: Instance of ConfigManager for loading and storing credentials.
-        :type config: :mod:`patcher.client.config_manager`
+        :param config: A ``ConfigManager`` instance for managing credentials and configurations.
+        :type config: ConfigManager
         :raises ValueError: If the ``JamfClient`` configuration is invalid.
         """
         self.config = config
@@ -35,10 +42,13 @@ class TokenManager:
 
     def save_token(self, token: AccessToken):
         """
-        Saves the token and its expiration date in the keyring.
+        Saves the access token and its expiration date securely.
 
-        :param token: The access token to save.
-        :type token: :mod:`patcher.models.token`
+        This method stores the access token and its expiration date in the keyring
+        for later retrieval. It also updates the ``JamfClient`` instance with the new token.
+
+        :param token: The ``AccessToken`` instance containing the token and its expiration date.
+        :type token: :class:`~patcher.models.token.AccessToken`
         """
         self.log.debug(f"Saving token: {token.token}")
         self.config.set_credential("TOKEN", token.token)
@@ -48,9 +58,11 @@ class TokenManager:
 
     def token_valid(self) -> bool:
         """
-        Checks if the current token is valid.
+        Determines if the current access token is still valid.
 
-        :return: True if the token is valid, False otherwise.
+        This method checks if the token has expired by evaluating its expiration date.
+
+        :return: ``True`` if the token is valid (not expired), otherwise ``False``.
         :rtype: bool
         """
         valid = not self.token.is_expired
@@ -59,9 +71,11 @@ class TokenManager:
 
     def get_credentials(self) -> Tuple[AnyStr, AnyStr]:
         """
-        Retrieves the client ID and client secret from the JamfClient.
+        Retrieves the client ID and client secret for authentication.
 
-        :return: Tuple containing the client ID and client secret.
+        These credentials are required for generating a new access token.
+
+        :return: A tuple containing the client ID and client secret.
         :rtype: Tuple[AnyStr, AnyStr]
         """
         self.log.debug("Retrieving credentials from JamfClient")
@@ -69,7 +83,9 @@ class TokenManager:
 
     def update_token(self, token_str: AnyStr, expires_in: int):
         """
-        Updates the token with a new value and expiration time.
+        Updates the current access token with a new value and expiration time.
+
+        This method is typically called after receiving a new token from the API.
 
         :param token_str: The new token string.
         :type token_str: AnyStr
@@ -86,12 +102,16 @@ class TokenManager:
 
     def check_token_lifetime(self, client: Optional[JamfClient] = None) -> bool:
         """
-        Checks the remaining lifetime of the token.
+        Evaluates the remaining lifetime of the access token.
 
-        :param client: The JamfClient to check the token for, defaults to the current JamfClient.
+        This method checks if the token's remaining lifetime is sufficient.
+        If the lifetime is less than 5 minutes, a warning is issued.
+
+        :param client: The `JamfClient` instance to check the token for. If ``None``,
+                       defaults to the current instance.
         :type client: Optional[JamfClient]
-        :return: True if the token lifetime is sufficient (greater than 5 mins),
-            False otherwise.
+        :return: ``True`` if the token's remaining lifetime is more than 5 minutes,
+                 otherwise ``False``.
         :rtype: bool
         """
         if client is None:
@@ -126,9 +146,12 @@ class TokenManager:
 
     async def fetch_token(self) -> Optional[AccessToken]:
         """
-        Asynchronously fetches a new token from the Jamf API.
+        Asynchronously fetches a new access token from the Jamf API.
 
-        :return: The fetched AccessToken, or None if fetching fails.
+        This method sends a request to the Jamf API to obtain a new token.
+        The token is then saved and returned for use.
+
+        :return: The fetched ``AccessToken`` instance, or ``None`` if the request fails.
         :rtype: Optional[AccessToken]
         """
         async with self.lock:

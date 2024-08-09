@@ -9,8 +9,13 @@ from ..utils import logger
 
 
 class UIConfigManager:
-    """Manages the user interface configuration settings (Header & Footer text of the exported PDF class,
-    custom font (optional) and font paths)"""
+    """
+    Manages the user interface configuration settings.
+
+    This includes the management of header and footer text for exported PDFs,
+    custom fonts, and font paths. The class also handles the downloading of
+    default fonts if they are not already present.
+    """
 
     REGULAR_FONT_URL = (
         "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Regular.ttf"
@@ -20,7 +25,13 @@ class UIConfigManager:
     )
 
     def __init__(self, custom_ca_file: Optional[str] = None):
-        """Initializes the UIConfigManager by loading the UI configuration."""
+        """
+        Initializes the UIConfigManager by loading the user interface configuration.
+
+        :param custom_ca_file: Optional path to a custom Certificate Authority (CA) file.
+                               This is used for SSL verification during font downloads.
+        :type custom_ca_file: Optional[str]
+        """
         self.custom_ca_file = custom_ca_file
         self.config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
         self.user_config_dir = os.path.expanduser("~/Library/Application Support/Patcher")
@@ -33,9 +44,12 @@ class UIConfigManager:
     @property
     def fonts_present(self) -> bool:
         """
-        Check if default fonts have already been downloaded
+        Checks if the default fonts have already been downloaded.
 
-        :return: True if fonts are present, False otherwise.
+        This property verifies if the required font files (regular and bold)
+        are present in the expected directory.
+
+        :return: ``True`` if the fonts are present, ``False`` otherwise.
         :rtype: bool
         """
         if self._fonts_saved is None:
@@ -46,13 +60,16 @@ class UIConfigManager:
 
     def download_font(self, url: AnyStr, dest_path: AnyStr):
         """
-        Downloads Assistant font families from specified URL to destination path.
+        Downloads the Assistant font family from the specified URL to the given destination path.
 
-        :param url: The URL to download default fonts from.
+        If a custom CA file is provided, it is used to create an SSL context for the download.
+        This method ensures the fonts are stored securely in the appropriate directory.
+
+        :param url: The URL to download the font from.
         :type url: AnyStr
-        :param dest_path: Destination path to save the fonts.
+        :param dest_path: The local path where the downloaded font should be saved.
         :type dest_path: AnyStr
-        :raises OSError: If fonts are unable to be downloaded due to urllib.error.URLError.
+        :raises OSError: Raised if the font cannot be downloaded due to a network error or invalid response.
         """
         ssl_context = None
         if self.custom_ca_file:
@@ -74,7 +91,13 @@ class UIConfigManager:
             raise OSError(f"Unable to download default fonts: {e}")
 
     def create_default_config(self):
-        """Creates config.ini with default settings."""
+        """
+        Creates the :ref:`config.ini <config_ini>` file with default settings for the user interface.
+
+        This method writes default values for header text, footer text, and font paths
+        into the configuration file. It also ensures that the necessary fonts are
+        downloaded if they are not already present.
+        """
         default_config = {
             "Settings": {"patcher_path": self.user_config_dir},
             "UI": {
@@ -104,7 +127,12 @@ class UIConfigManager:
             self.config.write(configfile)
 
     def load_ui_config(self):
-        """Loads the UI configuration from the default and user configuration files."""
+        """
+        Loads the user interface configuration from the default and user configuration files.
+
+        This method reads the ``config.ini`` file to retrieve the settings. If the
+        configuration file does not exist, it is created with default values.
+        """
         if not os.path.exists(self.user_config_path):
             self.create_default_config()
 
@@ -113,9 +141,10 @@ class UIConfigManager:
 
     def get_ui_config(self) -> Dict:
         """
-        Retrieves the UI configuration settings.
+        Retrieves the user interface configuration settings as a dictionary.
 
-        :return: Dictionary containing UI configuration settings.
+        :return: A dictionary containing UI configuration settings such as header text,
+                 footer text, and font paths.
         :rtype: Dict
         """
         return {
@@ -135,15 +164,29 @@ class UIConfigManager:
         }
 
     def get(self, key: AnyStr, fallback: AnyStr = None) -> AnyStr:
+        """
+        Retrieves a specific configuration value from the UI configuration.
+
+        :param key: The key for the configuration value to retrieve.
+        :type key: AnyStr
+        :param fallback: The value to return if the key is not found. Defaults to ``None``.
+        :type fallback: AnyStr, optional
+        :return: The configuration value corresponding to the provided key, or the fallback value if the key is not found.
+        :rtype: AnyStr
+        """
         return self.get_ui_config().get(key, fallback)
 
     def reset_config(self, config_path: Optional[AnyStr] = None) -> bool:
         """
-        Resets User Interface values in ``config.ini`` file.
+        Resets the user interface settings in the ``config.ini`` file.
 
-        :param config_path: The path of the configuration file. Defaults to self.user_config_path.
+        This method removes all existing UI settings from the configuration file.
+        It can be useful for restoring default values or clearing the configuration.
+
+        :param config_path: The path of the configuration file to reset. If ``None``,
+                            defaults to the current user's configuration path.
         :type config_path: Optional[AnyStr]
-        :return: True if reset is successful, False otherwise.
+        :return: ``True`` if the reset was successful, ``False`` otherwise.
         :rtype: bool
         """
         config_path = config_path or self.user_config_path

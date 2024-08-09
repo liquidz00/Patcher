@@ -13,19 +13,30 @@ class JamfClient(Model):
     """
     Represents a Jamf client configuration.
 
-    :param client_id: The client ID for the Jamf client.
+    This class is responsible for holding the configuration necessary to interact
+    with the Jamf API, including client credentials, server information, and SSL
+    settings.
+
+    :param client_id: The client ID used for authentication with the Jamf API.
     :type client_id: AnyStr
-    :param client_secret: The client secret for the Jamf client.
+
+    :param client_secret: The client secret used for authentication with the Jamf API.
     :type client_secret: AnyStr
-    :param server: The server URL for the Jamf client.
+
+    :param server: The server URL for the Jamf API.
     :type server: AnyStr
-    :param token: The access token for the Jamf client.
+
+    :param token: The access token used for authenticating API requests. Defaults to None.
     :type token: Optional[AccessToken]
-    :param max_concurrency: The maximum concurrency level for API calls. Defaults to 5 per Jamf Developer documentation.
+
+    :param max_concurrency: The maximum number of concurrent API calls allowed. Defaults to 5.
     :type max_concurrency: int
-    :param ssl_path: The SSL paths for verification. ``aiohttp`` and ``urllib`` both use Python's ``ssl`` library for SSL verification. For environments with security software, SSL verification errors can be thrown and intermediate certificates appended.
+
+    :param ssl_path: The SSL verification paths used for SSL certificate verification.
     :type ssl_path: ssl.DefaultVerifyPaths
-    :param custom_ca_file: Path to a custom CA file that can be appended to default SSL certificate paths.
+
+    :param custom_ca_file: Path to a custom Certificate Authority (CA) file for SSL verification.
+                           If provided, this file is used in place of the default CA paths.
     :type custom_ca_file: Optional[Union[str, Path]]
     """
 
@@ -42,7 +53,11 @@ class JamfClient(Model):
         """
         Validates and formats a URL to ensure it has the correct scheme and structure.
 
-        :param url: The URL to validate.
+        This method checks if the provided URL has a scheme (e.g., 'https') and a
+        network location (netloc). If the scheme is missing, 'https' is assumed.
+        The method returns the validated and correctly formatted URL.
+
+        :param url: The URL to validate and format.
         :type url: AnyStr
         :return: The validated and formatted URL.
         :rtype: AnyStr
@@ -62,7 +77,10 @@ class JamfClient(Model):
     @field_validator("client_id", "client_secret", mode="before")
     def not_empty(cls, value):
         """
-        Validates that the field is not empty.
+        Validates that fields for client ID and client secret are not empty.
+
+        Ensures that the `client_id` and `client_secret` fields are not empty, raising
+        a ``ValueError`` if they are.
 
         :param value: The value to validate.
         :type value: AnyStr
@@ -80,6 +98,9 @@ class JamfClient(Model):
         """
         Validates and formats the server URL.
 
+        This method ensures that the ``server`` field contains a valid and properly
+        formatted URL by calling the ``valid_url`` method.
+
         :param v: The server URL to validate.
         :type v: AnyStr
         :return: The validated and formatted server URL.
@@ -91,12 +112,16 @@ class JamfClient(Model):
     @field_validator("ssl_path", mode="before")
     def validate_ssl_paths(cls, v):
         """
-        Validates the cafile property of the ``ssl_path`` is not None.
+        Validates that the ``cafile`` property of the ``ssl_path`` is not ``None``.
 
-        :param v: The ssl_path value to validate (defaults to ``cafile``)
+        This method ensures that the SSL certificate file is properly configured.
+        If the ``cafile`` property is ``None``, an ``SSLCertVerificationError`` is raised.
+
+        :param v: The ``ssl_path`` value to validate.
         :type v: ssl.DefaultVerifyPaths
-        :raises ssl.SSLCertVerificationError: If the cafile property is None.
-        :return: the validated ssl_path.
+        :raises ssl.SSLCertVerificationError: If the ``cafile`` property is ``None``.
+        :return: The validated ``ssl_path``.
+        :rtype: ssl.DefaultVerifyPaths
         """
         if v.cafile is None:
             raise ssl.SSLCertVerificationError(
@@ -108,9 +133,12 @@ class JamfClient(Model):
     @field_validator("custom_ca_file", mode="before")
     def validate_custom_ca(cls, v):
         """
-        Validates the custom CA file path to ensure it is a string.
+        Validates the custom CA file path.
 
-        :param v: The custom CA file path value to validate.
+        Ensures that the ``custom_ca_file`` path is provided as a string. If a ``Path``
+        object is provided, it is converted to a string.
+
+        :param v: The custom CA file path to validate.
         :type v: Union[str, Path]
         :return: The validated custom CA file path as a string.
         :rtype: str
@@ -122,9 +150,9 @@ class JamfClient(Model):
     @property
     def base_url(self):
         """
-        Gets the base URL of the server.
+        Gets the base URL of the Jamf server.
 
-        :return: The base URL of the server.
+        :return: The base URL of the Jamf server.
         :rtype: AnyStr
         """
         return self.server
@@ -132,9 +160,12 @@ class JamfClient(Model):
     @property
     def cafile(self) -> str:
         """
-        Gets the path to the CA file used for SSL verification. If a custom CA file is provided, it is used.
+        Gets the path to the CA file used for SSL verification.
 
-        :return: The path to the CA file.
+        If a custom CA file is provided, it is returned; otherwise, the default
+        CA file path is used.
+
+        :return: The path to the CA file used for SSL verification.
         :rtype: str
         """
         if self.custom_ca_file:
@@ -145,6 +176,10 @@ class JamfClient(Model):
         """
         Sets the maximum concurrency level for API calls.
 
+        This method allows you to set the maximum number of concurrent API calls
+        that can be made by the Jamf client. It is recommended to limit this value
+        to 5 connections to avoid overloading the Jamf server.
+
         .. warning::
             Changing this value could lead to your Jamf server being unable to perform other basic tasks. See the :ref:`Concurrency <concurrency>` option in the usage documentation.
 
@@ -153,6 +188,7 @@ class JamfClient(Model):
 
         :param concurrency: The new maximum concurrency level.
         :type concurrency: int
+        :raises ValueError: If the concurrency level is less than 1.
         """
         if concurrency < 1:
             raise ValueError("Concurrency level must be at least 1. ")
@@ -163,9 +199,14 @@ class ApiRole(Model):
     """
     Represents an API role with specific privileges required for Patcher to operate.
 
+    The ``ApiRole`` class encapsulates the role's name and the list of privileges
+    associated with that role. This is necessary for managing access control and
+    permissions within the Jamf API.
+
     :ivar display_name: The name of the API role.
     :type display_name: AnyStr
-    :ivar privileges: A list of privileges assigned ot the API role.
+    :ivar privileges: A list of privileges assigned to the API role. These privileges
+                      determine the actions that the role can perform.
     :type privileges: List[AnyStr]
     """
 
@@ -190,13 +231,18 @@ class ApiClient(Model):
     """
     Represents an API client with specific authentication scopes and settings required for Patcher.
 
-    :ivar auth_scopes: A list of authentication scopes assigned to the API client.
+    The ``ApiClient`` class defines the configuration for an API client, including its
+    authentication scopes, display name, whether it is enabled, and the token lifetime.
+
+    :ivar auth_scopes: A list of authentication scopes assigned to the API client. These
+                       scopes define the level of access the client has.
     :type auth_scopes: List[AnyStr]
     :ivar display_name: The name of the API client.
     :type display_name: AnyStr
-    :ivar enabled: Indicates whether the API client is enabled.
+    :ivar enabled: Indicates whether the API client is currently enabled or disabled.
     :type enabled: bool
-    :ivar token_lifetime: The lifetime of the token in seconds.
+    :ivar token_lifetime: The lifetime of the access token in seconds. This value
+                          determines how long the token remains valid.
     :type token_lifetime: int
     """
 

@@ -33,7 +33,11 @@ DOC = "For more information, visit the project documentation: https://patcher.li
 
 class Setup:
     """
-    A class to handle the setup process for the Patcher tool.
+    Handles the initial setup process for the Patcher CLI tool.
+
+    This class guides users through configuring the necessary components to integrate
+    with their Jamf environment. The setup includes creating API roles, clients, and configuring
+    user interface settings for PDF reports.
     """
 
     def __init__(
@@ -43,13 +47,13 @@ class Setup:
         custom_ca_file: Optional[str] = None,
     ):
         """
-        Initializes the Setup class with the provided configuration and UI configuration.
+        Initializes the Setup class with configuration and UI configuration managers.
 
-        :param config: The configuration manager instance.
+        :param config: Manages application configuration, including credential storage.
         :type config: ConfigManager
-        :param ui_config: The UI configuration manager instance.
+        :param ui_config: Handles UI-related configurations for the setup process.
         :type ui_config: UIConfigManager
-        :param custom_ca_file: Path to a custom CA file for SSL verification.
+        :param custom_ca_file: Path to a custom CA file for SSL verification, if needed.
         :type custom_ca_file: Optional[str]
         """
         self.config = config
@@ -68,16 +72,16 @@ class Setup:
     @property
     def completed(self) -> bool:
         """
-        Checks if the setup process has been completed.
+        Indicates whether the setup process has been completed.
 
-        :return: True if setup completed, False otherwise.
+        :return: True if setup has been completed, False otherwise.
         :rtype: bool
         """
         return self._completed if self._completed is not None else self._check_completion()
 
     def _check_completion(self):
         """
-        Checks for the presence of the plist file to determine if setup has been completed.
+        Determines if the setup has been completed by checking the presence of a plist file.
 
         :return: True if setup has been completed, False otherwise.
         :rtype: bool
@@ -99,9 +103,9 @@ class Setup:
 
     def _set_plist(self, value: bool = False):
         """
-        Sets the value of the `first_run_done` key in the property list file in the user library.
+        Updates the plist file to reflect the completion status of the setup.
 
-        :param value: The value to set in the property list.
+        :param value: Indicates whether the setup is complete. Default is False.
         :type value: bool
         :raises exceptions.PlistError: If there is an error writing to the plist file.
         """
@@ -125,7 +129,7 @@ class Setup:
 
     def _setup_ui(self):
         """
-        Prompts the user to enter UI configuration settings and saves them to the configuration file.
+        Guides the user through configuring UI settings for PDF reports, including header/footer text and font choices.
 
         :raises FileNotFoundError: IF the specified font file paths do not exist.
         """
@@ -148,11 +152,14 @@ class Setup:
         """
         Configures the font settings based on user input.
 
+        This method allows the user to specify a custom font or use the default provided by the application.
+        The chosen fonts are copied to the appropriate directory for use in PDF report generation.
+
         :param use_custom_font: Indicates whether to use a custom font.
         :type use_custom_font: bool
-        :param font_dir:  The directory to store the font files.
+        :param font_dir: The directory to store the font files.
         :type font_dir: Union[str, Path]
-        :return: A tuple containing the font name, regular font path and bold font path.
+        :return: A tuple containing the font name, regular font path, and bold font path.
         :rtype: Tuple[AnyStr, str, str]
         """
         # Convert font_dir to a string if passed a Path object
@@ -216,9 +223,10 @@ class Setup:
         self, password: AnyStr, username: AnyStr, jamf_url: Optional[AnyStr] = None
     ) -> bool:
         """
-        Asynchronously retrieves a bearer token using basic auth.
+        Asynchronously retrieves a bearer token using basic authentication.
 
-        This function should not be used outside of initial setup/configuration to retrieve a bearer token as this is meant only to obtain client credentials for created API clients and roles.
+        This method is intended for initial setup to obtain client credentials for API clients and roles.
+        It should not be used for regular token retrieval after setup.
 
         :param username: Username of admin Jamf Pro account for authentication. Not permanently stored, only used for initial token retrieval.
         :type username: AnyStr
@@ -227,7 +235,7 @@ class Setup:
         :param jamf_url: Jamf Server URL (same as ``server_url`` in :mod:`patcher.models.jamf_client` class).
         :type jamf_url: Optional[AnyStr]
         :raises exceptions.TokenFetchError: If the call is unauthorized or unsuccessful.
-        :returns: True if basic token was generated, False if 401 encountered (SSO)
+        :returns: True if the basic token was successfully retrieved, False if unauthorized (e.g., due to SSO).
         :rtype: bool
         """
         self.jamf_url = jamf_url or self.jamf_url
@@ -280,9 +288,9 @@ class Setup:
 
     async def _create_roles(self, token: Optional[AnyStr] = None) -> bool:
         """
-        Creates the necessary API roles using the provided token.
+        Creates the necessary API roles using the provided bearer token.
 
-        :param token: The bearer token, defaults to None
+        :param token: The bearer token to use for authentication. Defaults to the stored token if not provided.
         :type token: Optional[AnyStr]
         :return: True if roles were successfully created, False otherwise.
         :rtype: bool
@@ -323,8 +331,12 @@ class Setup:
         """
         Creates an API client and retrieves its client ID and client secret.
 
+        This method uses the provided bearer token to create a new API client in the Jamf server.
+
+        :param token: The bearer token to use for authentication. Defaults to the stored token if not provided.
+        :type token: Optional[AnyStr]
         :return: A tuple containing the client ID and client secret.
-        :rtype: tuple[AnyStr, AnyStr]
+        :rtype: Tuple[AnyStr, AnyStr]
         :raises aiohttp.ClientError: If there is an error making the HTTP request.
         """
         token = token or self.token
@@ -376,15 +388,15 @@ class Setup:
         self, url: AnyStr, client_id: AnyStr, client_secret: AnyStr
     ) -> Optional[AccessToken]:
         """
-        Fetches a bearer token using client credentials.
+        Fetches a bearer token using the client credentials provided.
 
-        :param url: The URL to fetch the bearer token from.
+        :param url: The Jamf server URL to request the bearer token from.
         :type url: AnyStr
-        :param client_id: The client ID.
+        :param client_id: The client ID obtained during client creation.
         :type client_id: AnyStr
-        :param client_secret: The client secret.
+        :param client_secret: The client secret obtained during client creation.
         :type client_secret: AnyStr
-        :return: An :mod:`patcher.models.token` object if successful, None otherwise.
+        :return: An AccessToken object if successful, None otherwise.
         :rtype: Optional[AccessToken]
         """
         ssl_context = None
@@ -425,10 +437,12 @@ class Setup:
 
     async def prompt_method(self, animator: Optional[Animation] = None):
         """
-        :param animator: Animation object to pass to methods. Defaults to `self.animator`
-        :type animator: Optional[:class:~`patcher.utils.animation.Animation`]
-        Allows users to choose between the setup methods.
-        Intended to enhance end user experience when going through setup assistant.
+        Allows the user to choose between different setup methods (Standard or SSO).
+
+        This method enhances the user experience by guiding them through the appropriate setup steps based on their environment.
+
+        :param animator: Animation object to pass to methods for progress updates. Defaults to `self.animator`.
+        :type animator: Optional[Animation]
         """
         if self.completed:
             return
@@ -447,7 +461,10 @@ class Setup:
 
     async def first_run(self):
         """
-        Similar to the ``launch`` method, but triggered when SSO is being utilized by end-user.
+        Initiates the setup process for users utilizing SSO.
+
+        This method handles the necessary steps for generating and saving API client credentials
+        when the user is operating in an SSO environment.
 
         :raises SystemExit: If the user opts not to proceed with the setup.
         :raises exceptions.TokenFetchError: If there is an error fetching the token.
@@ -496,10 +513,13 @@ class Setup:
 
     async def launch(self, animator: Optional[Animation] = None):
         """
-        Launches the setup assistant, prompting the user for necessary information and handling the setup process.
+        Launches the setup assistant for the Patcher tool.
 
-        :param animator: The animation instance to update messages.
-        :type animator: Optional[:class:~`patcher.utils.animation.Animation`]
+        This method prompts the user for necessary information and handles the entire setup process,
+        including API role creation, client creation, and saving credentials.
+
+        :param animator: The animation instance to update messages. Defaults to `self.animator`.
+        :type animator: Optional[Animation]
         :raises SystemExit: If the user opts not to proceed with the setup.
         :raises exceptions.TokenFetchError: If the API call to retrieve a token fails.
         :raises aiohttp.ClientError: If there is an error making the HTTP request.
@@ -614,10 +634,10 @@ class Setup:
 
     async def reset(self):
         """
-        Resets the user interface elements of PDF reports by modifying config.ini in the user library. UI elements are then reconfigured by calling the setup UI function.
-        """
-        # Clear existing UI configuration
+        Resets the UI configuration settings by clearing the existing configuration and starting the setup process again.
 
+        This method is useful if the user wants to reconfigure the UI elements of PDF reports, such as header/footer text and font choices.
+        """
         reset_config = self.ui_config.reset_config()
         if not reset_config:
             self.log.error("Encountered an issue resetting elements in config.ini.")
