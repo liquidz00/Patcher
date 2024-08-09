@@ -3,7 +3,6 @@ import os
 import plistlib
 import shutil
 import ssl
-import sys
 from asyncio import Lock, sleep
 from configparser import ConfigParser
 from datetime import datetime, timedelta, timezone
@@ -263,7 +262,9 @@ class Setup:
                         response = await resp.json()
                     except ssl.SSLCertVerificationError as e:
                         self.log.error(f"SSL failed verification: {e}")
-                        raise ssl.SSLCertVerificationError("SSL failed verification. Please see https://patcher.liquidzoo.io/user/install.html#ssl-verification-and-self-signed-certificates for next steps.")
+                        raise ssl.SSLCertVerificationError(
+                            "SSL failed verification. Please see https://patcher.liquidzoo.io/user/install.html#ssl-verification-and-self-signed-certificates for next steps."
+                        )
                     if not response:
                         self.log.error(
                             "API call was successful, but response was empty. Exiting..."
@@ -472,7 +473,9 @@ class Setup:
                 )
             except ssl.SSLCertVerificationError as e:
                 self.log.error(f"SSL failed verification: {e}")
-                raise ssl.SSLCertVerificationError("SSL failed verification. Please see https://patcher.liquidzoo.io/user/install.html#ssl-verification-and-self-signed-certificates for next steps.")
+                raise ssl.SSLCertVerificationError(
+                    "SSL failed verification. Please see https://patcher.liquidzoo.io/user/install.html#ssl-verification-and-self-signed-certificates for next steps."
+                )
 
             if token:
                 jamf_client = JamfClient(
