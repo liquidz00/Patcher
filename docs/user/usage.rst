@@ -54,6 +54,8 @@ Options:
 
 Ensure to select a format name exactly as listed to avoid errors. Invalid format names will result in an error, and the script will abort.
 
+.. _ios:
+
 iOS
 ---
 

@@ -16,6 +16,8 @@ Tailor the user interface elements of your exported PDF reports. You have the fl
 .. seealso::
     Configuring the date format is done at runtime by using the ``--date-format`` option. See :ref:`date format <date-format>` for more information.
 
+.. _config_ini:
+
 Setup
 -----
 
