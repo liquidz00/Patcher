@@ -50,3 +50,6 @@ Parameters
 
 - **reset** (*bool*):
   Resets the ``config.ini`` file used for customizable elements in exported PDF reports, then triggers :func:`~patcher.client.setup._setup_ui` method. See :ref:`Customizing Reports <customize_reports>` for more information.
+
+- **custom_ca_file** (*Optional[AnyStr]*):
+  Pass a path to a custom Certificate Authority (CA) file for SSL verification. If provided, this file will be used in place of the default CA paths. See :ref:`ssl-verify`.

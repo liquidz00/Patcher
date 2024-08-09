@@ -58,7 +58,8 @@ Options:
   --help                          Show this message and exit.
 ```
 
-## SSL Verification and Self-Signed Certificates
+(ssl-verify)=
+## SSL Verification and Self-Signed Certificates 
 
 When using Patcher, you may encounter SSL verification issues, particularly if your network environment uses self-signed certificates or custom Certificate Authorities (CAs). Patcher uses both the `aiohttp` and `urllib` libraries to make API calls.
 
