@@ -1,2 +1,2 @@
 __title__ = "patcher"
-__version__ = "1.3.5b1"
+__version__ = "1.3.5"
