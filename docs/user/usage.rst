@@ -125,3 +125,18 @@ To streamline the customization process, you can use the ``--reset`` flag with P
 .. code-block:: console
 
     $ patcherctl --reset
+
+Custom CA File
+--------------
+
+Pass a path to a ``.pem`` certificate to use as the default `SSL context <https://docs.python.org/3/library/ssl.html#context-creation>`_. Can be useful if running into SSL Validation Errors when using Patcher.
+
+.. code-block:: console
+
+    $ patcherctl --custom-ca-file '/path/to/.pem/file'
+
+.. seealso::
+    :class: dropdown
+
+    :ref:`ssl-verify` on the installation page
+
