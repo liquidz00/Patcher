@@ -126,6 +126,8 @@ To streamline the customization process, you can use the ``--reset`` flag with P
 
     $ patcherctl --reset
 
+.. _custom-ca:
+
 Custom CA File
 --------------
 
