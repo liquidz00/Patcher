@@ -110,7 +110,7 @@ async def main(
         raise click.UsageError("The --path option is required unless --reset is specified.")
 
     config = ConfigManager()
-    ui_config = UIConfigManager()
+    ui_config = UIConfigManager(custom_ca_file=custom_ca_file)
     setup = Setup(config=config, ui_config=ui_config, custom_ca_file=custom_ca_file)
 
     log = LogMe(__name__, debug=debug)

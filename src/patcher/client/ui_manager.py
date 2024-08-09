@@ -1,5 +1,6 @@
 import configparser
 import os
+import ssl
 import urllib.request
 from typing import AnyStr, Dict, Optional
 from urllib.error import URLError
@@ -18,8 +19,9 @@ class UIConfigManager:
         "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Bold.ttf"
     )
 
-    def __init__(self):
+    def __init__(self, custom_ca_file: Optional[str] = None):
         """Initializes the UIConfigManager by loading the UI configuration."""
+        self.custom_ca_file = custom_ca_file
         self.config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
         self.user_config_dir = os.path.expanduser("~/Library/Application Support/Patcher")
         self.user_config_path = os.path.join(self.user_config_dir, "config.ini")
@@ -52,9 +54,13 @@ class UIConfigManager:
         :type dest_path: AnyStr
         :raises OSError: If fonts are unable to be downloaded due to urllib.error.URLError.
         """
+        ssl_context = None
+        if self.custom_ca_file:
+            ssl_context = ssl.create_default_context(cafile=self.custom_ca_file)
+
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
         try:
-            with urllib.request.urlopen(url=url) as response:
+            with urllib.request.urlopen(url=url, context=ssl_context) as response:
                 if response.status == 200:
                     with open(dest_path, "wb") as f:
                         f.write(response.read())
