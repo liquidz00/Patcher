@@ -7,6 +7,12 @@ import aiohttp
 from ..models.patch import PatchTitle
 from ..utils import exceptions, logger
 
+# TODO
+# 2. Iron out accurate installomator labels
+# 3. Pandas dataframe analysis based on PatchTitle criteria (completion percent, release date, etc.)
+# 4. Jamf app installer support?
+# 5. Iron out CVE data gathering and formatting
+
 
 class Analyzer:
     def __init__(self, titles: List[PatchTitle], labels: List[str]):
@@ -17,7 +23,8 @@ class Analyzer:
     def analyze(self):
         for patch in self.patch_titles:
             if patch.title in self.labels:
-                patch.installomator = True
+                # TODO
+                pass
 
     @staticmethod
     def format_table(data, headers=None):
@@ -80,16 +87,14 @@ class Analyzer:
     async def print_table(self):
         tasks = []
         for patch in self.patch_titles:
-            if patch.installomator:
-                tasks.append(self.fetch_criticals(patch.title))
+            tasks.append(self.fetch_criticals(patch.title))
 
         cve_results = await asyncio.gather(*tasks)
 
         data = []
         for i, patch in enumerate(self.patch_titles):
-            if patch.installomator:
-                cve_id_str = ", ".join(cve_results[i] if cve_results[i] else "None")
-                data.append([patch.title, "Yes", patch.completion_percent, cve_id_str])
+            cve_id_str = ", ".join(cve_results[i] if cve_results[i] else "None")
+            data.append([patch.title, "Yes", patch.completion_percent, cve_id_str])
 
         headers = [
             "Software Title",
