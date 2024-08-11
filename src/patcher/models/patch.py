@@ -21,9 +21,6 @@ class PatchTitle(Model):
     :type completion_percent: float
     :ivar total_hosts: The total number of hosts.
     :type total_hosts: int
-    :ivar installomator: Indicates installomator label is available for software title.
-                         Defaults to False
-    :type installomator: bool
     """
 
     title: AnyStr
@@ -32,7 +29,6 @@ class PatchTitle(Model):
     missing_patch: int
     completion_percent: float = 0.0
     total_hosts: int = 0
-    installomator: bool = False
 
     # Calculate completion percent via model validator
     @model_validator(mode="after")

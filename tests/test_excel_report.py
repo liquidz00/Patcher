@@ -21,7 +21,6 @@ def test_export_to_excel_success(sample_patch_reports, temp_output_dir):
         "Missing Patch",
         "Completion Percent",
         "Total Hosts",
-        "Installomator",
     ]
 
 
