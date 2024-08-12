@@ -1,9 +1,13 @@
 import configparser
 import os
+import shutil
 import ssl
 import urllib.request
-from typing import AnyStr, Dict, Optional
+from pathlib import Path
+from typing import AnyStr, Dict, Optional, Tuple, Union
 from urllib.error import URLError
+
+import asyncclick as click
 
 from ..utils import logger
 
@@ -204,3 +208,100 @@ class UIConfigManager:
         except Exception as e:
             self.log.error(f"An unexpected error occurred: {e}")
             return False
+
+    def setup_ui(self):
+        """
+        Guides the user through configuring UI settings for PDF reports, including header/footer text and font choices.
+        This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
+
+        :raises FileNotFoundError: IF the specified font file paths do not exist.
+        """
+        header_text = click.prompt("Enter the Header Text to use on PDF reports")
+        footer_text = click.prompt("Enter the Footer Text to use on PDF reports")
+        use_custom_font = click.confirm("Would you like to use a custom font?", default=False)
+        font_dir = os.path.join(self.user_config_dir, "fonts")
+        print("Calling os.makedirs")
+        os.makedirs(font_dir, exist_ok=True)
+
+        font_name, font_regular_path, font_bold_path = self.configure_font(
+            use_custom_font, font_dir
+        )
+
+        self.save_ui_config(header_text, footer_text, font_name, font_regular_path, font_bold_path)
+
+    @staticmethod
+    def configure_font(
+        use_custom_font: bool, font_dir: Union[str, Path]
+    ) -> Tuple[AnyStr, str, str]:
+        """
+        Configures the font settings based on user input.
+
+        This method allows the user to specify a custom font or use the default provided by the application.
+        The chosen fonts are copied to the appropriate directory for use in PDF report generation.
+
+        This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
+
+        :param use_custom_font: Indicates whether to use a custom font.
+        :type use_custom_font: bool
+        :param font_dir: The directory to store the font files.
+        :type font_dir: Union[str, Path]
+        :return: A tuple containing the font name, regular font path, and bold font path.
+        :rtype: Tuple[AnyStr, str, str]
+        """
+        # Convert font_dir to a string if passed a Path object
+        # This is intentional based upon how ``os.path.join`` handles str objects natively
+        #   and may not work as expected if passed a Path object
+        if isinstance(font_dir, Path):
+            font_dir = str(font_dir)
+
+        if use_custom_font:
+            font_name = click.prompt("Enter the custom font name", default="CustomFont")
+            font_regular_src_path = click.prompt("Enter the path to the regular font file")
+            font_bold_src_path = click.prompt("Enter the path to the bold font file")
+            font_regular_dest_path = os.path.join(font_dir, os.path.basename(font_regular_src_path))
+            font_bold_dest_path = os.path.join(font_dir, os.path.basename(font_bold_src_path))
+            shutil.copy(font_regular_src_path, font_regular_dest_path)
+            shutil.copy(font_bold_src_path, font_bold_dest_path)
+        else:
+            font_name = "Assistant"
+            font_regular_dest_path = os.path.join(font_dir, "Assistant-Regular.ttf")
+            font_bold_dest_path = os.path.join(font_dir, "Assistant-Bold.ttf")
+
+        return font_name, font_regular_dest_path, font_bold_dest_path
+
+    def save_ui_config(
+        self,
+        header_text: AnyStr,
+        footer_text: AnyStr,
+        font_name: AnyStr,
+        font_regular_path: Union[str, Path],
+        font_bold_path: Union[str, Path],
+    ):
+        """
+        Saves the UI configuration settings to the configuration file.
+        This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
+
+        :param header_text: The header text for PDF reports.
+        :type header_text: AnyStr
+        :param footer_text: The footer text for PDF reports.
+        :type footer_text: AnyStr
+        :param font_name: The name of the font to use.
+        :type font_name: AnyStr
+        :param font_regular_path: The path to the regular font file.
+        :type font_regular_path: Union[str, Path]
+        :param font_bold_path: The path to the bold font file.
+        :type font_bold_path: Union[str, Path]
+        """
+        parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
+        parser.read(self.user_config_path)
+
+        if "UI" not in parser.sections():
+            parser.add_section("UI")
+        parser.set("UI", "HEADER_TEXT", header_text)
+        parser.set("UI", "FOOTER_TEXT", footer_text)
+        parser.set("UI", "FONT_NAME", font_name)
+        parser.set("UI", "FONT_REGULAR_PATH", font_regular_path)
+        parser.set("UI", "FONT_BOLD_PATH", font_bold_path)
+
+        with open(self.user_config_path, "w") as configfile:
+            parser.write(configfile)

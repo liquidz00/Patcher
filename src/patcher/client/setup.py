@@ -1,16 +1,12 @@
-import configparser
 import os
 import plistlib
-import shutil
 import ssl
 from asyncio import Lock, sleep
-from configparser import ConfigParser
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import AnyStr, Optional, Tuple, Union
+from typing import AnyStr, Optional, Tuple
 
 import aiohttp
-import click
+import asyncclick as click
 
 from ..models.jamf_client import ApiClient, ApiRole, JamfClient
 from ..models.token import AccessToken
@@ -126,98 +122,6 @@ class Setup:
         click.echo(click.style(GREET, fg="cyan", bold=True))
         click.echo(click.style(WELCOME), nl=False)
         click.echo(click.style(DOC, fg="bright_magenta", bold=True))
-
-    def _setup_ui(self):
-        """
-        Guides the user through configuring UI settings for PDF reports, including header/footer text and font choices.
-
-        :raises FileNotFoundError: IF the specified font file paths do not exist.
-        """
-        header_text = click.prompt("Enter the Header Text to use on PDF reports")
-        footer_text = click.prompt("Enter the Footer Text to use on PDF reports")
-        use_custom_font = click.confirm("Would you like to use a custom font?", default=False)
-        font_dir = os.path.join(self.ui_config.user_config_dir, "fonts")
-        os.makedirs(font_dir, exist_ok=True)
-
-        font_name, font_regular_path, font_bold_path = self._configure_font(
-            use_custom_font, font_dir
-        )
-
-        self._save_ui_config(header_text, footer_text, font_name, font_regular_path, font_bold_path)
-
-    @staticmethod
-    def _configure_font(
-        use_custom_font: bool, font_dir: Union[str, Path]
-    ) -> Tuple[AnyStr, str, str]:
-        """
-        Configures the font settings based on user input.
-
-        This method allows the user to specify a custom font or use the default provided by the application.
-        The chosen fonts are copied to the appropriate directory for use in PDF report generation.
-
-        :param use_custom_font: Indicates whether to use a custom font.
-        :type use_custom_font: bool
-        :param font_dir: The directory to store the font files.
-        :type font_dir: Union[str, Path]
-        :return: A tuple containing the font name, regular font path, and bold font path.
-        :rtype: Tuple[AnyStr, str, str]
-        """
-        # Convert font_dir to a string if passed a Path object
-        # This is intentional based upon how ``os.path.join`` handles str objects natively
-        #   and may not work as expected if passed a Path object
-        if isinstance(font_dir, Path):
-            font_dir = str(font_dir)
-
-        if use_custom_font:
-            font_name = click.prompt("Enter the custom font name", default="CustomFont")
-            font_regular_src_path = click.prompt("Enter the path to the regular font file")
-            font_bold_src_path = click.prompt("Enter the path to the bold font file")
-            font_regular_dest_path = os.path.join(font_dir, os.path.basename(font_regular_src_path))
-            font_bold_dest_path = os.path.join(font_dir, os.path.basename(font_bold_src_path))
-            shutil.copy(font_regular_src_path, font_regular_dest_path)
-            shutil.copy(font_bold_src_path, font_bold_dest_path)
-        else:
-            font_name = "Assistant"
-            font_regular_dest_path = os.path.join(font_dir, "Assistant-Regular.ttf")
-            font_bold_dest_path = os.path.join(font_dir, "Assistant-Bold.ttf")
-
-        return font_name, font_regular_dest_path, font_bold_dest_path
-
-    def _save_ui_config(
-        self,
-        header_text: AnyStr,
-        footer_text: AnyStr,
-        font_name: AnyStr,
-        font_regular_path: Union[str, Path],
-        font_bold_path: Union[str, Path],
-    ):
-        """
-        Saves the UI configuration settings to the configuration file.
-
-        :param header_text: The header text for PDF reports.
-        :type header_text: AnyStr
-        :param footer_text: The footer text for PDF reports.
-        :type footer_text: AnyStr
-        :param font_name: The name of the font to use.
-        :type font_name: AnyStr
-        :param font_regular_path: The path to the regular font file.
-        :type font_regular_path: Union[str, Path]
-        :param font_bold_path: The path to the bold font file.
-        :type font_bold_path: Union[str, Path]
-        """
-        parser = ConfigParser(interpolation=configparser.ExtendedInterpolation())
-        parser.read(self.ui_config.user_config_path)
-
-        if "UI" not in parser.sections():
-            parser.add_section("UI")
-        parser.set("UI", "HEADER_TEXT", header_text)
-        parser.set("UI", "FOOTER_TEXT", footer_text)
-        parser.set("UI", "FONT_NAME", font_name)
-        parser.set("UI", "FONT_REGULAR_PATH", font_regular_path)
-        parser.set("UI", "FONT_BOLD_PATH", font_bold_path)
-
-        with open(self.ui_config.user_config_path, "w") as configfile:
-            parser.write(configfile)
 
     async def _basic_token(
         self, password: AnyStr, username: AnyStr, jamf_url: Optional[AnyStr] = None
@@ -502,7 +406,7 @@ class Setup:
                     token=token,
                 )
                 self.config.create_client(jamf_client)
-                self._setup_ui()
+                self.ui_config.setup_ui()
                 self._set_plist(value=True)
                 self._completed = True
             else:
@@ -626,7 +530,7 @@ class Setup:
             await animator.update_msg("Bearer token retrieved and JamfClient saved!")
             animator.stop_event.set()
             # Setup UI Configuration
-            self._setup_ui()
+            self.ui_config.setup_ui()
 
             # Set first run flag to True upon completion
             self._set_plist(value=True)
@@ -643,4 +547,4 @@ class Setup:
             self.log.error("Encountered an issue resetting elements in config.ini.")
             raise OSError("The UI element configuration file could not be reset as expected.")
         else:
-            self._setup_ui()
+            self.ui_config.setup_ui()
