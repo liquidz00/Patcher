@@ -232,7 +232,7 @@ class ReportManager:
                     self.log.error(
                         f"Invalid column name for sorting: {sort.title().replace('_', ' ')}. Aborting...",
                     )
-                    raise exceptions.SortError(column=sort.title().replace("_", " "))
+                    raise exceptions.SortError(column=str(sort.title().replace("_", " ")))
 
             # (option) Omit
             if omit:
