@@ -47,7 +47,9 @@ class JamfClient(Model):
     max_concurrency: int = 5
     ssl_path: ssl.DefaultVerifyPaths = ssl.get_default_verify_paths()
     custom_ca_file: Optional[Union[str, Path]] = None
-    _merged_cafile_path: Path = Path.home() / "Library" / "Application Support" / "Patcher" / "merged_cafile.pem"
+    _merged_cafile_path: Path = (
+        Path.home() / "Library" / "Application Support" / "Patcher" / "merged_cafile.pem"
+    )
 
     @staticmethod
     def valid_url(url: AnyStr) -> AnyStr:
@@ -201,10 +203,10 @@ class JamfClient(Model):
 
         default_cafile = self.ssl_path.cafile
 
-        with open(default_cafile, 'r') as default_file:
+        with open(default_cafile, "r") as default_file:
             default_content = default_file.read()
 
-        with open(self.custom_ca_file, 'r') as custom_file:
+        with open(self.custom_ca_file, "r") as custom_file:
             custom_content = custom_file.read()
 
         merged_content = default_content + "\n" + custom_content
