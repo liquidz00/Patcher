@@ -47,6 +47,7 @@ class JamfClient(Model):
     max_concurrency: int = 5
     ssl_path: ssl.DefaultVerifyPaths = ssl.get_default_verify_paths()
     custom_ca_file: Optional[Union[str, Path]] = None
+    _merged_cafile_path: Path = Path.home() / "Library" / "Application Support" / "Patcher" / "merged_cafile.pem"
 
     @staticmethod
     def valid_url(url: AnyStr) -> AnyStr:
@@ -169,8 +170,51 @@ class JamfClient(Model):
         :rtype: str
         """
         if self.custom_ca_file:
-            return self.custom_ca_file
+            return str(self._merged_cafile_path)
         return self.ssl_path.cafile
+
+    def create_merged_cafile(self) -> None:
+        """
+        Creates a merged CA file that combines the default SSL CA certificates with a custom CA file.
+
+        The method checks if a custom CA file is provided. If so, it reads the default CA
+        certificates file and appends the contents of the custom CA file to it. The resulting
+        merged CA file is saved to the user's library, specifically in the
+        ``~/Library/Application Support/Patcher`` directory. This file is then used for SSL
+        verification in subsequent requests.
+
+        Should the merged CA file already exist, the method does nothing.
+
+        :raises FileNotFoundError: If the default or custom CA file cannot be found.
+        :example:
+
+        .. code-block:: console
+
+            $ patcherctl --custom-ca-file '/path/to/cafile.pem'
+
+        """
+        if not self.custom_ca_file:
+            return
+
+        if self._merged_cafile_path.exists():
+            return  # Merged file already exists
+
+        default_cafile = self.ssl_path.cafile
+
+        with open(default_cafile, 'r') as default_file:
+            default_content = default_file.read()
+
+        with open(self.custom_ca_file, 'r') as custom_file:
+            custom_content = custom_file.read()
+
+        merged_content = default_content + "\n" + custom_content
+
+        # Ensure directory exists
+        self._merged_cafile_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Write merged CA file content to persistent location
+        with open(self._merged_cafile_path, "w") as merged_file:
+            merged_file.write(merged_content)
 
     def set_max_concurrency(self, concurrency: int):
         """
