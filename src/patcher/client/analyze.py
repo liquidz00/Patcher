@@ -1,7 +1,7 @@
 import os
 import sqlite3
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple, AnyStr
+from typing import AnyStr, Dict, List, Tuple
 
 import aiohttp
 import pandas as pd
@@ -140,7 +140,13 @@ class Analyzer:
             await self.initialize_dataframe()
 
         data = self.dataframe.copy()
-        headers = ["Software Title", "Installomator Label", "CVE Count", "CVE Details", "Completion Percentage"]
+        headers = [
+            "Software Title",
+            "Installomator Label",
+            "CVE Count",
+            "CVE Details",
+            "Completion Percentage",
+        ]
         table_data = data[headers].values.tolist()
 
         table = self.format_table(table_data, headers)
@@ -155,7 +161,15 @@ class Analyzer:
         if filtered_df.empty:
             return f"No titles found below the {threshold}% completion threshold."
 
-        data = filtered_df[["Software Title", "Installomator Label", "CVE Count", "CVE Details", "Completion Percentage"]]
+        data = filtered_df[
+            [
+                "Software Title",
+                "Installomator Label",
+                "CVE Count",
+                "CVE Details",
+                "Completion Percentage",
+            ]
+        ]
         table_data = data.values.tolist()
         headers = data.columns.tolist()
 
