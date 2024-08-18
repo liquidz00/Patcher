@@ -3,7 +3,7 @@ import inspect
 from contextlib import asynccontextmanager
 from typing import AnyStr
 
-import click
+import asyncclick as click
 
 from . import exceptions
 from .logger import LogMe

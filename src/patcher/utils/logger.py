@@ -4,7 +4,7 @@ import traceback
 from logging import handlers
 from typing import AnyStr, Optional
 
-from click import echo, style
+import asyncclick as click
 
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger_name = "patcher"
@@ -118,8 +118,8 @@ class LogMe:
         """
         self.logger.debug(msg)
         if self.is_debug_enabled():
-            debug_out = style(text=f"DEBUG: {msg.strip()}", fg="magenta", bold=False)
-            echo(message=debug_out, err=False)
+            debug_out = click.style(text=f"DEBUG: {msg.strip()}", fg="magenta", bold=False)
+            click.echo(message=debug_out, err=False)
 
     def info(self, msg: AnyStr):
         """
@@ -130,8 +130,8 @@ class LogMe:
         """
         self.logger.info(msg)
         if self.is_debug_enabled():
-            std_output = style(text=f"\rINFO: {msg.strip()}", fg="blue", bold=False)
-            echo(message=std_output, err=False)
+            std_output = click.style(text=f"\rINFO: {msg.strip()}", fg="blue", bold=False)
+            click.echo(message=std_output, err=False)
 
     def warning(self, msg: AnyStr):
         """
@@ -142,8 +142,8 @@ class LogMe:
         """
         self.logger.warning(msg)
         if self.is_debug_enabled():
-            warn_out = style(text=f"\rWARNING: {msg.strip()}", fg="yellow", bold=True)
-            echo(message=warn_out, err=False)
+            warn_out = click.style(text=f"\rWARNING: {msg.strip()}", fg="yellow", bold=True)
+            click.echo(message=warn_out, err=False)
 
     def error(self, msg: AnyStr):
         """
@@ -153,5 +153,5 @@ class LogMe:
         :type msg: AnyStr
         """
         self.logger.error(msg)
-        err_out = style(text=f"\rERROR: {msg.strip()}", fg="red", bold=True)
-        echo(message=err_out, err=True)
+        err_out = click.style(text=f"\rERROR: {msg.strip()}", fg="red", bold=True)
+        click.echo(message=err_out, err=True)

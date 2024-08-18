@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import AnyStr, Optional, Tuple, Union
 
 import aiohttp
-import click
+import asyncclick as click
 
 from ..models.jamf_client import ApiClient, ApiRole, JamfClient
 from ..models.token import AccessToken

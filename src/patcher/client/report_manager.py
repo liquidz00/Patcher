@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import AnyStr, Dict, List, Optional, Union
 
-from click import echo, style
+import asyncclick as click
 
 from ..models.patch import PatchTitle
 from ..models.reports.excel_report import ExcelReport
@@ -326,5 +326,5 @@ class ReportManager:
             self.log.debug(
                 f"{len(patch_reports)} patch reports saved successfully to {reports_dir}."
             )
-            success_msg = style(f"\rSuccess! Reports saved to {reports_dir}", bold=True, fg="green")
-            echo(success_msg)
+            success_msg = click.style(f"\rSuccess! Reports saved to {reports_dir}", bold=True, fg="green")
+            click.echo(success_msg)

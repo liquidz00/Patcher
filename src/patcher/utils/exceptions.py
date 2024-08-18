@@ -1,6 +1,6 @@
 from typing import AnyStr, Optional
 
-import click
+import asyncclick as click
 
 from .logger import handle_traceback
 
