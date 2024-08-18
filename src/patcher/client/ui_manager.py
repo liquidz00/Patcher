@@ -69,6 +69,11 @@ class UIConfigManager:
         If a custom CA file is provided, it is used to create an SSL context for the download.
         This method ensures the fonts are stored securely in the appropriate directory.
 
+        .. note:
+
+            This API call is intentionally kept separate from the :class:`~patcher.client.api_client.ApiClient` class as
+            the scope of this API call is solely for UI purposes.
+
         :param url: The URL to download the font from.
         :type url: AnyStr
         :param dest_path: The local path where the downloaded font should be saved.
