@@ -7,6 +7,7 @@ from aiohttp import ClientResponseError, ClientSession, TCPConnector
 from ..models.jamf_client import JamfClient
 from ..models.token import AccessToken
 from ..utils import logger
+from . import BaseAPIClient
 from .config_manager import ConfigManager
 
 
@@ -28,16 +29,16 @@ class TokenManager:
         :type config: ConfigManager
         :raises ValueError: If the ``JamfClient`` configuration is invalid.
         """
-        self.config = config
-        self.jamf_client = self.config.attach_client()
         self.log = logger.LogMe(self.__class__.__name__)
         self.log.debug("Initializing TokenManager...")
-        if self.jamf_client:
-            self.token = self.jamf_client.token
-            self.log.info("JamfClient and token successfully attached")
-        else:
+        self.config = config
+        self.api_client = BaseAPIClient()
+        self.jamf_client = self.config.attach_client()
+        if not self.jamf_client:
             self.log.error("Invalid JamfClient configuration was detected and ValueError raised.")
             raise ValueError("Invalid JamfClient configuration detected!")
+        self.token = self.jamf_client.token
+        self.log.info("JamfClient and token successfully attached")
         self.lock = asyncio.Lock()
 
     def save_token(self, token: AccessToken):
@@ -157,7 +158,7 @@ class TokenManager:
         async with self.lock:
             client_id, client_secret = self.get_credentials()
             self.log.debug(f"Using client_id: {client_id}")
-            connector = TCPConnector(limit=self.jamf_client.max_concurrency)
+            connector = TCPConnector(limit=self.api_client.max_concurrency)
             async with ClientSession(connector=connector) as session:
                 payload = {
                     "client_id": client_id,
