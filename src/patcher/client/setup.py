@@ -1,18 +1,17 @@
 import os
 import plistlib
 import ssl
-from asyncio import Lock, sleep
-from datetime import datetime, timedelta, timezone
-from typing import AnyStr, Optional, Tuple
+from asyncio import sleep
+from typing import Optional
 
-import aiohttp
 import asyncclick as click
 
-from ..models.jamf_client import ApiClient, ApiRole, JamfClient
-from ..models.token import AccessToken
+from ..models.jamf_client import JamfClient
 from ..utils import exceptions, logger
 from ..utils.animation import Animation
+from .api_client import ApiClient
 from .config_manager import ConfigManager
+from .token_manager import TokenManager
 from .ui_manager import UIConfigManager
 
 # Welcome messages
@@ -40,6 +39,8 @@ class Setup:
         self,
         config: ConfigManager,
         ui_config: UIConfigManager,
+        api_client: ApiClient,
+        token_manager: TokenManager,
         custom_ca_file: Optional[str] = None,
     ):
         """
@@ -54,13 +55,13 @@ class Setup:
         """
         self.config = config
         self.ui_config = ui_config
+        self.api_client = api_client
+        self.token_manager = token_manager
         self.custom_ca_file = custom_ca_file
         self.plist_path = os.path.expanduser(
             "~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist"
         )
-        self.token = None
         self.jamf_url = None
-        self.lock = Lock()
         self.log = logger.LogMe(self.__class__.__name__)
         self._completed = None
         self.animator = Animation()
@@ -123,222 +124,6 @@ class Setup:
         click.echo(click.style(WELCOME), nl=False)
         click.echo(click.style(DOC, fg="bright_magenta", bold=True))
 
-    async def _basic_token(
-        self, password: AnyStr, username: AnyStr, jamf_url: Optional[AnyStr] = None
-    ) -> bool:
-        """
-        Asynchronously retrieves a bearer token using basic authentication.
-
-        This method is intended for initial setup to obtain client credentials for API clients and roles.
-        It should not be used for regular token retrieval after setup.
-
-        :param username: Username of admin Jamf Pro account for authentication. Not permanently stored, only used for initial token retrieval.
-        :type username: AnyStr
-        :param password: Password of admin Jamf Pro account. Not permanently stored, only used for initial token retrieval.
-        :type password: AnyStr
-        :param jamf_url: Jamf Server URL (same as ``server_url`` in :mod:`patcher.models.jamf_client` class).
-        :type jamf_url: Optional[AnyStr]
-        :raises exceptions.TokenFetchError: If the call is unauthorized or unsuccessful.
-        :returns: True if the basic token was successfully retrieved, False if unauthorized (e.g., due to SSO).
-        :rtype: bool
-        """
-        self.jamf_url = jamf_url or self.jamf_url
-        token_url = f"{jamf_url}/api/v1/auth/token"
-        headers = {"accept": "application/json"}
-
-        ssl_context = None
-        if self.custom_ca_file:
-            ssl_context = ssl.create_default_context(cafile=self.custom_ca_file)
-
-        async with self.lock:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url=token_url,
-                    auth=aiohttp.BasicAuth(username, password),
-                    headers=headers,
-                    ssl=ssl_context,
-                ) as resp:
-                    if resp.status == 401:
-                        self.log.error(
-                            f"Received 401 response trying to obtain access token with basic auth: {resp.status} - {await resp.text()}"
-                        )
-                        return False
-                    elif resp.status != 200:
-                        self.log.error(
-                            f"Unsuccessful API call to retrieve access token with basic auth: {resp.status} - {await resp.text()}"
-                        )
-                        raise exceptions.TokenFetchError(
-                            reason=f"{resp.status} - {await resp.text()}"
-                        )
-                    try:
-                        response = await resp.json()
-                    except ssl.SSLCertVerificationError as e:
-                        self.log.error(f"SSL failed verification: {e}")
-                        raise ssl.SSLCertVerificationError(
-                            "SSL failed verification. Please see https://patcher.liquidzoo.io/user/install.html#ssl-verification-and-self-signed-certificates for next steps."
-                        )
-                    if not response:
-                        self.log.error(
-                            "API call was successful, but response was empty. Exiting..."
-                        )
-                        click.echo(
-                            click.style(
-                                text="API response was empty. Unable to retrieve a token", fg="red"
-                            ),
-                            err=True,
-                        )
-                    self.token = response.get("token")
-                    return True
-
-    async def _create_roles(self, token: Optional[AnyStr] = None) -> bool:
-        """
-        Creates the necessary API roles using the provided bearer token.
-
-        :param token: The bearer token to use for authentication. Defaults to the stored token if not provided.
-        :type token: Optional[AnyStr]
-        :return: True if roles were successfully created, False otherwise.
-        :rtype: bool
-        :raises aiohttp.ClientError: If there is an error making the HTTP request.
-        """
-        token = token or self.token
-        role = ApiRole()
-        payload = {
-            "displayName": role.display_name,
-            "privileges": role.privileges,
-        }
-        role_url = f"{self.jamf_url}/api/v1/api-roles"
-        headers = {
-            "accept": "application/json",
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-        }
-
-        ssl_context = None
-        if self.custom_ca_file:
-            ssl_context = ssl.create_default_context(cafile=self.custom_ca_file)
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url=role_url, json=payload, headers=headers, ssl=ssl_context
-            ) as resp:
-                if resp.status == 400:
-                    click.echo(
-                        click.style(
-                            "Whoops, theres an existing API role for Patcher in your instance! The credentials can be found in keychain, be sure to choose the SSO setup method when prompted."
-                        )
-                    )
-                    raise exceptions.PatcherError(message="")
-                resp.raise_for_status()
-                return resp.status == 200
-
-    async def _create_client(self, token: Optional[AnyStr] = None) -> Tuple[AnyStr, AnyStr]:
-        """
-        Creates an API client and retrieves its client ID and client secret.
-
-        This method uses the provided bearer token to create a new API client in the Jamf server.
-
-        :param token: The bearer token to use for authentication. Defaults to the stored token if not provided.
-        :type token: Optional[AnyStr]
-        :return: A tuple containing the client ID and client secret.
-        :rtype: Tuple[AnyStr, AnyStr]
-        :raises aiohttp.ClientError: If there is an error making the HTTP request.
-        """
-        token = token or self.token
-        client = ApiClient()
-        client_url = f"{self.jamf_url}/api/v1/api-integrations"
-        payload = {
-            "authorizationScopes": client.auth_scopes,
-            "displayName": client.display_name,
-            "enabled": client.enabled,
-            "accessTokenLifetimeSeconds": client.token_lifetime,  # 30 minutes in seconds
-        }
-        headers = {
-            "accept": "application/json",
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-        }
-
-        ssl_context = None
-        if self.custom_ca_file:
-            ssl_context = ssl.create_default_context(cafile=self.custom_ca_file)
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url=client_url, json=payload, headers=headers, ssl=ssl_context
-            ) as resp:
-                resp.raise_for_status()
-                client_response = await resp.json()
-                if not client_response:
-                    self.log.error(
-                        f"API returned empty response during client creation. Status: {resp.status} - {await resp.text()}"
-                    )
-                client_id = client_response.get("clientId")
-                integration_id = client_response.get("id")
-
-        # Obtain client secret for client created
-        secret_url = f"{self.jamf_url}/api/v1/api-integrations/{integration_id}/client-credentials"
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url=secret_url, headers=headers) as resp:
-                resp.raise_for_status()
-                secret_response = await resp.json()
-                if not secret_response:
-                    self.log.error(
-                        f"Unable to obtain client secret for Patcher client: {resp.status}"
-                    )
-                client_secret = secret_response.get("clientSecret")
-        return client_id, client_secret
-
-    async def _fetch_bearer(
-        self, url: AnyStr, client_id: AnyStr, client_secret: AnyStr
-    ) -> Optional[AccessToken]:
-        """
-        Fetches a bearer token using the client credentials provided.
-
-        :param url: The Jamf server URL to request the bearer token from.
-        :type url: AnyStr
-        :param client_id: The client ID obtained during client creation.
-        :type client_id: AnyStr
-        :param client_secret: The client secret obtained during client creation.
-        :type client_secret: AnyStr
-        :return: An AccessToken object if successful, None otherwise.
-        :rtype: Optional[AccessToken]
-        """
-        ssl_context = None
-        if self.custom_ca_file:
-            ssl_context = ssl.create_default_context(cafile=self.custom_ca_file)
-
-        async with self.lock:
-            async with aiohttp.ClientSession() as session:
-                payload = {
-                    "client_id": client_id,
-                    "grant_type": "client_credentials",
-                    "client_secret": client_secret,
-                }
-                headers = {"Content-Type": "application/x-www-form-urlencoded"}
-                async with session.post(
-                    url=f"{url}/api/oauth/token", data=payload, headers=headers, ssl=ssl_context
-                ) as resp:
-                    resp.raise_for_status()
-                    try:
-                        json_response = await resp.json()
-                    except ssl.SSLCertVerificationError as e:
-                        self.log.error(f"SSL Verification failed: {e}")
-                        raise
-                    except aiohttp.ClientResponseError as e:
-                        self.log.error(f"Failed to fetch a token: {e}")
-                        return None
-
-                    bearer_token = json_response.get("access_token")
-                    expires_in = json_response.get("expires_in", 0)
-
-                    if not isinstance(bearer_token, str) or expires_in <= 0:
-                        self.log.error("Received invalid token response")
-                        return None
-
-                    expiration = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
-                    access_token = AccessToken(token=bearer_token, expires=expiration)
-                    return access_token
-
     async def prompt_method(self, animator: Optional[Animation] = None):
         """
         Allows the user to choose between different setup methods (Standard or SSO).
@@ -389,9 +174,7 @@ class Setup:
 
             # Generate bearer token and save it
             try:
-                token = await self._fetch_bearer(
-                    url=api_url, client_id=api_client_id, client_secret=api_client_secret
-                )
+                token = await self.token_manager.fetch_token()
             except ssl.SSLCertVerificationError as e:
                 self.log.error(f"SSL failed verification: {e}")
                 raise ssl.SSLCertVerificationError(
@@ -437,11 +220,13 @@ class Setup:
             password = click.prompt("Enter your Jamf Pro password", hide_input=True)
 
             await animator.update_msg("Retrieving basic token")
+
+            # basic_token = None
             try:
-                token_success = await self._basic_token(
+                basic_token = await self.api_client.fetch_basic_token(
                     username=username, password=password, jamf_url=self.jamf_url
                 )
-                if not token_success:
+                if not basic_token:
                     use_sso = click.confirm(
                         "We received a 401 response. Are you using SSO?", default=False
                     )
@@ -449,10 +234,10 @@ class Setup:
                         await self.first_run()
                         return
                     else:
-                        token_success = await self._basic_token(
+                        basic_token = await self.api_client.fetch_basic_token(
                             username=username, password=password
                         )
-                        if not token_success:
+                        if not basic_token:
                             click.echo(
                                 click.style(
                                     text="Unfortunately we received a 401 response again. Please verify your account does not use SSO.",
@@ -468,15 +253,20 @@ class Setup:
                     ),
                     err=True,
                 )
+                return
+
+            if basic_token is None:
+                self.log.error("Failed to retrieve a valid token. Exiting setup.")
+                return
 
             await animator.update_msg("Creating roles")
-            role_created = await self._create_roles()
+            role_created = await self.api_client.create_roles(token=basic_token)
             if not role_created:
                 self.log.error("Failed creating API roles. Exiting...")
                 click.echo(click.style("Failed to create API roles.", fg="red"), err=True)
 
             await animator.update_msg("Creating client")
-            client_id, client_secret = await self._create_client()
+            client_id, client_secret = await self.api_client.create_client(token=basic_token)
             if not client_id:
                 click.echo(
                     click.style(
@@ -505,9 +295,7 @@ class Setup:
 
             await animator.update_msg("Fetching bearer token")
             # Fetch Token and save if successful
-            token = await self._fetch_bearer(
-                url=self.jamf_url, client_id=client_id, client_secret=client_secret
-            )
+            token = await self.token_manager.fetch_token()
             if token:
                 # Create JamfClient object with all credentials
                 jamf_client = JamfClient(
