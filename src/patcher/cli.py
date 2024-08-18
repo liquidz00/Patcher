@@ -40,24 +40,33 @@ DATE_FORMATS = {
     required=False,
     help="Path to a custom CA file for SSL verification.",
 )
+@click.option(
+    "--concurrency",
+    type=click.INT,
+    default=5,
+    help="Set the maximum concurrency level for API calls.",
+)
 @click.pass_context
-async def cli(ctx: click.Context, debug: bool, custom_ca_file: Optional[str]):
+async def cli(
+    ctx: click.Context, debug: bool, custom_ca_file: Optional[str], concurrency: Optional[int]
+):
     ctx.ensure_object(dict)
 
     ctx.obj["DEBUG"] = debug
     ctx.obj["CA_FILE"] = custom_ca_file
+    ctx.obj["CONCURRENCY"] = concurrency
 
     # Instance of config, add to context
     config_manager = ConfigManager()
     ctx.obj["CONFIG_MANAGER"] = config_manager
 
     # Instance of api, add to context
-    api = ApiClient(config=config_manager)
-    ctx.obj["API_CLIENT"] = api
+    # api = ApiClient(config=config_manager, custom_ca_file=custom_ca_file, concurrency=concurrency)
+    # ctx.obj["API_CLIENT"] = api
 
     # Instance of UI, add to context
-    ui_config = UIConfigManager(custom_ca_file=custom_ca_file)
-    ctx.obj["UI_CONFIG"] = ui_config
+    ui_config = UIConfigManager()
+    ctx.obj["UI_MANAGER"] = ui_config
 
     # Instance of token manager, add to context
     token_manager = TokenManager(config=config_manager)
@@ -79,9 +88,15 @@ async def cli(ctx: click.Context, debug: bool, custom_ca_file: Optional[str]):
 async def setup(ctx: click.Context, reset: bool):
     config = ctx.obj["CONFIG_MANAGER"]
     custom_ca_file = ctx.obj["CA_FILE"]
+    concurrency = ctx.obj["CONCURRENCY"]
+    api_client = ApiClient(config=config, concurrency=concurrency, custom_ca_file=custom_ca_file)
+    token_manager = ctx.obj["TOKEN_MANAGER"]
+    ui_manager = ctx.obj["UI_MANAGER"]
     setup_manager = Setup(
         config=config,
-        ui_config=UIConfigManager(custom_ca_file=custom_ca_file),
+        ui_config=ui_manager,
+        api_client=api_client,
+        token_manager=token_manager,
         custom_ca_file=custom_ca_file,
     )
 
@@ -101,7 +116,7 @@ async def setup(ctx: click.Context, reset: bool):
             return
 
 
-@click.command()
+@cli.command()
 @click.option(
     "--path",
     "-p",
@@ -141,12 +156,6 @@ async def setup(ctx: click.Context, reset: bool):
     is_flag=True,
     help="Include the amount of enrolled mobile devices on the latest version of their respective OS.",
 )
-@click.option(
-    "--concurrency",
-    type=click.INT,
-    default=5,
-    help="Set the maximum concurrency level for API calls.",
-)
 @click.pass_context
 async def export(
     ctx: click.Context,
@@ -156,27 +165,26 @@ async def export(
     omit: bool,
     date_format: AnyStr,
     ios: bool,
-    concurrency: int,
 ) -> None:
     debug = ctx.obj["DEBUG"]
     custom_ca_file = ctx.obj["CA_FILE"]
+    concurrency = ctx.obj["CONCURRENCY"]
     log = LogMe(__name__, debug=debug)
 
     animation = ctx.obj["ANIMATION"]
 
     config = ctx.obj["CONFIG_MANAGER"]
-    api_client = ctx.obj["API_CLIENT"]
-    ui_config = ctx.obj["UI_CONFIG"]
+    api_client = ApiClient(config, concurrency, custom_ca_file)
+    ui_manager = ctx.obj["UI_MANAGER"]
 
-    jamf_client = config.attach_client(custom_ca_file=custom_ca_file)
+    jamf_client = config.attach_client()
     if jamf_client is None:
         raise PatcherError(message="Invalid JamfClient configuration detected!")
 
     token_manager = ctx.obj["TOKEN_MANAGER"]
     api_client.jamf_client = jamf_client
     excel_report = ExcelReport()
-    pdf_report = PDFReport(ui_config)
-    api_client.jamf_client.set_max_concurrency(concurrency=concurrency)
+    pdf_report = PDFReport(ui_manager)
 
     report_manager = ReportManager(
         config=config,
@@ -184,7 +192,7 @@ async def export(
         api_client=api_client,
         excel_report=excel_report,
         pdf_report=pdf_report,
-        ui_config=ui_config,
+        ui_config=ui_manager,
         debug=debug,
     )
 
@@ -192,6 +200,12 @@ async def export(
 
     async with animation.error_handling(log):
         await report_manager.process_reports(path, pdf, sort, omit, ios, actual_format)
+
+
+@cli.command()
+@click.pass_context
+async def analyze():
+    pass
 
 
 if __name__ == "__main__":
