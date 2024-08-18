@@ -326,5 +326,7 @@ class ReportManager:
             self.log.debug(
                 f"{len(patch_reports)} patch reports saved successfully to {reports_dir}."
             )
-            success_msg = click.style(f"\rSuccess! Reports saved to {reports_dir}", bold=True, fg="green")
+            success_msg = click.style(
+                f"\rSuccess! Reports saved to {reports_dir}", bold=True, fg="green"
+            )
             click.echo(success_msg)
