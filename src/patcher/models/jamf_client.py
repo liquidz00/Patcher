@@ -28,17 +28,13 @@ class JamfClient(Model):
 
     :param token: The access token used for authenticating API requests. Defaults to None.
     :type token: Optional[AccessToken]
-
-    :param custom_ca_file: Path to a custom Certificate Authority (CA) file for SSL verification.
-                           If provided, this file is used in place of the default CA paths.
-    :type custom_ca_file: Optional[Union[str, Path]]
     """
 
     client_id: AnyStr
     client_secret: AnyStr
     server: AnyStr
     token: Optional[AccessToken] = None
-    custom_ca_file: Optional[Union[str, Path]]
+    # custom_ca_file: Optional[Union[str, Path]]
 
     @staticmethod
     def valid_url(url: AnyStr) -> AnyStr:
