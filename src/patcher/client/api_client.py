@@ -1,59 +1,64 @@
-import asyncio
 import json
-import ssl
 import subprocess
 from datetime import datetime
-from typing import AnyStr, Dict, List, Optional
+from typing import AnyStr, Dict, List, Optional, Tuple
 
 import aiohttp
 
 from patcher.utils.wrappers import check_token
 
+from ..models.jamf_client import ApiClientModel, ApiRoleModel
 from ..models.patch import PatchTitle
-from ..utils import logger
+from ..utils import exceptions, logger
+from . import BaseAPIClient
 from .config_manager import ConfigManager
 from .token_manager import TokenManager
 
 
-class ApiClient:
+class ApiClient(BaseAPIClient):
     """
     Provides methods for interacting with the Jamf API, specifically fetching patch data, device information, and OS versions.
 
     The ``ApiClient`` manages authentication and session handling, ensuring efficient and secure communication with the Jamf API.
     """
 
-    def __init__(self, config: ConfigManager):
+    def __init__(self, config: ConfigManager, concurrency: int, custom_ca_file: Optional[str]):
         """
         Initializes the ApiClient with the provided :class:`~patcher.client.config_manager.ConfigManager`.
 
         This sets up the API client with necessary credentials and session parameters for interacting with the Jamf API.
 
         .. seealso::
+            :class: dropdown
+
             :mod:`~patcher.models.jamf_client`
 
         :param config: Instance of ConfigManager for loading and storing credentials.
         :type config: ConfigManager
+
+        :param concurrency:
+        :type concurrency:
+
+        :param custom_ca_file:
+        :type custom_ca_file:
+
         :raises ValueError: If the JamfClient configuration is invalid.
         """
         self.log = logger.LogMe(self.__class__.__name__)
         self.log.debug("Initializing ApiClient")
         self.config = config
+
         self.jamf_client = config.attach_client()
-        if self.jamf_client:
-            self.token = self.jamf_client.token
-            self.log.info("JamfClient and token successfully attached")
-        else:
+        if not self.jamf_client:
             self.log.error("Invalid JamfClient configuration detected!")
             raise ValueError("Invalid JamfClient configuration detected!")
-        self.jamf_url = self.jamf_client.base_url
-        self.headers = {
-            "Accept": "application/json",
-            "Authorization": f"Bearer {self.token}",
-        }
-        self.token_manager = TokenManager(config)
-        self.max_concurrency = self.jamf_client.max_concurrency
-        self.ssl_context = ssl.create_default_context(cafile=self.jamf_client.cafile)
 
+        self.jamf_url = self.jamf_client.base_url
+        self.token_manager = TokenManager(config)
+
+        super().__init__(max_concurrency=concurrency, custom_ca_file=custom_ca_file)
+
+    # Utility function
     def convert_timezone(self, utc_time_str: AnyStr) -> Optional[AnyStr]:
         """
         Converts a UTC time string to a formatted string without timezone information.
@@ -62,17 +67,6 @@ class ApiClient:
         :type utc_time_str: AnyStr
         :return: Formatted date string (e.g., "Aug 09 2023") or None if the input format is invalid.
         :rtype: Optional[AnyStr]
-        :example:
-
-        .. code-block:: python
-
-            formatted_date = api_client.convert_timezone("2023-08-09T12:34:56+0000")
-            print(formatted_date)   # Outputs: "Aug 09 2023"
-
-        .. note::
-
-            This function is primarily used 'privately' by methods and classes and is not designed to be called explicitly.
-
         """
         try:
             utc_time = datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S%z")
@@ -81,58 +75,6 @@ class ApiClient:
         except ValueError as e:
             self.log.error(f"Invalid time format provided. Details: {e}")
             return None
-
-    async def fetch_json(self, url: AnyStr, session: aiohttp.ClientSession) -> Optional[Dict]:
-        """
-        Asynchronously fetches JSON data from a specified URL using a session.
-
-        :param url: URL to fetch the JSON data from.
-        :type url: AnyStr
-        :param session: An aiohttp.ClientSession instance used to make the request.
-        :type session: aiohttp.ClientSession
-        :return: JSON data as a dictionary or None if an error occurs.
-        :rtype: Optional[Dict]
-        :example:
-
-        .. code-block:: python
-
-            async with aiohttp.ClientSession() as session:
-                json_data = await api_client.fetch_json("https://api.example.com/data", session)
-                if json_data:
-                    print(json_data)
-        """
-        self.log.debug(f"Fetching JSON data from URL: {url}")
-        try:
-            async with session.get(url, headers=self.headers, ssl=self.ssl_context) as response:
-                response.raise_for_status()
-                json_data = await response.json()
-                self.log.info(f"Successfully fetched JSON data from {url}")
-                return json_data
-        except aiohttp.ClientResponseError as e:
-            self.log.error(f"Received a client error while fetching JSON from {url}: {e}")
-        except Exception as e:
-            self.log.error(f"Error fetching JSON: {e}")
-        return None
-
-    async def fetch_batch(self, urls: List[AnyStr]) -> List[Optional[Dict]]:
-        """
-        Fetches JSON data in batches to respect the concurrency limit. Data is fetched
-        from each URL in the provided list, ensuring that no more than ``max_concurrency``
-        requests are sent concurrently.
-
-        :param urls: List of URLs to fetch data from.
-        :type urls: List[AnyStr]
-        :return: A list of JSON dictionaries or None for URLs that fail to retrieve data.
-        :rtype: List[Optional[Dict]]
-        """
-        results = []
-        async with aiohttp.ClientSession() as session:
-            for i in range(0, len(urls), self.max_concurrency):
-                batch = urls[i : i + self.max_concurrency]
-                tasks = [self.fetch_json(url, session) for url in batch]
-                batch_results = await asyncio.gather(*tasks)
-                results.extend(batch_results)
-        return results
 
     @check_token
     async def get_policies(self) -> Optional[List]:
@@ -143,24 +85,24 @@ class ApiClient:
         :return: A list of software title IDs or None if an error occurs.
         :rtype: Optional[List]
         """
-        async with aiohttp.ClientSession() as session:
-            url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
-            response = await self.fetch_json(url=url, session=session)
 
-            # Verify response is list type as expected
-            if not isinstance(response, list):
-                self.log.error(
-                    f"Unexpected response format: expected a list, received {type(response)} instead."
-                )
-                return None
+        url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
+        response = await self.fetch_json(url=url, headers=self.jamf_client.headers)
 
-            # Check if all elements in the list are dictionaries
-            if not all(isinstance(item, dict) for item in response):
-                self.log.error("Unexpected response format: all items should be dictionaries.")
-                return None
+        # Verify response is list type as expected
+        if not isinstance(response, list):
+            self.log.error(
+                f"Unexpected response format: expected a list, received {type(response)} instead."
+            )
+            return None
 
-            self.log.info("Patch policies obtained as expected.")
-            return [title.get("id") for title in response]
+        # Check if all elements in the list are dictionaries
+        if not all(isinstance(item, dict) for item in response):
+            self.log.error("Unexpected response format: all items should be dictionaries.")
+            return None
+
+        self.log.info("Patch policies obtained as expected.")
+        return [title.get("id") for title in response]
 
     @check_token
     async def get_summaries(self, policy_ids: List) -> Optional[List[PatchTitle]]:
@@ -177,7 +119,7 @@ class ApiClient:
             f"{self.jamf_url}/api/v2/patch-software-title-configurations/{policy}/patch-summary"
             for policy in policy_ids
         ]
-        summaries = await self.fetch_batch(urls)
+        summaries = await self.fetch_batch(urls, headers=self.jamf_client.headers)
 
         policy_summaries = [
             PatchTitle(
@@ -205,15 +147,10 @@ class ApiClient:
         """
         url = f"{self.jamf_url}/api/v2/mobile-devices"
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                response = await self.fetch_json(url=url, session=session)
-        except aiohttp.ClientError as e:
-            self.log.error(f"Error fetching device IDs: {e}")
-            return None
+        response = await self.fetch_json(url=url, headers=self.jamf_client.headers)
 
         if not response:
-            self.log.error(f"API call to {url} was unsuccessful.")
+            self.log.error(f"Error fetching device IDs from {url}")
             return None
 
         devices = response.get("results")
@@ -227,8 +164,7 @@ class ApiClient:
 
     @check_token
     async def get_device_os_versions(
-        self,
-        device_ids: List[int],
+        self, device_ids: List[int]
     ) -> Optional[List[Dict[AnyStr, AnyStr]]]:
         """
         Asynchronously fetches the OS version and serial number for each device ID provided.
@@ -239,11 +175,8 @@ class ApiClient:
         :return: A list of dictionaries containing the serial numbers and OS versions, or None on error.
         :rtype: Optional[List[Dict[AnyStr, AnyStr]]]
         """
-        if not device_ids:
-            self.log.error("No device IDs provided!")
-            return None
         urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
-        subsets = await self.fetch_batch(urls)
+        subsets = await self.fetch_batch(urls, headers=self.jamf_client.headers)
 
         if not subsets:
             self.log.error("Received empty response obtaining device OS information.")
@@ -300,19 +233,159 @@ class ApiClient:
             )
         return latest_versions
 
-    def fetch_labels(self):
-        command = "curl -s 'https://api.github.com/repos/Installomator/Installomator/contents/fragments/labels'"
+    # -- SETUP CALLS -- #
+    async def fetch_basic_token(
+        self, password: AnyStr, username: AnyStr, jamf_url: Optional[AnyStr] = None
+    ) -> Optional[str]:
+        """
+        Asynchronously retrieves a bearer token using basic authentication.
 
-        try:
-            result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
-        except subprocess.CalledProcessError as e:
-            self.log.error(f"Unable to retrieve Installomator labels: {e}")
-            return None
+        This method is intended for initial setup to obtain client credentials for API clients and roles.
+        It should not be used for regular token retrieval after setup.
 
-        try:
-            data = json.loads(result.stdout)
-        except json.JSONDecodeError as e:
-            self.log.error(f"Installomator labels response could not be decoded: {e}")
-            return None
+        :param username: Username of admin Jamf Pro account for authentication. Not permanently stored, only used for initial token retrieval.
+        :type username: AnyStr
+        :param password: Password of admin Jamf Pro account. Not permanently stored, only used for initial token retrieval.
+        :type password: AnyStr
+        :param jamf_url: Jamf Server URL (same as ``server_url`` in :mod:`patcher.models.jamf_client` class).
+        :type jamf_url: Optional[AnyStr]
+        :raises exceptions.TokenFetchError: If the call is unauthorized or unsuccessful.
+        :returns: True if the basic token was successfully retrieved, False if unauthorized (e.g., due to SSO).
+        :rtype: bool
+        """
+        jamf_url = jamf_url or self.jamf_url
+        token_url = f"{jamf_url}/api/v1/auth/token"
+        headers = {"accept": "application/json"}
 
-        return [item["name"].replace(".sh", "") for item in data if item["type"] == "file"]
+        async with self.semaphore:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url=token_url,
+                    auth=aiohttp.BasicAuth(username, password),
+                    headers=headers,
+                    ssl=self.ssl_context,
+                ) as resp:
+                    if resp.status == 401:
+                        self.log.error(
+                            f"Received 401 response trying to obtain access token with basic auth: {resp.status} - {await resp.text()}"
+                        )
+                        return None
+                    elif resp.status != 200:
+                        self.log.error(
+                            f"Unsuccessful API call to retrieve access token with basic auth: {resp.status} - {await resp.text()}"
+                        )
+                        raise exceptions.TokenFetchError(
+                            reason=f"{resp.status} - {await resp.text()}"
+                        )
+                    response = await resp.json()
+
+                    if not response:
+                        self.log.error(
+                            "API call was successful, but response was empty. Exiting..."
+                        )
+                        return None
+
+                    return response.get("token")
+
+    async def create_roles(self, token: AnyStr) -> bool:
+        """
+        Creates the necessary API roles using the provided bearer token.
+
+        :param token: The bearer token to use for authentication. Defaults to the stored token if not provided.
+        :type token: Optional[AnyStr]
+        :return: True if roles were successfully created, False otherwise.
+        :rtype: bool
+        :raises aiohttp.ClientError: If there is an error making the HTTP request.
+        """
+        role = ApiRoleModel()
+        payload = {
+            "displayName": role.display_name,
+            "privileges": role.privileges,
+        }
+        role_url = f"{self.jamf_url}/api/v1/api-roles"
+        headers = {
+            "accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url=role_url, json=payload, headers=headers, ssl=self.ssl_context
+            ) as resp:
+                if resp.status == 400:
+                    self.log.error("Role already exists.")
+                    return False
+                resp.raise_for_status()
+                return resp.status == 200
+
+    async def create_client(self, token: AnyStr) -> Tuple[AnyStr, AnyStr]:
+        """
+        Creates an API client and retrieves its client ID and client secret.
+
+        This method uses the provided bearer token to create a new API client in the Jamf server.
+
+        :param token: The bearer token to use for authentication. Defaults to the stored token if not provided.
+        :type token: Optional[AnyStr]
+        :return: A tuple containing the client ID and client secret.
+        :rtype: Tuple[AnyStr, AnyStr]
+        :raises aiohttp.ClientError: If there is an error making the HTTP request.
+        """
+
+        client = ApiClientModel()
+        client_url = f"{self.jamf_url}/api/v1/api-integrations"
+        payload = {
+            "authorizationScopes": client.auth_scopes,
+            "displayName": client.display_name,
+            "enabled": client.enabled,
+            "accessTokenLifetimeSeconds": client.token_lifetime,  # 30 minutes in seconds
+        }
+        headers = {
+            "accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url=client_url, json=payload, headers=headers, ssl=self.ssl_context
+            ) as resp:
+                resp.raise_for_status()
+                client_response = await resp.json()
+                if not client_response:
+                    self.log.error(
+                        f"API returned empty response during client creation. Status: {resp.status} - {await resp.text()}"
+                    )
+                client_id = client_response.get("clientId")
+                integration_id = client_response.get("id")
+
+        # Obtain client secret for client created
+        secret_url = f"{self.jamf_url}/api/v1/api-integrations/{integration_id}/client-credentials"
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url=secret_url, headers=headers) as resp:
+                resp.raise_for_status()
+                secret_response = await resp.json()
+                if not secret_response:
+                    self.log.error(
+                        f"Unable to obtain client secret for Patcher client: {resp.status}"
+                    )
+                client_secret = secret_response.get("clientSecret")
+        return client_id, client_secret
+
+    # TODO (v2) Installomator label fetching
+    # def fetch_labels(self):
+    #     command = "curl -s 'https://api.github.com/repos/Installomator/Installomator/contents/fragments/labels'"
+    #
+    #     try:
+    #         result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
+    #     except subprocess.CalledProcessError as e:
+    #         self.log.error(f"Unable to retrieve Installomator labels: {e}")
+    #         return None
+    #
+    #     try:
+    #         data = json.loads(result.stdout)
+    #     except json.JSONDecodeError as e:
+    #         self.log.error(f"Installomator labels response could not be decoded: {e}")
+    #         return None
+    #
+    #     return [item["name"].replace(".sh", "") for item in data if item["type"] == "file"]
