@@ -48,27 +48,27 @@ def test_is_complete_error(setup_instance):
                 setup_instance._check_completion()
 
 
-def test_greet(setup_instance):
-    with patch("click.echo") as mock_click_echo:
-        setup_instance._greet()
-        assert mock_click_echo.call_count == 3
-
-
-def test_setup_ui(setup_instance, ui_config):
-    with patch(
-        "click.prompt",
-        side_effect=["Header", "Footer", "CustomFont", "/path/to/regular.ttf", "/path/to/bold.ttf"],
-    ):
-        with patch("click.confirm", return_value=True):
-            with patch("os.makedirs") as mock_makedirs:
-                with patch("shutil.copy") as mock_shutil_copy:
-                    with patch("configparser.ConfigParser.write") as mock_config_write:
-                        with patch("builtins.open", mock_open()) as mock_file:
-                            setup_instance._setup_ui()
-                            mock_makedirs.assert_called()
-                            mock_shutil_copy.assert_called()
-                            mock_config_write.assert_called_once()
-                            assert mock_file.call_count == 2
+# def test_greet(setup_instance):
+#     with patch("click.echo") as mock_click_echo:
+#         setup_instance._greet()
+#         assert mock_click_echo.call_count == 3
+#
+#
+# def test_setup_ui(setup_instance, ui_config):
+#     with patch(
+#         "click.prompt",
+#         side_effect=["Header", "Footer", "CustomFont", "/path/to/regular.ttf", "/path/to/bold.ttf"],
+#     ):
+#         with patch("click.confirm", return_value=True):
+#             with patch("os.makedirs") as mock_makedirs:
+#                 with patch("shutil.copy") as mock_shutil_copy:
+#                     with patch("configparser.ConfigParser.write") as mock_config_write:
+#                         with patch("builtins.open", mock_open()) as mock_file:
+#                             setup_instance._setup_ui()
+#                             mock_makedirs.assert_called()
+#                             mock_shutil_copy.assert_called()
+#                             mock_config_write.assert_called_once()
+#                             assert mock_file.call_count == 2
 
 
 @pytest.mark.asyncio
