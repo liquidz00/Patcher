@@ -36,7 +36,9 @@ class UIConfigManager:
         :type custom_ca_file: Optional[str]
         """
         self.custom_ca_file = custom_ca_file
-        self.plist_path = Path.home() / "~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist"
+        self.plist_path = (
+            Path.home() / "/Library/Application Support/Patcher/com.liquidzoo.patcher.plist"
+        )
         self.font_dir = self.plist_path.parent / "fonts"
         self.log = logger.LogMe(self.__class__.__name__)
         self._fonts_saved = None
@@ -78,7 +80,9 @@ class UIConfigManager:
         :type dest_path: str
         :raises OSError: Raised if the font cannot be downloaded due to a network error or invalid response.
         """
-        ssl_context = ssl.create_default_context(cafile=self.custom_ca_file) if self.custom_ca_file else None
+        ssl_context = (
+            ssl.create_default_context(cafile=self.custom_ca_file) if self.custom_ca_file else None
+        )
         dest_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
@@ -105,7 +109,7 @@ class UIConfigManager:
             "FOOTER_TEXT": "Default footer text",
             "FONT_NAME": "Assistant",
             "FONT_REGULAR_PATH": str(self.font_dir / "Assistant-Regular.ttf"),
-            "FONT_BOLD_PATH": str(self.font_dir / "Assistant-Bold.ttf")
+            "FONT_BOLD_PATH": str(self.font_dir / "Assistant-Bold.ttf"),
         }
 
         # Ensure directory exists
@@ -113,12 +117,8 @@ class UIConfigManager:
 
         # Download fonts if not already present
         if not self.fonts_present:
-            self.download_font(
-                self.REGULAR_FONT_URL, self.font_dir / "Assistant-Regular.ttf"
-            )
-            self.download_font(
-                self.BOLD_FONT_URL, self.font_dir / "Assistant-Bold.ttf"
-            )
+            self.download_font(self.REGULAR_FONT_URL, self.font_dir / "Assistant-Regular.ttf")
+            self.download_font(self.BOLD_FONT_URL, self.font_dir / "Assistant-Bold.ttf")
 
         plist_data = self._load_plist_file()
         plist_data["UI"] = default_config
@@ -201,9 +201,7 @@ class UIConfigManager:
         self.save_ui_config(header_text, footer_text, font_name, font_regular_path, font_bold_path)
 
     @staticmethod
-    def configure_font(
-        use_custom_font: bool, font_dir: Path
-    ) -> Tuple[str, Path, Path]:
+    def configure_font(use_custom_font: bool, font_dir: Path) -> Tuple[str, Path, Path]:
         """
         Configures the font settings based on user input.
 
