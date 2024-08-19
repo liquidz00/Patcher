@@ -13,7 +13,6 @@ from .client.ui_manager import UIConfigManager
 from .models.reports.excel_report import ExcelReport
 from .models.reports.pdf_report import PDFReport
 from .utils.animation import Animation
-from .utils.exceptions import PatcherError
 from .utils.logger import LogMe
 
 DATE_FORMATS = {
@@ -60,12 +59,13 @@ async def cli(
     config_manager = ConfigManager()
     ctx.obj["CONFIG_MANAGER"] = config_manager
 
-    # Instance of api, add to context
-    # api = ApiClient(config=config_manager, custom_ca_file=custom_ca_file, concurrency=concurrency)
-    # ctx.obj["API_CLIENT"] = api
+    # Instance of API, add to context
+    ctx.obj["API_CLIENT"] = ApiClient(
+        config=config_manager, concurrency=concurrency, custom_ca_file=custom_ca_file
+    )
 
     # Instance of UI, add to context
-    ui_config = UIConfigManager()
+    ui_config = UIConfigManager(custom_ca_file=custom_ca_file)
     ctx.obj["UI_MANAGER"] = ui_config
 
     # Instance of token manager, add to context
@@ -87,17 +87,16 @@ async def cli(
 @click.pass_context
 async def setup(ctx: click.Context, reset: bool):
     config = ctx.obj["CONFIG_MANAGER"]
-    custom_ca_file = ctx.obj["CA_FILE"]
-    concurrency = ctx.obj["CONCURRENCY"]
-    api_client = ApiClient(config=config, concurrency=concurrency, custom_ca_file=custom_ca_file)
-    token_manager = ctx.obj["TOKEN_MANAGER"]
+    api_client = ctx.obj["API_CLIENT"]
     ui_manager = ctx.obj["UI_MANAGER"]
+    token_manager = ctx.obj["TOKEN_MANAGER"]
+
     setup_manager = Setup(
         config=config,
         ui_config=ui_manager,
         api_client=api_client,
         token_manager=token_manager,
-        custom_ca_file=custom_ca_file,
+        custom_ca_file=ctx.obj["CA_FILE"],
     )
 
     log = LogMe(__name__, debug=ctx.obj["DEBUG"])
@@ -167,22 +166,14 @@ async def export(
     ios: bool,
 ) -> None:
     debug = ctx.obj["DEBUG"]
-    custom_ca_file = ctx.obj["CA_FILE"]
-    concurrency = ctx.obj["CONCURRENCY"]
     log = LogMe(__name__, debug=debug)
-
     animation = ctx.obj["ANIMATION"]
 
     config = ctx.obj["CONFIG_MANAGER"]
-    api_client = ApiClient(config, concurrency, custom_ca_file)
+    api_client = ctx.obj["API_CLIENT"]
     ui_manager = ctx.obj["UI_MANAGER"]
-
-    jamf_client = config.attach_client()
-    if jamf_client is None:
-        raise PatcherError(message="Invalid JamfClient configuration detected!")
-
     token_manager = ctx.obj["TOKEN_MANAGER"]
-    api_client.jamf_client = jamf_client
+
     excel_report = ExcelReport()
     pdf_report = PDFReport(ui_manager)
 
