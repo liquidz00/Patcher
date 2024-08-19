@@ -38,7 +38,7 @@ class TokenManager:
         self.token = self.jamf_client.token
         self.lock = asyncio.Lock()
 
-    async def _fetch_new_token(self) -> Optional[AccessToken]:
+    async def fetch_token(self) -> Optional[AccessToken]:
         """
         Asynchronously fetches a new access token from the Jamf API.
 
@@ -124,7 +124,7 @@ class TokenManager:
         async with self.lock:
             if not self.token_valid():
                 self.log.warning("Bearer token is invalid or expired, attempting to refresh...")
-                if not await self._fetch_new_token():
+                if not await self.fetch_token():
                     raise exceptions.TokenFetchError(reason="Unable to validate or refresh token.")
             self.log.info("Token retrieved successfully")
             if not self._check_token_lifetime():
