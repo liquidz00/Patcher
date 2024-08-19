@@ -1,9 +1,7 @@
-from pathlib import Path
 from typing import AnyStr, List, Optional
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import field_validator
-from typing import Union
 
 from . import Model
 from .token import AccessToken
@@ -34,7 +32,6 @@ class JamfClient(Model):
     client_secret: AnyStr
     server: AnyStr
     token: Optional[AccessToken] = None
-    # custom_ca_file: Optional[Union[str, Path]]
 
     @staticmethod
     def valid_url(url: AnyStr) -> AnyStr:
@@ -95,24 +92,6 @@ class JamfClient(Model):
         :rtype: AnyStr
         """
         return cls.valid_url(v)
-
-    @classmethod
-    @field_validator("custom_ca_file", mode="before")
-    def validate_custom_ca(cls, v):
-        """
-        Validates the custom CA file path.
-
-        Ensures that the ``custom_ca_file`` path is provided as a string. If a ``Path``
-        object is provided, it is converted to a string.
-
-        :param v: The custom CA file path to validate.
-        :type v: Union[str, Path]
-        :return: The validated custom CA file path as a string.
-        :rtype: str
-        """
-        if isinstance(v, Path):
-            return str(v)
-        return v
 
     @property
     def base_url(self):
