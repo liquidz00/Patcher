@@ -89,10 +89,9 @@ class Setup:
             try:
                 with open(self.plist_path, "rb") as fp:
                     plist_data = plistlib.load(fp)
-                    self._completed = plist_data.get("first_run_done", False)
+                    self._completed = plist_data.get("Setup", {}).get("first_rune_done", False)
             except Exception as e:
                 self.log.error(f"Error reading plist file: {e}")
-                print("PlistError is being raised")
                 raise exceptions.PlistError(path=self.plist_path)
         else:
             self._completed = False
@@ -106,8 +105,14 @@ class Setup:
         :type value: bool
         :raises exceptions.PlistError: If there is an error writing to the plist file.
         """
-        plist_data = {"first_run_done": value}
         try:
+            if os.path.exists(self.plist_path):
+                with open(self.plist_path, "rb") as fp:
+                    plist_data = plistlib.load(fp)
+            else:
+                plist_data = {}
+
+            plist_data.setdefault("Setup", {})["first_run_done"] = value
             os.makedirs(os.path.dirname(self.plist_path), exist_ok=True)
             with open(self.plist_path, "wb") as fp:
                 plistlib.dump(plist_data, fp)
