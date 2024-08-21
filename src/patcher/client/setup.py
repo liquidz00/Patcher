@@ -18,7 +18,7 @@ from .ui_manager import UIConfigManager
 GREET = "Thanks for downloading Patcher!\n"
 WELCOME = """It looks like this is your first time using the tool. We will guide you through the initial setup to get you started.
 
-The setup assistant will prompt you for your Jamf URL, your Jamf Pro username and your Jamf Pro password. Patcher ONLY uses this information to create the necessary API role and client on your behalf, your credentials are not stored whatsoever. Once generated, these client credentials (and generated bearer token) can be found in your keychain.
+The setup assistant will prompt you to choose your setup method--Standard is the automated setup which will prompt for your Jamf URL, your Jamf Pro username and your Jamf Pro password. Patcher ONLY uses this information to create the necessary API role and client on your behalf, your credentials are not stored whatsoever. Once generated, these client credentials (and generated bearer token) can be found in your keychain. The SSO setup will prompt for a client ID and client secret of an API Client that has already been created. 
 
 You will be prompted to enter in the header and footer text for PDF reports, should you choose to generate them. These can be configured later by modifying the 'config.ini' file in Patcher's Application Support directory stored in the user library.
 
@@ -240,7 +240,7 @@ class Setup:
                         return
                     else:
                         basic_token = await self.api_client.fetch_basic_token(
-                            username=username, password=password
+                            username=username, password=password, jamf_url=self.jamf_url
                         )
                         if not basic_token:
                             click.echo(
@@ -250,7 +250,7 @@ class Setup:
                                 ),
                                 err=True,
                             )
-            except exceptions.TokenFetchError():
+            except exceptions.TokenFetchError:
                 click.echo(
                     click.style(
                         text="Unfortunately we received an error trying to obtain a token. Please verify your account details and try again.",
