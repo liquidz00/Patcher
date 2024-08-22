@@ -1,8 +1,7 @@
 import os
-from unittest.mock import AsyncMock, mock_open, patch
+from unittest.mock import mock_open, patch
 
 import pytest
-from aioresponses import aioresponses
 from src.patcher.client.setup import Setup
 from src.patcher.utils import exceptions
 
@@ -27,7 +26,6 @@ async def test_init(setup_instance, config_manager, ui_config):
         "~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist"
     )
     assert setup_instance._completed is None
-    assert setup_instance.token is None
     assert setup_instance.jamf_url is None
 
 
@@ -39,7 +37,7 @@ def test_completed_property(setup_instance):
 def test_is_complete(setup_instance):
     with (
         patch("os.path.exists", return_value=True),
-        patch("plistlib.load", return_value={"first_run_done": True}),
+        patch("plistlib.load", return_value={"Setup": {"first_run_done": True}}),
         patch("builtins.open", mock_open(read_data=b"")),
     ):
         setup_instance._check_completion()
@@ -51,71 +49,6 @@ def test_is_complete_error(setup_instance):
         with patch("plistlib.load", side_effect=Exception("plist read error")):
             with pytest.raises(exceptions.PlistError):
                 setup_instance._check_completion()
-
-
-@pytest.mark.asyncio
-async def test_basic_token_success(setup_instance):
-    with patch("aiohttp.ClientSession.post") as mock_post:
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json.return_value = {"token": "mocked_token"}
-        mock_post.return_value.__aenter__.return_value = mock_response
-        success = await setup_instance._basic_token("password", "username", "https://mocked.url")
-        assert success is True
-        assert setup_instance.token == "mocked_token"
-
-
-@pytest.mark.asyncio
-async def test_basic_token_401(setup_instance):
-    with patch("aiohttp.ClientSession.post") as mock_post:
-        mock_response = AsyncMock()
-        mock_response.status = 401
-        mock_response.text.return_value = "Unauthorized"
-        mock_post.return_value.__aenter__.return_value = mock_response
-        success = await setup_instance._basic_token("password", "username", "https://mocked.url")
-        assert success is False
-
-
-@pytest.mark.asyncio
-async def test_basic_token_error(setup_instance):
-    with patch("aiohttp.ClientSession.post") as mock_post:
-        mock_response = AsyncMock()
-        mock_response.status = 500
-        mock_response.text.return_value = "Server Error"
-        mock_post.return_value.__aenter__.return_value = mock_response
-        with pytest.raises(exceptions.TokenFetchError):
-            await setup_instance._basic_token("password", "username", "https://mocked.url")
-
-
-@pytest.mark.asyncio
-async def test_create_roles_success(setup_instance):
-    with patch("aiohttp.ClientSession.post") as mock_post:
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_post.return_value.__aenter__.return_value = mock_response
-        success = await setup_instance._create_roles("mocked_token")
-        assert success is True
-
-
-@pytest.mark.asyncio
-async def test_create_client_success(setup_instance):
-    with aioresponses() as m:
-        client_creation_url = f"{setup_instance.jamf_url}/api/v1/api-integrations"
-        m.post(
-            client_creation_url,
-            payload={"clientId": "mocked_client_id", "id": "integration_id"},
-            status=200,
-        )
-
-        client_secret_url = (
-            f"{setup_instance.jamf_url}/api/v1/api-integrations/integration_id/client-credentials"
-        )
-        m.post(client_secret_url, payload={"clientSecret": "mocked_client_secret"}, status=200)
-
-        client_id, client_secret = await setup_instance._create_client()
-
-        assert client_id == "mocked_client_id"
-        assert client_secret == "mocked_client_secret"
 
 
 @pytest.mark.asyncio
