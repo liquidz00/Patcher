@@ -14,6 +14,7 @@ from src.patcher.client.token_manager import TokenManager
 from src.patcher.models.jamf_client import JamfClient
 from src.patcher.models.patch import PatchTitle
 from src.patcher.models.token import AccessToken
+from src.patcher.client import SSLContextManager
 
 
 @pytest.fixture
@@ -431,7 +432,12 @@ def token_manager(config_manager):
 def api_client(config_manager):
     concurrency = 10
     custom_ca_file = "/path/to/.pem"
-    return ApiClient(config=config_manager, concurrency=concurrency, custom_ca_file=custom_ca_file)
+
+    with patch.object(SSLContextManager, 'create_ssl_context') as mock_create_ssl_context:
+        mock_ssl_context = MagicMock()
+        mock_create_ssl_context.return_value = mock_ssl_context
+
+        return ApiClient(config=config_manager, concurrency=concurrency, custom_ca_file=custom_ca_file)
 
 
 @pytest.fixture
