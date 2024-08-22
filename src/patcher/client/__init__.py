@@ -9,19 +9,35 @@ from ..utils import logger
 
 
 class SSLContextManager:
-    def __init__(self, custom_ca_file: Optional[Union[str, Path]] = None):
-        """
-        :param custom_ca_file: Path to a custom Certificate Authority (CA) file for SSL verification.
-                           If provided, this file is used in place of the default CA paths.
-        :type custom_ca_file: Optional[Union[str, Path]]
+    """
+    Manages SSL context for secure connections, with support custom Certificate Authority (CA) files.
 
-        """
+    This class is part of Patcher's backend and helps ensure that any communication made is secure. If
+    you have a custom CA file (for example, from your organization), this manager will merge it with the system's
+    default CA certificates for enhanced SSL verification.
+
+    :param custom_ca_file: Path to a custom CA file. If not provided, the system's default CA certificates are used.
+    :type custom_ca_file: Optional[Union[str, pathlib.Path]] = None
+    """
+
+    def __init__(self, custom_ca_file: Optional[Union[str, Path]] = None):
         self.custom_ca_file = custom_ca_file
         self._merged_cafile_path = (
             Path.home() / "Library" / "Application Support" / "Patcher" / "merged_cafile.pem"
         )
 
     def create_ssl_context(self) -> ssl.SSLContext:
+        """
+        Creates an SSL context object, optionally including a custom CA file.
+
+        This method generates an SSL context that is used by Patcher to securely connect
+        to servers. If you’ve specified a custom CA file when running the tool, it will be
+        incorporated into the SSL context, providing additional security.
+
+        :return: An SSL context ready for secure connections.
+        :rtype: ssl.SSLContext
+        """
+
         context = ssl.create_default_context()
         if self.custom_ca_file:
             merged_cafile_path = self._get_merged_cafile_path()
@@ -29,20 +45,25 @@ class SSLContextManager:
         return context
 
     def _get_merged_cafile_path(self) -> Path:
+        """
+        Retrieves the path to the merged CA file for SSL verification.
+
+        :return: Path to the merged CA file used by Patcher.
+        :rtype: pathlib.Path
+        """
         self._merge_ca_files()
         return self._merged_cafile_path
 
     def _merge_ca_files(self) -> None:
         """
-        Creates a merged CA file that combines the default SSL CA certificates with a custom CA file.
+        Merges the system’s default CA certificates with the custom CA file, if provided.
 
-        The method checks if a custom CA file is provided. If so, it reads the default CA
-        certificates file and appends the contents of the custom CA file to it. The resulting
-        merged CA file is saved to the user's library, specifically in the
-        ``~/Library/Application Support/Patcher`` directory. This file is then used for SSL
-        verification in subsequent requests.
+        This method is called when Patcher needs to create a secure SSL context. It combines
+        the custom CA file with the default system certificates, ensuring that both are used
+        for SSL verification.
 
-        Should the merged CA file already exist, the method does nothing.
+        .. note::
+            If no custom CA file is provided, or if the merged file already exists, this method will not make any changes.
 
         :raises FileNotFoundError: If the default or custom CA file cannot be found.
         :example:
@@ -73,19 +94,30 @@ class SSLContextManager:
 
 
 class BaseAPIClient:
+    """
+    The BaseAPIClient class controls concurrency settings and secure connections for *all* API calls.
+
+    This class forms the backbone of Patcher's ability to interact with external APIs.
+    It manages the number of API requests that can be made simultaneously, ensuring the tool is both
+    efficient and does not overload any servers.
+
+    .. warning::
+        Changing the max_concurrency value could lead to your Jamf server being unable to perform other basic tasks.
+        It is **strongly recommended** to limit API call concurrency to no more than 5 connections.
+        See `Jamf Developer Guide <https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices>`_ for more information.
+
+    :param max_concurrency: The maximum number of API requests that can be sent at once. Defaults to 5.
+    :type max_concurrency: int
+
+    :param custom_ca_file: Path to a custom CA file for SSL verification, if needed.
+    :type custom_ca_file: Optional[str]
+
+    """
     def __init__(
         self,
         max_concurrency: int = 5,
         custom_ca_file: Optional[str] = None,
     ):
-        """
-        # TODO
-        :param max_concurrency: The maximum number of concurrent API calls allowed. Defaults to 5.
-        :type max_concurrency: int
-
-        :param custom_ca_file: # TODO
-        :type custom_ca_file: Optional[str]
-        """
         self.max_concurrency = max_concurrency
         self.ssl_context_manager = SSLContextManager(custom_ca_file=custom_ca_file)
         self.ssl_context = self.ssl_context_manager.create_ssl_context()
@@ -95,10 +127,24 @@ class BaseAPIClient:
         self.log = logger.LogMe(self.__class__.__name__)
 
     @property
-    def concurrency(self):
+    def concurrency(self) -> int:
+        """
+        Gets the current concurrency setting used by Patcher.
+
+        :return: The maximum number of concurrent API requests that can be made.
+        :rtype: int
+        """
         return self.max_concurrency
 
     def create_session(self) -> aiohttp.ClientSession:
+        """
+        Creates an HTTP session for making API requests.
+
+        This method is primarily in place to prevent repeated code (DRY principle).
+
+        :return: An HTTP session prepped for API requests.
+        :rtype: aiohttp.ClientSession
+        """
         return aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=self.max_concurrency))
 
     def set_max_concurrency(self, concurrency: int):
@@ -108,12 +154,6 @@ class BaseAPIClient:
         This method allows you to set the maximum number of concurrent API calls
         that can be made by the Jamf client. It is recommended to limit this value
         to 5 connections to avoid overloading the Jamf server.
-
-        .. warning::
-            Changing this value could lead to your Jamf server being unable to perform other basic tasks. See the :ref:`Concurrency <concurrency>` option in the usage documentation.
-
-        It is **strongly recommended** to limit API call concurrency to no more than 5 connections.
-        See `Jamf Developer Guide <https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices>`_ for more information.
 
         :param concurrency: The new maximum concurrency level.
         :type concurrency: int
@@ -127,7 +167,7 @@ class BaseAPIClient:
         self, url: AnyStr, headers: Optional[Dict[str, str]] = None
     ) -> Optional[Dict]:
         """
-        Asynchronously fetches JSON data from a specified URL using a session.
+        Fetches JSON data from a specified URL asynchronously.
 
         :param url: URL to fetch the JSON data from.
         :type url: AnyStr
@@ -184,6 +224,13 @@ class BaseAPIClient:
         return results
 
     async def close(self):
+        """
+        Closes HTTP session(s) used by Patcher.
+
+        Once Patcher has finished making API requests, this method is called to
+        automatically close any session that remained open. This helps free up system
+        resources and maintain a clean operating environment.
+        """
         if self.session and not self.session.closed:
             await self.session.close()
             self.log.info("Client session successfully closed.")
