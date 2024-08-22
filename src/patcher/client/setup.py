@@ -96,7 +96,7 @@ class Setup:
             try:
                 with open(self.plist_path, "rb") as fp:
                     plist_data = plistlib.load(fp)
-                    self._completed = plist_data.get("Setup", {}).get("first_rune_done", False)
+                    self._completed = plist_data.get("Setup", {}).get("first_run_done", False)
             except Exception as e:
                 self.log.error(f"Error reading plist file: {e}")
                 raise exceptions.PlistError(path=self.plist_path)
