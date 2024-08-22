@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import AnyStr, Dict, List, Tuple
 
 import aiohttp
@@ -85,10 +85,10 @@ class Analyzer:
         self, session: aiohttp.ClientSession, title: str, severity: str
     ) -> List[str]:
         url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-        end_date = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-        start_date = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S.%f")[
-            :-3
-        ] + "Z"
+        end_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        start_date = (datetime.now(timezone.utc) - timedelta(days=30)).strftime(
+            "%Y-%m-%dT%H:%M:%S.%f"
+        )[:-3] + "Z"
 
         params = {
             "keywordSearch": title,
