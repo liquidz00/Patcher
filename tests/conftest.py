@@ -123,45 +123,45 @@ def mock_patch_title_response():
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=3)),
             hosts_patched=23,
             missing_patch=163,
-            completion_percent=(
-                round(
-                    (23 / (23 + 163)) * 100,
-                    2,
-                )
-                if 23 + 163 > 0
-                else 0
-            ),
-            total_hosts=23 + 163,
+            # completion_percent=(
+            #     round(
+            #         (23 / (23 + 163)) * 100,
+            #         2,
+            #     )
+            #     if 23 + 163 > 0
+            #     else 0
+            # ),
+            # total_hosts=23 + 163,
         ),
         PatchTitle(
             title="Jamf Connect",
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(hours=24)),
             hosts_patched=185,
             missing_patch=19,
-            completion_percent=(
-                round(
-                    (185 / (185 + 19)) * 100,
-                    2,
-                )
-                if 185 + 19 > 0
-                else 0
-            ),
-            total_hosts=185 + 19,
+            # completion_percent=(
+            #     round(
+            #         (185 / (185 + 19)) * 100,
+            #         2,
+            #     )
+            #     if 185 + 19 > 0
+            #     else 0
+            # ),
+            # total_hosts=185 + 19,
         ),
         PatchTitle(
             title="Apple macOS Ventura",
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=7)),
             hosts_patched=6,
             missing_patch=5,
-            completion_percent=(
-                round(
-                    (6 / (6 + 5)) * 100,
-                    2,
-                )
-                if 6 + 5 > 0
-                else 0
-            ),
-            total_hosts=6 + 5,
+            # completion_percent=(
+            #     round(
+            #         (6 / (6 + 5)) * 100,
+            #         2,
+            #     )
+            #     if 6 + 5 > 0
+            #     else 0
+            # ),
+            # total_hosts=6 + 5,
         ),
     ]
 
