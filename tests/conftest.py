@@ -423,13 +423,15 @@ def token_manager(config_manager):
             token="mocked_token", expires=datetime(2030, 1, 1, tzinfo=timezone.utc)
         )
     )
-    token_manager.check_token_lifetime = AsyncMock(return_value=True)
+    token_manager._check_token_lifetime = AsyncMock(return_value=True)
     yield token_manager
 
 
 @pytest.fixture
 def api_client(config_manager):
-    return ApiClient(config=config_manager)
+    concurrency = 10
+    custom_ca_file = "/path/to/.pem"
+    return ApiClient(config=config_manager, concurrency=concurrency, custom_ca_file=custom_ca_file)
 
 
 @pytest.fixture

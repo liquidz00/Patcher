@@ -21,11 +21,11 @@ def test_update_env(mock_set_credential, config_manager):
     assert mock_set_credential.call_count == 2
 
 
-@patch.object(TokenManager, "check_token_lifetime", return_value=False)
+@patch.object(TokenManager, "_check_token_lifetime", return_value=False)
 def test_check_short_lifetime(mock_lifetime_response, short_lived_jamf_client):
     config = MagicMock(return_value=short_lived_jamf_client)
     token_manager = TokenManager(config=config)
-    result = token_manager.check_token_lifetime(client=short_lived_jamf_client)
+    result = token_manager._check_token_lifetime(client=short_lived_jamf_client)
     assert result is False
     assert token_manager.token_valid() is False
 
@@ -57,7 +57,7 @@ def test_token_manager_initialization(config_manager):
 def test_save_token(mock_set_credential, config_manager):
     token_manager = TokenManager(config=config_manager)
     token = AccessToken(token="new_token", expires=datetime(2031, 1, 1, tzinfo=timezone.utc))
-    token_manager.save_token(token)
+    token_manager._save_token(token)
 
     expected_calls = [
         call("TOKEN", "new_token"),

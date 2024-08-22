@@ -43,6 +43,7 @@ class PDFReport(FPDF):
         :param date_format: Date format string for the PDF report header, default is "%B %d %Y".
         :type date_format: str
         """
+        self.log = logger.LogMe(self.__class__.__name__)
         super().__init__(orientation=orientation, unit=unit, format=format)
         self.date_format = date_format
         self.ui_config = ui_config.get_ui_config()
@@ -138,6 +139,7 @@ class PDFReport(FPDF):
             # Save PDF to a file
             pdf_filename = os.path.splitext(excel_file)[0] + ".pdf"
             pdf.output(pdf_filename)
+            self.log.info(f"Generated PDF to {excel_file} as expected.")
 
         except Exception as e:
-            logthis.error(f"Error occurred trying to export PDF: {e}")
+            self.log.error(f"Error occurred trying to export PDF: {e}")

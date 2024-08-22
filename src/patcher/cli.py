@@ -13,7 +13,6 @@ from .client.ui_manager import UIConfigManager
 from .models.reports.excel_report import ExcelReport
 from .models.reports.pdf_report import PDFReport
 from .utils.animation import Animation
-from .utils.exceptions import PatcherError
 from .utils.logger import LogMe
 
 DATE_FORMATS = {
@@ -25,13 +24,103 @@ DATE_FORMATS = {
 }
 
 
-@click.command()
+@click.group()
 @click.version_option(version=__version__)
+@click.option(
+    "--debug",
+    "-x",
+    is_flag=True,
+    default=False,
+    help="Enable debug logging to see detailed debug messages.",
+)
+@click.option(
+    "--custom-ca-file",
+    type=click.Path(),
+    required=False,
+    help="Path to a custom CA file for SSL verification.",
+)
+@click.option(
+    "--concurrency",
+    type=click.INT,
+    default=5,
+    help="Set the maximum concurrency level for API calls.",
+)
+@click.pass_context
+async def cli(
+    ctx: click.Context, debug: bool, custom_ca_file: Optional[str], concurrency: Optional[int]
+):
+    ctx.ensure_object(dict)
+
+    ctx.obj["DEBUG"] = debug
+    ctx.obj["CA_FILE"] = custom_ca_file
+    ctx.obj["CONCURRENCY"] = concurrency
+
+    # Instance of config, add to context
+    config_manager = ConfigManager()
+    ctx.obj["CONFIG_MANAGER"] = config_manager
+
+    # Instance of API, add to context
+    ctx.obj["API_CLIENT"] = ApiClient(
+        config=config_manager, concurrency=concurrency, custom_ca_file=custom_ca_file
+    )
+
+    # Instance of UI, add to context
+    ui_config = UIConfigManager(custom_ca_file=custom_ca_file)
+    ctx.obj["UI_MANAGER"] = ui_config
+
+    # Instance of token manager, add to context
+    token_manager = TokenManager(config=config_manager)
+    ctx.obj["TOKEN_MANAGER"] = token_manager
+
+    # Instance of animation
+    ctx.obj["ANIMATION"] = Animation(enable_animation=not debug)
+
+
+@cli.command()
+@click.option(
+    "--reset",
+    "-r",
+    is_flag=True,
+    default=False,
+    help="Resets the UI elements in PDF reports, allowing to set new values.",
+)
+@click.pass_context
+async def setup(ctx: click.Context, reset: bool):
+    config = ctx.obj["CONFIG_MANAGER"]
+    api_client = ctx.obj["API_CLIENT"]
+    ui_manager = ctx.obj["UI_MANAGER"]
+    token_manager = ctx.obj["TOKEN_MANAGER"]
+
+    setup_manager = Setup(
+        config=config,
+        ui_config=ui_manager,
+        api_client=api_client,
+        token_manager=token_manager,
+        custom_ca_file=ctx.obj["CA_FILE"],
+    )
+
+    log = LogMe(__name__, debug=ctx.obj["DEBUG"])
+    animation = ctx.obj["ANIMATION"]
+
+    async with animation.error_handling(log):
+        if not setup_manager.completed:
+            await setup_manager.prompt_method(animator=animation)
+            click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
+            click.echo("Patcher is now ready for use.")
+            click.echo("For more information, visit the project docs: https://patcher.liquidzoo.io")
+        elif reset:
+            await animation.update_msg("Resetting elements...")
+            await setup_manager.reset()
+            click.echo(click.style(text="Reset has completed as expected!", fg="green", bold=True))
+            return
+
+
+@cli.command()
 @click.option(
     "--path",
     "-p",
     type=click.Path(),
-    required=False,  # Defaulting to false in favor of `--reset`
+    required=True,
     help="Path to save the report(s)",
 )
 @click.option(
@@ -66,34 +155,8 @@ DATE_FORMATS = {
     is_flag=True,
     help="Include the amount of enrolled mobile devices on the latest version of their respective OS.",
 )
-@click.option(
-    "--concurrency",
-    type=click.INT,
-    default=5,
-    help="Set the maximum concurrency level for API calls.",
-)
-@click.option(
-    "--debug",
-    "-x",
-    is_flag=True,
-    default=False,
-    help="Enable debug logging to see detailed debug messages.",
-)
-@click.option(
-    "--reset",
-    "-r",
-    is_flag=True,
-    default=False,
-    help="Resets the setup process and triggers the setup assistant again.",
-)
-@click.option(
-    "--custom-ca-file",
-    type=click.Path(),
-    required=False,
-    help="Path to a custom CA file for SSL verification.",
-)
 @click.pass_context
-async def main(
+async def export(
     ctx: click.Context,
     path: AnyStr,
     pdf: bool,
@@ -101,54 +164,40 @@ async def main(
     omit: bool,
     date_format: AnyStr,
     ios: bool,
-    concurrency: int,
-    debug: bool,
-    reset: bool,
-    custom_ca_file: Optional[str],
 ) -> None:
-    if not ctx.params["reset"] and not ctx.params["path"]:
-        raise click.UsageError("The --path option is required unless --reset is specified.")
-
-    config = ConfigManager()
-    ui_config = UIConfigManager(custom_ca_file=custom_ca_file)
-    setup = Setup(config=config, ui_config=ui_config, custom_ca_file=custom_ca_file)
-
+    debug = ctx.obj["DEBUG"]
     log = LogMe(__name__, debug=debug)
-    animation = Animation(enable_animation=not debug)
+    animation = ctx.obj["ANIMATION"]
+
+    config = ctx.obj["CONFIG_MANAGER"]
+    api_client = ctx.obj["API_CLIENT"]
+    ui_manager = ctx.obj["UI_MANAGER"]
+    token_manager = ctx.obj["TOKEN_MANAGER"]
+
+    excel_report = ExcelReport()
+    pdf_report = PDFReport(ui_manager)
+
+    report_manager = ReportManager(
+        config=config,
+        token_manager=token_manager,
+        api_client=api_client,
+        excel_report=excel_report,
+        pdf_report=pdf_report,
+        ui_config=ui_manager,
+        debug=debug,
+    )
+
+    actual_format = DATE_FORMATS[date_format]
 
     async with animation.error_handling(log):
-        if not setup.completed:
-            await setup.prompt_method(animator=animation)
-            click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
-            click.echo("Patcher is now ready for use.")
-            click.echo("You can use the --help flag to view available options.")
-            click.echo("For more information, visit the project docs: https://patcher.liquidzoo.io")
-            return
-        elif reset:
-            await animation.update_msg("Resetting elements...")
-            await setup.reset()
-            click.echo(click.style(text="Reset has completed as expected!", fg="green", bold=True))
-            return
+        await report_manager.process_reports(path, pdf, sort, omit, ios, actual_format)
 
-        jamf_client = config.attach_client(custom_ca_file=custom_ca_file)
-        if jamf_client is None:
-            raise PatcherError(message="Invalid JamfClient configuration detected!")
 
-        token_manager = TokenManager(config)
-
-        api_client = ApiClient(config)
-        api_client.jamf_client = jamf_client
-        excel_report = ExcelReport()
-        pdf_report = PDFReport(ui_config)
-        api_client.jamf_client.set_max_concurrency(concurrency=concurrency)
-
-        patcher = ReportManager(
-            config, token_manager, api_client, excel_report, pdf_report, ui_config, debug
-        )
-
-        actual_format = DATE_FORMATS[date_format]
-        await patcher.process_reports(path, pdf, sort, omit, ios, actual_format)
+@cli.command()
+@click.pass_context
+async def analyze():
+    pass
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(cli())

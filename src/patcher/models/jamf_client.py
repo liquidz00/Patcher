@@ -1,6 +1,4 @@
-import ssl
-from pathlib import Path
-from typing import AnyStr, List, Optional, Union
+from typing import AnyStr, List, Optional
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import field_validator
@@ -28,28 +26,12 @@ class JamfClient(Model):
 
     :param token: The access token used for authenticating API requests. Defaults to None.
     :type token: Optional[AccessToken]
-
-    :param max_concurrency: The maximum number of concurrent API calls allowed. Defaults to 5.
-    :type max_concurrency: int
-
-    :param ssl_path: The SSL verification paths used for SSL certificate verification.
-    :type ssl_path: ssl.DefaultVerifyPaths
-
-    :param custom_ca_file: Path to a custom Certificate Authority (CA) file for SSL verification.
-                           If provided, this file is used in place of the default CA paths.
-    :type custom_ca_file: Optional[Union[str, Path]]
     """
 
     client_id: AnyStr
     client_secret: AnyStr
     server: AnyStr
     token: Optional[AccessToken] = None
-    max_concurrency: int = 5
-    ssl_path: ssl.DefaultVerifyPaths = ssl.get_default_verify_paths()
-    custom_ca_file: Optional[Union[str, Path]] = None
-    _merged_cafile_path: Path = (
-        Path.home() / "Library" / "Application Support" / "Patcher" / "merged_cafile.pem"
-    )
 
     @staticmethod
     def valid_url(url: AnyStr) -> AnyStr:
@@ -111,45 +93,6 @@ class JamfClient(Model):
         """
         return cls.valid_url(v)
 
-    @classmethod
-    @field_validator("ssl_path", mode="before")
-    def validate_ssl_paths(cls, v):
-        """
-        Validates that the ``cafile`` property of the ``ssl_path`` is not ``None``.
-
-        This method ensures that the SSL certificate file is properly configured.
-        If the ``cafile`` property is ``None``, an ``SSLCertVerificationError`` is raised.
-
-        :param v: The ``ssl_path`` value to validate.
-        :type v: ssl.DefaultVerifyPaths
-        :raises ssl.SSLCertVerificationError: If the ``cafile`` property is ``None``.
-        :return: The validated ``ssl_path``.
-        :rtype: ssl.DefaultVerifyPaths
-        """
-        if v.cafile is None:
-            raise ssl.SSLCertVerificationError(
-                "SSL certificate file is missing or not configured properly, verification has failed."
-            )
-        return v
-
-    @classmethod
-    @field_validator("custom_ca_file", mode="before")
-    def validate_custom_ca(cls, v):
-        """
-        Validates the custom CA file path.
-
-        Ensures that the ``custom_ca_file`` path is provided as a string. If a ``Path``
-        object is provided, it is converted to a string.
-
-        :param v: The custom CA file path to validate.
-        :type v: Union[str, Path]
-        :return: The validated custom CA file path as a string.
-        :rtype: str
-        """
-        if isinstance(v, Path):
-            return str(v)
-        return v
-
     @property
     def base_url(self):
         """
@@ -161,87 +104,11 @@ class JamfClient(Model):
         return self.server
 
     @property
-    def cafile(self) -> str:
-        """
-        Gets the path to the CA file used for SSL verification.
-
-        If a custom CA file is provided, it is returned; otherwise, the default
-        CA file path is used.
-
-        :return: The path to the CA file used for SSL verification.
-        :rtype: str
-        """
-        if self.custom_ca_file:
-            return str(self._merged_cafile_path)
-        return self.ssl_path.cafile
-
-    def create_merged_cafile(self) -> None:
-        """
-        Creates a merged CA file that combines the default SSL CA certificates with a custom CA file.
-
-        The method checks if a custom CA file is provided. If so, it reads the default CA
-        certificates file and appends the contents of the custom CA file to it. The resulting
-        merged CA file is saved to the user's library, specifically in the
-        ``~/Library/Application Support/Patcher`` directory. This file is then used for SSL
-        verification in subsequent requests.
-
-        Should the merged CA file already exist, the method does nothing.
-
-        :raises FileNotFoundError: If the default or custom CA file cannot be found.
-        :example:
-
-        .. code-block:: console
-
-            $ patcherctl --custom-ca-file '/path/to/cafile.pem'
-
-        """
-        if not self.custom_ca_file:
-            return
-
-        if self._merged_cafile_path.exists():
-            return  # Merged file already exists
-
-        default_cafile = self.ssl_path.cafile
-
-        with open(default_cafile, "r") as default_file:
-            default_content = default_file.read()
-
-        with open(self.custom_ca_file, "r") as custom_file:
-            custom_content = custom_file.read()
-
-        merged_content = default_content + "\n" + custom_content
-
-        # Ensure directory exists
-        self._merged_cafile_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Write merged CA file content to persistent location
-        with open(self._merged_cafile_path, "w") as merged_file:
-            merged_file.write(merged_content)
-
-    def set_max_concurrency(self, concurrency: int):
-        """
-        Sets the maximum concurrency level for API calls.
-
-        This method allows you to set the maximum number of concurrent API calls
-        that can be made by the Jamf client. It is recommended to limit this value
-        to 5 connections to avoid overloading the Jamf server.
-
-        .. warning::
-            Changing this value could lead to your Jamf server being unable to perform other basic tasks. See the :ref:`Concurrency <concurrency>` option in the usage documentation.
-
-        It is **strongly recommended** to limit API call concurrency to no more than 5 connections.
-        See `Jamf Developer Guide <https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices>`_ for more information.
-
-        :param concurrency: The new maximum concurrency level.
-        :type concurrency: int
-        :raises ValueError: If the concurrency level is less than 1.
-        """
-        if concurrency < 1:
-            raise ValueError("Concurrency level must be at least 1. ")
-        self.max_concurrency = concurrency
+    def headers(self):
+        return {"accept": "application/json", "Authorization": f"Bearer {self.token}"}
 
 
-class ApiRole(Model):
+class ApiRoleModel(Model):
     """
     Represents an API role with specific privileges required for Patcher to operate.
 
@@ -273,7 +140,7 @@ class ApiRole(Model):
     ]
 
 
-class ApiClient(Model):
+class ApiClientModel(Model):
     """
     Represents an API client with specific authentication scopes and settings required for Patcher.
 

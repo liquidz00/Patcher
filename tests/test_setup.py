@@ -8,8 +8,13 @@ from src.patcher.utils import exceptions
 
 
 @pytest.fixture
-def setup_instance(config_manager, ui_config, mock_jamf_client):
-    instance = Setup(config=config_manager, ui_config=ui_config)
+def setup_instance(config_manager, ui_config, mock_jamf_client, api_client, token_manager):
+    instance = Setup(
+        config=config_manager,
+        ui_config=ui_config,
+        api_client=api_client,
+        token_manager=token_manager,
+    )
     instance.config.attach_client.return_value = mock_jamf_client
     return instance
 
@@ -46,29 +51,6 @@ def test_is_complete_error(setup_instance):
         with patch("plistlib.load", side_effect=Exception("plist read error")):
             with pytest.raises(exceptions.PlistError):
                 setup_instance._check_completion()
-
-
-# def test_greet(setup_instance):
-#     with patch("click.echo") as mock_click_echo:
-#         setup_instance._greet()
-#         assert mock_click_echo.call_count == 3
-#
-#
-# def test_setup_ui(setup_instance, ui_config):
-#     with patch(
-#         "click.prompt",
-#         side_effect=["Header", "Footer", "CustomFont", "/path/to/regular.ttf", "/path/to/bold.ttf"],
-#     ):
-#         with patch("click.confirm", return_value=True):
-#             with patch("os.makedirs") as mock_makedirs:
-#                 with patch("shutil.copy") as mock_shutil_copy:
-#                     with patch("configparser.ConfigParser.write") as mock_config_write:
-#                         with patch("builtins.open", mock_open()) as mock_file:
-#                             setup_instance._setup_ui()
-#                             mock_makedirs.assert_called()
-#                             mock_shutil_copy.assert_called()
-#                             mock_config_write.assert_called_once()
-#                             assert mock_file.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -163,7 +145,7 @@ async def test_first_run_completed(setup_instance):
 #                         with patch.object(
 #                             setup_instance.token_manager, "fetch_token", return_value=AsyncMock()
 #                         ):
-#                             with patch.object(setup_instance.token_manager, "save_token"):
+#                             with patch.object(setup_instance.token_manager, "_save_token"):
 #                                 with patch.object(setup_instance, "_setup_ui"):
 #                                     with patch.object(setup_instance, "_set_complete"):
 #                                         with patch("asyncio.sleep", return_value=AsyncMock()):
