@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
 import pytz
+from src.patcher.client import SSLContextManager
 from src.patcher.client.api_client import ApiClient
 from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.report_manager import ReportManager
@@ -14,7 +15,6 @@ from src.patcher.client.token_manager import TokenManager
 from src.patcher.models.jamf_client import JamfClient
 from src.patcher.models.patch import PatchTitle
 from src.patcher.models.token import AccessToken
-from src.patcher.client import SSLContextManager
 
 
 @pytest.fixture
@@ -433,11 +433,13 @@ def api_client(config_manager):
     concurrency = 10
     custom_ca_file = "/path/to/.pem"
 
-    with patch.object(SSLContextManager, 'create_ssl_context') as mock_create_ssl_context:
+    with patch.object(SSLContextManager, "create_ssl_context") as mock_create_ssl_context:
         mock_ssl_context = MagicMock()
         mock_create_ssl_context.return_value = mock_ssl_context
 
-        return ApiClient(config=config_manager, concurrency=concurrency, custom_ca_file=custom_ca_file)
+        return ApiClient(
+            config=config_manager, concurrency=concurrency, custom_ca_file=custom_ca_file
+        )
 
 
 @pytest.fixture

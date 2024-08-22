@@ -1,6 +1,7 @@
-import pytest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, call, patch
+
+import pytest
 from aiohttp import ClientResponseError
 from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.token_manager import TokenManager
