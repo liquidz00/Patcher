@@ -113,6 +113,7 @@ class BaseAPIClient:
     :type custom_ca_file: Optional[str]
 
     """
+
     def __init__(
         self,
         max_concurrency: int = 5,
