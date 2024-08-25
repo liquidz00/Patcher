@@ -384,21 +384,3 @@ class ApiClient(BaseAPIClient):
                     )
                 client_secret = secret_response.get("clientSecret")
         return client_id, client_secret
-
-    # TODO (v2) Installomator label fetching
-    # def fetch_labels(self):
-    #     command = "curl -s 'https://api.github.com/repos/Installomator/Installomator/contents/fragments/labels'"
-    #
-    #     try:
-    #         result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
-    #     except subprocess.CalledProcessError as e:
-    #         self.log.error(f"Unable to retrieve Installomator labels: {e}")
-    #         return None
-    #
-    #     try:
-    #         data = json.loads(result.stdout)
-    #     except json.JSONDecodeError as e:
-    #         self.log.error(f"Installomator labels response could not be decoded: {e}")
-    #         return None
-    #
-    #     return [item["name"].replace(".sh", "") for item in data if item["type"] == "file"]
