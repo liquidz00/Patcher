@@ -6,10 +6,12 @@ from typing import AnyStr, Dict, List, Optional, Tuple
 import aiohttp
 
 from patcher.utils.wrappers import check_token
+from ..models.app import AppTitle
 
 from ..models.jamf_client import ApiClientModel, ApiRoleModel
 from ..models.patch import PatchTitle
 from ..utils import exceptions, logger
+from ..utils.database import DataManager
 from . import BaseAPIClient
 from .config_manager import ConfigManager
 from .token_manager import TokenManager
@@ -121,7 +123,7 @@ class ApiClient(BaseAPIClient):
         ]
         summaries = await self.fetch_batch(urls, headers=self.jamf_client.headers)
 
-        policy_summaries = [
+        patch_titles = [
             PatchTitle(
                 title=summary.get("title"),
                 released=self.convert_timezone(summary.get("releaseDate")),
@@ -131,10 +133,21 @@ class ApiClient(BaseAPIClient):
             for summary in summaries
             if summary
         ]
+
+        # Create instance of DataManager to save PatchTitles to database
+        data_manager = DataManager()
+
+        for patch in patch_titles:
+            # Retrieve the app_title_id from the database, creating it if necessary
+            app_title_id = data_manager.find_or_add_id(app_title=AppTitle(title=patch.title))
+
+            # Proceed to add the patch title with the app_title_id
+            data_manager.add_patch(patch_title=patch, app_title_id=app_title_id)
+
         self.log.info(
-            f"Successfully obtained policy summaries for {len(policy_summaries)} policies."
+            f"Successfully obtained and stored policy summaries for {len(patch_titles)} policies."
         )
-        return policy_summaries
+        return patch_titles
 
     @check_token
     async def get_device_ids(self) -> Optional[List[int]]:
