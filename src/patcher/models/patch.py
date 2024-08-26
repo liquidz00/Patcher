@@ -1,8 +1,9 @@
-from typing import AnyStr
+from typing import AnyStr, Optional
 
 from pydantic import model_validator
 
 from . import Model
+from .app import AppTitle
 
 
 class PatchTitle(Model):
@@ -21,6 +22,8 @@ class PatchTitle(Model):
     :type completion_percent: float
     :ivar total_hosts: The total number of hosts.
     :type total_hosts: int
+    :ivar app_title: The related application title object.
+    :type app_title: Optional[AppTitle]
     """
 
     title: AnyStr
@@ -29,6 +32,7 @@ class PatchTitle(Model):
     missing_patch: int
     completion_percent: float = 0.0
     total_hosts: int = 0
+    app_title: Optional[AppTitle] = None
 
     # Calculate completion percent via model validator
     @model_validator(mode="after")
