@@ -207,7 +207,8 @@ class DataManager:
                 raise PatcherError(f"Error loading DataFrame from table {table_name}: {e}")
 
 
-class DbAgent(DataManager):
+# TODO: Handle PatchTitle gathering in some fashion
+class DBAgent(DataManager):
     def __init__(self):
         super().__init__()
         self.log = LogMe(self.__class__.__name__)

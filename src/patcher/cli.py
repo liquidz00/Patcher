@@ -14,7 +14,7 @@ from .models.reports.excel_report import ExcelReport
 from .models.reports.pdf_report import PDFReport
 from .utils.animation import Animation
 from .utils.logger import LogMe
-from .utils.database import DbAgent
+from .utils.database import DBAgent
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -82,7 +82,7 @@ async def cli(
 async def update(ctx: click.Context):
     """Updates all AppTitle objects in the database."""
     log = LogMe(__name__, debug=ctx.obj["DEBUG"])
-    db_agent = DbAgent()
+    db_agent = DBAgent()
     await db_agent.update()
     log.info("Database update completed as expected.")
     click.echo("Database update completed successfully!")
