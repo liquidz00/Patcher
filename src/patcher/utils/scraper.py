@@ -3,8 +3,8 @@ import subprocess
 from html.parser import HTMLParser
 from typing import List
 
-from .logger import LogMe
 from .exceptions import PatcherError
+from .logger import LogMe
 
 
 class SoftwareTitlesHTMLParser(HTMLParser):

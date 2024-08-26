@@ -13,8 +13,8 @@ from .client.ui_manager import UIConfigManager
 from .models.reports.excel_report import ExcelReport
 from .models.reports.pdf_report import PDFReport
 from .utils.animation import Animation
-from .utils.logger import LogMe
 from .utils.database import DBAgent
+from .utils.logger import LogMe
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024

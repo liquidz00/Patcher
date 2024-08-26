@@ -1,18 +1,19 @@
-import sqlite3
-import pandas as pd
 import asyncio
 import json
-import subprocess
 import re
-from typing import List, Dict, Union, Optional, Any, Tuple
-from pathlib import Path
+import sqlite3
+import subprocess
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import pandas as pd
 
 from ..models.app import AppTitle
+from ..models.patch import PatchTitle
 from .exceptions import PatcherError
 from .logger import LogMe
 from .scraper import Scraper
-from ..models.patch import PatchTitle
 
 
 class DataManager:
@@ -239,7 +240,9 @@ class DBAgent(DataManager):
         for app_name, app_path in installed_apps.items():
             bundle_id = self._get_bundle_ids(app_path).get(app_path)
             from_mas = self._mas(app_path)
-            team_id, installomator_label = self._get_installomator_data(app_name, installomator_labels)
+            team_id, installomator_label = self._get_installomator_data(
+                app_name, installomator_labels
+            )
 
             # Create AppTitle object
             app = AppTitle(
@@ -248,7 +251,7 @@ class DBAgent(DataManager):
                 team_id=team_id,
                 mas=from_mas,
                 installomator_label=installomator_label,
-                jamf_supported=(app_name in jamf_titles)
+                jamf_supported=(app_name in jamf_titles),
             )
 
             # Fetch and update CVE data for app
@@ -273,7 +276,9 @@ class DBAgent(DataManager):
         """Determines if an app was installed from the Mac App Store."""
         return (Path(app_path) / "Contents/_MASReceipt").exists()
 
-    def _get_installomator_data(self, app_name: str, labels: List[str]) -> Tuple[Optional[str], Optional[str]]:
+    def _get_installomator_data(
+        self, app_name: str, labels: List[str]
+    ) -> Tuple[Optional[str], Optional[str]]:
         """Get the team ID and Installomator label for a given applications."""
         label_match = next((label for label in labels if label.lower() == app_name.lower()), None)
         if label_match:
