@@ -66,13 +66,6 @@ class Setup:
         self._completed = None
         self.animator = Animation()
 
-    # Prerequisites
-    def _preflight(self):
-        # TODO
-        # Setup database
-        # Download installomator labels, append to database
-        pass
-
     @property
     def completed(self) -> bool:
         """
