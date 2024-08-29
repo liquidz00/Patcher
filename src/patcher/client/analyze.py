@@ -1,124 +1,59 @@
-import os
-import sqlite3
-from datetime import datetime, timedelta, timezone
-from typing import AnyStr, Dict, List, Tuple
+from pathlib import Path
+from typing import AnyStr, List, Optional
 
-import aiohttp
 import pandas as pd
-from rapidfuzz import process
 
 from ..models.patch import PatchTitle
-from ..utils import exceptions, logger
+from ..utils import database, exceptions, logger
+from .api_client import ApiClient
+from .config_manager import ConfigManager
+from .token_manager import TokenManager
 
 # TODO
 # 2. Iron out accurate installomator labels
 # 3. Analysis based on PatchTitle criteria (completion percent, release date, etc.)
-# 4. Jamf app installer support?
-# 5. Iron out CVE data gathering and formatting
-
-DATABASE = os.path.expanduser("~/Library/Application Support/Patcher/.patcher.db")
-LABELS = os.path.expanduser("~/Library/Application Support/Patcher/installomator_labels")
 
 
 class Analyzer:
-    def __init__(self, titles: List[PatchTitle]):
-        self.patch_titles = titles
-        self.labels = self._fetch()
-        self.dataframe = pd.DataFrame()
+    def __init__(self, config: ConfigManager, concurrency: int, custom_ca_file: Optional[str]):
         self.log = logger.LogMe(self.__class__.__name__)
 
-    async def initialize_dataframe(self):
-        records = []
+        self.config = config
+        self.token_manager = TokenManager(config)
+        self.api = ApiClient(config=config, concurrency=concurrency, custom_ca_file=custom_ca_file)
+        self.jamf_client = config.attach_client()
+        if not self.jamf_client:
+            self.log.error("Invalid JamfClient configuration detected!")
+            raise ValueError("Invalid JamfClient configuration detected!")
 
-        for patch_title in self.patch_titles:
-            cves = await self.fetch_criticals(patch_title.title)
-            label, _ = self._match(patch_title.title)
-            record = {
-                "Software Title": patch_title.title,
-                "Installomator Label": label,
-                "CVE Count": len(cves),
-                "CVE Details": ", ".join(cves) if cves else "None",
-                "Completion Percentage": patch_title.completion_percent,
-            }
-            records.append(record)
+        self.labels_dir = Path.home() / "Library" / "Application Support" / "Patcher" / ".labels"
+        self.db = self.labels_dir.parent / ".patcher.db"
 
-        self.dataframe = pd.DataFrame(records)
+        self.dataframe = pd.DataFrame()
+        self.db_agent = database.DBAgent()
 
-        conn = sqlite3.connect(DATABASE)
-        self.dataframe.to_sql("software_analysis", conn, if_exists="replace", index=False)
-        conn.close()
+        self.patch_titles: List[PatchTitle] = []
 
-    def _get_titles(self):
-        return [patch.title for patch in self.patch_titles]
+    def _check_db(self) -> bool:
+        """Checks for the presence of PatchTitles within the Patcher database."""
+        return self.db_agent.has_patches
 
-    # Get installomator labels for titles
-    @staticmethod
-    def _fetch() -> Dict[str, str]:
-        conn = sqlite3.connect(DATABASE)
-        c = conn.cursor()
-
-        c.execute("SELECT application_title, installomator_label FROM labels")
-        results = c.fetchall()
-        c.close()
-
-        return {title: label for title, label in results}
-
-    def _match(self, title: str) -> Tuple[str, str]:
-        threshold = 90
-        matched_title, score, _ = process.extractOne(
-            title, self.labels.keys(), score_cutoff=threshold
-        )
-        if matched_title:
-            return matched_title, self.labels.get(matched_title)
-        return title, "Unsupported"
-
-    def map(self, patch_titles: List[PatchTitle]) -> Dict[str, str]:
-        mapped_titles = {}
-
+    async def _get_patches(self) -> None:
+        policies = await self.api.get_policies()
+        if not policies:
+            self.log.error("Unable to retrieve PatchTitle IDs for analysis.")
+            raise exceptions.PatcherError("Unable to retrieve PatchTitle objects for analysis.")
+        patch_titles = await self.api.get_summaries(policy_ids=policies)
+        if not patch_titles:
+            self.log.error("Unable to retrieve PatchTitle summaries for analysis")
+            raise exceptions.PatcherError("Unable to retrieve PatchTitle summaries for analysis.")
         for title in patch_titles:
-            matched_title, matched_label = self._match(title.title)
-            mapped_titles[title.title] = matched_label
+            self.patch_titles.append(title)
 
-        return mapped_titles
-
-    async def fetch_cve_data(
-        self, session: aiohttp.ClientSession, title: str, severity: str
-    ) -> List[str]:
-        url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-        end_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-        start_date = (datetime.now(timezone.utc) - timedelta(days=30)).strftime(
-            "%Y-%m-%dT%H:%M:%S.%f"
-        )[:-3] + "Z"
-
-        params = {
-            "keywordSearch": title,
-            "resultsPerPage": 20,
-            "startIndex": 0,
-            "pubStartDate": start_date,
-            "pubEndDate": end_date,
-            "cvssV3Severity": severity,
-        }
-
-        headers = {"apiKey": "c12c82dd-2205-425c-893a-407a583184a0"}
-
-        try:
-            async with session.get(url=url, params=params, headers=headers) as resp:
-                resp.raise_for_status()
-                cves = await resp.json()
-                cve_ids = [cve["cve"]["id"] for cve in cves.get("vulnerabilities", [])]
-        except aiohttp.ClientResponseError as e:
-            self.log.error(f"Error fetching {severity} CVE data for {title}: {e}")
-            raise exceptions.PatcherError(message=f"Error fetching {severity} CVE data for {title}")
-
-        return cve_ids
-
-    async def fetch_criticals(self, title: str) -> List[str]:
-        async with aiohttp.ClientSession() as session:
-            high_cves = await self.fetch_cve_data(session=session, title=title, severity="HIGH")
-            critical_cves = await self.fetch_cve_data(
-                session=session, title=title, severity="CRITICAL"
-            )
-            return high_cves + critical_cves
+    async def initialize_dataframe(self):
+        if not self._check_db():
+            self.log.info(f"PatchTitle objects missing from database: {self.db_agent.db_path}")
+            await self._get_patches()
 
     @staticmethod
     def format_table(data, headers=None):
