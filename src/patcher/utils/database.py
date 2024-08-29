@@ -389,6 +389,23 @@ class DBAgent(DataManager):
         else:
             return None
 
+    def return_app_titles(self) -> List[AppTitle]:
+        app_titles = []
+
+        query = "SELECT title, bundle_id, team_id, mas, installomator_label, jamf_supported FROM app_titles"
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+            for row in rows:
+                app_title = AppTitle(**row)
+                app_titles.append(app_title)
+
+        return app_titles
+
     def return_all(self) -> List[PatchTitle]:
         titles = []
 
