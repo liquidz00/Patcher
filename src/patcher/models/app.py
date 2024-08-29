@@ -16,10 +16,8 @@ class AppTitle(Model):
     jamf_supported: Optional[bool] = False
 
     @classmethod
-    @field_validator("mas", mode="before")
-    def check_mas(cls, v, values):
-        if not v and "name" in values:
-            app_path = values["name"]
-            mas_receipt_path = os.path.join(app_path, "Contents", "_MASReceipt")
-            return os.path.isdir(mas_receipt_path)
+    @field_validator("team_id", mode="before")
+    def check_team_id(cls, v):
+        if len(v) != 10:
+            raise ValueError("team_id must be exactly 10 characters long.")
         return v
