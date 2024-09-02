@@ -11,9 +11,9 @@ from ..models.app import AppTitle
 from ..models.label import Label
 from ..models.patch import PatchTitle
 from .exceptions import DatabaseError
+from .installomator import Installomator
 from .logger import LogMe
 from .scraper import Scraper
-from .installomator import Installomator
 
 
 class DataManager:

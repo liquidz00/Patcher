@@ -3,10 +3,11 @@ import json
 import re
 import subprocess
 from pathlib import Path
-from typing import Optional, List, Dict, Any
-from .logger import LogMe
-from .exceptions import InstallomatorError
+from typing import Any, Dict, List, Optional
+
 from ..models.label import Label
+from .exceptions import InstallomatorError
+from .logger import LogMe
 
 
 class Installomator:

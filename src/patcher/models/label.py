@@ -1,6 +1,8 @@
-from . import Model
-from pydantic import field_validator
 from typing import Any
+
+from pydantic import field_validator
+
+from . import Model
 
 
 class Label(Model):

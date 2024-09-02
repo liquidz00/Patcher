@@ -1,5 +1,5 @@
-from typing import List, Optional
 import urllib.parse
+from typing import List, Optional
 
 from pydantic import field_validator, model_validator
 
