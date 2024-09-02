@@ -44,8 +44,8 @@ class DatabaseError(PatcherError):
 
     default_message = "There was an error fetching data from the database."
 
-    def __init__(self, table: Optional[str] = None):
-        super().__init__(table=table)
+    def __init__(self, reason: Optional[str] = None):
+        super().__init__(reason=reason)
 
 
 class TokenFetchError(PatcherError):
