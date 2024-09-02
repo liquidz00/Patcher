@@ -1,7 +1,7 @@
 import json
 import subprocess
 from datetime import datetime
-from typing import AnyStr, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import aiohttp
 
@@ -59,14 +59,14 @@ class ApiClient(BaseAPIClient):
         super().__init__(max_concurrency=concurrency, custom_ca_file=custom_ca_file)
 
     # Utility function
-    def convert_timezone(self, utc_time_str: AnyStr) -> Optional[AnyStr]:
+    def convert_timezone(self, utc_time_str: str) -> Optional[str]:
         """
         Converts a UTC time string to a formatted string without timezone information.
 
         :param utc_time_str: UTC time string in ISO 8601 format (e.g., "2023-08-09T12:34:56+0000").
-        :type utc_time_str: AnyStr
+        :type utc_time_str: str
         :return: Formatted date string (e.g., "Aug 09 2023") or None if the input format is invalid.
-        :rtype: Optional[AnyStr]
+        :rtype: Optional[str]
         """
         try:
             utc_time = datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S%z")
@@ -164,9 +164,7 @@ class ApiClient(BaseAPIClient):
         return [device.get("id") for device in devices if device]
 
     @check_token
-    async def get_device_os_versions(
-        self, device_ids: List[int]
-    ) -> Optional[List[Dict[AnyStr, AnyStr]]]:
+    async def get_device_os_versions(self, device_ids: List[int]) -> Optional[List[Dict[str, str]]]:
         """
         Asynchronously fetches the OS version and serial number for each device ID provided.
         This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
@@ -174,7 +172,7 @@ class ApiClient(BaseAPIClient):
         :param device_ids: A list of mobile device IDs to retrieve information for.
         :type device_ids: List[int]
         :return: A list of dictionaries containing the serial numbers and OS versions, or None on error.
-        :rtype: Optional[List[Dict[AnyStr, AnyStr]]]
+        :rtype: Optional[List[Dict[str, str]]]
         """
         urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
         subsets = await self.fetch_batch(urls, headers=self.jamf_client.headers)
@@ -194,7 +192,7 @@ class ApiClient(BaseAPIClient):
         self.log.info(f"Successfully obtained OS versions for {len(devices)} devices.")
         return devices
 
-    def get_sofa_feed(self) -> Optional[List[Dict[AnyStr, AnyStr]]]:
+    def get_sofa_feed(self) -> Optional[List[Dict[str, str]]]:
         """
         Fetches iOS Data feeds from SOFA and extracts latest OS version information.
         To limit the amount of possible SSL verification checks, this method utilizes a subprocess call
@@ -203,7 +201,7 @@ class ApiClient(BaseAPIClient):
 
         :return: A list of dictionaries containing base OS versions, latest iOS versions and release dates,
                 or None on error.
-        :rtype: Optional[List[Dict[AnyStr, AnyStr]]]
+        :rtype: Optional[List[Dict[str, str]]]
         """
 
         # Utilize curl to avoid SSL Verification errors for end-users on managed devices
@@ -236,7 +234,7 @@ class ApiClient(BaseAPIClient):
 
     # -- SETUP CALLS -- #
     async def fetch_basic_token(
-        self, password: AnyStr, username: AnyStr, jamf_url: Optional[AnyStr] = None
+        self, password: str, username: str, jamf_url: Optional[str] = None
     ) -> Optional[str]:
         """
         Asynchronously retrieves a bearer token using basic authentication.
@@ -245,11 +243,11 @@ class ApiClient(BaseAPIClient):
         It should not be used for regular token retrieval after setup.
 
         :param username: Username of admin Jamf Pro account for authentication. Not permanently stored, only used for initial token retrieval.
-        :type username: AnyStr
+        :type username: str
         :param password: Password of admin Jamf Pro account. Not permanently stored, only used for initial token retrieval.
-        :type password: AnyStr
+        :type password: str
         :param jamf_url: Jamf Server URL (same as ``server_url`` in :mod:`patcher.models.jamf_client` class).
-        :type jamf_url: Optional[AnyStr]
+        :type jamf_url: Optional[str]
         :raises exceptions.TokenFetchError: If the call is unauthorized or unsuccessful.
         :returns: True if the basic token was successfully retrieved, False if unauthorized (e.g., due to SSO).
         :rtype: bool
@@ -288,12 +286,12 @@ class ApiClient(BaseAPIClient):
 
                     return response.get("token")
 
-    async def create_roles(self, token: AnyStr) -> bool:
+    async def create_roles(self, token: str) -> bool:
         """
         Creates the necessary API roles using the provided bearer token.
 
         :param token: The bearer token to use for authentication. Defaults to the stored token if not provided.
-        :type token: Optional[AnyStr]
+        :type token: Optional[str]
         :return: True if roles were successfully created, False otherwise.
         :rtype: bool
         :raises aiohttp.ClientError: If there is an error making the HTTP request.
@@ -320,16 +318,16 @@ class ApiClient(BaseAPIClient):
                 resp.raise_for_status()
                 return resp.status == 200
 
-    async def create_client(self, token: AnyStr) -> Tuple[AnyStr, AnyStr]:
+    async def create_client(self, token: str) -> Tuple[str, str]:
         """
         Creates an API client and retrieves its client ID and client secret.
 
         This method uses the provided bearer token to create a new API client in the Jamf server.
 
         :param token: The bearer token to use for authentication. Defaults to the stored token if not provided.
-        :type token: Optional[AnyStr]
+        :type token: Optional[str]
         :return: A tuple containing the client ID and client secret.
-        :rtype: Tuple[AnyStr, AnyStr]
+        :rtype: Tuple[str, str]
         :raises aiohttp.ClientError: If there is an error making the HTTP request.
         """
 

@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from typing import AnyStr
 
 from pydantic import Field
 
@@ -15,12 +14,12 @@ class AccessToken(Model):
     remaining before it expires.
 
     :param token: The access token string used for authentication.
-    :type token: AnyStr
+    :type token: str
     :param expires: The expiration datetime of the token. The default is set to January 1, 1970.
     :type expires: datetime
     """
 
-    token: AnyStr = ""
+    token: str = ""
     expires: datetime = Field(default_factory=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc))
 
     def __str__(self):

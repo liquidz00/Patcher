@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import AnyStr, Union
+from typing import Union
 
 import pandas as pd
 from fpdf import FPDF
@@ -104,7 +104,7 @@ class PDFReport(FPDF):
         self.cell(0, 10, footer_text, 0, 0, "R")
 
     def export_excel_to_pdf(
-        self, excel_file: Union[str, Path], date_format: AnyStr = "%B %d %Y"
+        self, excel_file: Union[str, Path], date_format: str = "%B %d %Y"
     ) -> None:
         """
         Creates a PDF report from an Excel file containing patch data.
@@ -116,7 +116,7 @@ class PDFReport(FPDF):
         :param excel_file: Path to the Excel file to convert to PDF.
         :type excel_file: Union[str, Path]
         :param date_format: The date format string for the PDF report header.
-        :type date_format: AnyStr
+        :type date_format: str
         """
         try:
             # Read excel file

@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import AnyStr, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import asyncclick as click
 
@@ -70,8 +70,8 @@ class ReportManager:
 
     def calculate_ios_on_latest(
         self,
-        device_versions: List[Dict[AnyStr, AnyStr]],
-        latest_versions: List[Dict[AnyStr, AnyStr]],
+        device_versions: List[Dict[str, str]],
+        latest_versions: List[Dict[str, str]],
     ) -> Optional[List[PatchTitle]]:
         """
         Analyzes the iOS version data to determine how many enrolled devices are on the latest version.
@@ -80,9 +80,9 @@ class ReportManager:
         provided by the SOFA feed, calculating how many devices are fully updated.
 
         :param device_versions: A list of dictionaries containing devices and their respective iOS versions.
-        :type device_versions: List[Dict[AnyStr, AnyStr]]
+        :type device_versions: List[Dict[str, str]]
         :param latest_versions: A list of the most recent iOS versions available.
-        :type latest_versions: List[Dict[AnyStr, AnyStr]]
+        :type latest_versions: List[Dict[str, str]]
         :return: A list of ``PatchTitle`` objects, each representing a summary of the patch status for an iOS version.
         :rtype: Optional[List[PatchTitle]]
 
@@ -129,10 +129,10 @@ class ReportManager:
         self,
         path: Union[str, Path],
         pdf: bool,
-        sort: Optional[AnyStr],
+        sort: Optional[str],
         omit: bool,
         ios: bool,
-        date_format: AnyStr = "%B %d %Y",
+        date_format: str = "%B %d %Y",
     ) -> None:
         """
         Asynchronously generates and saves patch reports, with options for customization.
@@ -148,7 +148,7 @@ class ReportManager:
         :type pdf: bool
 
         :param sort: Specifies the column by which to sort the reports (e.g., 'released' or 'completion_percent').
-        :type sort: Optional[AnyStr]
+        :type sort: Optional[str]
 
         :param omit: If True, omits patches that were released within the last 48 hours.
         :type omit: bool
@@ -157,7 +157,7 @@ class ReportManager:
         :type ios: bool
 
         :param date_format: Specifies the date format for headers in the reports. Default is "%B %d %Y" (Month Day Year).
-        :type date_format: AnyStr
+        :type date_format: str
 
         :return: None
         :rtype: None
@@ -243,7 +243,7 @@ class ReportManager:
             self.log.error(f"Failed to create directory: {e}")
             raise exceptions.DirectoryCreationError()
 
-    def _sort(self, patch_reports: List[PatchTitle], sort_key: AnyStr) -> List[PatchTitle]:
+    def _sort(self, patch_reports: List[PatchTitle], sort_key: str) -> List[PatchTitle]:
         self.log.debug(f"Detected sorting option '{sort_key}'")
         sort_key = sort_key.lower().replace(" ", "_")
         try:
@@ -316,7 +316,7 @@ class ReportManager:
             self.log.error(f"Error exporting to excel: {e}")
             raise exceptions.ExportError()
 
-    def _generate_pdf(self, reports_dir: str, date_format: AnyStr) -> None:
+    def _generate_pdf(self, reports_dir: str, date_format: str) -> None:
         self.log.debug("Generating PDF file...")
         try:
             pdf_report = PDFReport(self.ui_config)

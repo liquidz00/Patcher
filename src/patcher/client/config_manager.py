@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import AnyStr, Optional
+from typing import Optional
 
 import keyring
 from pydantic import ValidationError
@@ -17,7 +17,7 @@ class ConfigManager:
     API tokens and client credentials. It integrates with the ``keyring`` library to interface with the macOS keychain.
     """
 
-    def __init__(self, service_name: AnyStr = "Patcher"):
+    def __init__(self, service_name: str = "Patcher"):
         """
         Initializes the ConfigManager with a specific service name.
 
@@ -26,7 +26,7 @@ class ConfigManager:
 
         :param service_name: The name of the service for storing credentials in the keyring.
             Defaults to 'Patcher'.
-        :type service_name: AnyStr
+        :type service_name: str
         :example:
 
         .. code-block:: python
@@ -37,7 +37,7 @@ class ConfigManager:
         self.service_name = service_name
         self.log.debug(f"Initializing ConfigManager with service name: {service_name}")
 
-    def get_credential(self, key: AnyStr) -> AnyStr:
+    def get_credential(self, key: str) -> str:
         """
         Retrieves a specified credential from the keyring associated with the given key.
 
@@ -45,9 +45,9 @@ class ConfigManager:
         It ensures that sensitive data like passwords or API tokens are securely stored and retrieved.
 
         :param key: The key of the credential to retrieve, typically a descriptive name like 'API_KEY'.
-        :type key: AnyStr
+        :type key: str
         :return: The retrieved credential value. If the key does not exist, returns ``None``.
-        :rtype: AnyStr
+        :rtype: str
         :example:
 
         .. code-block:: python
@@ -62,7 +62,7 @@ class ConfigManager:
             self.log.warning(f"No credential found for key: {key}")
         return credential
 
-    def set_credential(self, key: AnyStr, value: AnyStr):
+    def set_credential(self, key: str, value: str):
         """
         Stores a credential in the keyring under the specified key.
 
@@ -70,9 +70,9 @@ class ConfigManager:
         and passwords.
 
         :param key: The key under which the credential will be stored. This acts as an identifier for the credential.
-        :type key: AnyStr
+        :type key: str
         :param value: The value of the credential to store, such as a password or API token.
-        :type value: AnyStr
+        :type value: str
         """
         self.log.debug(f"Setting credential for key: {key}")
         keyring.set_password(self.service_name, key, value)

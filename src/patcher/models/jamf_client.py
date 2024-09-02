@@ -1,4 +1,4 @@
-from typing import AnyStr, List, Optional
+from typing import List, Optional
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import field_validator
@@ -16,25 +16,25 @@ class JamfClient(Model):
     settings.
 
     :param client_id: The client ID used for authentication with the Jamf API.
-    :type client_id: AnyStr
+    :type client_id: str
 
     :param client_secret: The client secret used for authentication with the Jamf API.
-    :type client_secret: AnyStr
+    :type client_secret: str
 
     :param server: The server URL for the Jamf API.
-    :type server: AnyStr
+    :type server: str
 
     :param token: The access token used for authenticating API requests. Defaults to None.
     :type token: Optional[AccessToken]
     """
 
-    client_id: AnyStr
-    client_secret: AnyStr
-    server: AnyStr
+    client_id: str
+    client_secret: str
+    server: str
     token: Optional[AccessToken] = None
 
     @staticmethod
-    def valid_url(url: AnyStr) -> AnyStr:
+    def valid_url(url: str) -> str:
         """
         Validates and formats a URL to ensure it has the correct scheme and structure.
 
@@ -43,9 +43,9 @@ class JamfClient(Model):
         The method returns the validated and correctly formatted URL.
 
         :param url: The URL to validate and format.
-        :type url: AnyStr
+        :type url: str
         :return: The validated and formatted URL.
-        :rtype: AnyStr
+        :rtype: str
         """
         parsed_url = urlparse(url=url)
         scheme = "https" if not parsed_url.scheme else parsed_url.scheme
@@ -68,10 +68,10 @@ class JamfClient(Model):
         a ``ValueError`` if they are.
 
         :param value: The value to validate.
-        :type value: AnyStr
+        :type value: str
         :raises ValueError: If the value is empty.
         :return: The validated value.
-        :rtype: AnyStr
+        :rtype: str
         """
         if not value:
             raise ValueError("Field cannot be empty")
@@ -87,9 +87,9 @@ class JamfClient(Model):
         formatted URL by calling the ``valid_url`` method.
 
         :param v: The server URL to validate.
-        :type v: AnyStr
+        :type v: str
         :return: The validated and formatted server URL.
-        :rtype: AnyStr
+        :rtype: str
         """
         return cls.valid_url(v)
 
@@ -99,7 +99,7 @@ class JamfClient(Model):
         Gets the base URL of the Jamf server.
 
         :return: The base URL of the Jamf server.
-        :rtype: AnyStr
+        :rtype: str
         """
         return self.server
 
@@ -117,14 +117,14 @@ class ApiRoleModel(Model):
     permissions within the Jamf API.
 
     :ivar display_name: The name of the API role.
-    :type display_name: AnyStr
+    :type display_name: str
     :ivar privileges: A list of privileges assigned to the API role. These privileges
                       determine the actions that the role can perform.
-    :type privileges: List[AnyStr]
+    :type privileges: List[str]
     """
 
-    display_name: AnyStr = "Patcher-Role"
-    privileges: List[AnyStr] = [
+    display_name: str = "Patcher-Role"
+    privileges: List[str] = [
         "Read Patch Management Software Titles",
         "Read Patch Policies",
         "Read Mobile Devices",
@@ -149,9 +149,9 @@ class ApiClientModel(Model):
 
     :ivar auth_scopes: A list of authentication scopes assigned to the API client. These
                        scopes define the level of access the client has.
-    :type auth_scopes: List[AnyStr]
+    :type auth_scopes: List[str]
     :ivar display_name: The name of the API client.
-    :type display_name: AnyStr
+    :type display_name: str
     :ivar enabled: Indicates whether the API client is currently enabled or disabled.
     :type enabled: bool
     :ivar token_lifetime: The lifetime of the access token in seconds. This value
@@ -159,7 +159,7 @@ class ApiClientModel(Model):
     :type token_lifetime: int
     """
 
-    auth_scopes: List[AnyStr] = ["Patcher-Role"]
-    display_name: AnyStr = "Patcher-Client"
+    auth_scopes: List[str] = ["Patcher-Role"]
+    display_name: str = "Patcher-Client"
     enabled: bool = True
     token_lifetime: int = 1800

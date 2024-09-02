@@ -1,7 +1,7 @@
 import asyncio
 import ssl
 from pathlib import Path
-from typing import AnyStr, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import aiohttp
 
@@ -165,13 +165,13 @@ class BaseAPIClient:
         self.max_concurrency = concurrency
 
     async def fetch_json(
-        self, url: AnyStr, headers: Optional[Dict[str, str]] = None
+        self, url: str, headers: Optional[Dict[str, str]] = None
     ) -> Optional[Dict]:
         """
         Fetches JSON data from a specified URL asynchronously.
 
         :param url: URL to fetch the JSON data from.
-        :type url: AnyStr
+        :type url: str
         :param headers:
         :type headers: Optional[Dict[str, str]]
         :return: JSON data as a dictionary or None if an error occurs.
@@ -199,7 +199,7 @@ class BaseAPIClient:
         return None
 
     async def fetch_batch(
-        self, urls: List[AnyStr], headers: Optional[Dict[str, str]] = None
+        self, urls: List[str], headers: Optional[Dict[str, str]] = None
     ) -> List[Optional[Dict]]:
         """
         Fetches JSON data in batches to respect the concurrency limit. Data is fetched
@@ -207,7 +207,7 @@ class BaseAPIClient:
         requests are sent concurrently.
 
         :param urls: List of URLs to fetch data from.
-        :type urls: List[AnyStr]
+        :type urls: List[str]
         :param headers:
         :type headers: Optional[Dict[str, str]] = None
         :return: A list of JSON dictionaries or None for URLs that fail to retrieve data.

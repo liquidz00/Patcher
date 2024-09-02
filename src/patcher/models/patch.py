@@ -1,4 +1,4 @@
-from typing import AnyStr, Optional
+from typing import Optional
 
 from pydantic import model_validator
 
@@ -11,9 +11,9 @@ class PatchTitle(Model):
     Represents patch software title information retrieved via API calls.
 
     :ivar title: The name of the patch title.
-    :type title: AnyStr
+    :type title: str
     :ivar released: The release date of the patch title.
-    :type released: AnyStr
+    :type released: str
     :ivar hosts_patched: The number of hosts that have applied the patch.
     :type hosts_patched: int
     :ivar missing_patch: The number of hosts missing the patch.
@@ -26,8 +26,8 @@ class PatchTitle(Model):
     :type app_title: Optional[AppTitle]
     """
 
-    title: AnyStr
-    released: AnyStr
+    title: str
+    released: str
     hosts_patched: int
     missing_patch: int
     completion_percent: float = 0.0

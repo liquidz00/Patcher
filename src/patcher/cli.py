@@ -1,5 +1,5 @@
 import asyncio
-from typing import AnyStr, Optional
+from typing import Optional
 
 import asyncclick as click
 
@@ -170,11 +170,11 @@ async def setup(ctx: click.Context, reset: bool):
 @click.pass_context
 async def export(
     ctx: click.Context,
-    path: AnyStr,
+    path: str,
     pdf: bool,
-    sort: Optional[AnyStr],
+    sort: Optional[str],
     omit: bool,
-    date_format: AnyStr,
+    date_format: str,
     ios: bool,
 ) -> None:
     debug = ctx.obj["DEBUG"]
