@@ -247,8 +247,8 @@ class DataManager:
             "app_title_id": app_title_id,
             "name": label.name,
             "type": label.type,
-            "team_id": label.expectedTeamID,
-            "installomator_label": label.installomatorLabel,
+            "team_id": label.expected_team_id,
+            "installomator_label": label.installomator_label,
         }
 
         self._upsert(table="labels", data=data, unique_keys=["name"])
@@ -416,9 +416,9 @@ class DBAgent(DataManager):
         label_fields = {
             "name": "label_name",
             "type": "label_type",
-            "downloadURL": "label_download_url",
-            "expectedTeamID": "expected_team_id",
-            "installomatorLabel": "installomator_label",
+            # "downloadURL": "label_download_url",  # Property will be used in future versions
+            "expected_team_id": "expected_team_id",
+            "installomator_label": "installomator_label",
         }
 
         combined_rows = self._execute(
