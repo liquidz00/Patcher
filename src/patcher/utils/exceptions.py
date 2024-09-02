@@ -48,6 +48,15 @@ class DatabaseError(PatcherError):
         super().__init__(reason=reason)
 
 
+class InstallomatorError(PatcherError):
+    """Raised when there is an issue reading or writing data to the SQLite database."""
+
+    default_message = "Encountered error retrieving Installomator information."
+
+    def __init__(self, reason: Optional[str] = None):
+        super().__init__(reason=reason)
+
+
 class TokenFetchError(PatcherError):
     """Raised when there is an error fetching a bearer token from Jamf API."""
 
