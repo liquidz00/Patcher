@@ -1,22 +1,30 @@
 import asyncio
-import json
-import re
 import sqlite3
 import subprocess
-from datetime import datetime, timedelta, timezone
+import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
 from ..models.app import AppTitle
+from ..models.label import Label
 from ..models.patch import PatchTitle
-from .exceptions import PatcherError
+from .exceptions import DatabaseError
 from .logger import LogMe
 from .scraper import Scraper
+from .installomator import Installomator
 
 
 class DataManager:
+    """
+    Manages database operations for handling app and patch data.
+
+    Attributes:
+        db_path (Path): Path to the SQLite database file.
+        log (LogMe): Logger instance for logging operations.
+    """
+
     def __init__(self):
         self.db_path = Path.home() / "Library" / "Application Support" / "Patcher" / ".patcher.db"
         self.log = LogMe(self.__class__.__name__)
@@ -36,11 +44,10 @@ class DataManager:
                 """
                 CREATE TABLE IF NOT EXISTS app_titles (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title TEXT NOT NULL UNIQUE,
+                    title TEXT NOT NULL UNIQUE COLLATE NOCASE,  -- Original, formatted version (Set case-insensitive)
+                    normalized_title TEXT NOT NULL COLLATE NOCASE,  -- Normalized version for searching/querying
                     bundle_id TEXT,
-                    team_id TEXT,
                     mas INTEGER NOT NULL, -- Boolean: 0 or 1
-                    installomator_label TEXT,
                     jamf_supported INTEGER DEFAULT 0 -- Boolean: 0 or 1
                 )
             """
@@ -63,24 +70,46 @@ class DataManager:
             """
             )
 
-            # Create cve_data table
+            # Create installomator labels table
             c.execute(
                 """
-                CREATE TABLE IF NOT EXISTS cve_data (
+                CREATE TABLE IF NOT EXISTS labels (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    app_title_id INTEGER NOT NULL,
-                    cve_id TEXT NOT NULL,
-                    severity TEXT NOT NULL,
-                    FOREIGN KEY (app_title_id) REFERENCES app_titles(id),
-                    UNIQUE(app_title_id, cve_id)
+                    app_title_id INTEGER,  -- Allow NULL for labels with no associated AppTitle
+                    name TEXT NOT NULL UNIQUE COLLATE NOCASE,  -- Ensure each label name is unique and case-insensitive
+                    type TEXT,
+                    team_id TEXT NOT NULL,
+                    installomator_label TEXT,
+                    FOREIGN KEY (app_title_id) REFERENCES app_titles(id)
                 )
             """
             )
 
             conn.commit()
 
-    def _upsert(self, table: str, data: Dict[str, Any], unique_keys: List[str]):
-        """Perform an upsert operations (insert or update) based on unique keys."""
+    def _connect(self) -> sqlite3.Connection:
+        """Establishes a connection to the SQLite database."""
+        return sqlite3.connect(self.db_path)
+
+    def _execute(self, query: str, params: Tuple = ()) -> Optional[List[sqlite3.Row]]:
+        """Executes a database query and returns the results."""
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute(query, params)
+            return c.fetchall()
+
+    def _upsert(self, table: str, data: Dict[str, Any], unique_keys: List[str]) -> None:
+        """
+        Perform an upsert operation (insert or update) based on unique keys.
+
+        :param table: Name of the table to perform the operation within.
+        :type table: str
+        :param data: Data dictionary to insert or update.
+        :type data: Dict[str, Any]
+        :param unique_keys: List of keys to ensure uniqueness.
+        :type unique_keys: List[str]
+        """
         columns = ", ".join(data.keys())
         placeholders = ", ".join(["?"] * len(data))
         update_clause = ", ".join(
@@ -93,57 +122,94 @@ class DataManager:
             ON CONFLICT({", ".join(unique_keys)}) DO UPDATE SET {update_clause}
         """
 
-        with sqlite3.connect(self.db_path) as conn:
-            c = conn.cursor()
-            c.execute(query, tuple(data.values()))
+        with self._connect() as conn:
+            conn.execute(query, tuple(data.values()))
             conn.commit()
 
     def _get_id(self, table: str, conditions: Dict[str, Any]) -> Optional[int]:
-        """Retrieve the ID of a record based on conditions."""
-        with sqlite3.connect(self.db_path) as conn:
-            c = conn.cursor()
-            query: str = f"SELECT id FROM {table} WHERE " + " AND ".join(
-                [f"{k} = ?" for k in conditions.keys()]
-            )
-            c.execute(query, tuple(conditions.values()))
-            result = c.fetchone()
-            return result[0] if result else None
+        """
+        Retrieve the ID of a record based on conditions.
 
-    def _get_team_id(self, app_title_id: int) -> Optional[str]:
-        """Fetches the current team_id for the given app_title_id."""
-        with sqlite3.connect(self.db_path) as conn:
-            c = conn.cursor()
-            c.execute("SELECT team_id FROM app_titles WHERE id = ?", (app_title_id,))
-            result = c.fetchone()
-            return result[0] if result else None
+        :param table: Name of the table to pull the ID from.
+        :type table: str
+        :param conditions: Dictionary of items to match.
+        :type conditions: Dict[str, Any]
+        :return: ID of the record if found, otherwise None.
+        :rtype: Optional[int]
+        """
+        query = f"SELECT id FROM {table} WHERE " + " AND ".join(
+            [f"{k} = ? COLLATE NOCASE" for k in conditions.keys()]
+        )
+        result = self._execute(query, tuple(conditions.values()))
+        if result:
+            row = result[0]
+            return row["id"] if "id" in row.keys() else None
+        return None
+
+    @staticmethod
+    def normalize_title(title: str) -> str:
+        """
+        Normalizes a title by converting to lowercase, stripping whitespace,
+        and more. This is so case-sensitivity does not become an issue when
+        querying the SQLite database.
+
+        :param title: The title to normalize.
+        :type title: str
+        :return: The normalized title.
+        :rtype: str
+        """
+        decoded_title = urllib.parse.unquote(title)
+        return decoded_title.strip().lower()
 
     def find_or_add_id(self, app_title: AppTitle) -> int:
-        """Retrieve the ID of an AppTitle, or create it if it doesn't exist."""
+        """
+        Retrieve the ID of an AppTitle, or create it if it doesn't exist.
+
+        :param app_title: AppTitle object to find or add.
+        :type app_title: AppTitle
+        :return: ID of the AppTitle object
+        :rtype: int
+        """
         app_title_id = self._get_id(table="app_titles", conditions={"title": app_title.title})
-
         if app_title_id is None:
-            # AppTitle doesn't exist, create it
             app_title_id = self.add_app(app_title=app_title)
-
         return app_title_id
 
     def add_app(self, app_title: AppTitle) -> int:
-        """Inserts an AppTitle into the database and returns the ID of the new record."""
+        """
+        Inserts an AppTitle into the database and returns the ID of the new record.
+
+        :param app_title: AppTitle object to add.
+        :type app_title: AppTitle
+        :return: ID of the newly added AppTitle.
+        :rtype: int
+        """
+        # Normalize title
+        normalized_title = self.normalize_title(app_title.title)
+
         data = {
             "title": app_title.title,
+            "normalized_title": normalized_title,
             "bundle_id": app_title.bundle_id,
-            "team_id": app_title.team_id,
             "mas": int(app_title.mas),
-            "installomator_label": app_title.installomator_label,
             "jamf_supported": int(app_title.jamf_supported),
         }
         self._upsert(table="app_titles", data=data, unique_keys=["title"])
         self.log.info(f"Added new app title: {app_title.title}")
-
-        return self._get_id(table="app_titles", conditions={"title": app_title.title})
+        return self._get_id(
+            table="app_titles",
+            conditions={"title": app_title.title, "normalized_title": normalized_title},
+        )
 
     def add_patch(self, app_title_id: int, patch_title: PatchTitle) -> None:
-        """Inserts a PatchTitle into the database, linked to an AppTitle."""
+        """
+        Inserts a PatchTitle into the database, linked to an AppTitle.
+
+        :param app_title_id: ID of the associated AppTitle.
+        :type app_title_id: int
+        :param patch_title: PatchTitle object to add.
+        :type patch_title: PatchTitle
+        """
         data = {
             "app_title_id": app_title_id,
             "title": patch_title.title,
@@ -155,203 +221,149 @@ class DataManager:
         self._upsert(table="patch_titles", data=data, unique_keys=["app_title_id", "title"])
         self.log.info(f"Added new patch title: {patch_title.title} for app ID {app_title_id}")
 
-    def add_cve(self, app_title_id: int, cve_ids: List[str], severity: str) -> None:
-        """Inserts CVE data into the database, linked to an AppTitle."""
-        for cve_id in cve_ids:
-            data = {"app_title_id": app_title_id, "cve_id": cve_id, "severity": severity}
-            self._upsert(table="cve_data", data=data, unique_keys=["app_title_id", "cve_id"])
+    def add_label(self, label: Label) -> None:
+        """
+        Inserts a Label into the database. Associates the label with an AppTitle if a match is
+        found, otherwise leaves `app_title_id` as NULL.
+
+        :param label: Label object to add.
+        :type label: Label
+        """
+        # Normalize label
+        normalized_title = self.normalize_title(label.name)
+
+        # Use normalized title for matching
+        app_title_id = self._get_id(
+            table="app_titles", conditions={"normalized_title": normalized_title}
+        )
+
+        # Check if a label with same name exists
+        existing_label_id = self._get_id(table="labels", conditions={"name": label.name})
+        if existing_label_id:
+            self.log.warning(f"Label with name '{label.name}' already exists. Skipping.")
+            return
+
+        data = {
+            "app_title_id": app_title_id,
+            "name": label.name,
+            "type": label.type,
+            "team_id": label.expectedTeamID,
+            "installomator_label": label.installomatorLabel,
+        }
+
+        self._upsert(table="labels", data=data, unique_keys=["name"])
+        if app_title_id is not None:
+            self.log.info(f"Added new label: {label.name} associated with app ID {app_title_id}")
+        else:
+            self.log.info(f"Added new label: {label.name}")
 
     # Load dataframe object (return a pd.DataFrame object)
     def load_dataframe(self, table_name: str) -> Optional[pd.DataFrame]:
-        """Loads a pandas DataFrame from the specified table in the database."""
-        with sqlite3.connect(self.db_path) as conn:
-            try:
-                query = f"SELECT * FROM {table_name}"
-                dataframe = pd.read_sql_query(query, conn)
-                return dataframe if not dataframe.empty else None
-            except sqlite3.Error as e:
-                self.log.error(f"Error loading DataFrame from table {table_name}: {e}")
-                raise PatcherError(f"Error loading DataFrame from table {table_name}: {e}")
+        """
+        Loads a pandas DataFrame from the specified table in the database.
+
+        :param table_name: Name of the table to load the data from.
+        :type table_name: str
+        :return: DataFrame containing the table data or None if empty.
+        :rtype: Optional[pandas.DataFrame]
+        """
+        query = f"SELECT * FROM {table_name}"
+        try:
+            dataframe = pd.read_sql_query(query, self._connect())
+            return dataframe if not dataframe.empty else None
+        except sqlite3.Error as e:
+            self.log.error(f"Error loading DataFrame from table {table_name}: {e}")
+            raise DatabaseError(f"Error loading DataFrame from table {table_name}: {e}")
 
 
 class DBAgent(DataManager):
+    """
+    Extends DataManager to include operations specific to patches, updates, and CVE data.
+
+    While the DataManager class is responsible for CRUD database operations, the DBAgent
+    class is responsible for fetching the data DataManager will handle.
+
+    Attributes:
+        installomator (Installomator): Installomator instance for gathering Installomator data.
+        scraper (Scraper): Scraper instance for web scraping Jamf Software Title catalog.
+    """
+
     def __init__(self):
         super().__init__()
         self.log = LogMe(self.__class__.__name__)
-        self.label_path = Path.home() / "Library" / "Application Support" / "Patcher" / ".labels"
-        self.installomator_url = (
-            "https://api.github.com/repos/Installomator/Installomator/contents/fragments/labels"
-        )
+        self.installomator = Installomator()
         self.scraper = Scraper()
 
     @property
     def has_patches(self) -> bool:
-        """Checks if there are any PatchTitle objects saved in the database."""
-        with sqlite3.connect(self.db_path) as conn:
-            c = conn.cursor()
-            c.execute("SELECT COUNT(1) FROM patch_titles")
-            return c.fetchone()[0] > 0
+        """
+        Checks if there are any PatchTitle objects saved in the database.
+
+        :return: True if patches exist, otherwise False.
+        :rtype: bool
+        """
+        result = self._execute("SELECT COUNT(1) FROM patch_titles")
+        return result[0][0] > 0 if result else False
 
     async def _fetch(self, command: List[str]) -> str:
+        """
+        Executes a shell command asynchronously.
+
+        This method will primarily be used to make external API calls via `curl`. This is a
+        workaround to support AIA fetching in Python. See :class:`~patcher.client.api_client.ApiClient`.
+
+        :param command: Command list to execute.
+        :type command: List[str]
+        :return: Decoded (standard) output of the command.
+        :rtype: str
+        :raises DatabaseError: If the command fails.
+        """
         process = await asyncio.create_subprocess_exec(
             *command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         stdout, stderr = await process.communicate()
         if process.returncode != 0:
             self.log.error(f"curl failed with error: {stderr.decode()}")
-            raise PatcherError(message=f"curl failed with error: {stderr.decode()}")
+            raise DatabaseError(f"curl failed with error: {stderr.decode()}")
         return stdout.decode()
-
-    async def update(self) -> None:
-        """Master update method to refresh AppTitle objects in the database."""
-        # Fetch data needed
-        installomator_labels = await self._fetch_installomator_labels()
-        jamf_titles = await self._fetch_jamf_titles()
-        installed_apps = self._get_installed_apps()
-
-        # Iterate over installed applications to create AppTitle objects
-        for app_name, app_path in installed_apps.items():
-            bundle_id = self._get_bundle_ids(app_path).get(app_path)
-            from_mas = self._mas(app_path)
-            team_id, installomator_label = self._get_installomator_data(
-                app_name, installomator_labels
-            )
-
-            # Create AppTitle object
-            app = AppTitle(
-                title=app_name,
-                bundle_id=bundle_id,
-                team_id=team_id,
-                mas=from_mas,
-                installomator_label=installomator_label,
-                jamf_supported=(app_name in jamf_titles),
-            )
-
-            # Fetch and update CVE data for app
-            await self._fetch_criticals(title=app_name)
-
-            # Save the AppTitle object to the database
-            self.add_app(app_title=app)
-
-        self.log.info("Database update completed successfully.")
 
     @staticmethod
     def _get_installed_apps() -> Dict[str, str]:
-        """Retrieve the names and paths of installed applications."""
+        """
+        Retrieves the names and paths of installed applications.
+
+        :return: Dictionary of application names and their paths.
+        :rtype: Dict[str, str]
+        """
         applications_folder = Path("/Applications")
-        installed_apps = {}
-        for app in applications_folder.glob("*.app"):
-            installed_apps[app.stem] = str(app)
-        return installed_apps
+        return {app.stem: str(app) for app in applications_folder.glob("*.app")}
 
     @staticmethod
     def _mas(app_path: str) -> bool:
-        """Determines if an app was installed from the Mac App Store."""
+        """
+        Determines if an app was installed from the Mac App Store (MAS).
+
+        :param app_path: Path of the application to check against.
+        :type app_path: str
+        :return: True if installed from MAS, otherwise False.
+        :rtype: bool
+        """
         return (Path(app_path) / "Contents/_MASReceipt").exists()
 
-    async def _get_installomator_data(
-        self, app_name: str, labels: List[str]
-    ) -> Tuple[Optional[str], Optional[str]]:
-        """Get the team ID and Installomator label for a given applications."""
-        label_match = next((label for label in labels if label.lower() == app_name.lower()), None)
-
-        if label_match:
-            download_url = f"https://raw.githubusercontent.com/Installomator/Installomator/main/fragments/labels/{label_match}.sh"
-            curl_command = ["/usr/bin/curl", "-s", download_url]
-            response = await self._fetch(curl_command)
-            app_data = self._extract_data(response)
-
-            if app_data:
-                team_id = app_data[1]
-                return team_id, label_match
-
-        return None, None
-
-    async def _fetch_installomator_labels(self) -> Optional[List[str]]:
-        """Fetch the list of Installomator labels from the repository."""
-        if not self.label_path.exists():
-            self.label_path.mkdir(parents=True, exist_ok=True)
-
-        curl_command = ["/usr/bin/curl", "-s", self.installomator_url]
-
-        response = await self._fetch(command=curl_command)
-
-        try:
-            data = json.loads(response)
-            return [item["name"].replace(".sh", "") for item in data if item["type"] == "file"]
-        except json.JSONDecodeError as e:
-            self.log.error(f"Installomator labels response could not be decoded: {e}")
-            return []
-
-    # Fetch cve data using subprocess and curl
-    async def fetch_cve_data(self, title: str, severities: List[str]) -> List[str]:
-        """Fetches CVE data for a given title and a list of severities, and stores it in the database."""
-        app_title_id = self._get_id(table="app_titles", conditions={"title": title})
-        if app_title_id is None:
-            self.log.error(f"No AppTitle found in the database for the title: {title}")
-            raise PatcherError(f"No AppTitle found in the database for the title: {title}")
-
-        all_cves = []
-
-        url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-        end_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-        start_date = (datetime.now(timezone.utc) - timedelta(days=30)).strftime(
-            "%Y-%m-%dT%H:%M:%S.%f"
-        )[:-3] + "Z"
-
-        for severity in severities:
-            params = {
-                "keywordSearch": title,
-                "resultsPerPage": 20,
-                "startIndex": 0,
-                "pubStartDate": start_date,
-                "pubEndDate": end_date,
-                "cvssV3Severity": severity,
-            }
-
-            curl_command = [
-                "/usr/bin/curl",
-                "-s",
-                url,
-                "--data-urlencode",
-                f"keywordSearch={params['keywordSearch']}",
-                "--data-urlencode",
-                f"resultsPerPage={params['resultsPerPage']}",
-                "--data-urlencode",
-                f"startIndex={params['startIndex']}",
-                "--data-urlencode",
-                f"pubStartDate={params['pubStartDate']}",
-                "--data-urlencode",
-                f"pubEndDate={params['pubEndDate']}",
-                "--data-urlencode",
-                f"cvssV3Severity={params['cvssV3Severity']}",
-                "-H",
-                "apiKey: c12c82dd-2205-425c-893a-407a583184a0",
-            ]
-
-            response = await self._fetch(command=curl_command)
-
-            cves = self._parse_response(response)
-
-            all_cves.extend(cves)
-            self.add_cve(app_title_id=app_title_id, cve_ids=cves, severity=severity)
-
-        return all_cves
-
-    @staticmethod
-    def _parse_response(response: str) -> List[str]:
-        data = json.loads(response)
-        return [cve["cve"]["id"] for cve in data.get("vulnerabilities", [])]
-
-    async def _fetch_criticals(self, title: str) -> List[str]:
-        return await self.fetch_cve_data(title=title, severities=["HIGH", "CRITICAL"])
-
     def _get_bundle_ids(self, path: Union[Path, str]) -> Optional[Dict[str, str]]:
-        if isinstance(path, str):
-            path = Path(path)
+        """
+        Retrieves bundle IDs from the specified Applications.
+
+        :param path: Path to the Application to parse.
+        :type path: Union[Path, str]
+        :return: Dictionary of paths and bundle IDs.
+        :rtype: Optional[Dict[str, str]]
+        :raises DatabaseError: If the bundle ID cannot be obtained.
+        """
+        path = Path(path) if isinstance(path, str) else path
         if not path.exists():
             self.log.error(f"{path} does not exist. Cannot obtain bundle ID.")
-            raise PatcherError(message=f"{path} does not exist. Cannot obtain bundle ID.")
+            raise FileNotFoundError(f"{path} does not exist. Cannot obtain bundle ID.")
 
         try:
             result = subprocess.run(
@@ -359,10 +371,9 @@ class DBAgent(DataManager):
             )
         except subprocess.CalledProcessError as e:
             self.log.error(f"Error encountered obtaining bundle ID: {e}")
-            raise PatcherError(message=f"Error encountered obtaining bundle ID: {e}")
+            raise OSError(f"Error encountered obtaining bundle ID: {e}")
 
         bundle_ids = {}
-
         if result:
             for line in result.stdout.splitlines():
                 if line.strip().startswith("kMDItemCFBundleIdentifier"):
@@ -372,88 +383,119 @@ class DBAgent(DataManager):
         return None
 
     async def _fetch_jamf_titles(self) -> List[str]:
-        html = await self.scraper.fetch_html()
-        return self.scraper.parse_software_titles(html=html)
+        """
+        Fetches the Jamf Software Title App Catalog via web scraping.
 
-    @staticmethod
-    def _extract_data(fragment: str) -> Optional[Tuple[str, str]]:
-        """Extracts the application title and team ID from the Installomator fragment."""
-        name_match = re.search(r'^\s*name\s*=\s*"(.*?)"\s*$', fragment, re.MULTILINE)
-        team_id_match = re.search(r'^\s*expectedTeamID\s*=\s*"(.*?)"\s*$', fragment, re.MULTILINE)
+        :return: List of Jamf supported titles.
+        :rtype: List[str]
+        """
+        return self.scraper.parse_software_titles(html=await self.scraper.fetch_html())
 
-        name = name_match.group(1).strip() if name_match else None
-        team_id = team_id_match.group(1).strip() if team_id_match else None
+    def return_titles(self) -> List[AppTitle]:
+        """
+        Retrieves all AppTitles, associated PatchTitles, and their Installomator labels.
 
-        if name and team_id:
-            return str(name), str(team_id)
-        else:
-            return None
+        :return: List of AppTitle objects with associated patches and labels.
+        :rtype: List[AppTitle]
+        """
 
-    def return_app_titles(self) -> List[AppTitle]:
-        app_titles = []
+        # Helper func
+        def create_obj(row_name, object_type, field_mapping: dict):
+            return object_type(
+                **{key: row_name[db_field] for key, db_field in field_mapping.items()}
+            )
 
-        query = "SELECT title, bundle_id, team_id, mas, installomator_label, jamf_supported FROM app_titles"
+        patch_fields = {
+            "title": "patch_title",
+            "released": "released",
+            "hosts_patched": "hosts_patched",
+            "missing_patch": "missing_patch",
+            "completion_percent": "completion_percent",
+        }
 
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute(query)
-            rows = cursor.fetchall()
+        label_fields = {
+            "name": "label_name",
+            "type": "label_type",
+            "downloadURL": "label_download_url",
+            "expectedTeamID": "expected_team_id",
+            "installomatorLabel": "installomator_label",
+        }
 
-            for row in rows:
-                app_title = AppTitle(**row)
-                app_titles.append(app_title)
+        combined_rows = self._execute(
+            """
+            SELECT
+                at.id AS app_title_id, at.title AS app_title, at.bundle_id, at.mas, at.jamf_supported,
+                pt.id AS patch_id, pt.title AS patch_title, pt.released, pt.hosts_patched, pt.missing_patch, pt.completion_percent,
+                l.id AS label_id, l.name AS label_name, l.type AS label_type, l.download_url AS label_download_url, 
+                l.team_id AS expected_team_id, l.installomator_label AS installomator_label
+            FROM app_titles at
+            LEFT JOIN patch_titles pt ON at.id = pt.app_title_id
+            LEFT JOIN labels l ON at.id = l.app_title_id
+            """
+        )
+
+        patches_by_app = {}
+        labels_by_app = {}
+
+        for row in combined_rows:
+            app_title_id = row["app_title_id"]
+            if app_title_id:
+                # Collect patches
+                if row["patch_id"]:
+                    patch = create_obj(row, PatchTitle, patch_fields)
+                    patches_by_app.setdefault(app_title_id, []).append(patch)
+
+                # Collect labels
+                if row["label_id"]:
+                    label = create_obj(row, Label, label_fields)
+                    labels_by_app.setdefault(app_title_id, []).append(label)
+
+        # Create and return AppTitle objects with associated patches and labels
+        app_titles = [
+            # Intentionally leaving normalized name property out of object creation
+            # as it is not required for data analysis purposes
+            AppTitle(
+                title=row["app_title"],
+                bundle_id=row["bundle_id"],
+                mas=bool(row["mas"]),
+                jamf_supported=bool(row["jamf_supported"]),
+                patches=patches_by_app.get(row["app_title_id"], []),
+                labels=labels_by_app.get(row["app_title_id"], []),
+            )
+            for row in combined_rows
+        ]
 
         return app_titles
 
-    def return_all(self) -> List[PatchTitle]:
-        titles = []
+    async def update(self) -> None:
+        """Master update method to refresh AppTitle objects in the database."""
+        installomator_fragments = await self.installomator.fetch_fragments()
+        if not await self.installomator.create_label_dir(installomator_fragments):
+            self.log.error("Installomator fragments could not be saved locally.")
+            raise DatabaseError(
+                "Installomator fragments could not be saved locally. Database update unsuccessful."
+            )
 
-        query = """
-            SELECT
-                pt.title AS patch_title,
-                pt.released,
-                pt.hosts_patched,
-                pt.missing_patch,
-                pt.completion_percent,
-                at.title AS app_title,
-                at.bundle_id,
-                at.team_id,
-                at.mas,
-                at.installomator_label,
-                at.jamf_supported
-            FROM
-                patch_titles pt
-            JOIN
-                app_titles at ON pt.app_title_id = at.id
-        """
+        jamf_titles = await self._fetch_jamf_titles()
+        installed_apps = self._get_installed_apps()
 
-        with sqlite3.connect(self.db_path) as conn:
-            c = conn.cursor()
-            c.execute(query)
-            rows = c.fetchall()
+        for app_name, app_path in installed_apps.items():
+            bundle_id = self._get_bundle_ids(app_path).get(app_path)
+            from_mas = self._mas(app_path)
 
-            for row in rows:
-                # Create AppTitle object
-                app_title = AppTitle(
-                    title=row["patch_title"],
-                    bundle_id=row["bundle_id"],
-                    team_id=row["team_id"],
-                    mas=bool(row["mas"]),
-                    installomator_label=row["installomator_label"],
-                    jamf_supported=bool(row["jamf_supported"]),
-                )
+            # Create AppTitle object
+            app = AppTitle(
+                title=app_name,
+                bundle_id=bundle_id,
+                mas=from_mas,
+                jamf_supported=(app_name in jamf_titles),
+            )
 
-                # Create the PatchTitle object and associate the AppTitle object
-                patch_title = PatchTitle(
-                    title=row["title"],
-                    released=row["released"],
-                    hosts_patched=row["hosts_patched"],
-                    missing_patch=row["missing_patch"],
-                    completion_percent=row["completion_percent"],
-                    app_title=app_title,
-                )
+            # Add app object to database
+            self.add_app(app_title=app)
 
-                titles.append(patch_title)
+        labels = await self.installomator.create_labels()
+        for label in labels:
+            self.add_label(label)
 
-        return titles
+        self.log.info("Database update completed successfully.")
