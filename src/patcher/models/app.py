@@ -1,18 +1,37 @@
-from typing import AnyStr, List, Optional
+from typing import List, Optional
+import urllib.parse
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 
 from . import Model
+from .label import Label
+from .patch import PatchTitle
 
 
 class AppTitle(Model):
-    title: AnyStr
-    bundle_id: Optional[AnyStr] = None
-    team_id: Optional[AnyStr] = None
+    title: str
+    normalized_title: str
+    bundle_id: Optional[str] = None
     mas: Optional[bool] = False  # Mac App Store
-    cves: Optional[List] = None
-    installomator_label: Optional[AnyStr] = None
     jamf_supported: Optional[bool] = False
+
+    # optional associations
+    patches: Optional[List[PatchTitle]]
+    labels: Optional[List[Label]]
+
+    @classmethod
+    @field_validator("title", mode="before")
+    def validate_title(cls, v: str) -> str:
+        if not isinstance(v, str):
+            raise ValueError("Title must be a string.")
+        return v
+
+    @classmethod
+    @model_validator(mode="after")
+    def set_normalized_title(cls, values):
+        title = values.title
+        values.normalized_title = urllib.parse.unquote(title).strip().lower()
+        return values
 
     @classmethod
     @field_validator("team_id", mode="before")
