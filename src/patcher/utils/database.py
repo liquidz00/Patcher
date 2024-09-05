@@ -4,7 +4,7 @@ import sqlite3
 import subprocess
 import urllib.parse
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union, Set
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 from rapidfuzz import fuzz
@@ -120,7 +120,9 @@ class DataManager:
         return decoded_title.strip()
 
     @staticmethod
-    async def find_best_match(title: str, comparison_list: list[str], threshold: int = 90) -> Optional[str]:
+    async def find_best_match(
+        title: str, comparison_list: list[str], threshold: int = 90
+    ) -> Optional[str]:
         """
         Find the best match for a title in a given list using fuzzy matching.
 
@@ -154,12 +156,17 @@ class DataManager:
             patch_title = patch["title"]
             normalized_patch_title = self.normalize_title(patch_title)
 
-            best_match_app = await self.find_best_match(normalized_patch_title, normalized_app_titles)
-            best_match_label = await self.find_best_match(normalized_patch_title, normalized_label_names)
+            best_match_app = await self.find_best_match(
+                normalized_patch_title, normalized_app_titles
+            )
+            best_match_label = await self.find_best_match(
+                normalized_patch_title, normalized_label_names
+            )
 
             if best_match_app:
-                app_title_id = self._get_id("app_titles", conditions={"normalized_title": best_match_app})
-
+                app_title_id = self._get_id(
+                    "app_titles", conditions={"normalized_title": best_match_app}
+                )
 
     def _upsert(self, table: str, data: Dict[str, Any], unique_keys: List[str]) -> None:
         """
