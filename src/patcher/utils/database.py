@@ -1,11 +1,14 @@
 import asyncio
+import re
 import sqlite3
 import subprocess
 import urllib.parse
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, Set
 
 import pandas as pd
+from rapidfuzz import fuzz
+from rapidfuzz import process as proc
 
 from ..models.app import AppTitle
 from ..models.label import Label
@@ -58,7 +61,7 @@ class DataManager:
                 """
                 CREATE TABLE IF NOT EXISTS patch_titles (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    app_title_id INTEGER NOT NULL,
+                    app_title_id INTEGER,  -- Allow NULL for titles without an associated AppTitle
                     title TEXT NOT NULL,
                     released TEXT,
                     hosts_patched INTEGER,
@@ -98,6 +101,65 @@ class DataManager:
             c = conn.cursor()
             c.execute(query, params)
             return c.fetchall()
+
+    @staticmethod
+    def normalize_title(title: str) -> str:
+        """
+        Normalizes a title by converting to lowercase, and stripping whitespace
+        This is so case-sensitivity does not become an issue when querying
+        the SQLite database for AppTitle or PatchTitle objects.
+
+        :param title: The title to normalize.
+        :type title: str
+        :return: The normalized title.
+        :rtype: str
+        """
+        decoded_title = urllib.parse.unquote(title)
+        decoded_title = re.sub(r"[^\w\s]", "", decoded_title.lower())  # Remove special chars
+        decoded_title = re.sub(r"\s+", " ", decoded_title)  # Normalize spaces
+        return decoded_title.strip()
+
+    @staticmethod
+    async def find_best_match(title: str, comparison_list: list[str], threshold: int = 90) -> Optional[str]:
+        """
+        Find the best match for a title in a given list using fuzzy matching.
+
+        :param title: The title to match.
+        :type title: str
+        :param comparison_list: The list to compare against.
+        :type comparison_list: list[str]
+        :param threshold: The similarity threshold for matching, defaults to 90.
+        :type threshold: Optional[int]
+        :return: The best match if found, otherwise None.
+        :rtype: Optional[str]
+        """
+        best_match = proc.extractOne(query=title, choices=comparison_list, scorer=fuzz.token_sort_ratio)  # type: ignore
+        if best_match and best_match[1] >= threshold:
+            return best_match[0]
+        return None
+
+    async def match_patch_titles(self) -> None:
+        """
+        Match patch titles with corresponding app titles or labels in the database.
+        """
+        app_titles = self._execute("SELECT title FROM app_titles")
+        patch_titles = self._execute("SELECT id, title FROM patch_titles")
+        label_names = self._execute("SELECT name FROM labels")
+
+        normalized_app_titles = [self.normalize_title(title["title"]) for title in app_titles]
+        normalized_label_names = [self.normalize_title(label["name"]) for label in label_names]
+
+        for patch in patch_titles:
+            patch_id = patch["id"]
+            patch_title = patch["title"]
+            normalized_patch_title = self.normalize_title(patch_title)
+
+            best_match_app = await self.find_best_match(normalized_patch_title, normalized_app_titles)
+            best_match_label = await self.find_best_match(normalized_patch_title, normalized_label_names)
+
+            if best_match_app:
+                app_title_id = self._get_id("app_titles", conditions={"normalized_title": best_match_app})
+
 
     def _upsert(self, table: str, data: Dict[str, Any], unique_keys: List[str]) -> None:
         """
@@ -146,35 +208,6 @@ class DataManager:
             return row["id"] if "id" in row.keys() else None
         return None
 
-    @staticmethod
-    def normalize_title(title: str) -> str:
-        """
-        Normalizes a title by converting to lowercase, stripping whitespace,
-        and more. This is so case-sensitivity does not become an issue when
-        querying the SQLite database.
-
-        :param title: The title to normalize.
-        :type title: str
-        :return: The normalized title.
-        :rtype: str
-        """
-        decoded_title = urllib.parse.unquote(title)
-        return decoded_title.strip().lower()
-
-    def find_or_add_id(self, app_title: AppTitle) -> int:
-        """
-        Retrieve the ID of an AppTitle, or create it if it doesn't exist.
-
-        :param app_title: AppTitle object to find or add.
-        :type app_title: AppTitle
-        :return: ID of the AppTitle object
-        :rtype: int
-        """
-        app_title_id = self._get_id(table="app_titles", conditions={"title": app_title.title})
-        if app_title_id is None:
-            app_title_id = self.add_app(app_title=app_title)
-        return app_title_id
-
     def add_app(self, app_title: AppTitle) -> int:
         """
         Inserts an AppTitle into the database and returns the ID of the new record.
@@ -210,6 +243,9 @@ class DataManager:
         :param patch_title: PatchTitle object to add.
         :type patch_title: PatchTitle
         """
+        # TODO: iron out PatchTitle handling
+        #   Titles should still be added to database even if app_title_id is not present
+        #   or found. Similar to how labels work.
         data = {
             "app_title_id": app_title_id,
             "title": patch_title.title,
