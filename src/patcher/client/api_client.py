@@ -3,11 +3,10 @@ import subprocess
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
-from ..utils.wrappers import check_token
-
 from ..models.jamf_client import ApiClientModel, ApiRoleModel
 from ..models.patch import PatchTitle
-from ..utils import exceptions, logger
+from ..utils import logger
+from ..utils.wrappers import check_token
 from . import BaseAPIClient
 from .config_manager import ConfigManager
 from .token_manager import TokenManager
@@ -252,10 +251,12 @@ class ApiClient(BaseAPIClient):
 
     async def create_roles(self, token: str) -> bool:
         role = ApiRoleModel()
-        payload = json.dumps({
-            "displayName": role.display_name,
-            "privileges": role.privileges,
-        })
+        payload = json.dumps(
+            {
+                "displayName": role.display_name,
+                "privileges": role.privileges,
+            }
+        )
         role_url = f"{self.jamf_url}/api/v1/api-roles"
         headers = {
             "accept": "application/json",
@@ -270,12 +271,14 @@ class ApiClient(BaseAPIClient):
     async def create_client(self, token: str) -> Optional[Tuple[str, str]]:
         client = ApiClientModel()
         client_url = f"{self.jamf_url}/api/v1/api-integrations"
-        payload = json.dumps({
-            "authorizationScopes": client.auth_scopes,
-            "displayName": client.display_name,
-            "enabled": client.enabled,
-            "accessTokenLifetimeSeconds": client.token_lifetime,  # 30 minutes in seconds
-        })
+        payload = json.dumps(
+            {
+                "authorizationScopes": client.auth_scopes,
+                "displayName": client.display_name,
+                "enabled": client.enabled,
+                "accessTokenLifetimeSeconds": client.token_lifetime,  # 30 minutes in seconds
+            }
+        )
         headers = {
             "accept": "application/json",
             "Content-Type": "application/json",
@@ -300,5 +303,3 @@ class ApiClient(BaseAPIClient):
 
         client_secret = secret_response.get("clientSecret")
         return client_id, client_secret
-
-

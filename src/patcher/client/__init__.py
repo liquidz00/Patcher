@@ -1,9 +1,9 @@
 import asyncio
 import json
 import subprocess
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 
-from ..utils import logger, exceptions
+from ..utils import logger
 
 
 class BaseAPIClient:
