@@ -1,5 +1,5 @@
 import asyncio
-from typing import AnyStr, Optional
+from typing import Optional
 
 import asyncclick as click
 
@@ -95,11 +95,11 @@ DATE_FORMATS = {
 @click.pass_context
 async def main(
     ctx: click.Context,
-    path: AnyStr,
+    path: str,
     pdf: bool,
-    sort: Optional[AnyStr],
+    sort: Optional[str],
     omit: bool,
-    date_format: AnyStr,
+    date_format: str,
     ios: bool,
     concurrency: int,
     debug: bool,
@@ -110,8 +110,10 @@ async def main(
         raise click.UsageError("The --path option is required unless --reset is specified.")
 
     config = ConfigManager()
-    ui_config = UIConfigManager(custom_ca_file=custom_ca_file)
-    setup = Setup(config=config, ui_config=ui_config, custom_ca_file=custom_ca_file)
+    ui_config = UIConfigManager()
+    api_client = ApiClient(config, concurrency)
+    token_manager = TokenManager(config)
+    setup = Setup(config=config, ui_config=ui_config, api_client=api_client, token_manager=token_manager)
 
     log = LogMe(__name__, debug=debug)
     animation = Animation(enable_animation=not debug)
@@ -134,9 +136,6 @@ async def main(
         if jamf_client is None:
             raise PatcherError(message="Invalid JamfClient configuration detected!")
 
-        token_manager = TokenManager(config)
-
-        api_client = ApiClient(config)
         api_client.jamf_client = jamf_client
         excel_report = ExcelReport()
         pdf_report = PDFReport(ui_config)
