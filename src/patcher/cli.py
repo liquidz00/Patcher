@@ -113,7 +113,9 @@ async def main(
     ui_config = UIConfigManager()
     api_client = ApiClient(config, concurrency)
     token_manager = TokenManager(config)
-    setup = Setup(config=config, ui_config=ui_config, api_client=api_client, token_manager=token_manager)
+    setup = Setup(
+        config=config, ui_config=ui_config, api_client=api_client, token_manager=token_manager
+    )
 
     log = LogMe(__name__, debug=debug)
     animation = Animation(enable_animation=not debug)

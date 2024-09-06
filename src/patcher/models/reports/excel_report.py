@@ -16,6 +16,7 @@ class ExcelReport:
     The ``ExcelReport`` class provides functionality to export patch data into an
     Excel spreadsheet, saving it to the specified directory.
     """
+
     def __init__(self):
         self.log = logger.LogMe(self.__class__.__name__)
 
