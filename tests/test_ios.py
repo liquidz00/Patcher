@@ -6,7 +6,6 @@ import pytest
 from aioresponses import aioresponses
 from src.patcher.models.patch import PatchTitle
 
-
 # Test valid response - iOS device IDs
 # @pytest.mark.asyncio
 # async def test_get_device_ids_valid(
