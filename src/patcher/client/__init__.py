@@ -2,6 +2,7 @@ import asyncio
 import json
 import subprocess
 from typing import Optional, Dict, List
+
 from ..utils import logger, exceptions
 
 
@@ -56,9 +57,7 @@ class BaseAPIClient:
 
     async def execute(self, command: List[str]) -> Optional[Dict]:
         process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            *command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         stdout, stderr = await process.communicate()
         if process.returncode != 0:
@@ -66,17 +65,49 @@ class BaseAPIClient:
             return None
         return json.loads(stdout.decode())
 
-    async def fetch_json(self, url: str, headers: Optional[Dict[str, str]] = None) -> Optional[Dict]:
+    async def fetch_json(
+        self,
+        url: str,
+        headers: Optional[Dict[str, str]] = None,
+        method: str = "GET",
+        data: Optional[Dict[str, str]] = None,
+    ) -> Optional[Dict]:
+        """
+        Asynchronously fetches JSON data from the specified URL using a specified HTTP method.
+
+        :param url: The URL to fetch data from.
+        :type url: str
+        :param headers: Optional headers to include in the request.
+        :type headers: Optional[Dict[str, str]]
+        :param method: HTTP method to use ("GET" or "POST"). Defaults to "GET".
+        :type method: str
+        :param data: Optional form data to include for POST request.
+        :type data: Optional[Dict[str, str]]
+        :return: The fetched JSON data as a dictionary, or None if the request fails.
+        :rtype: Optional[Dict]
+        """
         final_headers = headers if headers else self.default_headers
         header_string = " ".join([f"-H '{k}: {v}'" for k, v in final_headers.items()])
-        command = ["/usr/bin/curl", "-s", url, header_string]
+        command = ["/usr/bin/curl", "-s", "-X", method, url, header_string]
+
+        # Add form data for POST requests
+        if method.upper() == "POST" and data:
+            form_data = [
+                item
+                for sublist in [["-d", f"{k}={v}"] for k, v in data.items()]
+                for item in sublist
+            ]
+            command.extend(form_data)
+
         async with self.semaphore:
             return await self.execute(command)
 
-    async def fetch_batch(self, urls: List[str], headers: Optional[Dict[str, str]] = None) -> List[Optional[Dict]]:
+    async def fetch_batch(
+        self, urls: List[str], headers: Optional[Dict[str, str]] = None
+    ) -> List[Optional[Dict]]:
         results = []
         for i in range(0, len(urls), self.max_concurrency):
-            batch = urls[i:i + self.max_concurrency]
+            batch = urls[i : i + self.max_concurrency]
             tasks = [self.fetch_json(url, headers=headers) for url in batch]
             batch_results = await asyncio.gather(*tasks)
             results.extend(batch_results)
