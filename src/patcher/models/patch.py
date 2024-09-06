@@ -1,5 +1,3 @@
-from typing import AnyStr
-
 from pydantic import model_validator
 
 from . import Model
@@ -23,8 +21,8 @@ class PatchTitle(Model):
     :type total_hosts: int
     """
 
-    title: AnyStr
-    released: AnyStr
+    title: str
+    released: str
     hosts_patched: int
     missing_patch: int
     completion_percent: float = 0.0
