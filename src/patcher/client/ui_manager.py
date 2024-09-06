@@ -1,3 +1,4 @@
+import asyncio
 import plistlib
 import shutil
 from pathlib import Path
@@ -37,7 +38,11 @@ class UIConfigManager:
         self._fonts_saved = None
         self.api = BaseAPIClient()
         self.config = {}
+
         self.load_ui_config()
+
+        if not self.plist_path.exists():
+            asyncio.create_task(self.create_default_config())
 
     @property
     def fonts_present(self) -> bool:
@@ -64,11 +69,11 @@ class UIConfigManager:
         property list file does not exist, it is created with default values.
         """
         if not self.plist_path.exists():
-            self.create_default_config()
-
-        # Load configs
-        plist_data = self._load_plist_file()
-        self.config = plist_data.get("UI", {})
+            self.config = {}  # Set to empty initially since async task will fill it later
+        else:
+            # Load configs
+            plist_data = self._load_plist_file()
+            self.config = plist_data.get("UI", {})
 
     async def download_font(self, url: str, dest_path: Path):
         """
