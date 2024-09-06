@@ -1,9 +1,96 @@
 import asyncio
 import json
+import ssl
 import subprocess
-from typing import Dict, List, Optional
+from pathlib import Path
+from typing import Dict, List, Optional, Union
 
 from ..utils import logger
+
+
+class SSLContextManager:
+    """
+    Manages SSL context for secure connections, with support custom Certificate Authority (CA) files.
+
+    This class is part of Patcher's backend and helps ensure that any communication made is secure. If
+    you have a custom CA file (for example, from your organization), this manager will merge it with the system's
+    default CA certificates for enhanced SSL verification.
+
+    :param custom_ca_file: Path to a custom CA file. If not provided, the system's default CA certificates are used.
+    :type custom_ca_file: Optional[Union[str, pathlib.Path]] = None
+    """
+
+    def __init__(self, custom_ca_file: Optional[Union[str, Path]] = None):
+        self.custom_ca_file = custom_ca_file
+        self._merged_cafile_path = (
+            Path.home() / "Library" / "Application Support" / "Patcher" / "merged_cafile.pem"
+        )
+
+    def create_ssl_context(self) -> ssl.SSLContext:
+        """
+        Creates an SSL context object, optionally including a custom CA file.
+
+        This method generates an SSL context that is used by Patcher to securely connect
+        to servers. If you’ve specified a custom CA file when running the tool, it will be
+        incorporated into the SSL context, providing additional security.
+
+        :return: An SSL context ready for secure connections.
+        :rtype: ssl.SSLContext
+        """
+
+        context = ssl.create_default_context()
+        if self.custom_ca_file:
+            merged_cafile_path = self._get_merged_cafile_path()
+            context.load_verify_locations(cafile=str(merged_cafile_path))
+        return context
+
+    def _get_merged_cafile_path(self) -> Path:
+        """
+        Retrieves the path to the merged CA file for SSL verification.
+
+        :return: Path to the merged CA file used by Patcher.
+        :rtype: pathlib.Path
+        """
+        self._merge_ca_files()
+        return self._merged_cafile_path
+
+    def _merge_ca_files(self) -> None:
+        """
+        Merges the system’s default CA certificates with the custom CA file, if provided.
+
+        This method is called when Patcher needs to create a secure SSL context. It combines
+        the custom CA file with the default system certificates, ensuring that both are used
+        for SSL verification.
+
+        .. note::
+            If no custom CA file is provided, or if the merged file already exists, this method will not make any changes.
+
+        :raises FileNotFoundError: If the default or custom CA file cannot be found.
+        :example:
+
+        .. code-block:: console
+
+            $ patcherctl --custom-ca-file '/path/to/cafile.pem'
+
+        """
+        if not self.custom_ca_file or self._merged_cafile_path.exists():
+            return
+
+        default_cafile = ssl.get_default_verify_paths().cafile
+
+        with open(default_cafile, "r") as default_file:
+            default_content = default_file.read()
+
+        with open(self.custom_ca_file, "r") as custom_file:
+            custom_content = custom_file.read()
+
+        merged_content = default_content + "\n" + custom_content
+
+        self._merged_cafile_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Write merged CA file content to persistent location
+        with open(self._merged_cafile_path, "w") as merged_file:
+            merged_file.write(merged_content)
 
 
 class BaseAPIClient:
