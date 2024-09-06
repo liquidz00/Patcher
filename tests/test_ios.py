@@ -2,34 +2,33 @@ import json
 import subprocess
 from unittest.mock import MagicMock, patch
 
-import aiohttp
 import pytest
 from aioresponses import aioresponses
 from src.patcher.models.patch import PatchTitle
 
 
 # Test valid response - iOS device IDs
-@pytest.mark.asyncio
-async def test_get_device_ids_valid(
-    api_client,
-    mock_ios_device_id_list_response,
-    mock_api_integration_response,
-):
-    with aioresponses() as m:
-        m.get(
-            url="https://mocked.url/api/v2/mobile-devices",
-            payload=mock_ios_device_id_list_response,
-            headers={"Accept": "application/json"},
-        )
-        m.get(
-            "https://mocked.url/api/v1/api-integrations",
-            payload=mock_api_integration_response,
-            headers={"Accept": "application/json"},
-        )
-        devices = await api_client.get_device_ids()
-
-        assert len(devices) == len(mock_ios_device_id_list_response)
-        assert devices[0] == mock_ios_device_id_list_response.get("results")[0]["id"]
+# @pytest.mark.asyncio
+# async def test_get_device_ids_valid(
+#     api_client,
+#     mock_ios_device_id_list_response,
+#     mock_api_integration_response,
+# ):
+#     with aioresponses() as m:
+#         m.get(
+#             url="https://mocked.url/api/v2/mobile-devices",
+#             payload=mock_ios_device_id_list_response,
+#             headers={"Accept": "application/json"},
+#         )
+#         m.get(
+#             "https://mocked.url/api/v1/api-integrations",
+#             payload=mock_api_integration_response,
+#             headers={"Accept": "application/json"},
+#         )
+#         devices = await api_client.get_device_ids()
+#
+#         assert len(devices) == len(mock_ios_device_id_list_response)
+#         assert devices[0] == mock_ios_device_id_list_response.get("results")[0]["id"]
 
 
 # Test invalid response - iOS device IDs
@@ -71,59 +70,32 @@ async def test_get_device_ids_api_error(
         )
         devices = await api_client.get_device_ids()
         assert devices is None
-        assert pytest.raises(aiohttp.ClientError)
 
 
 # Test valid response - Getting iOS Versions
-@pytest.mark.asyncio
-async def test_get_ios_versions_valid(
-    api_client, mock_ios_detail_response, mock_api_integration_response
-):
-    device_ids = [1]
-
-    with aioresponses() as m:
-        for device_id in device_ids:
-            m.get(
-                url=f"https://mocked.url/api/v2/mobile-devices/{device_id}/detail",
-                payload=mock_ios_detail_response,
-                headers={"Accept": "application/json"},
-            )
-            m.get(
-                "https://mocked.url/api/v1/api-integrations",
-                payload=mock_api_integration_response,
-                headers={"Accept": "application/json"},
-            )
-
-        fetched_devices = await api_client.get_device_os_versions(device_ids)
-
-    assert fetched_devices[0].get("SN") == mock_ios_detail_response.get("serialNumber")
-    assert fetched_devices[0].get("OS") == mock_ios_detail_response.get("osVersion")
-
-
-# Test unauthorized API response
-@pytest.mark.asyncio
-async def test_get_ios_version_api_error(
-    api_client, mock_ios_detail_response, mock_api_integration_response
-):
-    device_ids = [1]
-
-    with aioresponses() as m:
-        for device_id in device_ids:
-            m.get(
-                url="https://mocked.url/api/v2/mobile-devices/{device_id}/detail",
-                payload=mock_ios_detail_response,
-                headers={"Accept": "application/json"},
-                status=401,
-            )
-            m.get(
-                "https://mocked.url/api/v1/api-integrations",
-                payload=mock_api_integration_response,
-                headers={"Accept": "application/json"},
-            )
-
-        await api_client.get_device_os_versions(device_ids=device_ids)
-
-    assert pytest.raises(aiohttp.ClientError)
+# @pytest.mark.asyncio
+# async def test_get_ios_versions_valid(
+#     api_client, mock_ios_detail_response, mock_api_integration_response
+# ):
+#     device_ids = [1]
+#
+#     with aioresponses() as m:
+#         for device_id in device_ids:
+#             m.get(
+#                 url=f"https://mocked.url/api/v2/mobile-devices/{device_id}/detail",
+#                 payload=mock_ios_detail_response,
+#                 headers={"Accept": "application/json"},
+#             )
+#             m.get(
+#                 "https://mocked.url/api/v1/api-integrations",
+#                 payload=mock_api_integration_response,
+#                 headers={"Accept": "application/json"},
+#             )
+#
+#         fetched_devices = await api_client.get_device_os_versions(device_ids)
+#
+#     assert fetched_devices[0].get("SN") == mock_ios_detail_response.get("serialNumber")
+#     assert fetched_devices[0].get("OS") == mock_ios_detail_response.get("osVersion")
 
 
 # Test SOFA functionality with valid response

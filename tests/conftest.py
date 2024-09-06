@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
 import pytz
+from src.patcher.client import SSLContextManager
 from src.patcher.client.api_client import ApiClient
 from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.report_manager import ReportManager
@@ -123,45 +124,45 @@ def mock_patch_title_response():
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=3)),
             hosts_patched=23,
             missing_patch=163,
-            completion_percent=(
-                round(
-                    (23 / (23 + 163)) * 100,
-                    2,
-                )
-                if 23 + 163 > 0
-                else 0
-            ),
-            total_hosts=23 + 163,
+            # completion_percent=(
+            #     round(
+            #         (23 / (23 + 163)) * 100,
+            #         2,
+            #     )
+            #     if 23 + 163 > 0
+            #     else 0
+            # ),
+            # total_hosts=23 + 163,
         ),
         PatchTitle(
             title="Jamf Connect",
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(hours=24)),
             hosts_patched=185,
             missing_patch=19,
-            completion_percent=(
-                round(
-                    (185 / (185 + 19)) * 100,
-                    2,
-                )
-                if 185 + 19 > 0
-                else 0
-            ),
-            total_hosts=185 + 19,
+            # completion_percent=(
+            #     round(
+            #         (185 / (185 + 19)) * 100,
+            #         2,
+            #     )
+            #     if 185 + 19 > 0
+            #     else 0
+            # ),
+            # total_hosts=185 + 19,
         ),
         PatchTitle(
             title="Apple macOS Ventura",
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=7)),
             hosts_patched=6,
             missing_patch=5,
-            completion_percent=(
-                round(
-                    (6 / (6 + 5)) * 100,
-                    2,
-                )
-                if 6 + 5 > 0
-                else 0
-            ),
-            total_hosts=6 + 5,
+            # completion_percent=(
+            #     round(
+            #         (6 / (6 + 5)) * 100,
+            #         2,
+            #     )
+            #     if 6 + 5 > 0
+            #     else 0
+            # ),
+            # total_hosts=6 + 5,
         ),
     ]
 
@@ -423,13 +424,23 @@ def token_manager(config_manager):
             token="mocked_token", expires=datetime(2030, 1, 1, tzinfo=timezone.utc)
         )
     )
-    token_manager.check_token_lifetime = AsyncMock(return_value=True)
+    token_manager._check_token_lifetime = AsyncMock(return_value=True)
     yield token_manager
 
 
 @pytest.fixture
 def api_client(config_manager):
-    return ApiClient(config=config_manager)
+    concurrency = 10
+    # custom_ca_file = "/path/to/.pem"
+
+    with patch.object(SSLContextManager, "create_ssl_context") as mock_create_ssl_context:
+        mock_ssl_context = MagicMock()
+        mock_create_ssl_context.return_value = mock_ssl_context
+
+        return ApiClient(
+            config=config_manager,
+            concurrency=concurrency,
+        )
 
 
 @pytest.fixture

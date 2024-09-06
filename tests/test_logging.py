@@ -1,8 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from patcher.utils.logger import LogMe
+from src.patcher.utils.logger import LogMe
 
 
 @pytest.fixture
