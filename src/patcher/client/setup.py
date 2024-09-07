@@ -1,8 +1,6 @@
 import os
 import plistlib
-import ssl
 from asyncio import sleep
-from pathlib import Path
 from typing import Optional
 
 import asyncclick as click
@@ -55,13 +53,7 @@ class Setup:
         self.ui_config = ui_config
         self.api_client = api_client
         self.token_manager = token_manager
-        self.plist_path = (
-            Path.home()
-            / "Library"
-            / "Application Support"
-            / "Patcher"
-            / "com.liquidzoo.patcher.plist"
-        )
+        self.plist_path = ui_config.plist_path
         self.jamf_url = None
         self.log = logger.LogMe(self.__class__.__name__)
         self._completed = None
@@ -179,13 +171,7 @@ class Setup:
             await sleep(3)
 
             # Generate bearer token and save it
-            try:
-                token = await self.token_manager.fetch_token()
-            except ssl.SSLCertVerificationError as e:
-                self.log.error(f"SSL failed verification: {e}")
-                raise ssl.SSLCertVerificationError(
-                    "SSL failed verification. Please see https://patcher.liquidzoo.io/user/install.html#ssl-verification-and-self-signed-certificates for next steps."
-                )
+            token = await self.token_manager.fetch_token()
 
             if token:
                 jamf_client = JamfClient(
@@ -201,8 +187,6 @@ class Setup:
             else:
                 self.log.error("Failed to fetch a valid token!")
                 raise exceptions.TokenFetchError(reason="Token failed verification")
-        else:
-            self.log.debug("First run already completed.")
 
     async def launch(self, animator: Optional[Animation] = None):
         """
@@ -234,7 +218,7 @@ class Setup:
                 )
                 if not basic_token:
                     use_sso = click.confirm(
-                        "We received a 401 response. Are you using SSO?", default=False
+                        "Patcher was unable to retrieve a token. Are you using SSO?", default=False
                     )
                     if use_sso:
                         await self.first_run()
@@ -246,7 +230,7 @@ class Setup:
                         if not basic_token:
                             click.echo(
                                 click.style(
-                                    text="Unfortunately we received a 401 response again. Please verify your account does not use SSO.",
+                                    text="Unfortunately Patcher was unable to retrieve a token again. Please verify your account does not use SSO.",
                                     fg="red",
                                 ),
                                 err=True,
@@ -259,10 +243,6 @@ class Setup:
                     ),
                     err=True,
                 )
-                return
-
-            if basic_token is None:
-                self.log.error("Failed to retrieve a valid token. Exiting setup.")
                 return
 
             await animator.update_msg("Creating roles")
