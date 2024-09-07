@@ -12,7 +12,7 @@ Project documentation can now be found [on our project homepage](https://patcher
 
 ### Sample PDF
 The following image can be found in the `images` directory.
-<p align="left"><img src="https://raw.githubusercontent.com/liquidz00/Patcher/develop/images/example_pdf.jpeg" width="750"/></p>
+<p align="left"><img src="docs/_static/example_pdf.jpeg" width="750"/></p>
 
 ### Installation
 Install via `pip`:
