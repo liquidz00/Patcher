@@ -285,7 +285,7 @@ class ReportManager:
 
         self.log.debug(f"Obtained device IDs for {len(device_ids)} devices.")
         device_versions = await self.api_client.get_device_os_versions(device_ids=device_ids)
-        latest_versions = self.api_client.get_sofa_feed()
+        latest_versions = await self.api_client.get_sofa_feed()
         if not device_versions:
             self.log.error(
                 "Received empty response obtaining device OS versions from Jamf. Exiting...",

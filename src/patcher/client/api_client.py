@@ -1,5 +1,4 @@
 import json
-import subprocess
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
@@ -33,7 +32,6 @@ class ApiClient(BaseAPIClient):
         :raises ValueError: If the JamfClient configuration is invalid.
         """
         self.log = logger.LogMe(self.__class__.__name__)
-        self.log.debug("Initializing ApiClient")
         self.config = config
 
         self.jamf_client = config.attach_client()
@@ -46,7 +44,7 @@ class ApiClient(BaseAPIClient):
 
         super().__init__(max_concurrency=concurrency)
 
-    def convert_timezone(self, utc_time_str: str) -> Optional[str]:
+    def _convert_tz(self, utc_time_str: str) -> Optional[str]:
         """
         Converts a UTC time string to a formatted string without timezone information.
 
@@ -54,12 +52,6 @@ class ApiClient(BaseAPIClient):
         :type utc_time_str: str
         :return: Formatted date string (e.g., "Aug 09 2023") or None if the input format is invalid.
         :rtype: Optional[str]
-        :example:
-
-        .. code-block:: python
-
-            formatted_date = api_client.convert_timezone("2023-08-09T12:34:56+0000")
-            print(formatted_date)   # Outputs: "Aug 09 2023"
 
         .. note::
 
@@ -68,8 +60,7 @@ class ApiClient(BaseAPIClient):
         """
         try:
             utc_time = datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S%z")
-            time_str = utc_time.strftime("%b %d %Y")
-            return time_str
+            return utc_time.strftime("%b %d %Y")
         except ValueError as e:
             self.log.error(f"Invalid time format provided. Details: {e}")
             return None
@@ -121,7 +112,7 @@ class ApiClient(BaseAPIClient):
         patch_titles = [
             PatchTitle(
                 title=summary.get("title"),
-                released=self.convert_timezone(summary.get("releaseDate")),
+                released=self._convert_tz(summary.get("releaseDate")),
                 hosts_patched=summary.get("upToDate"),
                 missing_patch=summary.get("outOfDate"),
             )
@@ -187,7 +178,7 @@ class ApiClient(BaseAPIClient):
         self.log.info(f"Successfully obtained OS versions for {len(devices)} devices.")
         return devices
 
-    def get_sofa_feed(self) -> Optional[List[Dict[str, str]]]:
+    async def get_sofa_feed(self) -> Optional[List[Dict[str, str]]]:
         """
         Fetches iOS Data feeds from SOFA and extracts latest OS version information.
         To limit the amount of possible SSL verification checks, this method utilizes a subprocess call
@@ -198,23 +189,10 @@ class ApiClient(BaseAPIClient):
                 or None on error.
         :rtype: Optional[List[Dict[str, str]]]
         """
+        command = ["/usr/bin/curl", "-s", "https://sofafeed.macadmins.io/v1/ios_data_feed.json"]
+        result = await self.execute(command)
 
-        # Utilize curl to avoid SSL Verification errors for end-users on managed devices
-        command = "curl -s 'https://sofafeed.macadmins.io/v1/ios_data_feed.json'"
-
-        try:
-            result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
-        except subprocess.CalledProcessError as e:
-            self.log.error(f"Encountered error executing subprocess command: {e}")
-            return None
-
-        try:
-            data = json.loads(result.stdout)
-        except json.JSONDecodeError as e:
-            self.log.error(f"Error decoding JSON data: {e}")
-            return None
-
-        os_versions = data.get("OSVersions", [])
+        os_versions = result.get("OSVersions", [])
         latest_versions = []
         for version in os_versions:
             version_info = version.get("Latest", {})
@@ -222,7 +200,7 @@ class ApiClient(BaseAPIClient):
                 {
                     "OSVersion": version.get("OSVersion"),
                     "ProductVersion": version_info.get("ProductVersion"),
-                    "ReleaseDate": self.convert_timezone(version_info.get("ReleaseDate")),
+                    "ReleaseDate": self._convert_tz(version_info.get("ReleaseDate")),
                 }
             )
         return latest_versions
@@ -230,6 +208,22 @@ class ApiClient(BaseAPIClient):
     async def fetch_basic_token(
         self, username: str, password: str, jamf_url: Optional[str] = None
     ) -> Optional[str]:
+        """
+        Asynchronously retrieves a bearer token using basic authentication.
+
+        This method is intended for initial setup to obtain client credentials for API clients and roles.
+        It should not be used for regular token retrieval after setup.
+
+        :param username: Username of admin Jamf Pro account for authentication. Not permanently stored, only used for initial token retrieval.
+        :type username: str
+        :param password: Password of admin Jamf Pro account. Not permanently stored, only used for initial token retrieval.
+        :type password: str
+        :param jamf_url: Jamf Server URL (same as ``server_url`` in :mod:`patcher.models.jamf_client` class).
+        :type jamf_url: Optional[str]
+        :raises exceptions.TokenFetchError: If the call is unauthorized or unsuccessful.
+        :returns: True if the basic token was successfully retrieved, False if unauthorized (e.g., due to SSO).
+        :rtype: bool
+        """
         jamf_url = jamf_url or self.jamf_url
         token_url = f"{jamf_url}/api/v1/auth/token"
         command = [
@@ -250,6 +244,14 @@ class ApiClient(BaseAPIClient):
             return None
 
     async def create_roles(self, token: str) -> bool:
+        """
+        Creates the necessary API roles using the provided bearer token.
+
+        :param token: The bearer token to use for authentication. Defaults to the stored token if not provided.
+        :type token: Optional[str]
+        :return: True if roles were successfully created, False otherwise.
+        :rtype: bool
+        """
         role = ApiRoleModel()
         payload = json.dumps(
             {
@@ -269,6 +271,16 @@ class ApiClient(BaseAPIClient):
         return response is not None
 
     async def create_client(self, token: str) -> Optional[Tuple[str, str]]:
+        """
+        Creates an API client and retrieves its client ID and client secret.
+
+        This method uses the provided bearer token to create a new API client in the Jamf server.
+
+        :param token: The bearer token to use for authentication. Defaults to the stored token if not provided.
+        :type token: Optional[str]
+        :return: A tuple containing the client ID and client secret.
+        :rtype: Optional[Tuple[str, str]]
+        """
         client = ApiClientModel()
         client_url = f"{self.jamf_url}/api/v1/api-integrations"
         payload = json.dumps(
