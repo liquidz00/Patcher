@@ -8,6 +8,14 @@ from src.patcher.utils import exceptions
 
 @pytest.fixture
 def setup_instance(config_manager, ui_config, mock_jamf_client, api_client, token_manager):
+    ui_config.plist_path = (
+        Path.home()
+        / "Library"
+        / "Application Support"
+        / "Patcher"
+        / "com.liquidzoo.patcher.plist"
+    )
+
     instance = Setup(
         config=config_manager,
         ui_config=ui_config,
@@ -23,7 +31,7 @@ async def test_init(setup_instance, config_manager, ui_config):
     assert setup_instance.config == config_manager
     assert setup_instance.ui_config == ui_config
     assert (
-        setup_instance.plist_path
+        ui_config.plist_path
         == Path.home()
         / "Library"
         / "Application Support"
