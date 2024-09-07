@@ -45,7 +45,7 @@ def test_completed_property(setup_instance):
 
 def test_is_complete(setup_instance):
     with (
-        patch("os.path.exists", return_value=True),
+        patch.object(Path, "exists", return_value=True),
         patch("plistlib.load", return_value={"Setup": {"first_run_done": True}}),
         patch("builtins.open", mock_open(read_data=b"")),
     ):
@@ -54,7 +54,7 @@ def test_is_complete(setup_instance):
 
 
 def test_is_complete_error(setup_instance):
-    with patch("os.path.exists", return_value=True):
+    with patch.object(Path, "exists", return_value=True):
         with patch("plistlib.load", side_effect=Exception("plist read error")):
             with pytest.raises(exceptions.PlistError):
                 setup_instance._check_completion()
