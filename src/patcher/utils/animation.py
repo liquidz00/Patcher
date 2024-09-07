@@ -126,6 +126,6 @@ class Animation:
             yield
         except default_exceptions as e:
             log.error(f"{e}")
-            raise
+            raise  # Raise exception that was caught
         finally:
             await self.stop()
