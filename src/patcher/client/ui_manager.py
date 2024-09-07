@@ -32,7 +32,11 @@ class UIConfigManager:
         """
         self.log = logger.LogMe(self.__class__.__name__)
         self.plist_path = (
-            Path.home() / "/Library/Application Support/Patcher/com.liquidzoo.patcher.plist"
+            Path.home()
+            / "Library"
+            / "Application Support"
+            / "Patcher"
+            / "com.liquidzoo.patcher.plist"
         )
         self.font_dir = self.plist_path.parent / "fonts"
         self._fonts_saved = None
@@ -203,9 +207,6 @@ class UIConfigManager:
         :return: A tuple containing the font name, regular font path, and bold font path.
         :rtype: Tuple[str, str, str]
         """
-        # Convert font_dir to a string if passed a Path object
-        # This is intentional based upon how ``os.path.join`` handles str objects natively
-        #   and may not work as expected if passed a Path object
         if use_custom_font:
             font_name = click.prompt("Enter the custom font name", default="CustomFont")
             font_regular_src_path = Path(click.prompt("Enter the path to the regular font file"))
