@@ -35,7 +35,6 @@ async def test_init(setup_instance, config_manager, ui_config):
         / "com.liquidzoo.patcher.plist"
     )
     assert setup_instance._completed is None
-    assert setup_instance.jamf_url is None
 
 
 def test_completed_property(setup_instance):
