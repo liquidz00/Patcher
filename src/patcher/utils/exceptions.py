@@ -167,3 +167,21 @@ class APIPrivilegeError(PatcherError):
 
     def __init__(self, reason: Optional[str] = None):
         super().__init__(reason=reason)
+
+
+class APIResponseError(PatcherError):
+    """Raised when an API call receives an unsuccessful status code."""
+
+    default_message = "API call unsuccessful."
+
+    def __init__(self, msg: Optional[str] = None):
+        super().__init__(msg=msg)
+
+
+class ShellCommandError(PatcherError):
+    """Raised when the return code of a subprocess exec call is non-zero."""
+
+    default_message = "Command exited with non-zero status."
+
+    def __init__(self, msg: Optional[str] = None):
+        super().__init__(msg=msg)
