@@ -8,7 +8,7 @@ import asyncclick as click
 from ..models.jamf_client import JamfClient
 from ..utils import exceptions, logger
 from ..utils.animation import Animation
-from .api_client import ApiClient
+from . import BaseAPIClient
 from .config_manager import ConfigManager
 from .token_manager import TokenManager
 from .ui_manager import UIConfigManager
@@ -38,7 +38,7 @@ class Setup:
         self,
         config: ConfigManager,
         ui_config: UIConfigManager,
-        api_client: ApiClient,
+        api_client: BaseAPIClient,
         token_manager: TokenManager,
     ):
         """
@@ -54,7 +54,6 @@ class Setup:
         self.api_client = api_client
         self.token_manager = token_manager
         self.plist_path = ui_config.plist_path
-        self.jamf_url = None
         self.log = logger.LogMe(self.__class__.__name__)
         self._completed = None
         self.animator = Animation()
@@ -205,16 +204,15 @@ class Setup:
         if not self.completed:
             self.log.debug("Detected first run has not been completed. Starting setup assistant...")
 
-            self.jamf_url = click.prompt("Enter your Jamf Pro URL")
+            jamf_url = click.prompt("Enter your Jamf Pro URL")
             username = click.prompt("Enter your Jamf Pro username")
             password = click.prompt("Enter your Jamf Pro password", hide_input=True)
 
             await animator.update_msg("Retrieving basic token")
 
-            # basic_token = None
             try:
                 basic_token = await self.api_client.fetch_basic_token(
-                    username=username, password=password, jamf_url=self.jamf_url
+                    username=username, password=password, jamf_url=jamf_url
                 )
                 if not basic_token:
                     use_sso = click.confirm(
@@ -225,7 +223,7 @@ class Setup:
                         return
                     else:
                         basic_token = await self.api_client.fetch_basic_token(
-                            username=username, password=password, jamf_url=self.jamf_url
+                            username=username, password=password, jamf_url=jamf_url
                         )
                         if not basic_token:
                             click.echo(
@@ -246,13 +244,15 @@ class Setup:
                 return
 
             await animator.update_msg("Creating roles")
-            role_created = await self.api_client.create_roles(token=basic_token)
+            role_created = await self.api_client.create_roles(token=basic_token, jamf_url=jamf_url)
             if not role_created:
                 self.log.error("Failed creating API roles. Exiting...")
                 click.echo(click.style("Failed to create API roles.", fg="red"), err=True)
 
             await animator.update_msg("Creating client")
-            client_id, client_secret = await self.api_client.create_client(token=basic_token)
+            client_id, client_secret = await self.api_client.create_client(
+                token=basic_token, jamf_url=jamf_url
+            )
             if not client_id:
                 click.echo(
                     click.style(
@@ -272,7 +272,7 @@ class Setup:
 
             await animator.update_msg("Saving URL and client credentials")
             # Create ConfigManager, save credentials
-            self.config.set_credential("URL", self.jamf_url)
+            self.config.set_credential("URL", jamf_url)
             self.config.set_credential("CLIENT_ID", client_id)
             self.config.set_credential("CLIENT_SECRET", client_secret)
 
@@ -287,7 +287,7 @@ class Setup:
                 jamf_client = JamfClient(
                     client_id=client_id,
                     client_secret=client_secret,
-                    server=self.jamf_url,
+                    server=jamf_url,
                     token=token,
                 )
                 self.config.create_client(jamf_client)
