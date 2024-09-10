@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from ..models.patch import PatchTitle
-from ..utils import logger, exceptions
+from ..utils import exceptions, logger
 from ..utils.wrappers import check_token
 from . import BaseAPIClient
 from .config_manager import ConfigManager
@@ -76,7 +76,9 @@ class ApiClient(BaseAPIClient):
             self.log.error(
                 f"Unexpected response format: expected a list, received {type(response)} instead."
             )
-            raise TypeError(f"Unexpected response format: expected a list, received {type(response)} instead.")
+            raise TypeError(
+                f"Unexpected response format: expected a list, received {type(response)} instead."
+            )
 
         # Check if all elements in the list are dictionaries
         if not all(isinstance(item, dict) for item in response):
@@ -135,7 +137,9 @@ class ApiClient(BaseAPIClient):
 
         if not devices:
             self.log.error("Received empty data set when trying to obtain device IDs.")
-            raise exceptions.SummaryFetchError("Received empty data set when trying to obtain device IDs.")
+            raise exceptions.SummaryFetchError(
+                "Received empty data set when trying to obtain device IDs."
+            )
 
         self.log.info(f"Received {len(devices)} device IDs successfully.")
         return [device.get("id") for device in devices if device]
