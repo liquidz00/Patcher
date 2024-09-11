@@ -42,7 +42,7 @@ class PatcherError(Exception):
 class DatabaseError(PatcherError):
     """Raised when there is an issue reading or writing data to the SQLite database."""
 
-    default_message = "There was an error fetching data from the database."
+    default_message = "There was an error fetching data from the database"
 
     def __init__(self, reason: Optional[str] = None):
         super().__init__(reason=reason)
@@ -51,7 +51,7 @@ class DatabaseError(PatcherError):
 class InstallomatorError(PatcherError):
     """Raised when there is an issue reading or writing data to the SQLite database."""
 
-    default_message = "Encountered error retrieving Installomator information."
+    default_message = "Encountered error retrieving Installomator information"
 
     def __init__(self, reason: Optional[str] = None):
         super().__init__(reason=reason)
@@ -172,7 +172,7 @@ class APIPrivilegeError(PatcherError):
 class APIResponseError(PatcherError):
     """Raised when an API call receives an unsuccessful status code."""
 
-    default_message = "API call unsuccessful."
+    default_message = "API call unsuccessful"
 
     def __init__(self, msg: Optional[str] = None):
         super().__init__(msg=msg)
@@ -181,7 +181,16 @@ class APIResponseError(PatcherError):
 class ShellCommandError(PatcherError):
     """Raised when the return code of a subprocess exec call is non-zero."""
 
-    default_message = "Command exited with non-zero status."
+    default_message = "Command exited with non-zero status"
+
+    def __init__(self, msg: Optional[str] = None):
+        super().__init__(msg=msg)
+
+
+class SetupError(PatcherError):
+    """Raised if any errors occur during automatic setup (Creating API Role/Integration)."""
+
+    default_message = "Unable to complete Setup"
 
     def __init__(self, msg: Optional[str] = None):
         super().__init__(msg=msg)

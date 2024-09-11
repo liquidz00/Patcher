@@ -57,6 +57,22 @@ class BaseAPIClient:
         self.max_concurrency = concurrency
 
     async def execute(self, command: List[str]) -> Optional[Union[Dict, str]]:
+        """
+        Asynchronously executes a shell command using subprocess and returns the output.
+
+        This method leverages asyncio to run a command in a new subprocess. If the
+        command execution is unsuccessful (non-zero return code), an exception is raised.
+
+        .. note::
+            This method should be used for executing shell commands that are essential to the
+            functionality of the API client, such as invoking cURL commands for API calls.
+
+        :param command: A list representing the command and its arguments to be executed in the shell.
+        :type command: List[str]
+        :return: The standard output of the executed command decoded as a string, or None if there is an error.
+        :rtype: Optional[Union[Dict, str]]
+        :raises exceptions.ShellCommandError: If the command execution fails (returns a non-zero exit code).
+        """
         process = await asyncio.create_subprocess_exec(
             *command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
@@ -225,7 +241,10 @@ class BaseAPIClient:
             response = await self.execute(command)
             if response and "token" in response:
                 return response.get("token")
-            return None
+            else:
+                raise exceptions.TokenFetchError(
+                    f"Unable to retrieve basic token with provided username ({username}) and password"
+                )
 
     async def create_roles(self, token: str, jamf_url: str) -> bool:
         """
@@ -287,7 +306,7 @@ class BaseAPIClient:
 
         response = await self.execute(command)
         if not response or "clientId" not in response:
-            return None
+            raise exceptions.SetupError("Failed creating client ID!")
 
         client_id = response.get("clientId")
         integration_id = response.get("id")
@@ -297,7 +316,7 @@ class BaseAPIClient:
         secret_response = await self.execute(secret_command)
 
         if not secret_response or "clientSecret" not in secret_response:
-            return None
+            raise exceptions.SetupError(f"Failed creating client secret for {client_id}")
 
         client_secret = secret_response.get("clientSecret")
         return client_id, client_secret
