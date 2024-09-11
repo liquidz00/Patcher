@@ -241,7 +241,7 @@ class ReportManager:
             return reports_dir
         except OSError as e:
             self.log.error(f"Failed to create directory: {e}")
-            raise exceptions.DirectoryCreationError()
+            raise exceptions.DirectoryCreationError(f"Failed to create directory: {e}")
 
     def _sort(self, patch_reports: List[PatchTitle], sort_key: str) -> List[PatchTitle]:
         self.log.debug(f"Detected sorting option '{sort_key}'")
@@ -314,7 +314,7 @@ class ReportManager:
             self.log.debug(f"Excel file generated successfully at '{excel_file}'.")
         except ValueError as e:
             self.log.error(f"Error exporting to excel: {e}")
-            raise exceptions.ExportError()
+            raise exceptions.ExportError(f"Error exporting to excel: {e}")
 
     def _generate_pdf(self, reports_dir: str, date_format: str) -> None:
         self.log.debug("Generating PDF file...")
@@ -327,7 +327,7 @@ class ReportManager:
             raise exceptions.ExportError(file_path=reports_dir)
         except Exception as e:
             self.log.error(f"Unhandled error encountered: {e}")
-            raise exceptions.ExportError()
+            raise exceptions.ExportError(f"Unhandled error encountered: {e}")
 
     def _success(self, report_count: int, reports_dir: str) -> None:
         self.log.debug(f"{report_count} patch reports saved successfully to {reports_dir}.")

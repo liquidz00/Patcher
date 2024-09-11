@@ -6,7 +6,7 @@ from typing import Dict, Tuple, Union
 
 import asyncclick as click
 
-from ..utils import logger
+from ..utils import logger, exceptions
 from . import BaseAPIClient
 
 
@@ -92,15 +92,16 @@ class UIConfigManager:
         :type url: str
         :param dest_path: The local path where the downloaded font should be saved.
         :type dest_path: str
-        :raises OSError: Raised if the font cannot be downloaded due to a network error or invalid response.
+        :raises exceptions.ShellCommandError: Raised if the font cannot be downloaded due to a network error or invalid response.
         """
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         command = ["/usr/bin/curl", "-sL", url, "-o", str(dest_path)]
         async with self.api.semaphore:
-            result = await self.api.execute(command)
-
-        if result is None:
-            raise OSError(f"Unable to download font from {url}")
+            try:
+                result = await self.api.execute(command)
+            except exceptions.ShellCommandError as e:
+                self.log.error(f"Unable to download font from {url}")
+                raise
 
     async def create_default_config(self):
         """

@@ -253,22 +253,6 @@ class Setup:
             client_id, client_secret = await self.api_client.create_client(
                 token=basic_token, jamf_url=jamf_url
             )
-            if not client_id:
-                click.echo(
-                    click.style(
-                        text="Unable to create API client. Received invalid response.",
-                        fg="red",
-                    ),
-                    err=True,
-                )
-            elif not client_secret:
-                click.echo(
-                    click.style(
-                        text=f"Unable to retrieve client secret. Received invalid response",
-                        fg="red",
-                    ),
-                    err=True,
-                )
 
             await animator.update_msg("Saving URL and client credentials")
             # Create ConfigManager, save credentials

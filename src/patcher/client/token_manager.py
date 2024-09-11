@@ -55,11 +55,11 @@ class TokenManager:
             "client_secret": client_secret,
         }
 
-        response = await self.api_client.fetch_json(url, headers=headers, method="POST", data=data)
-
-        if response is None:
-            self.log.error(f"Failed to fetch a token from {url}")
-            return None
+        try:
+            response = await self.api_client.fetch_json(url, headers=headers, method="POST", data=data)
+        except exceptions.APIResponseError as e:
+            self.log.error(f"Failed to fetch a token from {url}: {e}")
+            raise  # Raise same exception that was caught
 
         return self._parse_token_response(response)
 

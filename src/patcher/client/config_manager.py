@@ -119,7 +119,7 @@ class ConfigManager:
             return client
         except ValidationError as e:
             self.log.error(f"Jamf Client failed validation: {e}")
-            return None
+            raise
 
     def create_client(self, client: JamfClient):
         """
