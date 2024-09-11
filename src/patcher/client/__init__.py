@@ -166,7 +166,7 @@ class BaseAPIClient:
             )
 
         # Handle status code from response
-        return await self._handle_status_code(status_code, response_json)  # type: ignore
+        return self._handle_status_code(status_code, response_json)  # type: ignore
 
     async def fetch_batch(
         self, urls: List[str], headers: Optional[Dict[str, str]] = None
