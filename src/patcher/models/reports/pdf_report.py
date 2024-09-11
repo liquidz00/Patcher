@@ -5,9 +5,10 @@ from typing import Union
 
 import pandas as pd
 from fpdf import FPDF
+from pandas.errors import ParserError
 
 from ...client.ui_manager import UIConfigManager
-from ...utils import logger
+from ...utils import exceptions, logger
 
 
 class PDFReport(FPDF):
@@ -116,27 +117,31 @@ class PDFReport(FPDF):
         :param date_format: The date format string for the PDF report header.
         :type date_format: str
         """
+        # Read excel file
         try:
-            # Read excel file
             df = pd.read_excel(excel_file)
+        except ParserError as e:
+            self.log.error(f"Failed to parse the excel file: {e}")
+            raise exceptions.PatcherError(f"Failed to parse the excel file: {e}")
 
-            # Create instance of FPDF
-            pdf = PDFReport(ui_config=UIConfigManager(), date_format=date_format)
-            pdf.table_headers = df.columns
-            pdf.column_widths = [75, 40, 40, 40, 40, 40]
-            pdf.add_page()
-            pdf.add_table_header()
+        # Create instance of FPDF
+        pdf = PDFReport(ui_config=UIConfigManager(), date_format=date_format)
+        pdf.table_headers = df.columns
+        pdf.column_widths = [75, 40, 40, 40, 40, 40]
+        pdf.add_page()
+        pdf.add_table_header()
 
-            # Data rows
-            pdf.set_font(self.ui_config.get("FONT_NAME"), "", 9)
-            for index, row in df.iterrows():
-                for data, width in zip(row, pdf.column_widths):
-                    pdf.cell(width, 10, str(data), border=1, align="C")
-                pdf.ln(10)
+        # Data rows
+        pdf.set_font(self.ui_config.get("FONT_NAME"), "", 9)
+        for index, row in df.iterrows():
+            for data, width in zip(row, pdf.column_widths):
+                pdf.cell(width, 10, str(data), border=1, align="C")
+            pdf.ln(10)
 
-            # Save PDF to a file
-            pdf_filename = os.path.splitext(excel_file)[0] + ".pdf"
+        # Save PDF to a file
+        pdf_filename = os.path.splitext(excel_file)[0] + ".pdf"
+        try:
             pdf.output(pdf_filename)
-
-        except Exception as e:
-            self.log.error(f"Error occurred trying to export PDF: {e}")
+        except (OSError, PermissionError) as e:
+            self.log.error(f"Error occurred trying to export to PDF: {e}")
+            raise exceptions.ExportError(file_path=pdf_filename)

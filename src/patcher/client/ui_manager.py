@@ -6,7 +6,7 @@ from typing import Dict, Tuple, Union
 
 import asyncclick as click
 
-from ..utils import logger, exceptions
+from ..utils import exceptions, logger
 from . import BaseAPIClient
 
 

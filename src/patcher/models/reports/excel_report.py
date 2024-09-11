@@ -5,7 +5,7 @@ from typing import List, Optional, Union
 
 import pandas as pd
 
-from ...utils import logger
+from ...utils import exceptions, logger
 from ..patch import PatchTitle
 
 
@@ -46,10 +46,10 @@ class ExcelReport:
             df.columns = [column.replace("_", " ").title() for column in df.columns]
         except ValueError as e:
             self.log.error(f"Error creating DataFrame: {e}")
-            return None
+            raise exceptions.ExportError(f"Error creating DataFrame: {e}")
         except Exception as e:
-            self.log.error(f"Unhandled exception occurred trying to export to Excel: {e}")
-            return None
+            self.log.error(f"Exception occurred trying to export to Excel: {e}")
+            raise exceptions.ExportError(file_path=str(output_dir))
 
         excel_path = os.path.join(output_dir, f"patch-report-{current_date}.xlsx")
         df.to_excel(excel_path, index=False)

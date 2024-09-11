@@ -56,7 +56,9 @@ class TokenManager:
         }
 
         try:
-            response = await self.api_client.fetch_json(url, headers=headers, method="POST", data=data)
+            response = await self.api_client.fetch_json(
+                url, headers=headers, method="POST", data=data
+            )
         except exceptions.APIResponseError as e:
             self.log.error(f"Failed to fetch a token from {url}: {e}")
             raise  # Raise same exception that was caught
