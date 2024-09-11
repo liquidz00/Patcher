@@ -9,7 +9,7 @@ from ..utils import exceptions, logger
 
 class BaseAPIClient:
     """
-        The BaseAPIClient class controls concurrency settings and secure connections for *all* API calls.
+    The BaseAPIClient class controls concurrency settings and secure connections for *all* API calls.
 
     This class forms the backbone of Patcher's ability to interact with external APIs.
     It manages the number of API requests that can be made simultaneously, ensuring the tool is both
