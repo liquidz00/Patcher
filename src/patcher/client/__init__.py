@@ -238,7 +238,8 @@ class BaseAPIClient:
             token_url,
         ]
         async with self.semaphore:
-            response = await self.execute(command)
+            resp = await self.execute(command)
+            response = json.loads(resp)
             if response and "token" in response:
                 return response.get("token")
             else:
