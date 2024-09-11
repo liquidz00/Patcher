@@ -160,15 +160,6 @@ class SofaFeedError(PatcherError):
         super().__init__(reason=reason, url=url)
 
 
-class APIPrivilegeError(PatcherError):
-    """Raised when the provided API client does not have sufficient privileges for API call type."""
-
-    default_message = "API Client does not have sufficient privileges"
-
-    def __init__(self, reason: Optional[str] = None):
-        super().__init__(reason=reason)
-
-
 class APIResponseError(PatcherError):
     """Raised when an API call receives an unsuccessful status code."""
 
