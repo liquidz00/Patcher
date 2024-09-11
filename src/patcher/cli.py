@@ -104,7 +104,7 @@ async def main(
     concurrency: int,
     debug: bool,
     reset: bool,
-    custom_ca_file: Optional[str],
+    custom_ca_file: Optional[str],  # Leaving in for now if revert back to aiohttp
 ) -> None:
     if not ctx.params["reset"] and not ctx.params["path"]:
         raise click.UsageError("The --path option is required unless --reset is specified.")
@@ -141,7 +141,7 @@ async def main(
         api_client.jamf_client = jamf_client
         excel_report = ExcelReport()
         pdf_report = PDFReport(ui_config)
-        api_client.jamf_client.set_max_concurrency(concurrency=concurrency)
+        api_client.set_concurrency(concurrency=concurrency)
 
         patcher = ReportManager(
             config, token_manager, api_client, excel_report, pdf_report, ui_config, debug
