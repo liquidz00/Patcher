@@ -305,7 +305,8 @@ class BaseAPIClient:
         header_string = " ".join([f"-H '{k}: {v}'" for k, v in headers.items()])
         command = ["/usr/bin/curl", "-s", header_string, "-d", payload, "-X", "POST", client_url]
 
-        response = await self.execute(command)
+        resp = await self.execute(command)
+        response = json.loads(resp)
         if not response or "clientId" not in response:
             raise exceptions.SetupError("Failed creating client ID!")
 
@@ -314,7 +315,8 @@ class BaseAPIClient:
 
         secret_url = f"{jamf_url}/api/v1/api-integrations/{integration_id}/client-credentials"
         secret_command = ["/usr/bin/curl", "-s", header_string, "-X", "POST", secret_url]
-        secret_response = await self.execute(secret_command)
+        secret_resp = await self.execute(secret_command)
+        secret_response = json.loads(secret_resp)
 
         if not secret_response or "clientSecret" not in secret_response:
             raise exceptions.SetupError(f"Failed creating client secret for {client_id}")
