@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
 import pytz
+from src.patcher.client import BaseAPIClient
 from src.patcher.client.api_client import ApiClient
 from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.report_manager import ReportManager
@@ -380,6 +381,11 @@ def token_manager(config_manager):
     )
     token_manager._check_token_lifetime = AsyncMock(return_value=True)
     yield token_manager
+
+
+@pytest.fixture
+def base_api_client():
+    return BaseAPIClient(max_concurrency=3)
 
 
 @pytest.fixture
