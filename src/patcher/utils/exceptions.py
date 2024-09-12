@@ -165,8 +165,8 @@ class APIResponseError(PatcherError):
 
     default_message = "API call unsuccessful"
 
-    def __init__(self, msg: Optional[str] = None):
-        super().__init__(msg=msg)
+    def __init__(self, reason: Optional[str] = None):
+        super().__init__(reason=reason)
 
 
 class ShellCommandError(PatcherError):
@@ -174,8 +174,8 @@ class ShellCommandError(PatcherError):
 
     default_message = "Command exited with non-zero status"
 
-    def __init__(self, msg: Optional[str] = None):
-        super().__init__(msg=msg)
+    def __init__(self, reason: Optional[str] = None):
+        super().__init__(reason=reason)
 
 
 class SetupError(PatcherError):
@@ -183,5 +183,5 @@ class SetupError(PatcherError):
 
     default_message = "Unable to complete Setup"
 
-    def __init__(self, msg: Optional[str] = None):
-        super().__init__(msg=msg)
+    def __init__(self, reason: Optional[str] = None):
+        super().__init__(reason=reason)
