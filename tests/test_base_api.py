@@ -1,6 +1,6 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, Mock
-from src.patcher.client import BaseAPIClient
 from src.patcher.utils import exceptions
 
 
@@ -67,7 +67,9 @@ def test_handle_status_code_server_error(base_api_client):
 # Test JSON fetching
 @pytest.mark.asyncio
 async def test_fetch_json(base_api_client):
-    with patch.object(base_api_client, "execute", AsyncMock(return_value='{"key": "value"}\nSTATUS:200')) as mock_execute:
+    with patch.object(
+        base_api_client, "execute", AsyncMock(return_value='{"key": "value"}\nSTATUS:200')
+    ) as mock_execute:
         result = await base_api_client.fetch_json("https://example.com/api")
         assert result == {"key": "value"}
         mock_execute.assert_called_once()
@@ -75,7 +77,9 @@ async def test_fetch_json(base_api_client):
 
 @pytest.mark.asyncio
 async def test_fetch_json_failure(base_api_client):
-    with patch.object(base_api_client, "execute", AsyncMock(return_value='{"errors": "error"}\nSTATUS:500')):
+    with patch.object(
+        base_api_client, "execute", AsyncMock(return_value='{"errors": "error"}\nSTATUS:500')
+    ):
         with pytest.raises(exceptions.APIResponseError):
             await base_api_client.fetch_json("https://example.com/api")
 
@@ -83,7 +87,9 @@ async def test_fetch_json_failure(base_api_client):
 # Test batch fetching
 @pytest.mark.asyncio
 async def test_fetch_batch(base_api_client):
-    with patch.object(base_api_client, "fetch_json", AsyncMock(side_effect=[{"data": 1}, {"data": 2}])):
+    with patch.object(
+        base_api_client, "fetch_json", AsyncMock(side_effect=[{"data": 1}, {"data": 2}])
+    ):
         urls = ["https://example.com/api/1", "https://example.com/api/2"]
         results = await base_api_client.fetch_batch(urls)
         assert results == [{"data": 1}, {"data": 2}]
@@ -92,7 +98,9 @@ async def test_fetch_batch(base_api_client):
 # Test setup calls
 @pytest.mark.asyncio
 async def test_fetch_basic_token(base_api_client):
-    with patch.object(base_api_client, "execute", AsyncMock(return_value='{"token": "abc123"}')) as mock_execute:
+    with patch.object(
+        base_api_client, "execute", AsyncMock(return_value='{"token": "abc123"}')
+    ) as mock_execute:
         result = await base_api_client.fetch_basic_token("user", "pass", "https://example.com")
         assert result == "abc123"
         mock_execute.assert_called_once()
@@ -100,7 +108,9 @@ async def test_fetch_basic_token(base_api_client):
 
 @pytest.mark.asyncio
 async def test_create_roles(base_api_client):
-    with patch.object(base_api_client, "execute", AsyncMock(return_value='{"role": "created"}')) as mock_execute:
+    with patch.object(
+        base_api_client, "execute", AsyncMock(return_value='{"role": "created"}')
+    ) as mock_execute:
         result = await base_api_client.create_roles("token", "https://example.com")
         assert result is True
         mock_execute.assert_called_once()
@@ -108,9 +118,11 @@ async def test_create_roles(base_api_client):
 
 @pytest.mark.asyncio
 async def test_create_client(base_api_client):
-    with patch.object(base_api_client, "execute", AsyncMock(side_effect=[
-        '{"clientId": "123", "id": "456"}', '{"clientSecret": "secret"}'
-    ])) as mock_execute:
+    with patch.object(
+        base_api_client,
+        "execute",
+        AsyncMock(side_effect=['{"clientId": "123", "id": "456"}', '{"clientSecret": "secret"}']),
+    ) as mock_execute:
         result = await base_api_client.create_client("token", "https://example.com")
         assert result == ("123", "secret")
         assert mock_execute.call_count == 2
