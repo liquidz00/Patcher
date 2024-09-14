@@ -109,7 +109,9 @@ async def test_fetch_basic_token(base_api_client):
 @pytest.mark.asyncio
 async def test_create_roles(base_api_client):
     with patch.object(
-        base_api_client, "execute", AsyncMock(return_value='{"role": "created"}')
+        base_api_client,
+        "execute",
+        AsyncMock(return_value='{"displayName": "Patcher-Role"}\nSTATUS:200'),
     ) as mock_execute:
         result = await base_api_client.create_roles("token", "https://example.com")
         assert result is True
@@ -121,7 +123,12 @@ async def test_create_client(base_api_client):
     with patch.object(
         base_api_client,
         "execute",
-        AsyncMock(side_effect=['{"clientId": "123", "id": "456"}', '{"clientSecret": "secret"}']),
+        AsyncMock(
+            side_effect=[
+                '{"clientId": "123", "id": "456"}\nSTATUS:200',
+                '{"clientSecret": "secret"}\nSTATUS:200',
+            ]
+        ),
     ) as mock_execute:
         result = await base_api_client.create_client("token", "https://example.com")
         assert result == ("123", "secret")

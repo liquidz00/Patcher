@@ -80,7 +80,7 @@ class BaseAPIClient:
         if process.returncode != 0:
             self.log.error(f"Error executing subprocess command: {stderr.decode()}")
             raise exceptions.ShellCommandError(
-                msg=f"Error executing subprocess command: {stderr.decode()}"
+                reason=f"Error executing subprocess command: {stderr.decode()}"
             )
 
         return stdout.decode()
@@ -259,22 +259,19 @@ class BaseAPIClient:
         :rtype: bool
         """
         role = ApiRoleModel()
-        payload = json.dumps(
-            {
-                "displayName": role.display_name,
-                "privileges": role.privileges,
-            }
-        )
+        payload = {
+            "displayName": role.display_name,
+            "privileges": role.privileges,
+        }
+
         role_url = f"{jamf_url}/api/v1/api-roles"
         headers = {
             "accept": "application/json",
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
         }
-        header_string = " ".join([f"-H '{k}: {v}'" for k, v in headers.items()])
-        command = ["/usr/bin/curl", "-s", header_string, "-d", payload, "-X", "POST", role_url]
-        response = await self.execute(command)
-        return response is not None
+        response = await self.fetch_json(url=role_url, headers=headers, method="POST", data=payload)
+        return response.get("displayName") == role.display_name
 
     async def create_client(self, token: str, jamf_url: str) -> Optional[Tuple[str, str]]:
         """
@@ -289,36 +286,32 @@ class BaseAPIClient:
         """
         client = ApiClientModel()
         client_url = f"{jamf_url}/api/v1/api-integrations"
-        payload = json.dumps(
-            {
-                "authorizationScopes": client.auth_scopes,
-                "displayName": client.display_name,
-                "enabled": client.enabled,
-                "accessTokenLifetimeSeconds": client.token_lifetime,  # 30 minutes in seconds
-            }
-        )
+        payload = {
+            "authorizationScopes": client.auth_scopes,
+            "displayName": client.display_name,
+            "enabled": client.enabled,
+            "accessTokenLifetimeSeconds": client.token_lifetime,  # 30 minutes in seconds
+        }
+
         headers = {
             "accept": "application/json",
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
         }
-        header_string = " ".join([f"-H '{k}: {v}'" for k, v in headers.items()])
-        command = ["/usr/bin/curl", "-s", header_string, "-d", payload, "-X", "POST", client_url]
 
-        resp = await self.execute(command)
-        response = json.loads(resp)
-        if not response or "clientId" not in response:
+        response = await self.fetch_json(
+            url=client_url, method="POST", data=payload, headers=headers
+        )
+        if not response.get("clientId"):
             raise exceptions.SetupError("Failed creating client ID!")
 
         client_id = response.get("clientId")
         integration_id = response.get("id")
 
         secret_url = f"{jamf_url}/api/v1/api-integrations/{integration_id}/client-credentials"
-        secret_command = ["/usr/bin/curl", "-s", header_string, "-X", "POST", secret_url]
-        secret_resp = await self.execute(secret_command)
-        secret_response = json.loads(secret_resp)
+        secret_response = await self.fetch_json(url=secret_url, method="POST", headers=headers)
 
-        if not secret_response or "clientSecret" not in secret_response:
+        if not secret_response.get("clientSecret"):
             raise exceptions.SetupError(f"Failed creating client secret for {client_id}")
 
         client_secret = secret_response.get("clientSecret")
