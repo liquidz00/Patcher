@@ -19,7 +19,7 @@ WELCOME = """It looks like this is your first time using the tool. We will guide
 
 The setup assistant will prompt you to choose your setup method--Standard is the automated setup which will prompt for your Jamf URL, your Jamf Pro username and your Jamf Pro password. Patcher ONLY uses this information to create the necessary API role and client on your behalf, your credentials are not stored whatsoever. Once generated, these client credentials (and generated bearer token) can be found in your keychain. The SSO setup will prompt for a client ID and client secret of an API Client that has already been created. 
 
-You will be prompted to enter in the header and footer text for PDF reports, should you choose to generate them. These can be configured later by modifying the 'config.ini' file in Patcher's Application Support directory stored in the user library.
+You will be prompted to enter in the header and footer text for PDF reports, should you choose to generate them. These can be configured later by modifying the corresponding keys in the com.liquidzoo.patcher.plist file in Patcher's Application Support directory stored in the user library.
 
 """
 DOC = "For more information, visit the project documentation: https://patcher.liquidzoo.io\n"
