@@ -38,8 +38,6 @@ class Setup:
         self,
         config: ConfigManager,
         ui_config: UIConfigManager,
-        api_client: BaseAPIClient,
-        token_manager: TokenManager,
     ):
         """
         Initializes the Setup class with configuration and UI configuration managers.
@@ -51,10 +49,8 @@ class Setup:
         """
         self.config = config
         self.ui_config = ui_config
-        self.api_client = api_client
-        self.token_manager = token_manager
-        self.plist_path = ui_config.plist_path
         self.log = logger.LogMe(self.__class__.__name__)
+        self.plist_path = ui_config.plist_path
         self._completed = None
         self.animator = Animation()
 
@@ -166,11 +162,12 @@ class Setup:
             self.config.set_credential("CLIENT_ID", api_client_id)
             self.config.set_credential("CLIENT_SECRET", api_client_secret)
 
+            # Initialize TokenManager
+            token_manager = TokenManager(self.config)
+            token = await token_manager.fetch_token()
+
             # Wait a short time to ensure creds are saved
             await sleep(3)
-
-            # Generate bearer token and save it
-            token = await self.token_manager.fetch_token()
 
             if token:
                 jamf_client = JamfClient(
@@ -208,10 +205,14 @@ class Setup:
             username = click.prompt("Enter your Jamf Pro username")
             password = click.prompt("Enter your Jamf Pro password", hide_input=True)
 
+            # Initialize BaseAPIClient and TokenManager
+            api_client = BaseAPIClient()
+            token_manager = TokenManager(self.config)
+
             await animator.update_msg("Retrieving basic token")
 
             try:
-                basic_token = await self.api_client.fetch_basic_token(
+                basic_token = await api_client.fetch_basic_token(
                     username=username, password=password, jamf_url=jamf_url
                 )
                 if not basic_token:
@@ -222,7 +223,7 @@ class Setup:
                         await self.first_run()
                         return
                     else:
-                        basic_token = await self.api_client.fetch_basic_token(
+                        basic_token = await api_client.fetch_basic_token(
                             username=username, password=password, jamf_url=jamf_url
                         )
                         if not basic_token:
@@ -244,13 +245,13 @@ class Setup:
                 return
 
             await animator.update_msg("Creating roles")
-            role_created = await self.api_client.create_roles(token=basic_token, jamf_url=jamf_url)
+            role_created = await api_client.create_roles(token=basic_token, jamf_url=jamf_url)
             if not role_created:
                 self.log.error("Failed creating API roles. Exiting...")
                 click.echo(click.style("Failed to create API roles.", fg="red"), err=True)
 
             await animator.update_msg("Creating client")
-            client_id, client_secret = await self.api_client.create_client(
+            client_id, client_secret = await api_client.create_client(
                 token=basic_token, jamf_url=jamf_url
             )
 
@@ -265,7 +266,7 @@ class Setup:
 
             await animator.update_msg("Fetching bearer token")
             # Fetch Token and save if successful
-            token = await self.token_manager.fetch_token()
+            token = await token_manager.fetch_token()
             if token:
                 # Create JamfClient object with all credentials
                 jamf_client = JamfClient(
