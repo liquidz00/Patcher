@@ -141,7 +141,7 @@ class TokenManager:
         Evaluates the remaining lifetime of the access token.
 
         This method checks if the token's remaining lifetime is sufficient.
-        If the lifetime is less than 5 minutes, a warning is issued.
+        If the lifetime is less than 2 minutes, a warning is issued.
 
         :return: ``True`` if the token's remaining lifetime is more than 5 minutes,
                  otherwise ``False``.
@@ -149,14 +149,18 @@ class TokenManager:
         """
         lifetime = self.token.seconds_remaining
 
-        if lifetime <= 0:
-            self.log.error("Token lifetime is invalid")
-            return False
-        elif lifetime < 60:
-            self.log.error("Token lifetime is less than 1 minute.")
-        elif 300 <= lifetime <= 600:
-            self.log.warning(
-                "Token lifetime is between 5-10 minutes, consider increasing duration."
-            )
-        self.log.info(f"Token lifetime is sufficient. Remaining Lifetime: {lifetime}")
-        return True
+        match lifetime:
+            case _ if lifetime <= 0:
+                self.log.error("Token lifetime is invalid")
+                return False
+            case _ if lifetime < 120:
+                self.log.warning(
+                    "Token lifetime is between 5-10 minutes, consider increasing duration."
+                )
+                return False
+            case _ if lifetime > 120:
+                self.log.info(f"Token lifetime is sufficient. Remaining Lifetime: {lifetime}")
+                return True
+            case _:
+                self.log.error(f"Unrecognized lifetime provided: {lifetime}")
+                return False
