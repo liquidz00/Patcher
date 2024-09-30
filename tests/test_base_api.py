@@ -9,7 +9,7 @@ from src.patcher.utils import exceptions
 async def test_constructor_and_property(base_api_client):
     assert base_api_client.max_concurrency == 3
     assert base_api_client.concurrency == 3
-    assert base_api_client.default_headers == {"accept": "application/json"}
+    assert base_api_client.default_headers == {"accept": "application/json", "Content-Type": "application/json"}
 
 
 @pytest.mark.asyncio
