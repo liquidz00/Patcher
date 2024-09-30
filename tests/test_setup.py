@@ -15,8 +15,6 @@ def setup_instance(config_manager, ui_config, mock_jamf_client, api_client, toke
     instance = Setup(
         config=config_manager,
         ui_config=ui_config,
-        api_client=api_client,
-        token_manager=token_manager,
     )
     instance.config.attach_client.return_value = mock_jamf_client
     return instance
