@@ -39,9 +39,8 @@ def check_token(func: Callable) -> Any:
         log = instance.log
 
         try:
-            instance.config.attach_client()
+            log.info("Validating access token before API call...")
             await token_manager.ensure_valid_token()
-
         except ValidationError as e:
             log.error(f"Failed validation: {e}")
             raise
