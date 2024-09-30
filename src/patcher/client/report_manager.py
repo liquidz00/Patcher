@@ -215,7 +215,9 @@ class ReportManager:
                 patch_reports = await self._ios(patch_reports)
 
             # Generate reports
-            excel_file = await self._generate_excel(patch_reports=patch_reports, reports_dir=output_path)
+            excel_file = await self._generate_excel(
+                patch_reports=patch_reports, reports_dir=output_path
+            )
 
             if pdf:
                 await self._generate_pdf(excel_file=excel_file, date_format=date_format)
@@ -268,7 +270,8 @@ class ReportManager:
         original_count = len(patch_reports)
         patch_reports = await asyncio.to_thread(
             lambda: [
-                report for report in patch_reports
+                report
+                for report in patch_reports
                 if datetime.strptime(report.released, "%b %d %Y") < cutoff
             ]
         )
@@ -315,7 +318,9 @@ class ReportManager:
     async def _generate_excel(self, patch_reports: List[PatchTitle], reports_dir: str) -> str:
         self.log.debug("Generating excel file...")
         try:
-            excel_file = await asyncio.to_thread(self.excel_report.export_to_excel, patch_reports, reports_dir)
+            excel_file = await asyncio.to_thread(
+                self.excel_report.export_to_excel, patch_reports, reports_dir
+            )
             self.log.debug(f"Excel file generated successfully at '{excel_file}'.")
             return excel_file
         except ValueError as e:
