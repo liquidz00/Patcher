@@ -379,7 +379,7 @@ def token_manager(config_manager):
             token="mocked_token", expires=datetime(2030, 1, 1, tzinfo=timezone.utc)
         )
     )
-    token_manager._check_token_lifetime = AsyncMock(return_value=True)
+    token_manager._check_token_lifetime = MagicMock()
     yield token_manager
 
 
