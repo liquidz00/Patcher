@@ -7,7 +7,7 @@ from typing import Optional
 import asyncclick as click
 
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger_name = "patcher"
+logger_name = "Patcher"
 default_log_level = logging.INFO
 log_roll_size = 1048576 * 100
 log_backupCount = 10
@@ -153,5 +153,6 @@ class LogMe:
         :type msg: str
         """
         self.logger.error(msg)
-        err_out = click.style(text=f"\rERROR: {msg.strip()}", fg="red", bold=True)
-        click.echo(message=err_out, err=True)
+        if self.is_debug_enabled():
+            err_out = click.style(text=f"\rERROR: {msg.strip()}", fg="red", bold=True)
+            click.echo(message=err_out, err=False)
