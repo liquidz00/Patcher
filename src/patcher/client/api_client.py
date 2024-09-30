@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 
 from ..models.patch import PatchTitle
 from ..utils import exceptions, logger
-from ..utils.wrappers import check_token
+from ..utils.decorators import check_token
 from . import BaseAPIClient
 from .config_manager import ConfigManager
 from .token_manager import TokenManager
@@ -32,14 +32,11 @@ class ApiClient(BaseAPIClient):
         """
         self.log = logger.LogMe(self.__class__.__name__)
         self.config = config
+        self.token_manager = TokenManager(config)  # Use for check_token decorator
 
+        # Creds can be loaded here as ApiClient objects can only exist after successful JamfClient creation.
         self.jamf_client = config.attach_client()
-        if not self.jamf_client:
-            self.log.error("Invalid JamfClient configuration detected!")
-            raise ValueError("Invalid JamfClient configuration detected!")
-
         self.jamf_url = self.jamf_client.base_url
-        self.token_manager = TokenManager(config)
 
         super().__init__(max_concurrency=concurrency)
 
