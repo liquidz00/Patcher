@@ -1,3 +1,4 @@
+import asyncio
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -10,7 +11,7 @@ from ..models.reports.excel_report import ExcelReport
 from ..models.reports.pdf_report import PDFReport
 from ..utils import exceptions, logger
 from ..utils.animation import Animation
-from ..utils.wrappers import check_token
+from ..utils.decorators import check_token
 from .api_client import ApiClient
 from .config_manager import ConfigManager
 from .token_manager import TokenManager
@@ -203,21 +204,21 @@ class ReportManager:
 
             # (option) Sort
             if sort:
-                patch_reports = self._sort(patch_reports, sort)
+                patch_reports = await self._sort(patch_reports, sort)
 
             # (option) Omit
             if omit:
-                patch_reports = self._omit(patch_reports)
+                patch_reports = await self._omit(patch_reports)
 
             # (option) iOS
             if ios:
                 patch_reports = await self._ios(patch_reports)
 
             # Generate reports
-            self._generate_excel(patch_reports, output_path)
+            excel_file = await self._generate_excel(patch_reports=patch_reports, reports_dir=output_path)
 
             if pdf:
-                self._generate_pdf(output_path, date_format)
+                await self._generate_pdf(excel_file=excel_file, date_format=date_format)
 
             # Manually stop animation to show success message cleanly
             animation.stop_event.set()
@@ -243,11 +244,14 @@ class ReportManager:
             self.log.error(f"Failed to create directory: {e}")
             raise exceptions.DirectoryCreationError(f"Failed to create directory: {e}")
 
-    def _sort(self, patch_reports: List[PatchTitle], sort_key: str) -> List[PatchTitle]:
+    async def _sort(self, patch_reports: List[PatchTitle], sort_key: str) -> List[PatchTitle]:
         self.log.debug(f"Detected sorting option '{sort_key}'")
         sort_key = sort_key.lower().replace(" ", "_")
+
         try:
-            sorted_reports = sorted(patch_reports, key=lambda x: getattr(x, sort_key))
+            sorted_reports = await asyncio.to_thread(
+                lambda: sorted(patch_reports, key=lambda x: getattr(x, sort_key))
+            )
             self.log.debug(f"Patch reports sorted by '{sort_key}'.")
             return sorted_reports
         except (KeyError, AttributeError):
@@ -256,17 +260,18 @@ class ReportManager:
             )
             raise exceptions.SortError(column=str(sort_key.title().replace("_", " ")))
 
-    def _omit(self, patch_reports: List[PatchTitle]) -> List[PatchTitle]:
+    async def _omit(self, patch_reports: List[PatchTitle]) -> List[PatchTitle]:
         self.log.debug(
             "Detected omit flag. Omitting policies with patches released in past 48 hours."
         )
         cutoff = datetime.now() - timedelta(hours=48)
         original_count = len(patch_reports)
-        patch_reports = [
-            report
-            for report in patch_reports
-            if datetime.strptime(report.released, "%b %d %Y") < cutoff
-        ]
+        patch_reports = await asyncio.to_thread(
+            lambda: [
+                report for report in patch_reports
+                if datetime.strptime(report.released, "%b %d %Y") < cutoff
+            ]
+        )
         omitted_count = original_count - len(patch_reports)
         self.log.debug(f"Omitted {omitted_count} policies with recent patches.")
         return patch_reports
@@ -307,24 +312,25 @@ class ReportManager:
         self.log.debug("iOS information successfully appended to patch reports.")
         return patch_reports
 
-    def _generate_excel(self, patch_reports: List[PatchTitle], reports_dir: str) -> None:
+    async def _generate_excel(self, patch_reports: List[PatchTitle], reports_dir: str) -> str:
         self.log.debug("Generating excel file...")
         try:
-            excel_file = self.excel_report.export_to_excel(patch_reports, reports_dir)
+            excel_file = await asyncio.to_thread(self.excel_report.export_to_excel, patch_reports, reports_dir)
             self.log.debug(f"Excel file generated successfully at '{excel_file}'.")
+            return excel_file
         except ValueError as e:
             self.log.error(f"Error exporting to excel: {e}")
             raise exceptions.ExportError(f"Error exporting to excel: {e}")
 
-    def _generate_pdf(self, reports_dir: str, date_format: str) -> None:
+    async def _generate_pdf(self, excel_file: str, date_format: str) -> None:
         self.log.debug("Generating PDF file...")
         try:
             pdf_report = PDFReport(self.ui_config)
-            pdf_report.export_excel_to_pdf(os.path.join(reports_dir, "Patch-Reports"), date_format)
+            await asyncio.to_thread(pdf_report.export_excel_to_pdf, excel_file, date_format)
             self.log.debug("PDF file generated successfully.")
         except (OSError, PermissionError) as e:
             self.log.error(f"Error generating PDF file. Check file permissions: {e}")
-            raise exceptions.ExportError(file_path=reports_dir)
+            raise exceptions.ExportError(file_path=excel_file)
         except Exception as e:
             self.log.error(f"Unhandled error encountered: {e}")
             raise exceptions.ExportError(f"Unhandled error encountered: {e}")
