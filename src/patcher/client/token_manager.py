@@ -28,12 +28,25 @@ class TokenManager:
         self.log = logger.LogMe(self.__class__.__name__)
         self.config = config
         self.api_client = BaseAPIClient()
-        self.jamf_client = self.config.attach_client()
-        if not self.jamf_client:
-            self.log.error("Invalid JamfClient configuration was detected and ValueError raised.")
-            raise ValueError("Invalid JamfClient configuration detected!")
-        self.token = self.jamf_client.token
+        self._client = None  # avoid loading credentials at init
+        self._token = None
         self.lock = asyncio.Lock()
+
+    @property
+    def client(self):
+        if not self._client:
+            self._client = self.config.attach_client()
+            if not self._client:
+                raise ValueError("Invalid JamfClient configuration detected.")
+            self.log.info(f"JamfClient initialized with base URL: {self._client.base_url}")
+        return self._client
+
+    @property
+    def token(self) -> AccessToken:
+        if not self._token:
+            self._token = self.client.token
+            self.log.info("Token loaded successfully from JamfClient.")
+        return self._token
 
     async def fetch_token(self) -> Optional[AccessToken]:
         """
@@ -45,8 +58,8 @@ class TokenManager:
         :return: The fetched ``AccessToken`` instance, or ``None`` if the request fails.
         :rtype: Optional[AccessToken]
         """
-        client_id, client_secret = self.jamf_client.client_id, self.jamf_client.client_secret
-        url = f"{self.jamf_client.base_url}/api/oauth/token"
+        client_id, client_secret = self.client.client_id, self.client.client_secret
+        url = f"{self.client.base_url}/api/oauth/token"
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
         data = {
@@ -91,8 +104,8 @@ class TokenManager:
         """
         self.config.set_credential("TOKEN", token.token)
         self.config.set_credential("TOKEN_EXPIRATION", token.expires.isoformat())
-        self.log.info("Bearer token and expiration updated in keyring")
-        self.jamf_client.token = token
+        self.client.token = token
+        self._token = token  # cache token locally
         self.log.info("Bearer token and expiration updated in keyring")
 
     def token_valid(self) -> bool:
