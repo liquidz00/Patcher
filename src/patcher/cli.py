@@ -13,7 +13,6 @@ from .client.ui_manager import UIConfigManager
 from .models.reports.excel_report import ExcelReport
 from .models.reports.pdf_report import PDFReport
 from .utils.animation import Animation
-from .utils.exceptions import PatcherError
 from .utils.logger import LogMe
 
 DATE_FORMATS = {
@@ -102,16 +101,13 @@ async def main(
     if not ctx.params["reset"] and not ctx.params["path"]:
         raise click.UsageError("The --path option is required unless --reset is specified.")
 
-    config = ConfigManager()
-    ui_config = UIConfigManager()
-    api_client = ApiClient(config, concurrency)
-    token_manager = TokenManager(config)
-    setup = Setup(
-        config=config, ui_config=ui_config, api_client=api_client, token_manager=token_manager
-    )
-
     log = LogMe(__name__, debug=debug)
     animation = Animation(enable_animation=not debug)
+
+    config = ConfigManager()
+    ui_config = UIConfigManager()
+
+    setup = Setup(config=config, ui_config=ui_config)
 
     async with animation.error_handling(log):
         if not setup.completed:
@@ -127,11 +123,8 @@ async def main(
             click.echo(click.style(text="Reset has completed as expected!", fg="green", bold=True))
             return
 
-        jamf_client = config.attach_client()
-        if jamf_client is None:
-            raise PatcherError(message="Jamf credentials could not be located.")
-
-        api_client.jamf_client = jamf_client
+        api_client = ApiClient(config, concurrency)
+        token_manager = TokenManager(config)
         excel_report = ExcelReport()
         pdf_report = PDFReport(ui_config)
         api_client.set_concurrency(concurrency=concurrency)
