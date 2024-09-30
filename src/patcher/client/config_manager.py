@@ -28,11 +28,6 @@ class ConfigManager:
         :param service_name: The name of the service for storing credentials in the keyring.
             Defaults to 'Patcher'.
         :type service_name: str
-        :example:
-
-        .. code-block:: python
-
-            config = ConfigManager("MyService")
         """
         self.log = logger.LogMe(self.__class__.__name__)
         self.service_name = service_name
@@ -49,21 +44,14 @@ class ConfigManager:
         :type key: str
         :return: The retrieved credential value. If the key does not exist, returns ``None``.
         :rtype: str
-        :example:
-
-        .. code-block:: python
-
-            token = config.get_credential("API_TOKEN")
         """
         self.log.debug(f"Retrieving credential for key: {key}")
         credential = keyring.get_password(self.service_name, key)
-        if credential:
-            self.log.info(f"Credential for key '{key}' retrieved successfully")
-        else:
+        if not credential:
             self.log.warning(f"No credential found for key: {key}")
         return credential
 
-    def set_credential(self, key: str, value: str):
+    def set_credential(self, key: str, value: str) -> None:
         """
         Stores a credential in the keyring under the specified key.
 
@@ -87,14 +75,14 @@ class ConfigManager:
             expiration date.
         :rtype: AccessToken
         """
-        self.log.debug("Loading token from keyring")
+        self.log.debug("Loading token from keychain")
         token = self.get_credential("TOKEN") or ""
         expires = (
             self.get_credential("TOKEN_EXPIRATION")
             or datetime(1970, 1, 1, tzinfo=timezone.utc).isoformat()
         )
-        self.log.info("Token and expiration loaded from keyring")
-        return AccessToken(token=token, expires=expires)
+        self.log.info("Token and expiration loaded from keychain")
+        return AccessToken(token=token, expires=expires)  # type: ignore
 
     def attach_client(self) -> Optional[JamfClient]:
         """
@@ -119,7 +107,7 @@ class ConfigManager:
             self.log.error(f"Jamf Client failed validation: {e}")
             raise PatcherError(f"Jamf Client failed validation: {e}")
 
-    def create_client(self, client: JamfClient):
+    def create_client(self, client: JamfClient) -> None:
         """
         Stores a `JamfClient` object's credentials in the keyring.
 
