@@ -27,7 +27,7 @@ class BaseAPIClient:
     def __init__(self, max_concurrency: int = 5):
         self.max_concurrency = max_concurrency
         self.semaphore = asyncio.Semaphore(max_concurrency)
-        self.default_headers = {"accept": "application/json"}
+        self.default_headers = {"accept": "application/json", "Content-Type": "application/json"}
         self.log = logger.LogMe(self.__class__.__name__)
 
     @property
@@ -55,35 +55,6 @@ class BaseAPIClient:
         if concurrency < 1:
             raise ValueError("Concurrency level must be at least 1.")
         self.max_concurrency = concurrency
-
-    async def execute(self, command: List[str]) -> Optional[Union[Dict, str]]:
-        """
-        Asynchronously executes a shell command using subprocess and returns the output.
-
-        This method leverages asyncio to run a command in a new subprocess. If the
-        command execution is unsuccessful (non-zero return code), an exception is raised.
-
-        .. note::
-            This method should be used for executing shell commands that are essential to the
-            functionality of the API client, such as invoking cURL commands for API calls.
-
-        :param command: A list representing the command and its arguments to be executed in the shell.
-        :type command: List[str]
-        :return: The standard output of the executed command decoded as a string, or None if there is an error.
-        :rtype: Optional[Union[Dict, str]]
-        :raises exceptions.ShellCommandError: If the command execution fails (returns a non-zero exit code).
-        """
-        process = await asyncio.create_subprocess_exec(
-            *command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
-        if process.returncode != 0:
-            self.log.error(f"Error executing subprocess command: {stderr.decode()}")
-            raise exceptions.ShellCommandError(
-                reason=f"Error executing subprocess command: {stderr.decode()}"
-            )
-
-        return stdout.decode()
 
     def _handle_status_code(
         self, status_code: int, response_json: Optional[Dict]
@@ -120,6 +91,50 @@ class BaseAPIClient:
                 f"Unexpected HTTP status code {status_code}: {response_json}"
             )
 
+    @staticmethod
+    def _format_headers(headers: Dict[str, str]) -> List[str]:
+        """
+        Formats headers properly for curl commands.
+
+        :param headers: Dictionary of headers to format.
+        :type headers: Dict[str, str]
+        :return: List of formatted headers.
+        :rtype: List[str]
+        """
+        formatted_headers = []
+        for k, v in headers.items():
+            formatted_headers.extend(["-H", f"{k}: {v}"])
+        return formatted_headers
+
+    async def execute(self, command: List[str]) -> Optional[Union[Dict, str]]:
+        """
+        Asynchronously executes a shell command using subprocess and returns the output.
+
+        This method leverages asyncio to run a command in a new subprocess. If the
+        command execution is unsuccessful (non-zero return code), an exception is raised.
+
+        .. note::
+            This method should be used for executing shell commands that are essential to the
+            functionality of the API client, such as invoking cURL commands for API calls.
+
+        :param command: A list representing the command and its arguments to be executed in the shell.
+        :type command: List[str]
+        :return: The standard output of the executed command decoded as a string, or None if there is an error.
+        :rtype: Optional[Union[Dict, str]]
+        :raises exceptions.ShellCommandError: If the command execution fails (returns a non-zero exit code).
+        """
+        process = await asyncio.create_subprocess_exec(
+            *command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        if process.returncode != 0:
+            self.log.error(f"Error executing subprocess command: {stderr.decode()}")
+            raise exceptions.ShellCommandError(
+                reason=f"Error executing subprocess command: {stderr.decode()}"
+            )
+
+        return stdout.decode()
+
     async def fetch_json(
         self,
         url: str,
@@ -142,7 +157,7 @@ class BaseAPIClient:
         :rtype: Optional[Dict]
         """
         final_headers = headers if headers else self.default_headers
-        header_string = " ".join([f"-H '{k}: {v}'" for k, v in final_headers.items()])
+        header_string = self._format_headers(final_headers)
 
         # By using the -w parameter with %{http_code}, we are appending the status code
         # to the end of the API response. This is to handle cases where responses
@@ -153,19 +168,21 @@ class BaseAPIClient:
             "-X",
             method,
             url,
-            header_string,
+            *header_string,
             "-w",
             "\nSTATUS:%{http_code}",
         ]
 
         # Add form data for POST requests
         if method.upper() == "POST" and data:
-            form_data = [
-                item
-                for sublist in [["-d", f"{k}={v}"] for k, v in data.items()]
-                for item in sublist
-            ]
-            command.extend(form_data)
+            if final_headers.get("Content-Type") == "application/x-www-form-urlencoded":
+                # Format each item separately instead
+                form_data = [item for k, v in data.items() for item in ["-d", f"{k}={v}"]]
+                command.extend(form_data)
+            else:
+                # JSON is assumed for other content types
+                json_payload = json.dumps(data)
+                command.extend(["-d", json_payload])
 
         async with self.semaphore:
             output = await self.execute(command)
@@ -182,7 +199,7 @@ class BaseAPIClient:
             )
 
         # Handle status code from response
-        return self._handle_status_code(status_code, response_json)  # type: ignore
+        return self._handle_status_code(status_code, response_json)
 
     async def fetch_batch(
         self, urls: List[str], headers: Optional[Dict[str, str]] = None
