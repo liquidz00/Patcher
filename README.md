@@ -11,7 +11,7 @@ Patcher leverages the Jamf Pro API to fetch patch management data and generate c
 Project documentation can now be found [on our project homepage](https://patcher.liquidzoo.io). All content from our project wiki has been migrated to the new homepage. We are continuously updating references to the new homepage and regularly improving the documentation. 
 
 ### Sample PDF
-The following image can be found in the `images` directory.
+Assuming 'AnyOrg' is the name of your organization, an exported PDF could look like this:
 <p align="left"><img src="docs/_static/example_pdf.jpeg" width="750"/></p>
 
 ### Installation
