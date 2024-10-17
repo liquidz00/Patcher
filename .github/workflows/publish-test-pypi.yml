@@ -21,7 +21,7 @@ jobs:
       - name: Build binary wheel and source tarbell
         run: python3 -m build
       - name: Store distribution package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: python-package-distributions
           path: dist/

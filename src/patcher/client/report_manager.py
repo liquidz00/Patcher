@@ -1,16 +1,17 @@
+import asyncio
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import AnyStr, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
-from click import echo, style
+import asyncclick as click
 
 from ..models.patch import PatchTitle
 from ..models.reports.excel_report import ExcelReport
 from ..models.reports.pdf_report import PDFReport
 from ..utils import exceptions, logger
 from ..utils.animation import Animation
-from ..utils.wrappers import check_token
+from ..utils.decorators import check_token
 from .api_client import ApiClient
 from .config_manager import ConfigManager
 from .token_manager import TokenManager
@@ -70,8 +71,8 @@ class ReportManager:
 
     def calculate_ios_on_latest(
         self,
-        device_versions: List[Dict[AnyStr, AnyStr]],
-        latest_versions: List[Dict[AnyStr, AnyStr]],
+        device_versions: List[Dict[str, str]],
+        latest_versions: List[Dict[str, str]],
     ) -> Optional[List[PatchTitle]]:
         """
         Analyzes the iOS version data to determine how many enrolled devices are on the latest version.
@@ -80,9 +81,9 @@ class ReportManager:
         provided by the SOFA feed, calculating how many devices are fully updated.
 
         :param device_versions: A list of dictionaries containing devices and their respective iOS versions.
-        :type device_versions: List[Dict[AnyStr, AnyStr]]
+        :type device_versions: List[Dict[str, str]]
         :param latest_versions: A list of the most recent iOS versions available.
-        :type latest_versions: List[Dict[AnyStr, AnyStr]]
+        :type latest_versions: List[Dict[str, str]]
         :return: A list of ``PatchTitle`` objects, each representing a summary of the patch status for an iOS version.
         :rtype: Optional[List[PatchTitle]]
 
@@ -129,10 +130,10 @@ class ReportManager:
         self,
         path: Union[str, Path],
         pdf: bool,
-        sort: Optional[AnyStr],
+        sort: Optional[str],
         omit: bool,
         ios: bool,
-        date_format: AnyStr = "%B %d %Y",
+        date_format: str = "%B %d %Y",
     ) -> None:
         """
         Asynchronously generates and saves patch reports, with options for customization.
@@ -148,7 +149,7 @@ class ReportManager:
         :type pdf: bool
 
         :param sort: Specifies the column by which to sort the reports (e.g., 'released' or 'completion_percent').
-        :type sort: Optional[AnyStr]
+        :type sort: Optional[str]
 
         :param omit: If True, omits patches that were released within the last 48 hours.
         :type omit: bool
@@ -157,7 +158,7 @@ class ReportManager:
         :type ios: bool
 
         :param date_format: Specifies the date format for headers in the reports. Default is "%B %d %Y" (Month Day Year).
-        :type date_format: AnyStr
+        :type date_format: str
 
         :return: None
         :rtype: None
@@ -179,27 +180,7 @@ class ReportManager:
 
         async with animation.error_handling(self.log):
             self.log.debug("Beginning patcher process...")
-            # Validate path provided is not a file
-            self.log.debug("Validating path provided is not a file...")
-            output_path = os.path.expanduser(path)
-            if os.path.exists(output_path) and os.path.isfile(output_path):
-                self.log.error(
-                    f"Provided path {output_path} is a file, not a directory. Aborting...",
-                )
-                raise exceptions.DirectoryCreationError(path=output_path)
-            else:
-                self.log.debug(f"Output path '{output_path}' is valid.")
-
-            # Ensure directories exist
-            self.log.debug("Attempting to create directories if they do not already exist...")
-            try:
-                os.makedirs(output_path, exist_ok=True)
-                reports_dir = os.path.join(output_path, "Patch-Reports")
-                os.makedirs(reports_dir, exist_ok=True)
-                self.log.debug(f"Reports directory created at '{reports_dir}'.")
-            except OSError as e:
-                self.log.error(f"Failed to create directory: {e}")
-                raise exceptions.DirectoryCreationError()
+            output_path = self._validate_directory(path)
 
             # Async operations for patch data
             self.log.debug("Attempting to retrieve policy IDs.")
@@ -223,108 +204,145 @@ class ReportManager:
 
             # (option) Sort
             if sort:
-                self.log.debug(f"Detected sorting option '{sort}'")
-                sort = sort.lower().replace(" ", "_")
-                try:
-                    patch_reports = sorted(patch_reports, key=lambda x: getattr(x, sort))
-                    self.log.debug(f"Patch reports sorted by '{sort}'.")
-                except (KeyError, AttributeError):
-                    self.log.error(
-                        f"Invalid column name for sorting: {sort.title().replace('_', ' ')}. Aborting...",
-                    )
-                    raise exceptions.SortError(column=sort.title().replace("_", " "))
+                patch_reports = await self._sort(patch_reports, sort)
 
             # (option) Omit
             if omit:
-                self.log.debug(
-                    f"Detected omit flag set to {omit}. Omitting policies with patches released in past 48 hours."
-                )
-                cutoff = datetime.now() - timedelta(hours=48)
-                original_count = len(patch_reports)
-                patch_reports = [
-                    report
-                    for report in patch_reports
-                    if datetime.strptime(report.released, "%b %d %Y") < cutoff
-                ]
-                omitted_count = original_count - len(patch_reports)
-                self.log.debug(f"Omitted {omitted_count} policies with recent patches.")
+                patch_reports = await self._omit(patch_reports)
 
             # (option) iOS
             if ios:
-                self.log.debug(
-                    f"Detected ios flag set to {ios}. Including iOS information in reports."
-                )
-                self.log.debug("Attempting to fetch mobile device IDs.")
-                device_ids = await self.api_client.get_device_ids()
-                if not device_ids:
-                    self.log.error(
-                        "Received ClientError response when obtaining mobile device IDs",
-                    )
-                    raise exceptions.DeviceIDFetchError(
-                        reason="Received ClientError response when obtaining mobile device IDs"
-                    )
-
-                self.log.debug(f"Obtained device IDs for {len(device_ids)} devices.")
-                self.log.debug("Attempting to retrieve operating system versions for each device.")
-                device_versions = await self.api_client.get_device_os_versions(
-                    device_ids=device_ids
-                )
-                self.log.debug(
-                    "Retrieving latest iOS version information from SOFA feed (https://sofa.macadmins.io)"
-                )
-                latest_versions = self.api_client.get_sofa_feed()
-                if not device_versions:
-                    self.log.error(
-                        "Received empty response obtaining device OS versions from Jamf. Exiting...",
-                    )
-                    raise exceptions.DeviceOSFetchError(
-                        reason="Received empty response obtaining device OS versions from Jamf."
-                    )
-                elif not latest_versions:
-                    self.log.error("Received empty response from SOFA feed. Exiting...")
-                    raise exceptions.SofaFeedError(
-                        reason="Received empty response from SOFA feed. Unable to verify amount of devices on latest version."
-                    )
-
-                self.log.debug(
-                    "Retrieved device version info and SOFA feed as expected. Calculating devices on latest version."
-                )
-                ios_data = self.calculate_ios_on_latest(
-                    device_versions=device_versions, latest_versions=latest_versions
-                )
-                self.log.debug("Appending iOS device information to dataframe...")
-                patch_reports.extend(ios_data)
-                self.log.debug("iOS information successfully appended to patch reports.")
+                patch_reports = await self._ios(patch_reports)
 
             # Generate reports
-            self.log.debug("Generating excel file...")
-            try:
-                excel_file = self.excel_report.export_to_excel(patch_reports, reports_dir)
-                self.log.debug(f"Excel file generated successfully at '{excel_file}'.")
-            except ValueError as e:
-                self.log.error(f"Error exporting to excel: {e}")
-                raise exceptions.ExportError(file_path=excel_file)
+            excel_file = await self._generate_excel(
+                patch_reports=patch_reports, reports_dir=output_path
+            )
 
             if pdf:
-                self.log.debug(f"Detected PDF flag set to {pdf}. Generating PDF file...")
-                try:
-                    pdf_report = PDFReport(self.ui_config)
-                    pdf_report.export_excel_to_pdf(excel_file, date_format)
-                    self.log.debug("PDF file generated successfully.")
-                except (OSError, PermissionError) as e:
-                    self.log.error(f"Error generating PDF file. Check file permissions: {e}")
-                    raise exceptions.ExportError(file_path=excel_file)
-                except Exception as e:
-                    self.log.error(f"Unhandled error encountered: {e}")
-                    raise exceptions.ExportError()
+                await self._generate_pdf(excel_file=excel_file, date_format=date_format)
 
             # Manually stop animation to show success message cleanly
             animation.stop_event.set()
-            self.log.debug(
-                "patcher finished as expected. Additional logs can be found at '~/Library/Application Support/patcher/logs'."
+            self.log.debug("Patcher finished as expected!")
+            self._success(len(patch_reports), output_path)
+
+    def _validate_directory(self, path: Union[str, Path]) -> str:
+        output_path = os.path.expanduser(path)
+        if os.path.exists(output_path) and os.path.isfile(output_path):
+            self.log.error(
+                f"Provided path {output_path} is a file, not a directory. Aborting...",
             )
-            self.log.debug(
-                f"{len(patch_reports)} patch reports saved successfully to {reports_dir}."
+            raise exceptions.DirectoryCreationError(path=output_path)
+
+        # Ensure directories exist
+        try:
+            os.makedirs(output_path, exist_ok=True)
+            reports_dir = os.path.join(output_path, "Patch-Reports")
+            os.makedirs(reports_dir, exist_ok=True)
+            self.log.debug(f"Reports directory created at '{reports_dir}'.")
+            return reports_dir
+        except OSError as e:
+            self.log.error(f"Failed to create directory: {e}")
+            raise exceptions.DirectoryCreationError(f"Failed to create directory: {e}")
+
+    async def _sort(self, patch_reports: List[PatchTitle], sort_key: str) -> List[PatchTitle]:
+        self.log.debug(f"Detected sorting option '{sort_key}'")
+        sort_key = sort_key.lower().replace(" ", "_")
+
+        try:
+            sorted_reports = await asyncio.to_thread(
+                lambda: sorted(patch_reports, key=lambda x: getattr(x, sort_key))
             )
-            success_msg = style(f"\rSuccess! Reports saved to {reports_dir}", bold=True, fg="green")
-            echo(success_msg)
+            self.log.debug(f"Patch reports sorted by '{sort_key}'.")
+            return sorted_reports
+        except (KeyError, AttributeError):
+            self.log.error(
+                f"Invalid column name for sorting: {sort_key.title().replace('_', ' ')}. Aborting...",
+            )
+            raise exceptions.SortError(column=str(sort_key.title().replace("_", " ")))
+
+    async def _omit(self, patch_reports: List[PatchTitle]) -> List[PatchTitle]:
+        self.log.debug(
+            "Detected omit flag. Omitting policies with patches released in past 48 hours."
+        )
+        cutoff = datetime.now() - timedelta(hours=48)
+        original_count = len(patch_reports)
+        patch_reports = await asyncio.to_thread(
+            lambda: [
+                report
+                for report in patch_reports
+                if datetime.strptime(report.released, "%b %d %Y") < cutoff
+            ]
+        )
+        omitted_count = original_count - len(patch_reports)
+        self.log.debug(f"Omitted {omitted_count} policies with recent patches.")
+        return patch_reports
+
+    async def _ios(self, patch_reports: List[PatchTitle]) -> List[PatchTitle]:
+        self.log.debug("Detected ios flag. Including iOS information in reports.")
+        self.log.debug("Attempting to fetch mobile device IDs.")
+        device_ids = await self.api_client.get_device_ids()
+        if not device_ids:
+            self.log.error(
+                "Received ClientError response when obtaining mobile device IDs",
+            )
+            raise exceptions.DeviceIDFetchError(
+                reason="Received ClientError response when obtaining mobile device IDs"
+            )
+
+        self.log.debug(f"Obtained device IDs for {len(device_ids)} devices.")
+        device_versions = await self.api_client.get_device_os_versions(device_ids=device_ids)
+        latest_versions = await self.api_client.get_sofa_feed()
+        if not device_versions:
+            self.log.error(
+                "Received empty response obtaining device OS versions from Jamf. Exiting...",
+            )
+            raise exceptions.DeviceOSFetchError(
+                reason="Received empty response obtaining device OS versions from Jamf."
+            )
+        elif not latest_versions:
+            self.log.error("Received empty response from SOFA feed. Exiting...")
+            raise exceptions.SofaFeedError(
+                reason="Received empty response from SOFA feed. Unable to verify amount of devices on latest version."
+            )
+
+        self.log.debug("Calculating devices on latest version.")
+        ios_data = self.calculate_ios_on_latest(
+            device_versions=device_versions, latest_versions=latest_versions
+        )
+        patch_reports.extend(ios_data)
+        self.log.debug("iOS information successfully appended to patch reports.")
+        return patch_reports
+
+    async def _generate_excel(self, patch_reports: List[PatchTitle], reports_dir: str) -> str:
+        self.log.debug("Generating excel file...")
+        try:
+            excel_file = await asyncio.to_thread(
+                self.excel_report.export_to_excel, patch_reports, reports_dir
+            )
+            self.log.debug(f"Excel file generated successfully at '{excel_file}'.")
+            return excel_file
+        except ValueError as e:
+            self.log.error(f"Error exporting to excel: {e}")
+            raise exceptions.ExportError(f"Error exporting to excel: {e}")
+
+    async def _generate_pdf(self, excel_file: str, date_format: str) -> None:
+        self.log.debug("Generating PDF file...")
+        try:
+            pdf_report = PDFReport(self.ui_config)
+            await asyncio.to_thread(pdf_report.export_excel_to_pdf, excel_file, date_format)
+            self.log.debug("PDF file generated successfully.")
+        except (OSError, PermissionError) as e:
+            self.log.error(f"Error generating PDF file. Check file permissions: {e}")
+            raise exceptions.ExportError(file_path=excel_file)
+        except Exception as e:
+            self.log.error(f"Unhandled error encountered: {e}")
+            raise exceptions.ExportError(f"Unhandled error encountered: {e}")
+
+    def _success(self, report_count: int, reports_dir: str) -> None:
+        self.log.debug(f"{report_count} patch reports saved successfully to {reports_dir}.")
+        success_msg = click.style(
+            f"\rSuccess! Reports saved to {reports_dir}", bold=True, fg="green"
+        )
+        click.echo(success_msg)

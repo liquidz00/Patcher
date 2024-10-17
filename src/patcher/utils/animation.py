@@ -1,9 +1,8 @@
 import asyncio
 import inspect
 from contextlib import asynccontextmanager
-from typing import AnyStr
 
-import click
+import asyncclick as click
 
 from . import exceptions
 from .logger import LogMe
@@ -18,7 +17,7 @@ class Animation:
     in asynchronous tasks.
     """
 
-    def __init__(self, message_template: AnyStr = "Processing", enable_animation: bool = True):
+    def __init__(self, message_template: str = "Processing", enable_animation: bool = True):
         """
         Initialize the Animation object.
 
@@ -26,7 +25,7 @@ class Animation:
         message template, the spinner characters, and the color scheme.
 
         :param message_template: The base message to display alongside the spinner.
-        :type message_template: AnyStr
+        :type message_template: str
         :param enable_animation: Flag to enable or disable the spinner animation.
         :type enable_animation: bool
         """
@@ -62,7 +61,7 @@ class Animation:
             self.stop_event.set()
             await self.task
 
-    async def update_msg(self, new_message_template: AnyStr):
+    async def update_msg(self, new_message_template: str):
         """
         Update the message template.
 
@@ -70,7 +69,7 @@ class Animation:
         previous message before displaying the new one.
 
         :param new_message_template: The new message to display alongside the spinner.
-        :type new_message_template: AnyStr
+        :type new_message_template: str
         """
         async with self.lock:
             clear_message = "\r" + " " * self.last_message_length + "\r"
@@ -127,6 +126,6 @@ class Animation:
             yield
         except default_exceptions as e:
             log.error(f"{e}")
-            raise
+            raise  # Raise exception that was caught
         finally:
             await self.stop()
