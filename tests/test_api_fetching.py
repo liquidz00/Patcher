@@ -1,96 +1,81 @@
+import json
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from aioresponses import aioresponses
+from src.patcher.utils import exceptions
 
 
+# Test getting policies (success, error)
 @pytest.mark.asyncio
-async def test_get_policies(api_client, mock_policy_response, mock_api_integration_response):
-    base_url = api_client.jamf_url
-    api_client.jamf_client.client_id = "a1234567-abcd-1234-efgh-123456789abc"
-    with aioresponses() as m:
-        m.get(
-            f"{base_url}/api/v2/patch-software-title-configurations",
-            payload=mock_policy_response,
-            headers={"Accept": "application/json"},
-        )
-        m.get(
-            f"{base_url}/api/v1/api-integrations",
-            payload=mock_api_integration_response,
-            headers={"Accept": "application/json"},
-        )
+async def test_get_policies(api_client, mock_policy_response):
+    mock_body = json.dumps(mock_policy_response)
+    mock_stdout = f"{mock_body}\nSTATUS:200".encode("utf-8")
 
+    mock_process = AsyncMock()
+    mock_process.communicate.return_value = (mock_stdout, b"")
+    mock_process.returncode = 0
+
+    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
         policies = await api_client.get_policies()
+
         assert len(policies) == len(mock_policy_response)
         assert policies[0] == mock_policy_response[0]["id"]
 
 
 @pytest.mark.asyncio
-async def test_get_summaries(
-    api_client,
-    mock_policy_response,
-    mock_summary_response,
-    mock_api_integration_response,
-):
-    base_url = api_client.jamf_url
-    api_client.jamf_client.client_id = "a1234567-abcd-1234-efgh-123456789abc"
-    policy_ids = [policy["id"] for policy in mock_policy_response]
-    summary_response_dict = {
-        str(summary["softwareTitleId"]): summary for summary in mock_summary_response
-    }
-    with aioresponses() as m:
-        for policy_id in policy_ids:
-            mock_response = summary_response_dict[policy_id]
-            m.get(
-                f"{base_url}/api/v2/patch-software-title-configurations/{policy_id}/patch-summary",
-                payload=mock_response,
-                headers={"Accept": "application/json"},
-            )
-            m.get(
-                f"{base_url}/api/v1/api-integrations",
-                payload=mock_api_integration_response,
-                headers={"Accept": "application/json"},
-            )
+async def test_get_policies_invalid_response(api_client):
+    mock_process = AsyncMock()
+    mock_process.communicate.return_value = ('{"invalid": "response"}'.encode("utf-8"), b"")
+    mock_process.returncode = 0
 
-        summaries = await api_client.get_summaries(policy_ids)
+    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+        with pytest.raises(exceptions.APIResponseError) as excinfo:
+            await api_client.get_policies()
+
+        assert "Failed to decode JSON or parse status code from response" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_get_policies_error(api_client):
+    mock_body = '{"httpStatus": 401, "errors": []}'
+    mock_stdout = f"{mock_body}\nSTATUS:401".encode("utf-8")
+
+    mock_process = AsyncMock()
+    mock_process.communicate.return_value = (mock_stdout, b"")
+    mock_process.returncode = 0
+
+    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+        with pytest.raises(exceptions.APIResponseError):
+            await api_client.get_policies()
+
+
+# Test getting summaries (success, error)
+@pytest.mark.asyncio
+async def test_get_summaries(api_client, mock_summary_response):
+    mock_body = json.dumps(mock_summary_response)
+    mock_stdout = f"{mock_body}\nSTATUS:200".encode("utf-8")
+
+    mock_process = AsyncMock()
+    mock_process.communicate.return_value = (mock_stdout, b"")
+    mock_process.returncode = 0
+
+    with patch.object(api_client, "fetch_json", side_effect=mock_summary_response):
+        summaries = await api_client.get_summaries(["3", "4", "5"])
+
         assert summaries[0].title == "Google Chrome"
         assert summaries[1].hosts_patched == 185
         assert summaries[2].completion_percent == 54.55
 
 
 @pytest.mark.asyncio
-async def test_get_policies_empty_response(api_client, mock_api_integration_response):
-    base_url = api_client.jamf_url
-    api_client.jamf_client.client_id = "a1234567-abcd-1234-efgh-123456789abc"
-    with aioresponses() as m:
-        m.get(
-            f"{base_url}/api/v2/patch-software-title-configurations",
-            payload=[],
-            headers={"Accept": "application/json"},
-        )
-        m.get(
-            f"{base_url}/api/v1/api-integrations",
-            payload=mock_api_integration_response,
-            headers={"Accept": "application/json"},
-        )
+async def test_get_summaries_error(api_client):
+    mock_body = '{"httpStatus": 401, "errors": []}'
+    mock_stdout = f"{mock_body}\nSTATUS:405".encode("utf-8")
 
-        policies = await api_client.get_policies()
-        assert policies == []
+    mock_process = AsyncMock()
+    mock_process.communicate.return_value = (mock_stdout, b"")
+    mock_process.returncode = 0
 
-
-@pytest.mark.asyncio
-async def test_get_policies_api_error(api_client, mock_api_integration_response):
-    base_url = api_client.jamf_url
-    api_client.jamf_client.client_id = "a1234567-abcd-1234-efgh-123456789abc"
-    with aioresponses() as m:
-        m.get(
-            f"{base_url}/api/v2/patch-software-title-configurations",
-            status=500,
-            headers={"Accept": "application/json"},
-        )
-        m.get(
-            f"{base_url}/api/v1/api-integrations",
-            payload=mock_api_integration_response,
-            headers={"Accept": "application/json"},
-        )
-
-        policies = await api_client.get_policies()
-        assert policies is None
+    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+        with pytest.raises(exceptions.APIResponseError):
+            await api_client.get_summaries(["1", "2", "3"])

@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from typing import AnyStr
 
 from pydantic import Field
 
@@ -20,7 +19,7 @@ class AccessToken(Model):
     :type expires: datetime
     """
 
-    token: AnyStr = ""
+    token: str = ""
     expires: datetime = Field(default_factory=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc))
 
     def __str__(self):

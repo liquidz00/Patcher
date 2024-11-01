@@ -1,6 +1,6 @@
-from typing import AnyStr, Optional
+from typing import Optional
 
-import click
+import asyncclick as click
 
 from .logger import handle_traceback
 
@@ -10,7 +10,7 @@ class PatcherError(Exception):
 
     default_message = "An error occurred"
 
-    def __init__(self, message: AnyStr = None, **kwargs):
+    def __init__(self, message: str = None, **kwargs):
         self.message = message or self.default_message
         self.details = kwargs
         self.message = self.format_message()
@@ -39,13 +39,22 @@ class PatcherError(Exception):
         return self.message
 
 
-class CredentialDeletionError(PatcherError):
-    """Raised when there is a specified credential could not be removed from keychain."""
+class DatabaseError(PatcherError):
+    """Raised when there is an issue reading or writing data to the SQLite database."""
 
-    default_message = "Unable to delete credential"
+    default_message = "There was an error fetching data from the database"
 
-    def __init__(self, cred: Optional[AnyStr] = None):
-        super().__init__(cred=cred)
+    def __init__(self, reason: Optional[str] = None):
+        super().__init__(reason=reason)
+
+
+class InstallomatorError(PatcherError):
+    """Raised when there is an issue reading or writing data to the SQLite database."""
+
+    default_message = "Encountered error retrieving Installomator information"
+
+    def __init__(self, reason: Optional[str] = None):
+        super().__init__(reason=reason)
 
 
 class TokenFetchError(PatcherError):
@@ -53,7 +62,7 @@ class TokenFetchError(PatcherError):
 
     default_message = "Unable to fetch bearer token"
 
-    def __init__(self, reason: Optional[AnyStr] = None):
+    def __init__(self, reason: Optional[str] = None):
         super().__init__(reason=reason)
 
 
@@ -71,7 +80,7 @@ class DirectoryCreationError(PatcherError):
 
     default_message = "Error creating directory"
 
-    def __init__(self, path: Optional[AnyStr] = None):
+    def __init__(self, path: Optional[str] = None):
         super().__init__(path=path)
 
 
@@ -80,7 +89,7 @@ class PlistError(PatcherError):
 
     default_message = "Unable to interact with plist"
 
-    def __init__(self, path: Optional[AnyStr] = None):
+    def __init__(self, path: Optional[str] = None):
         super().__init__(path=path)
 
 
@@ -89,7 +98,7 @@ class ExportError(PatcherError):
 
     default_message = "Error exporting data"
 
-    def __init__(self, file_path: Optional[AnyStr] = None):
+    def __init__(self, file_path: Optional[str] = None):
         super().__init__(file_path=file_path)
 
 
@@ -98,7 +107,7 @@ class PolicyFetchError(PatcherError):
 
     default_message = "Error obtaining policy information from Jamf instance"
 
-    def __init__(self, url: Optional[AnyStr] = None):
+    def __init__(self, url: Optional[str] = None):
         super().__init__(url=url)
 
 
@@ -107,7 +116,7 @@ class SummaryFetchError(PatcherError):
 
     default_message = "Error obtaining patch summaries from Jamf instance"
 
-    def __init__(self, url: Optional[AnyStr] = None):
+    def __init__(self, url: Optional[str] = None):
         super().__init__(url=url)
 
 
@@ -116,7 +125,7 @@ class DeviceIDFetchError(PatcherError):
 
     default_message = "Error retrieving device IDs from Jamf instance"
 
-    def __init__(self, reason: Optional[AnyStr] = None):
+    def __init__(self, reason: Optional[str] = None):
         super().__init__(reason=reason)
 
 
@@ -125,7 +134,7 @@ class DeviceOSFetchError(PatcherError):
 
     default_message = "Error retrieving OS information from Jamf instance"
 
-    def __init__(self, reason: Optional[AnyStr] = None):
+    def __init__(self, reason: Optional[str] = None):
         super().__init__(reason=reason)
 
 
@@ -134,7 +143,7 @@ class SortError(PatcherError):
 
     default_message = "Invalid column name for sorting"
 
-    def __init__(self, column: Optional[AnyStr] = None):
+    def __init__(self, column: Optional[str] = None):
         super().__init__(column=column)
 
 
@@ -145,16 +154,34 @@ class SofaFeedError(PatcherError):
 
     def __init__(
         self,
-        reason: Optional[AnyStr] = None,
-        url: AnyStr = "https://sofa.macadmins.io/v1/ios_data_feed.json",
+        reason: Optional[str] = None,
+        url: str = "https://sofa.macadmins.io/v1/ios_data_feed.json",
     ):
         super().__init__(reason=reason, url=url)
 
 
-class APIPrivilegeError(PatcherError):
-    """Raised when the provided API client does not have sufficient privileges for API call type."""
+class APIResponseError(PatcherError):
+    """Raised when an API call receives an unsuccessful status code."""
 
-    default_message = "API Client does not have sufficient privileges"
+    default_message = "API call unsuccessful"
 
-    def __init__(self, reason: Optional[AnyStr] = None):
+    def __init__(self, reason: Optional[str] = None):
+        super().__init__(reason=reason)
+
+
+class ShellCommandError(PatcherError):
+    """Raised when the return code of a subprocess exec call is non-zero."""
+
+    default_message = "Command exited with non-zero status"
+
+    def __init__(self, reason: Optional[str] = None):
+        super().__init__(reason=reason)
+
+
+class SetupError(PatcherError):
+    """Raised if any errors occur during automatic setup (Creating API Role/Integration)."""
+
+    default_message = "Unable to complete Setup"
+
+    def __init__(self, reason: Optional[str] = None):
         super().__init__(reason=reason)

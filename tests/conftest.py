@@ -1,12 +1,12 @@
-import logging
 import plistlib
 import threading
 from datetime import datetime, timedelta, timezone
-from io import BytesIO, StringIO
+from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
 import pytz
+from src.patcher.client import BaseAPIClient
 from src.patcher.client.api_client import ApiClient
 from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.report_manager import ReportManager
@@ -123,45 +123,18 @@ def mock_patch_title_response():
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=3)),
             hosts_patched=23,
             missing_patch=163,
-            completion_percent=(
-                round(
-                    (23 / (23 + 163)) * 100,
-                    2,
-                )
-                if 23 + 163 > 0
-                else 0
-            ),
-            total_hosts=23 + 163,
         ),
         PatchTitle(
             title="Jamf Connect",
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(hours=24)),
             hosts_patched=185,
             missing_patch=19,
-            completion_percent=(
-                round(
-                    (185 / (185 + 19)) * 100,
-                    2,
-                )
-                if 185 + 19 > 0
-                else 0
-            ),
-            total_hosts=185 + 19,
         ),
         PatchTitle(
             title="Apple macOS Ventura",
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=7)),
             hosts_patched=6,
             missing_patch=5,
-            completion_percent=(
-                round(
-                    (6 / (6 + 5)) * 100,
-                    2,
-                )
-                if 6 + 5 > 0
-                else 0
-            ),
-            total_hosts=6 + 5,
         ),
     ]
 
@@ -335,33 +308,16 @@ def mock_sofa_response():
 
 
 @pytest.fixture
-def capture_logs():
-    log_capture = logging.getLogger("patcher")
-    log_capture.setLevel(logging.DEBUG)
-    stream = StringIO()
-    handler = logging.StreamHandler(stream)
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    handler.setFormatter(formatter)
-    log_capture.addHandler(handler)
-
-    yield stream
-
-    log_capture.removeHandler(handler)
-    handler.close()
-
-
-@pytest.fixture
 def mock_jamf_client():
     mock_token = AccessToken(
         token="mocked_token", expires=datetime(2030, 1, 1, tzinfo=timezone.utc)
     )
-    mock_jamf_client = JamfClient(
+    return JamfClient(
         client_id="mocked_client_id",
         client_secret="mocked_client_secret",
         server="https://mocked.url",
         token=mock_token,
     )
-    return mock_jamf_client
 
 
 @pytest.fixture
@@ -423,13 +379,21 @@ def token_manager(config_manager):
             token="mocked_token", expires=datetime(2030, 1, 1, tzinfo=timezone.utc)
         )
     )
-    token_manager.check_token_lifetime = AsyncMock(return_value=True)
+    token_manager._check_token_lifetime = MagicMock()
     yield token_manager
 
 
 @pytest.fixture
+def base_api_client():
+    return BaseAPIClient(max_concurrency=3)
+
+
+@pytest.fixture
 def api_client(config_manager):
-    return ApiClient(config=config_manager)
+    return ApiClient(
+        config=config_manager,
+        concurrency=10,
+    )
 
 
 @pytest.fixture

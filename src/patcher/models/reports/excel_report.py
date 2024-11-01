@@ -5,10 +5,8 @@ from typing import List, Optional, Union
 
 import pandas as pd
 
-from ...utils import logger
+from ...utils import exceptions, logger
 from ..patch import PatchTitle
-
-logthis = logger.setup_child_logger("ExcelReport", __name__)
 
 
 class ExcelReport:
@@ -19,9 +17,11 @@ class ExcelReport:
     Excel spreadsheet, saving it to the specified directory.
     """
 
-    @staticmethod
+    def __init__(self):
+        self.log = logger.LogMe(self.__class__.__name__)
+
     def export_to_excel(
-        patch_reports: List[PatchTitle], output_dir: Union[str, Path]
+        self, patch_reports: List[PatchTitle], output_dir: Union[str, Path]
     ) -> Optional[str]:
         """
         Exports patch data to an Excel spreadsheet in the specified output directory.
@@ -45,13 +45,13 @@ class ExcelReport:
             df = pd.DataFrame([patch.model_dump() for patch in patch_reports])
             df.columns = [column.replace("_", " ").title() for column in df.columns]
         except ValueError as e:
-            logthis.error(f"Error creating DataFrame: {e}")
-            return None
+            self.log.error(f"Error creating DataFrame: {e}")
+            raise exceptions.ExportError(f"Error creating DataFrame: {e}")
         except Exception as e:
-            logthis.error(f"Unhandled exception occurred trying to export to Excel: {e}")
-            return None
+            self.log.error(f"Exception occurred trying to export to Excel: {e}")
+            raise exceptions.ExportError(file_path=str(output_dir))
 
         excel_path = os.path.join(output_dir, f"patch-report-{current_date}.xlsx")
         df.to_excel(excel_path, index=False)
-        logthis.info(f"Excel spreadsheet created successfully at {excel_path}")
+        self.log.info(f"Excel spreadsheet created successfully at {excel_path}")
         return excel_path
