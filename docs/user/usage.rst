@@ -114,6 +114,8 @@ The ``--concurrency`` option sets the *maximum* number of concurrent API request
 
     $ patcherctl --path '/path/to/save' --concurrency 10
 
+.. _resetting_patcher:
+
 Reset
 -----
 
@@ -126,19 +128,18 @@ To streamline the customization process, you can use the ``--reset`` flag with P
 
     $ patcherctl --reset
 
-.. _custom-ca:
 
 Custom CA File
 --------------
+
+.. admonition:: Removed in version 1.4.1
+    :class: danger
+
+    The ``--custom-ca-file`` flag has been removed entirely. CA file handling is now automatic via ``curl``.
 
 Pass a path to a ``.pem`` certificate to use as the default `SSL context <https://docs.python.org/3/library/ssl.html#context-creation>`_. Can be useful if running into SSL Validation Errors when using Patcher.
 
 .. code-block:: console
 
     $ patcherctl --custom-ca-file '/path/to/.pem/file'
-
-.. seealso::
-    :class: dropdown
-
-    :ref:`ssl-verify` on the installation page
 

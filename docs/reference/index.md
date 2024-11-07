@@ -7,6 +7,7 @@ html_theme.sidebar_secondary.remove: True
 ```{toctree}
 :caption: Client Modules
 
+base_api_client
 api_client
 config_manager
 report_manager
@@ -34,9 +35,9 @@ token
 :caption: Utilities
 
 animation
+decorators
 exceptions
 logger
-wrappers
 ```
 
 ```{toctree}

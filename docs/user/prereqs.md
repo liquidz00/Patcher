@@ -5,10 +5,8 @@ Ensure you have the following before proceeding with the installation and setup 
 - **Python 3.10 or Higher**: Make sure Python is installed on your system. You can download it from [python.org](https://www.python.org/downloads/). 
 - **Access to a Jamf Pro Instance**: You need an instance of Jamf Pro with administrator privileges to perform setup tasks.
 
-:::{important}
-**For versions 1.3.4 and later**: Patcher can automatically handle the creation of API clients and roles, provided [SSO is not used for Jamf Pro accounts](https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#authentication-and-authorization). 
-
-If SSO is used, you can either manually create an API Role & Client, *or* you can create a standard user account with admin privileges to pass to the setup assistant. 
+:::{versionadded} 1.3.5
+Patcher can automatically handle the creation of API clients and roles, provided [SSO is not used for Jamf Pro accounts](https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#authentication-and-authorization). If SSO is used, you can either manually create an API Role & Client, *or* you can create a standard user account with admin privileges to pass to the setup assistant. 
 :::
 
 ## Handling SSO in Jamf Pro
@@ -37,7 +35,5 @@ If your Jamf Pro environment uses Single Sign-On (SSO), follow the instructions 
     - After setup has completed, delete the temporary account to maintain security standards.
 
 :::{seealso}
-:class: dropdown
-
 Refer to the [Jamf Pro Documentation](https://learn.jamf.com/bundle/jamf-pro-documentation-current/page/API_Roles_and_Clients.html) on API Roles and Clients for more information on creating roles and clients.
 :::

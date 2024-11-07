@@ -17,7 +17,7 @@ sys.path.append(str(Path(".").resolve()))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "Patcher"
-copyright = "2024, Andrew Speciale & Chris Ball"
+copyright = "2024, Andrew Lerman & Chris Ball"
 author = "Andrew Speciale & Chris Ball"
 
 version = __version__
@@ -119,6 +119,7 @@ html_theme_options = {
     "secondary_sidebar_items": {
         "**/*": ["page-toc", "sourcelink"],
     },
+    "show_toc_level": 3,
 }
 
 # Remove primary sidebar from contributing page

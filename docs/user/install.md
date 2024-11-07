@@ -59,69 +59,16 @@ Options:
 ```
 
 (ssl-verify)=
-## SSL Verification and Self-Signed Certificates 
+## SSL Verification
 
-When using Patcher, you may encounter SSL verification issues, particularly if your network environment uses self-signed certificates or custom Certificate Authorities (CAs). Patcher uses both the `aiohttp` and `urllib` libraries to make API calls.
+As of version 1.4.1, Patcher no longer modifies SSL configurations. SSL handling for custom certificates required some additional TLC by end users and would often cause SSL verification errors at runtime. This is compounded when taking into account our end users are likely on managed systems with security policies and third-party certificates (e.g., Zscaler).  
 
-:::{versionadded} 1.3.5
-A certificate file can be passed to Patcher with the `--custom-ca-file` option. 
-See {ref}`custom-ca` for more information.
+With the current version, SSL handling is no longer required by the end user. We've integrated ``curl`` with ``asyncio`` within Patcher's functionality to automatically handle SSL verification as part of API requests. This design choice removes the need for manual SSL configurations, streamlining the setup for MacAdmins on managed computers. 
+
+:::{note}
+While the current integration between `curl` and `asyncio` gets the job done for handling SSL verification, there's room for refinement. Community contributions to enhance this functionality are welcome and encouraged. If you're interested in exploring ways to solidify this process further, check out the relevant code in the {ref}`BaseAPIClient <base_api_client>` class.
 :::
 
-### Configure macOS to Trust Custom Certificates
-
-If you are on a managed host, chances are this has already been done for you as part of being enrolled with an MDM. However, it never hurts to verify. 
-
-1. Open the Keychain application in `/Applications/Utilities/Keychain Access.app`
-2. Click **System** on the left sidebar underneath *System Keychains*, and select the **Certificates** tab
-3. Locate the Certificate in question and double-click to open it
-4. Set the certificate to "Always Trust" under the Trust section
-
-#### Exporting the Certificate
-
-Alternatively, you may need to export the certificate in `.pem` format. If so, export the certificate from Keychain by right-clicking and selecting **Export** from the dialog menu. Be sure to select the file format as `.pem` when exporting. 
-
-### Adding Custom Certificates
-
-Patcher uses both `aiohttp` and `urllib` to make API requests. Both libraries rely on Python's built-in `ssl` module to handle SSL certificates. On macOS, Python *typically* uses the system's SSL certificate store or the certificates bundled with Python itself. 
-
-:::{attention}
-The following steps will likely need local administrator privileges (`sudo`). 
-:::
-
-#### Identify the Certificate Path
-
-First, determine where Python is currently looking for certificates. You can find this by using the `ssl` module in Python.
-
-::::{tab-set}
-
-:::{tab-item} Command Prompt
-```console
-$ python3 -c "import ssl; print(ssl.get_default_verify_paths())"
-```
-:::
-
-:::{tab-item} Python
-```python
-import ssl
-
-# Print default SSL certificate paths
-print(ssl.get_default_verify_paths())
-```
-:::
-
-::::
-
-The command will output paths where Python looks for certificates, usually pointing to a `cert.pem` file or similar. Be sure to notate the proper path before proceeding.
-
-#### Add the Self-Signed Certificate
-
-If not completed already, [export](#exporting-the-certificate) the certificate to a file location of your choosing. The certificate can then be added to the default bundle with the following command: 
-
-```console
-$ cat /path/to/exported/certificate.pem >> /path/to/default/certificate/location/cert.pem
-```
-
-If permission errors are thrown, attempt the command again with `sudo`. 
+This update makes it easier for Patcher to run smoothly in secure environments, without the hassle of adjusting system certificates or tinkering with Python’s SSL settings.
 
 **If none of the above steps worked to resolve the issue**, please reach out to us and let us know what (if any) security software is installed on your machine. This will help us troubleshoot issues in the future. Additionally, get in touch with someone from your security team for next steps as they may have a solution in place. 
