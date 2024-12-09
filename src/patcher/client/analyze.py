@@ -39,7 +39,7 @@ class Analyzer:
         except PermissionError as e:
             raise exceptions.DataframeError(reason=f"Permission denied when trying to read {csv_path}: {e}")
         except pd.errors.EmptyDataError as e:
-            raise exceptions.DataframeError(reason="The file at {csv_path} is empty. Details: {e}")
+            raise exceptions.DataframeError(reason=f"The file at {csv_path} is empty. Details: {e}")
         except pd.errors.ParserError as e:
             raise exceptions.DataframeError(reason=f"Failed to parse the CSV file at {csv_path}: {e}")
 
