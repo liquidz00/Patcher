@@ -1,6 +1,8 @@
 from pydantic import model_validator
+from typing import Optional
 
 from . import Model
+from .label import Label
 
 
 class PatchTitle(Model):
@@ -27,6 +29,7 @@ class PatchTitle(Model):
     missing_patch: int
     completion_percent: float = 0.0
     total_hosts: int = 0
+    install_label: Optional[Label] = None
 
     # Calculate completion percent via model validator
     @model_validator(mode="after")
