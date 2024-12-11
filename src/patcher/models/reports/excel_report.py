@@ -40,9 +40,13 @@ class ExcelReport:
             output_dir = str(output_dir)
 
         current_date = datetime.now().strftime("%m-%d-%y")
+        excluded_columns = [
+            "install_label",
+        ]
 
         try:
             df = pd.DataFrame([patch.model_dump() for patch in patch_reports])
+            df = df.drop(columns=excluded_columns, errors="ignore")  # Drop excluded columns
             df.columns = [column.replace("_", " ").title() for column in df.columns]
         except ValueError as e:
             self.log.error(f"Error creating DataFrame: {e}")
