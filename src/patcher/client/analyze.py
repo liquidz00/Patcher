@@ -1,5 +1,5 @@
-from typing import Callable, List, Optional, Union
 from pathlib import Path
+from typing import Callable, List, Optional, Union
 
 import pandas as pd
 
@@ -37,11 +37,15 @@ class Analyzer:
             self.log.info(f"DataFrame successfully initialized from {csv_path}.")
             return df
         except PermissionError as e:
-            raise exceptions.DataframeError(reason=f"Permission denied when trying to read {csv_path}: {e}")
+            raise exceptions.DataframeError(
+                reason=f"Permission denied when trying to read {csv_path}: {e}"
+            )
         except pd.errors.EmptyDataError as e:
             raise exceptions.DataframeError(reason=f"The file at {csv_path} is empty. Details: {e}")
         except pd.errors.ParserError as e:
-            raise exceptions.DataframeError(reason=f"Failed to parse the CSV file at {csv_path}: {e}")
+            raise exceptions.DataframeError(
+                reason=f"Failed to parse the CSV file at {csv_path}: {e}"
+            )
 
     @staticmethod
     def format_table(data: List[List[str]], headers: Optional[List[str]] = None) -> str:

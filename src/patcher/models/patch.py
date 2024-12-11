@@ -1,5 +1,6 @@
-from pydantic import model_validator
 from typing import Optional
+
+from pydantic import model_validator
 
 from . import Model
 from .label import Label
