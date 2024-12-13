@@ -39,17 +39,17 @@ class PatcherError(Exception):
         return self.message
 
 
-class DatabaseError(PatcherError):
-    """Raised when there is an issue reading or writing data to the SQLite database."""
+class DataframeError(PatcherError):
+    """Raised when there is an issue reading or writing data to the pandas dataframe."""
 
-    default_message = "There was an error fetching data from the database"
+    default_message = "There was an error communicating with the dataframe."
 
     def __init__(self, reason: Optional[str] = None):
         super().__init__(reason=reason)
 
 
 class InstallomatorError(PatcherError):
-    """Raised when there is an issue reading or writing data to the SQLite database."""
+    """Raised when there is an issue retrieving installomator labels or fragments."""
 
     default_message = "Encountered error retrieving Installomator information"
 
