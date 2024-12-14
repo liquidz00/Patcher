@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Union
+from typing import List, Union
 
 import pandas as pd
 from fpdf import FPDF
@@ -102,6 +102,40 @@ class PDFReport(FPDF):
         footer_text = f"{self.ui_config.get('FOOTER_TEXT')} | Page " + str(self.page_no())
         self.cell(0, 10, footer_text, 0, 0, "R")
 
+    def calculate_column_widths(self, data: pd.DataFrame) -> List[float]:
+        """
+        Calculates column widths based on the longer of the header length or the longest content in each column,
+        ensuring they fit within the page width.
+
+        :param data: DataFrame containing dataset to be included in PDF.
+        :type data: pandas.DataFrame
+        :return: A list of column widths proportional to header lengths.
+        :rtype: List[float]
+        """
+        # Assign widths based on header lengths
+        page_width = self.w - 20  # Account for left/right margins
+        max_lengths = [
+            max(len(str(header)), data[column].astype(str).map(len).max())
+            for header, column in zip(self.table_headers, data.columns)
+        ]
+        total_length = sum(max_lengths)
+
+        # Calculate proportional widths
+        proportional_widths = [(length / total_length) * page_width for length in max_lengths]
+
+        # Enforce constraints to ensure columns fit the page
+        while sum(proportional_widths) > page_width:
+            excess = sum(proportional_widths) - page_width
+            for i in range(len(proportional_widths)):
+                if proportional_widths[i] > 20:  # Avoid shrinking below a minimum width
+                    adjustment = min(excess, proportional_widths[i] - 20)
+                    proportional_widths[i] -= adjustment
+                    excess -= adjustment
+                    if excess <= 0:
+                        break
+
+        return proportional_widths
+
     def export_excel_to_pdf(
         self, excel_file: Union[str, Path], date_format: str = "%B %d %Y"
     ) -> None:
@@ -126,17 +160,23 @@ class PDFReport(FPDF):
 
         # Create instance of FPDF
         pdf = PDFReport(ui_config=UIConfigManager(), date_format=date_format)
-        pdf.table_headers = df.columns
-        pdf.column_widths = [75, 40, 40, 40, 40, 40]
+
+        # Set headers and calculate column widths
+        pdf.table_headers = df.columns.tolist()
+        pdf.column_widths = pdf.calculate_column_widths(df)
+
         pdf.add_page()
         pdf.add_table_header()
 
         # Data rows
         pdf.set_font(self.ui_config.get("FONT_NAME"), "", 9)
-        for index, row in df.iterrows():
-            for data, width in zip(row, pdf.column_widths):
+        for _, row in df.iterrows():
+            for data, width in zip(row.astype(str), pdf.column_widths):
                 pdf.cell(width, 10, str(data), border=1, align="C")
             pdf.ln(10)
+            if pdf.get_y() > pdf.h - 20:
+                pdf.add_page()
+                pdf.add_table_header()
 
         # Save PDF to a file
         pdf_filename = os.path.splitext(excel_file)[0] + ".pdf"
