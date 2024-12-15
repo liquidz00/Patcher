@@ -118,6 +118,7 @@ class ReportManager:
                         released=latest_versions_dict[version]["ReleaseDate"],
                         hosts_patched=counts["count"],
                         missing_patch=counts["total"] - counts["count"],
+                        latest_version=latest_versions_dict[version]["ProductVersion"],
                         completion_percent=completion_percent,
                         total_hosts=counts["total"],
                     )

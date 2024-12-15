@@ -130,15 +130,21 @@ class Setup:
             return
         self._greet()
         anim = animator or self.animator
-        choice = click.prompt(
-            "Choose setup method (1: Standard setup, 2: SSO setup)", type=int, default=1
-        )
-        if choice == 1:
-            await self.launch(animator=anim)
-        elif choice == 2:
-            await self.first_run()
-        else:
-            click.echo(click.style("Invalid choice, please choose 1 or 2.", fg="red"))
+
+        try:
+            choice = click.prompt(
+                "Choose setup method (1: Standard setup, 2: SSO setup)", type=int, default=1
+            )
+            if choice == 1:
+                await self.launch(animator=anim)
+            elif choice == 2:
+                await self.first_run()
+            else:
+                click.echo(click.style("Invalid choice, please choose 1 or 2.", fg="red"))
+                await self.prompt_method()
+        except ValueError as e:
+            self.log.error(f"Invalid input during setup method selection: {e}")
+            click.echo(click.style("Invalid input. Please enter 1 or 2.", fg="red"))
             await self.prompt_method()
 
     async def first_run(self):

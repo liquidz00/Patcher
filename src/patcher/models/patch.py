@@ -15,6 +15,8 @@ class PatchTitle(Model):
     :type hosts_patched: int
     :ivar missing_patch: The number of hosts missing the patch.
     :type missing_patch: int
+    :ivar latest_version: The latest version available for the software title.
+    :type latest_version: str
     :ivar completion_percent: The percentage of hosts that have applied the patch.
     :type completion_percent: float
     :ivar total_hosts: The total number of hosts.
@@ -25,6 +27,7 @@ class PatchTitle(Model):
     released: str
     hosts_patched: int
     missing_patch: int
+    latest_version: str
     completion_percent: float = 0.0
     total_hosts: int = 0
 
