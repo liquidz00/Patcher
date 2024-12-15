@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import keyring
+from keyring.errors import PasswordDeleteError
 from pydantic import ValidationError
 
 from ..models.jamf_client import JamfClient
@@ -67,6 +68,25 @@ class ConfigManager:
         keyring.set_password(self.service_name, key, value)
         self.log.info(f"Credential for key '{key}' set successfully")
 
+    def delete_credential(self, key: str) -> bool:
+        """
+        Deletes the provided credential in the keyring under the specified key.
+
+        Method will be used in conjunction with `--reset` flag.
+
+        :param key: The credential to delete.
+        :type key: str
+        :return: True if the credential was successfully deleted, False otherwise.
+        :rtype: bool
+        """
+        try:
+            keyring.delete_password(self.service_name, key)
+            self.log.info(f"Deleted credential for {key} as expected.")
+            return True
+        except PasswordDeleteError as e:
+            self.log.error(f"Failed to delete credential for {key}: {e}")
+            return False
+
     def load_token(self) -> AccessToken:
         """
         Loads the access token and its expiration from the keyring.
@@ -128,3 +148,19 @@ class ConfigManager:
         for key, value in credentials.items():
             self.set_credential(key, value)
         self.log.info("Jamf client credentials and token saved successfully")
+
+    def reset(self) -> bool:
+        """
+        Resets all credentials by deleting them from the keyring.
+
+        :return: True if all credentials were successfully deleted, False otherwise.
+        :rtype: bool
+        """
+        creds = ["CLIENT_ID", "CLIENT_SECRET", "URL", "TOKEN", "TOKEN_EXPIRATION"]
+        results = [self.delete_credential(cred) for cred in creds]
+        all_deleted = all(results)
+        if all_deleted:
+            self.log.info("All credentials were successfully deleted.")
+        else:
+            self.log.warning("Some credentials could not be deleted!")
+        return all_deleted
