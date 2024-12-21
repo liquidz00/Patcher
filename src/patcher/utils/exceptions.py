@@ -1,10 +1,3 @@
-from typing import Optional
-
-import asyncclick as click
-
-from .logger import handle_traceback
-
-
 class PatcherError(Exception):
     """Base exception class for exceptions with automatic traceback logging and concise error display."""
 
@@ -12,176 +5,70 @@ class PatcherError(Exception):
 
     def __init__(self, message: str = None, **kwargs):
         self.message = message or self.default_message
-        self.details = kwargs
-        self.message = self.format_message()
-        super().__init__(self.message)
-        self.log_traceback()
-        self.display_message()
-
-    def log_traceback(self):
-        """Log the traceback of the exception. See :meth:`~patcher.utils.logger.handle_traceback`."""
-        handle_traceback(self)
-
-    def display_message(self):
-        """Display the error message to the console."""
-        click.echo(click.style(f"\nError: {self.message}", fg="red", bold=True), err=True)
+        self.context = kwargs
+        self.formatted_message = self.format_message()
+        super().__init__(self.formatted_message)
 
     def format_message(self) -> str:
         """Format exception message properly."""
-        details = " - ".join(
-            f"{key}: {value}" for key, value in self.details.items() if value is not None
+        context_details = " | ".join(
+            f"{key}: {value}" for key, value in self.context.items() if value
         )
-        if details:
-            return f"{self.message} - {details}"
-        return self.message
+        return f"{self.message} ({context_details})" if context_details else self.message
 
     def __str__(self):
-        return self.message
+        return self.formatted_message
 
 
-class DataframeError(PatcherError):
-    """Raised when there is an issue reading or writing data to the pandas dataframe."""
+class ConfigError(PatcherError):
+    """Errors related to configuration or setup."""
 
-    default_message = "There was an error communicating with the dataframe."
-
-    def __init__(self, reason: Optional[str] = None):
-        super().__init__(reason=reason)
+    pass
 
 
-class InstallomatorError(PatcherError):
-    """Raised when there is an issue retrieving installomator labels or fragments."""
+class FetchError(PatcherError):
+    """Errors related to data fetching or retrieval."""
 
-    default_message = "Encountered error retrieving Installomator information"
-
-    def __init__(self, reason: Optional[str] = None):
-        super().__init__(reason=reason)
+    pass
 
 
-class TokenFetchError(PatcherError):
-    """Raised when there is an error fetching a bearer token from Jamf API."""
-
-    default_message = "Unable to fetch bearer token"
-
-    def __init__(self, reason: Optional[str] = None):
-        super().__init__(reason=reason)
+# Categorized Exceptions
+# ----------------------
 
 
-class TokenLifetimeError(PatcherError):
-    """Raised when the token lifetime is too short."""
+# Configuration Errors
+class SetupError(ConfigError):
+    """Raised if any errors occur during automatic setup."""
 
-    default_message = "Token lifetime is too short"
-
-    def __init__(self, lifetime: Optional[int] = None):
-        super().__init__(lifetime=lifetime)
+    pass
 
 
-class DirectoryCreationError(PatcherError):
-    """Raised when there is an error creating directories."""
+class CredentialError(ConfigError):
+    """Raised if any errors occur during saving or updating credentials."""
 
-    default_message = "Error creating directory"
-
-    def __init__(self, path: Optional[str] = None):
-        super().__init__(path=path)
+    pass
 
 
-class PlistError(PatcherError):
-    """Raised when there is an error interacting with plist."""
+# Fetch errors
+class APIResponseError(FetchError):
+    """Raised when an API Call receives an unsuccessful status code."""
 
-    default_message = "Unable to interact with plist"
-
-    def __init__(self, path: Optional[str] = None):
-        super().__init__(path=path)
+    pass
 
 
-class ExportError(PatcherError):
-    """Raised when encountering error(s) exporting data to files."""
-
-    default_message = "Error exporting data"
-
-    def __init__(self, file_path: Optional[str] = None):
-        super().__init__(file_path=file_path)
-
-
-class PolicyFetchError(PatcherError):
-    """Raised when unable to fetch policy IDs from the Jamf instance."""
-
-    default_message = "Error obtaining policy information from Jamf instance"
-
-    def __init__(self, url: Optional[str] = None):
-        super().__init__(url=url)
-
-
-class SummaryFetchError(PatcherError):
-    """Raised when there is an error fetching summaries."""
-
-    default_message = "Error obtaining patch summaries from Jamf instance"
-
-    def __init__(self, url: Optional[str] = None):
-        super().__init__(url=url)
-
-
-class DeviceIDFetchError(PatcherError):
-    """Raised when there is an error fetching device IDs from the Jamf instance."""
-
-    default_message = "Error retrieving device IDs from Jamf instance"
-
-    def __init__(self, reason: Optional[str] = None):
-        super().__init__(reason=reason)
-
-
-class DeviceOSFetchError(PatcherError):
-    """Raised when there is an error fetching device OS information from the Jamf instance."""
-
-    default_message = "Error retrieving OS information from Jamf instance"
-
-    def __init__(self, reason: Optional[str] = None):
-        super().__init__(reason=reason)
-
-
-class SortError(PatcherError):
-    """Raised when there is an error sorting columns."""
-
-    default_message = "Invalid column name for sorting"
-
-    def __init__(self, column: Optional[str] = None):
-        super().__init__(column=column)
-
-
-class SofaFeedError(PatcherError):
-    """Raised when there is an error fetching SOFA feed data."""
-
-    default_message = "Unable to fetch SOFA feed"
-
-    def __init__(
-        self,
-        reason: Optional[str] = None,
-        url: str = "https://sofa.macadmins.io/v1/ios_data_feed.json",
-    ):
-        super().__init__(reason=reason, url=url)
-
-
-class APIResponseError(PatcherError):
-    """Raised when an API call receives an unsuccessful status code."""
-
-    default_message = "API call unsuccessful"
-
-    def __init__(self, reason: Optional[str] = None):
-        super().__init__(reason=reason)
-
-
-class ShellCommandError(PatcherError):
+class ShellCommandError(FetchError):
     """Raised when the return code of a subprocess exec call is non-zero."""
 
-    default_message = "Command exited with non-zero status"
-
-    def __init__(self, reason: Optional[str] = None):
-        super().__init__(reason=reason)
+    pass
 
 
-class SetupError(PatcherError):
-    """Raised if any errors occur during automatic setup (Creating API Role/Integration)."""
+class TokenError(FetchError):
+    """Raised when there is an error fetching, saving or retrieving a bearer token from Jamf API."""
 
-    default_message = "Unable to complete Setup"
+    pass
 
-    def __init__(self, reason: Optional[str] = None):
-        super().__init__(reason=reason)
+
+class SofaError(FetchError):
+    """Raised when there is an error fetching SOFA feed data."""
+
+    pass
