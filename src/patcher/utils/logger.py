@@ -1,95 +1,112 @@
 import logging
 import os
-import traceback
-from logging import handlers
-from typing import Optional
+import sys
+from logging.handlers import RotatingFileHandler
+from types import TracebackType
+from typing import Optional, Type
 
 import asyncclick as click
 
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger_name = "Patcher"
-default_log_level = logging.INFO
-log_roll_size = 1048576 * 100
-log_backupCount = 10
 
+class PatcherLog:
+    LOGGER_NAME = "Patcher"
+    LOG_DIR = os.path.expanduser("~/Library/Application Support/Patcher/logs")
+    LOG_FILE = os.path.join(LOG_DIR, "patcher.log")
+    LOG_LEVEL = logging.INFO
+    MAX_BYTES = 1048576 * 100  # 100 MB
+    BACKUP_COUNT = 10
 
-def setup_logger(
-    log_name: Optional[str] = logger_name,
-    log_filename: Optional[str] = f"{logger_name}.log",
-    log_level: Optional[int] = default_log_level,
-) -> logging.Logger:
-    """
-    Set up the main logger with rotating file handler.
+    @staticmethod
+    def setup_logger(
+        name: Optional[str] = None, level: Optional[int] = LOG_LEVEL
+    ) -> logging.Logger:
+        """
+        Configures and returns a logger. If the logger is already configured, it ensures no duplicate handlers.
 
-    :param log_name: The name of the logger, defaults to 'patcher'.
-    :type log_name: Optional[str]
-    :param log_filename: The log file name, defaults to ``{log_name}.log``.
-    :type log_filename: Optional[str]
-    :param log_level: The logging level, defaults to logging.INFO.
-    :type log_level: Optional[int]
-    :return: The configured logger.
-    :rtype: logging.Logger
-    """
-    log_path = os.path.abspath(
-        os.path.join(os.path.expanduser("~/Library/Application Support/Patcher"), "logs")
-    )
-    if not os.path.isdir(log_path):
-        os.makedirs(log_path)
-    log_file = os.path.join(log_path, log_filename)
-    handler = handlers.RotatingFileHandler(
-        log_file, maxBytes=log_roll_size, backupCount=log_backupCount
-    )
-    handler.setFormatter(formatter)
-    logger = logging.getLogger(log_name)
-    if logger.hasHandlers():
-        logger.handlers.clear()
-    logger.addHandler(handler)
-    logger.setLevel(log_level)
-    return logger
+        :param name: Name of the logger, defaults to "Patcher".
+        :type name: Optional[str]
+        :param level: Logging level, defaults to INFO if not specified.
+        :type level: Optional[int]
+        :return: The configured logger.
+        :rtype: logging.logger
+        """
+        logger_name = name if name else PatcherLog.LOGGER_NAME
+        os.makedirs(PatcherLog.LOG_DIR, exist_ok=True)
+        logger = logging.getLogger(logger_name)
 
+        if not logger.hasHandlers():
+            logger.setLevel(level or PatcherLog.LOG_LEVEL)
 
-def setup_child_logger(
-    name_of_child: str,
-    name_of_logger: Optional[str] = logger_name,
-    debug: Optional[bool] = False,
-) -> logging.Logger:
-    """
-    Setup a child logger for a specified context.
+            file_handler = RotatingFileHandler(
+                PatcherLog.LOG_FILE,
+                maxBytes=PatcherLog.MAX_BYTES,
+                backupCount=PatcherLog.BACKUP_COUNT,
+            )
+            file_handler.setFormatter(
+                logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+            )
+            logger.addHandler(file_handler)
 
-    :param name_of_child: The name of the child logger.
-    :type name_of_child: str
-    :param name_of_logger: The name of the parent logger, defaults to 'patcher'
-    :type name_of_logger: str
-    :param debug: Whether to set the child logger level to DEBUG, defaults to False.
-    :type debug: Optional[bool]
-    :return: The configured child logger.
-    :rtype: logging.Logger
-    """
-    child_logger = logging.getLogger(name_of_logger).getChild(name_of_child)
-    if debug:
-        child_logger.setLevel(logging.DEBUG)
-    else:
-        child_logger.setLevel(logging.INFO)
-    return child_logger
+        return logger
 
+    @staticmethod
+    def setup_child_logger(
+        childName: str, loggerName: Optional[str] = None, debug: Optional[bool] = False
+    ) -> logging.Logger:
+        """
+        Setup a child logger for a specified context.
 
-logthis = setup_logger(logger_name, f"{logger_name}.log")
+        :param childName: The name of the child logger.
+        :type childName: str
+        :param loggerName: The name of the parent logger, defaults to "Patcher".
+        :type loggerName: str
+        :param debug: Whether to set the child logger level to DEBUG, defaults to False.
+        :type debug: bool
+        :return: The configured child logger.
+        :rtype: logging.Logger
+        """
+        name = loggerName if loggerName else PatcherLog.LOGGER_NAME
+        child_logger = logging.getLogger(name).getChild(childName)
+        child_logger.setLevel(logging.DEBUG) if debug else child_logger.setLevel(logging.INFO)
+        return child_logger
 
+    @staticmethod
+    def custom_excepthook(
+        exc_type: Type[BaseException],
+        exc_value: BaseException,
+        exc_traceback: Optional[TracebackType],
+    ) -> None:
+        """
+        A custom exception handler for unhandled exceptions.
 
-def handle_traceback(exception: Exception):
-    """
-    Write tracebacks to logs instead of to console for readability purposes.
+        This method is intended to be assigned to ``sys.excepthook`` to handle any uncaught exceptions in the application.
 
-    :param exception: The exception instance to log.
-    :type exception: Exception
-    """
-    full_traceback = traceback.format_exc()
-    logthis.error(f"Exception occurred: {str(exception)}\nTraceback:\n{full_traceback}")
+        :param exc_type: The class of the exception raised.
+        :type exc_type: Type[BaseException]
+        :param exc_value: The instance of the exception raised.
+        :type exc_value: BaseException
+        :param exc_traceback: The traceback object associated with the exception.
+        :type exc_traceback: Optional[TracebackType]
+        :raises SystemExit: Exits the program with status code 1 after handling the exception.
+        """
+        parent_logger = logging.getLogger(PatcherLog.LOGGER_NAME)
+        child_logger = parent_logger.getChild("UnhandledException")
+        child_logger.setLevel(parent_logger.level)
+
+        if exc_type.__name__ == "KeyboardInterrupt":
+            # Exit gracefully on keyboard interrupt
+            child_logger.info("User interrupted the process.")
+            sys.exit(130)  # SIGINT
+
+        child_logger.error(
+            "Unhandled exception occurred", exc_info=(exc_type, exc_value, exc_traceback)
+        )
+        sys.exit(1)
 
 
 class LogMe:
     """
-    A wrapper class for logging with additional output to console using click.
+    A wrapper class for logging with optional output to console using click.
 
     :param class_name: The name of the class for which the logger is being set up.
     :type class_name: str
@@ -98,7 +115,7 @@ class LogMe:
     """
 
     def __init__(self, class_name: str, debug: Optional[bool] = False):
-        self.logger = setup_child_logger(class_name, logger_name, debug)
+        self.logger = PatcherLog.setup_child_logger(class_name, PatcherLog.LOGGER_NAME, debug)
 
     def is_debug_enabled(self) -> bool:
         """
@@ -118,7 +135,7 @@ class LogMe:
         """
         self.logger.debug(msg)
         if self.is_debug_enabled():
-            debug_out = click.style(text=f"DEBUG: {msg.strip()}", fg="magenta", bold=False)
+            debug_out = click.style(text=f"\rDEBUG: {msg.strip()}", fg="magenta", bold=False)
             click.echo(message=debug_out, err=False)
 
     def info(self, msg: str):
@@ -152,7 +169,7 @@ class LogMe:
         :param msg: The error message to log.
         :type msg: str
         """
-        self.logger.error(msg)
+        self.logger.error(msg, exc_info=True)
         if self.is_debug_enabled():
             err_out = click.style(text=f"\rERROR: {msg.strip()}", fg="red", bold=True)
             click.echo(message=err_out, err=False)
