@@ -1,3 +1,5 @@
+import os
+import tempfile
 from pathlib import Path
 from plistlib import InvalidFileException
 from unittest.mock import mock_open, patch
@@ -7,31 +9,35 @@ from src.patcher.client.setup import Setup
 
 
 @pytest.fixture
-def setup_instance(config_manager, ui_config, mock_jamf_client, api_client, token_manager):
-    ui_config.plist_path = (
-        Path.home() / "Library" / "Application Support" / "Patcher" / "com.liquidzoo.patcher.plist"
-    )
+def setup_instance(config_manager, ui_config, mock_jamf_client, api_client, token_manager, request):
+    # Create temp file path
+    temp_plist = tempfile.NamedTemporaryFile(suffix=".plist", delete=False)
+    temp_plist_path = Path(temp_plist.name)
+    temp_plist.close()
 
-    instance = Setup(
-        config=config_manager,
-        ui_config=ui_config,
-    )
-    instance.config.attach_client.return_value = mock_jamf_client
-    return instance
+    # Mock plist_path to use temp file
+    with patch.object(ui_config, "plist_path", new=temp_plist_path):
+        instance = Setup(
+            config=config_manager,
+            ui_config=ui_config,
+        )
+        instance.config.attach_client.return_value = mock_jamf_client
+
+        # Clean up after test
+        def cleanup():
+            if temp_plist_path.exists():
+                os.remove(temp_plist_path)
+
+        request.addfinalizer(cleanup)
+
+        yield instance
 
 
 @pytest.mark.asyncio
 async def test_init(setup_instance, config_manager, ui_config):
     assert setup_instance.config == config_manager
     assert setup_instance.ui_config == ui_config
-    assert (
-        ui_config.plist_path
-        == Path.home()
-        / "Library"
-        / "Application Support"
-        / "Patcher"
-        / "com.liquidzoo.patcher.plist"
-    )
+    assert setup_instance.ui_config.plist_path.exists()
     assert setup_instance._completed is None
 
 
