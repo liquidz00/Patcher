@@ -1,20 +1,19 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional
+from typing import Dict
 
 from ..models.token import AccessToken
-from ..utils import exceptions, logger
+from ..utils.exceptions import APIResponseError, CredentialError, TokenError
+from ..utils.logger import LogMe
 from . import BaseAPIClient
 from .config_manager import ConfigManager
 
 
 class TokenManager:
     """
-    Manages the Bearer Token required for accessing the Jamf API.
-
-    The ``TokenManager`` class handles all operations related to the token lifecycle,
-    including fetching, saving, and validating the access token. It is initialized
-    with a :class:`~patcher.client.config_manager.ConfigManager` instance, which provides the necessary credentials.
+    The ``TokenManager`` class handles all operations related to the token lifecycle, including fetching,
+    saving, and validating the access token. It is initialized with a :class:`~patcher.client.config_manager.ConfigManager`
+    instance, which provides the necessary credentials.
     """
 
     def __init__(self, config: ConfigManager):
@@ -22,10 +21,9 @@ class TokenManager:
         Initializes the TokenManager with a provided ``ConfigManager`` instance.
 
         :param config: A ``ConfigManager`` instance for managing credentials and configurations.
-        :type config: ConfigManager
-        :raises ValueError: If the ``JamfClient`` configuration is invalid.
+        :type config: :class:`~patcher.client.config_manager.ConfigManager`
         """
-        self.log = logger.LogMe(self.__class__.__name__)
+        self.log = LogMe(self.__class__.__name__)
         self.config = config
         self.api_client = BaseAPIClient()
         self._client = None  # avoid loading credentials at init
@@ -36,8 +34,6 @@ class TokenManager:
     def client(self):
         if not self._client:
             self._client = self.config.attach_client()
-            if not self._client:
-                raise ValueError("Invalid JamfClient configuration detected.")
             self.log.info(f"JamfClient initialized with base URL: {self._client.base_url}")
         return self._client
 
@@ -45,45 +41,51 @@ class TokenManager:
     def token(self) -> AccessToken:
         if not self._token:
             self._token = self.client.token
-            self.log.info("Token loaded successfully from JamfClient.")
+            self.log.info(
+                f"Token ending in {self.client.token.token[-4:]}  loaded successfully from JamfClient."
+            )
         return self._token
 
-    async def fetch_token(self) -> Optional[AccessToken]:
+    async def fetch_token(self) -> AccessToken:
         """
-        Asynchronously fetches a new access token from the Jamf API.
+        Asynchronously fetches a new access token from the Jamf API. The token is then
+        saved and returned for use.
 
-        This method sends a request to the Jamf API to obtain a new token.
-        The token is then saved and returned for use.
-
-        :return: The fetched ``AccessToken`` instance, or ``None`` if the request fails.
-        :rtype: Optional[AccessToken]
+        :return: The fetched ``AccessToken`` instance.
+        :rtype: :class:`~patcher.models.token.AccessToken`
+        :raises TokenError: If a token cannot be retrieved from the Jamf API.
         """
-        client_id, client_secret = self.client.client_id, self.client.client_secret
         url = f"{self.client.base_url}/api/oauth/token"
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
         data = {
-            "client_id": client_id,
+            "client_id": self.client.client_id,
             "grant_type": "client_credentials",
-            "client_secret": client_secret,
+            "client_secret": self.client.client_secret,
         }
 
         try:
             response = await self.api_client.fetch_json(
                 url, headers=headers, method="POST", data=data
             )
-        except exceptions.APIResponseError as e:
-            self.log.error(f"Failed to fetch a token from {url}: {e}")
-            raise  # Raise same exception that was caught
+        except APIResponseError as e:
+            self.log.error(f"Failed to fetch a token from {url}. Details: {e}")
+            raise TokenError("Unable to retrieve AccessToken from Jamf instance.", url=url) from e
 
         return self._parse_token_response(response)
 
-    def _parse_token_response(self, response: Dict) -> Optional[AccessToken]:
+    def _parse_token_response(self, response: Dict) -> AccessToken:
+        """
+        Private method that parses the Jamf API Token response and extracts the
+        token string and token expiration.
+
+        :param response: The API response payload from Jamf.
+        :type response: Dict
+        :return: The extracted ``AccessToken`` object.
+        :rtype: :class:`~patcher.models.token.AccessToken`
+        """
         token = response.get("access_token")
-        expires_in = response.get("expires_in", 0)
-        if not isinstance(token, str) or expires_in <= 0:
-            self.log.error("Received invalid token response")
-            return None
+        expires_in = response.get("expires_in")
 
         expiration = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
         access_token = AccessToken(token=token, expires=expiration)
@@ -94,25 +96,28 @@ class TokenManager:
 
     def _save_token(self, token: AccessToken):
         """
-        Saves the access token and its expiration date securely.
-
         This method stores the access token and its expiration date in the keyring
         for later retrieval. It also updates the ``JamfClient`` instance with the new token.
 
         :param token: The ``AccessToken`` instance containing the token and its expiration date.
         :type token: :class:`~patcher.models.token.AccessToken`
+        :raises TokenError: If either the token string or expiration could not be saved.
         """
-        self.config.set_credential("TOKEN", token.token)
-        self.config.set_credential("TOKEN_EXPIRATION", token.expires.isoformat())
+        try:
+            self.config.set_credential("TOKEN", token.token)
+            self.config.set_credential("TOKEN_EXPIRATION", token.expires.isoformat())
+        except CredentialError as e:
+            self.log.error(f"Unable to save AccessToken object to keychain. Details: {e}")
+            raise TokenError("Unable to save AccessToken object to keychain") from e
+
         self.client.token = token
         self._token = token  # cache token locally
         self.log.info("Bearer token and expiration updated in keyring")
 
     def token_valid(self) -> bool:
         """
-        Determines if the current access token is still valid.
-
-        This method checks if the token has expired by evaluating its expiration date.
+        Determines if the current access token is still valid by evaluating its
+        expiration date.
 
         :return: ``True`` if the token is valid (not expired), otherwise ``False``.
         :rtype: bool
@@ -124,43 +129,14 @@ class TokenManager:
         Verifies the current access token is valid (present and not expired).
         If the token is found to be invalid, a new token is requested and refreshed.
 
-        :raises TokenFetchError: If a new token was unable to be retrieved
-        :raises TokenLifetimeError: If the token's remaining lifetime is insufficient.
+        .. seealso::
+
+            The :meth:`~patcher.utils.decorators.check_token` decorator leverages
+            this method with thread locking to ensure tokens are valid before API calls.
+
         """
         async with self.lock:
             if not self.token_valid():
                 self.log.warning("Bearer token is invalid or expired, attempting to refresh...")
-                if not await self.fetch_token():
-                    raise exceptions.TokenFetchError(reason="Unable to validate or refresh token.")
+                await self.fetch_token()
             self.log.info("Token retrieved successfully")
-            if not self._check_token_lifetime():
-                raise exceptions.TokenLifetimeError(lifetime=self.token.seconds_remaining)
-
-    def _check_token_lifetime(self) -> bool:
-        """
-        Evaluates the remaining lifetime of the access token.
-
-        This method checks if the token's remaining lifetime is sufficient.
-        If the lifetime is less than 2 minutes, a warning is issued.
-
-        :return: ``True`` if the token's remaining lifetime is more than 5 minutes,
-                 otherwise ``False``.
-        :rtype: bool
-        """
-        lifetime = self.token.seconds_remaining
-
-        match lifetime:
-            case _ if lifetime <= 0:
-                self.log.error("Token lifetime is invalid")
-                return False
-            case _ if lifetime < 120:
-                self.log.warning(
-                    "Token lifetime is between 5-10 minutes, consider increasing duration."
-                )
-                return False
-            case _ if lifetime > 120:
-                self.log.info(f"Token lifetime is sufficient. Remaining Lifetime: {lifetime}")
-                return True
-            case _:
-                self.log.error(f"Unrecognized lifetime provided: {lifetime}")
-                return False

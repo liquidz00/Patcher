@@ -4,7 +4,8 @@ import subprocess
 from typing import Dict, List, Optional, Tuple, Union
 
 from ..models.jamf_client import ApiClientModel, ApiRoleModel
-from ..utils import exceptions, logger
+from ..utils.exceptions import APIResponseError, ShellCommandError
+from ..utils.logger import LogMe
 
 
 class BaseAPIClient:
@@ -28,7 +29,7 @@ class BaseAPIClient:
         self.max_concurrency = max_concurrency
         self.semaphore = asyncio.Semaphore(max_concurrency)
         self.default_headers = {"accept": "application/json", "Content-Type": "application/json"}
-        self.log = logger.LogMe(self.__class__.__name__)
+        self.log = LogMe(self.__class__.__name__)
 
     @property
     def concurrency(self) -> int:
@@ -40,7 +41,8 @@ class BaseAPIClient:
         """
         return self.max_concurrency
 
-    def set_concurrency(self, concurrency: int) -> None:
+    @concurrency.setter
+    def concurrency(self, concurrency: int) -> None:
         """
         Sets the maximum concurrency level for API calls.
 
@@ -55,41 +57,6 @@ class BaseAPIClient:
         if concurrency < 1:
             raise ValueError("Concurrency level must be at least 1.")
         self.max_concurrency = concurrency
-
-    def _handle_status_code(
-        self, status_code: int, response_json: Optional[Dict]
-    ) -> Optional[Dict]:
-        """
-        Handles HTTP status codes and returns the appropriate response or raises errors.
-
-        :param status_code: The HTTP status code to evaluate.
-        :type status_code: int
-        :param response_json: The parsed JSON response from the API.
-        :type response_json: Optional[Dict]
-        :return: The response if JSON is successful, otherwise raises an exception.
-        :rtype: Optional[Dict]
-        """
-        if 200 <= status_code < 300:
-            return response_json
-        elif 400 <= status_code < 500:
-            self.log.error(
-                f"Client error ({status_code}): {response_json.get('errors', 'Unknown error')}"
-            )
-            raise exceptions.APIResponseError(
-                f"Client error ({status_code}): {response_json.get('errors', 'Unknown error')}"
-            )
-        elif 500 <= status_code < 600:
-            self.log.error(
-                f"Server error ({status_code}): {response_json.get('errors', 'Unknown error')}"
-            )
-            raise exceptions.APIResponseError(
-                f"Server error ({status_code}): {response_json.get('errors', 'Unknown error')}"
-            )
-        else:
-            self.log.error(f"Unexpected HTTP status code {status_code}: {response_json}")
-            raise exceptions.APIResponseError(
-                f"Unexpected HTTP status code {status_code}: {response_json}"
-            )
 
     @staticmethod
     def _format_headers(headers: Dict[str, str]) -> List[str]:
@@ -123,17 +90,66 @@ class BaseAPIClient:
         :rtype: Optional[Union[Dict, str]]
         :raises exceptions.ShellCommandError: If the command execution fails (returns a non-zero exit code).
         """
-        process = await asyncio.create_subprocess_exec(
-            *command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
-        if process.returncode != 0:
-            self.log.error(f"Error executing subprocess command: {stderr.decode()}")
-            raise exceptions.ShellCommandError(
-                reason=f"Error executing subprocess command: {stderr.decode()}"
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            if process.returncode != 0:
+                error_msg = stderr.decode().strip()
+                self.log.error(
+                    f"Command execution failed. Return code: {process.returncode}, Error: {error_msg}"
+                )
+                raise ShellCommandError(
+                    "Command execution failed.",
+                    command=command,
+                    error=error_msg,
+                    return_code=process.returncode,
+                )
+            return stdout.decode().strip()
+        except OSError as exc:
+            self.log.error(f"OSError encountered executing command. Details: {exc}")
+            raise ShellCommandError(
+                "OSError encountered executing command.", command=command, exception=exc
             )
 
-        return stdout.decode()
+    def _handle_status_code(
+        self, status_code: int, response_json: Optional[Dict]
+    ) -> Optional[Dict]:
+        """
+        Handles HTTP status codes and returns the appropriate response or raises errors.
+
+        :param status_code: The HTTP status code to evaluate.
+        :type status_code: int
+        :param response_json: The parsed JSON response from the API.
+        :type response_json: Optional[Dict]
+        :return: The response if JSON is successful, otherwise raises an exception.
+        :rtype: Optional[Dict]
+        :raises APIResponseError: If a client error, server error, or unexpected response is received.
+        """
+        if 200 <= status_code < 300:
+            return response_json
+
+        error_message = (
+            response_json.get("errors", "Unknown error") if response_json else "No details"
+        )
+        if 400 <= status_code < 500:
+            self.log.error(f"Client error ({status_code}): {error_message}")
+            raise APIResponseError(
+                "Client error received.", status_code=status_code, error=error_message
+            )
+        elif 500 <= status_code < 600:
+            self.log.error(f"Server error ({status_code}): {error_message}")
+            raise APIResponseError(
+                "Server error received.", status_code=status_code, error=error_message
+            )
+        else:
+            self.log.error(f"Unexpected HTTP status code ({status_code}): {error_message}")
+            raise APIResponseError(
+                "Unexpected HTTP status code received.",
+                status_code=status_code,
+                error=error_message,
+            )
 
     async def fetch_json(
         self,
@@ -155,6 +171,7 @@ class BaseAPIClient:
         :type data: Optional[Dict[str, str]]
         :return: The fetched JSON data as a dictionary, or None if the request fails.
         :rtype: Optional[Dict]
+        :raises APIResponseError: If the response payload is not valid JSON, or if command execution fails.
         """
         final_headers = headers if headers else self.default_headers
         header_string = self._format_headers(final_headers)
@@ -187,18 +204,19 @@ class BaseAPIClient:
         async with self.semaphore:
             output = await self.execute(command)
 
-        # Separate status code from body of response
         try:
+            # Separate status code from body of response
             response_body, status_line = output.rsplit("\nSTATUS:", 1)
             status_code = int(status_line.strip())
             response_json = json.loads(response_body)  # Re-parse body as JSON
         except (json.JSONDecodeError, ValueError) as e:
-            self.log.error(f"Failed to decode JSON or parse status code from response: {e}")
-            raise exceptions.APIResponseError(
-                f"Failed to decode JSON or parse status code from response: {e}"
+            self.log.error(
+                f"Failed to parse JSON response from {url} via command: {command}. Details: {e}"
             )
+            raise APIResponseError(
+                "Failed parsing JSON response from API", url=url, command=command
+            ) from e
 
-        # Handle status code from response
         return self._handle_status_code(status_code, response_json)
 
     async def fetch_batch(
@@ -225,7 +243,7 @@ class BaseAPIClient:
         return results
 
     # API calls for client setup
-    async def fetch_basic_token(self, username: str, password: str, jamf_url: str) -> Optional[str]:
+    async def fetch_basic_token(self, username: str, password: str, jamf_url: str) -> str:
         """
         Asynchronously retrieves a bearer token using basic authentication.
 
@@ -236,11 +254,11 @@ class BaseAPIClient:
         :type username: str
         :param password: Password of admin Jamf Pro account. Not permanently stored, only used for initial token retrieval.
         :type password: str
-        :param jamf_url: Jamf Server URL (same as ``server_url`` in :mod:`patcher.models.jamf_client` class).
+        :param jamf_url: Jamf Server URL (See :attr:`~patcher.models.jamf_client.JamfClient.server`).
         :type jamf_url: str
-        :raises exceptions.TokenFetchError: If the call is unauthorized or unsuccessful.
-        :returns: True if the basic token was successfully retrieved, False if unauthorized (e.g., due to SSO).
-        :rtype: bool
+        :returns: The BasicToken string.
+        :rtype: str
+        :raises APIResponseError: If the call is unauthorized or unsuccessful.
         """
         token_url = f"{jamf_url}/api/v1/auth/token"
         command = [
@@ -260,8 +278,13 @@ class BaseAPIClient:
             if response and "token" in response:
                 return response.get("token")
             else:
-                raise exceptions.TokenFetchError(
-                    f"Unable to retrieve basic token with provided username ({username}) and password"
+                self.log.error(
+                    f"Unable to retrieve basic token with provided username ({username}) and password."
+                )
+                raise APIResponseError(
+                    "Unable to retrieve basic token with provided username and password",
+                    username=username,
+                    url=jamf_url,
                 )
 
     async def create_roles(self, token: str, jamf_url: str) -> bool:
@@ -307,7 +330,7 @@ class BaseAPIClient:
             "authorizationScopes": client.auth_scopes,
             "displayName": client.display_name,
             "enabled": client.enabled,
-            "accessTokenLifetimeSeconds": client.token_lifetime,  # 30 minutes in seconds
+            "accessTokenLifetimeSeconds": client.token_lifetime,
         }
 
         headers = {
@@ -319,17 +342,14 @@ class BaseAPIClient:
         response = await self.fetch_json(
             url=client_url, method="POST", data=payload, headers=headers
         )
-        if not response.get("clientId"):
-            raise exceptions.SetupError("Failed creating client ID!")
 
         client_id = response.get("clientId")
-        integration_id = response.get("id")
+        integration_id = response.get("id")  # Required for integration API call
 
+        # Obtain client secret
         secret_url = f"{jamf_url}/api/v1/api-integrations/{integration_id}/client-credentials"
         secret_response = await self.fetch_json(url=secret_url, method="POST", headers=headers)
-
-        if not secret_response.get("clientSecret"):
-            raise exceptions.SetupError(f"Failed creating client secret for {client_id}")
-
         client_secret = secret_response.get("clientSecret")
+
+        # Return credentials
         return client_id, client_secret

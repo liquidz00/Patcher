@@ -2,6 +2,7 @@ from typing import Any
 
 from pydantic import field_validator
 
+from ..utils.exceptions import PatcherError
 from . import Model
 
 
@@ -37,14 +38,14 @@ class Label(Model):
     def validate_type(cls, v):
         allowed_types = ["dmg", "pkg", "zip", "tbz", "pkgInDmg", "pkgInZip", "appInDmgInZip"]
         if v not in allowed_types:
-            raise ValueError(f"Type must be one of {allowed_types}")
+            raise PatcherError(f"Type must be one of {allowed_types}", type=v)
         return v
 
     @classmethod
     @field_validator("expectedTeamID", mode="before")
     def validate_team_id(cls, v):
         if len(v) != 10:
-            raise ValueError("expectedTeamID must be a 10-character string")
+            raise PatcherError("expectedTeamID must be a 10-character string", team_id=v)
         return v
 
     @classmethod

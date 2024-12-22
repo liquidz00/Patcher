@@ -24,6 +24,7 @@ class PatchTitle(Model):
     :type completion_percent: float
     :ivar total_hosts: The total number of hosts.
     :type total_hosts: int
+    :ivar install_label: The corresponding `Installomator <https://github.com/Installomator/Installomator>`_ label if available.
     """
 
     title: str
@@ -39,7 +40,7 @@ class PatchTitle(Model):
     @model_validator(mode="after")
     def calculate_completion_percent(self):
         """
-        Calculates the completion percentage and total hosts of a :class:`~patcher.models.patch.PatchTitle` object based on hosts_patched and missing_patch.
+        Calculates the completion percentage and total hosts of a :class:`~patcher.models.patch.PatchTitle` object based on hosts patched and missing patch.
 
         See :meth:`~patcher.clients.api_client.ApiClient.get_summaries`
         """

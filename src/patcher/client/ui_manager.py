@@ -7,7 +7,8 @@ from typing import Dict, Optional, Tuple, Union
 import asyncclick as click
 from PIL import Image
 
-from ..utils import exceptions, logger
+from ..utils.exceptions import PatcherError, SetupError, ShellCommandError
+from ..utils.logger import LogMe
 from . import BaseAPIClient
 
 
@@ -16,8 +17,8 @@ class UIConfigManager:
     Manages the user interface configuration settings.
 
     This includes the management of header and footer text for exported PDFs,
-    custom fonts, and font paths. The class also handles the downloading of
-    default fonts if they are not already present.
+    custom fonts, font paths, and an optional branding logo. The class also handles
+    the downloading of default fonts if they are not already present.
     """
 
     REGULAR_FONT_URL = (
@@ -31,7 +32,7 @@ class UIConfigManager:
         """
         Initializes the UIConfigManager by loading the user interface configuration.
         """
-        self.log = logger.LogMe(self.__class__.__name__)
+        self.log = LogMe(self.__class__.__name__)
         self.plist_path = (
             Path.home()
             / "Library"
@@ -52,12 +53,10 @@ class UIConfigManager:
     @property
     def fonts_present(self) -> bool:
         """
-        Checks if the default fonts have already been downloaded.
-
         This property verifies if the required font files (regular and bold)
         are present in the expected directory.
 
-        :return: ``True`` if the fonts are present, ``False`` otherwise.
+        :return: ``True`` if the fonts are present.
         :rtype: bool
         """
         if self._fonts_saved is None:
@@ -68,10 +67,8 @@ class UIConfigManager:
 
     def load_ui_config(self):
         """
-        Loads the user interface configuration from the default and user configuration files.
-
-        This method reads the Patcher property list file to retrieve the settings. If the
-        property list file does not exist, it is created with default values.
+        Reads the Patcher property list file to retrieve UI settings and loads them.
+        If the property list file does not exist, it is created with default values.
         """
         if not self.plist_path.parent.exists():
             self.plist_path.parent.mkdir(parents=True, exist_ok=True)
@@ -99,19 +96,24 @@ class UIConfigManager:
         :type url: str
         :param dest_path: The local path where the downloaded font should be saved.
         :type dest_path: str
-        :raises exceptions.ShellCommandError: Raised if the font cannot be downloaded due to a network error or invalid response.
+        :raises ShellCommandError: Raised if the font cannot be downloaded due to a network error or invalid response.
+        :raises PatcherError: If the destination path's parent cannot be created.
         """
         try:
             dest_path.parent.mkdir(parents=True, exist_ok=True)
         except PermissionError as e:
             self.log.error(f"Unable to create directory for fonts: {e}")
-            raise exceptions.PatcherError("Could not create directory for Fonts.")
+            raise PatcherError(
+                "Could not create directory for Fonts.",
+                path=dest_path,
+                parent_path=dest_path.parent,
+            ) from e
 
         command = ["/usr/bin/curl", "-sL", url, "-o", str(dest_path)]
         async with self.api.semaphore:
             try:
                 await self.api.execute(command)
-            except exceptions.ShellCommandError as e:
+            except ShellCommandError as e:
                 self.log.error(f"Unable to download font from {url}: {e}")
                 raise
 
@@ -145,8 +147,7 @@ class UIConfigManager:
         """
         Retrieves the user interface configuration settings as a dictionary.
 
-        :return: A dictionary containing UI configuration settings such as header text,
-                 footer text, and font paths.
+        :return: UI configuration settings such as header text, footer text, and font paths.
         :rtype: Dict
         """
         return self.config
@@ -166,12 +167,10 @@ class UIConfigManager:
 
     def reset_config(self) -> bool:
         """
-        Resets the user interface settings in the property list file.
-
-        This method removes all existing UI settings from the configuration file.
+        Removes all existing UI settings from the property list file.
         It can be useful for restoring default values or clearing the configuration.
 
-        :return: ``True`` if the reset was successful, ``False`` otherwise.
+        :return: ``True`` if the reset was successful.
         :rtype: bool
         """
         try:
@@ -182,15 +181,17 @@ class UIConfigManager:
                 return True
             return False
         except Exception as e:
-            self.log.error(f"An unexpected error occurred: {e}")
+            self.log.error(
+                f"An unexpected error occurred when resetting UI settings in property list. Details: {e}"
+            )
             return False
 
     def setup_ui(self):
         """
-        Guides the user through configuring UI settings for PDF reports, including header/footer text and font choices.
-        This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
+        Guides the user through configuring UI settings for PDF reports, including header/footer text,
+        font choices, and an optional branding logo.
 
-        :raises FileNotFoundError: IF the specified font file paths do not exist.
+        This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
         """
         header_text = click.prompt("Enter the Header Text to use on PDF reports")
         footer_text = click.prompt("Enter the Footer Text to use on PDF reports")
@@ -209,13 +210,13 @@ class UIConfigManager:
             header_text, footer_text, font_name, font_regular_path, font_bold_path, logo_path
         )
 
-    @staticmethod
-    def configure_font(use_custom_font: bool, font_dir: Path) -> Tuple[str, Path, Path]:
+    def configure_font(self, use_custom_font: bool, font_dir: Path) -> Tuple[str, Path, Path]:
         """
-        Configures the font settings based on user input.
-
-        This method allows the user to specify a custom font or use the default provided by the application.
+        Allows the user to specify a custom font or use the default provided by the application.
         The chosen fonts are copied to the appropriate directory for use in PDF report generation.
+
+        If the specified font files cannot be copied to the passed ``font_dir``, the default fonts
+        are used and a warning is logged.
 
         This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
 
@@ -232,8 +233,22 @@ class UIConfigManager:
             font_bold_src_path = Path(click.prompt("Enter the path to the bold font file"))
             font_regular_dest_path = font_dir / font_regular_src_path.name
             font_bold_dest_path = font_dir / font_bold_src_path.name
-            shutil.copy(font_regular_src_path, font_regular_dest_path)
-            shutil.copy(font_bold_src_path, font_bold_dest_path)
+            try:
+                shutil.copy(font_regular_src_path, font_regular_dest_path)
+                shutil.copy(font_bold_src_path, font_bold_dest_path)
+            except (
+                OSError,
+                PermissionError,
+                shutil.SameFileError,
+                FileNotFoundError,
+                TypeError,
+            ) as e:
+                self.log.warning(
+                    f"Unable to copy custom font files to specified directory ({font_dir}). Details: {e}"
+                )
+                font_name = "Assistant"
+                font_regular_dest_path = font_dir / "Assistant-Regular.ttf"
+                font_bold_dest_path = font_dir / "Assistant-Bold.ttf"
         else:
             font_name = "Assistant"
             font_regular_dest_path = font_dir / "Assistant-Regular.ttf"
@@ -246,14 +261,16 @@ class UIConfigManager:
         Configures the logo file for PDF reports based on user input.
 
         If a logo file is specified, it is validated and copied to Patcher's Application Support directory.
-        Similar to :meth:`~patcher.client.ui_manager.configure_font` this method is solely used in conjunction with the :class:`~patcher.client.setup.Setup` class.
+        Similar to :meth:`~patcher.client.ui_manager.UIConfigManager.configure_font` this method is
+        solely used in conjunction with the :class:`~patcher.client.setup.Setup` class.
 
         :param use_logo: Indicates whether or not to use a custom logo.
         :type use_logo: bool
         :return: The path to the saved logo file, or None if no logo is configured.
         :rtype: Optional[str]
-        :raises exceptions.SetupError: If the provided logo path does not exist.
-        :raises exceptions.PatcherError: If the provided logo fails pillow validation.
+        :raises SetupError: If the provided logo path does not exist.
+        :raises PatcherError: If the provided logo fails pillow validation.
+        :raises PatcherError: If the logo file could not be copied to the destination path.
         """
         if not use_logo:
             self.log.info("Skipping logo configuration...")
@@ -265,8 +282,9 @@ class UIConfigManager:
         logo_src_path = Path(click.prompt("Enter the path to the logo file"))
         if not logo_src_path.exists():
             self.log.error(f"Logo path does not exist: {logo_src_path}")
-            raise exceptions.SetupError(
-                f"{logo_src_path} does not exist, please check the path and try again."
+            raise SetupError(
+                "The specified logo path does not exist, please check the path and try again.",
+                path=logo_src_path,
             )
 
         # Validate file is an image
@@ -275,19 +293,28 @@ class UIConfigManager:
                 img.verify()
         except (IOError, Image.UnidentifiedImageError) as e:
             self.log.error(f"Image validation failed for {logo_src_path}: {e}")
-            raise exceptions.PatcherError(
-                f"{logo_src_path} is not a valid image file. Please try again."
-            )
+            raise PatcherError(
+                "The specified logo is not a valid image file. Please try again.",
+                path=logo_src_path,
+            ) from e
 
         # Copy file
         try:
             shutil.copy(logo_src_path, logo_dest_path)
             self.log.info(f"Logo saved to {logo_dest_path}.")
-        except Exception as e:
+        except (
+            FileNotFoundError,
+            PermissionError,
+            IsADirectoryError,
+            OSError,
+            shutil.SameFileError,
+            TypeError,
+        ) as e:
             self.log.error(f"Failed to copy logo to destination {logo_dest_path}: {e}")
-            raise exceptions.PatcherError(
-                f"Unable to save the logo file to {logo_dest_path}. Please try again."
-            )
+            raise PatcherError(
+                "Unable to save the logo file as expected. Please try again.",
+                path=logo_dest_path,
+            ) from e
 
         # Save logo path in config
         self.config["LOGO_PATH"] = str(logo_dest_path)
@@ -348,11 +375,38 @@ class UIConfigManager:
         return self.get("LOGO_PATH", None)
 
     def _load_plist_file(self) -> Dict:
+        """
+        Reads values from Patcher property list file after verifying it exists.
+        If the property list file does not exist, an empty dictionary is returned.
+
+        If the property list file cannot be read, a warning is logged and an
+        empty dictionary is returned.
+
+        :return: Property list settings as a dictionary, or an empty dictionary if file does not exist.
+        :rtype: Dict
+        """
         if self.plist_path.exists():
             with self.plist_path.open("rb") as plistfile:
-                return plistlib.load(plistfile)
+                try:
+                    return plistlib.load(plistfile)
+                except plistlib.InvalidFileException as e:
+                    self.log.warning(f"Unable to read property list file. Details: {e}")
+                    return {}
         return {}
 
-    def _write_plist_file(self, plist_data: Dict):
+    def _write_plist_file(self, plist_data: Dict) -> None:
+        """
+        Writes specified data to Patcher property list file.
+
+        :param plist_data: Data to save to property list.
+        :type plist_data: Dict
+        :raises PatcherError: If specified data could not be saved to property list.
+        """
         with self.plist_path.open("wb") as plistfile:
-            plistlib.dump(plist_data, plistfile)
+            try:
+                plistlib.dump(plist_data, plistfile)
+            except plistlib.InvalidFileException as e:
+                self.log.error(f"Unable to write to property list. Details: {e}")
+                raise PatcherError(
+                    "Encountered an error trying to write to property list", data=plist_data
+                ) from e

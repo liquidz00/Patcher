@@ -6,20 +6,19 @@ from typing import List, Union
 
 import pandas as pd
 from fpdf import FPDF
-from pandas.errors import ParserError
+from pandas.errors import EmptyDataError, ParserError
 from PIL import Image
 
 from ...client.ui_manager import UIConfigManager
-from ...utils import exceptions, logger
+from ...utils.exceptions import PatcherError
+from ...utils.logger import LogMe
 
 
 class PDFReport(FPDF):
     """
-    Handles the generation of PDF reports from Excel files.
-
     The ``PDFReport`` class extends FPDF to create a PDF report from an Excel file
-    containing patch data. It supports custom headers, footers, and font styles
-    based on the UI configuration.
+    containing patch data. It supports custom headers, footers, font styles,
+    and an optional branding logo based on the UI configuration.
     """
 
     def __init__(
@@ -34,7 +33,7 @@ class PDFReport(FPDF):
         Initializes the PDFReport with the provided parameters and UIConfigManager.
 
         :param ui_config: An instance of ``UIConfigManager`` for managing UI configuration.
-        :type ui_config: UIConfigManager
+        :type ui_config: :class:`patcher.client.ui_manager.UIConfigManager`
         :param orientation: Orientation of the PDF, default is "L" (landscape).
         :type orientation: str
         :param unit: Unit of measurement, default is "mm".
@@ -44,7 +43,7 @@ class PDFReport(FPDF):
         :param date_format: Date format string for the PDF report header, default is "%B %d %Y".
         :type date_format: str
         """
-        self.log = logger.LogMe(self.__class__.__name__)
+        self.log = LogMe(self.__class__.__name__)
         super().__init__(orientation=orientation, unit=unit, format=format)  # type: ignore
         self.date_format = date_format
         self.ui_config = ui_config.get_ui_config()
@@ -96,40 +95,46 @@ class PDFReport(FPDF):
         """
         header_font_size = 24
         date_font_size = 18
-        text_padding = 2  # Padding between lines of text
+        text_padding = 2
+        top_margin = 10
+        text_x_offset = 10
 
         # Text block height calculation
-        header_text_height = header_font_size * 0.352778
-        date_text_height = date_font_size * 0.352778
+        header_text_height = header_font_size * 0.352778  # mm
+        date_text_height = date_font_size * 0.352778  # mm
         total_text_height = header_text_height + date_text_height + text_padding
-
-        # Top margin
-        top_margin = 10
 
         # Calculate text block center
         text_block_center_y = top_margin + (total_text_height / 2)
 
-        text_x_offset = 10
-        if self.logo_path and os.path.exists(self.logo_path):
-            try:
-                # Trim the logo and use the trimmed version
-                trimmed_logo_path = self.trim_transparency(self.logo_path)
-                aspect_ratio = self.get_image_ratio(trimmed_logo_path)
+        # Handle optional logo
+        if self.logo_path:
+            if not os.path.exists(self.logo_path):
+                self.log.warning(f"Logo file not found: {self.logo_path}")
+            else:
+                try:
+                    # Trim the logo and use the trimmed version
+                    trimmed_logo_path = self.trim_transparency(self.logo_path)
+                except (FileNotFoundError, OSError) as e:
+                    self.log.warning(f"Failed to process logo image. Details: {e}")
+                    trimmed_logo_path = None
+                except ValueError as e:
+                    self.log.warning(f"Invalid image dimensions for logo. Details: {e}")
+                    trimmed_logo_path = None
 
-                # Adjust logo dimensions
-                logo_height_mm = total_text_height
-                logo_width_mm = logo_height_mm * aspect_ratio
-
-                # Center the logo vertically
-                logo_x = 10
-                logo_y = text_block_center_y - (logo_height_mm / 2)
-                self.image(trimmed_logo_path, x=logo_x, y=logo_y, w=logo_width_mm, h=logo_height_mm)
-
-                # Adjust text x-offset
-                text_x_offset = logo_x + logo_width_mm + 2  # Reduced padding after logo
-
-            except Exception as e:
-                self.log.error(f"Error adding logo to header: {e}")
+                if trimmed_logo_path:
+                    try:
+                        # Adjust logo dimensions
+                        aspect_ratio = self.get_image_ratio(trimmed_logo_path)
+                        logo_height_mm = total_text_height
+                        logo_width_mm = logo_height_mm * aspect_ratio
+                        logo_y = text_block_center_y - (logo_height_mm / 2)
+                        self.image(
+                            trimmed_logo_path, x=10, y=logo_y, w=logo_width_mm, h=logo_height_mm
+                        )
+                        text_x_offset = 10 + logo_width_mm + 2  # Reduced padding after logo
+                    except RuntimeError as e:
+                        self.log.warning(f"Error adding logo to header. Details: {e}")
 
         # Align header text
         self.set_xy(text_x_offset, top_margin)
@@ -222,13 +227,15 @@ class PDFReport(FPDF):
         :type excel_file: Union[str, Path]
         :param date_format: The date format string for the PDF report header.
         :type date_format: str
+        :raises PatcherError: If the data could not be parsed or is empty.
+        :raises PatcherError: If the PDF could not be exported due to permissions or OS issues.
         """
         # Read excel file
         try:
             df = pd.read_excel(excel_file)
-        except ParserError as e:
+        except (ParserError, EmptyDataError) as e:
             self.log.error(f"Failed to parse the excel file: {e}")
-            raise exceptions.PatcherError(f"Failed to parse the excel file: {e}")
+            raise PatcherError("Failed to parse the excel file", file=excel_file) from e
 
         # Create instance of FPDF
         pdf = PDFReport(ui_config=UIConfigManager(), date_format=date_format)
@@ -256,4 +263,4 @@ class PDFReport(FPDF):
             pdf.output(pdf_filename)
         except (OSError, PermissionError) as e:
             self.log.error(f"Error occurred trying to export to PDF: {e}")
-            raise exceptions.ExportError(file_path=pdf_filename)
+            raise PatcherError("Unable to export PDF report.", file_path=pdf_filename) from e

@@ -9,9 +9,10 @@ import asyncclick as click
 from ..models.patch import PatchTitle
 from ..models.reports.excel_report import ExcelReport
 from ..models.reports.pdf_report import PDFReport
-from ..utils import exceptions, logger
 from ..utils.animation import Animation
 from ..utils.decorators import check_token
+from ..utils.exceptions import APIResponseError, PatcherError
+from ..utils.logger import LogMe
 from .api_client import ApiClient
 from .config_manager import ConfigManager
 from .token_manager import TokenManager
@@ -20,10 +21,10 @@ from .ui_manager import UIConfigManager
 
 class ReportManager:
     """
-    Handles the generation and management of patch reports within the patcher CLI tool.
+    Handles the generation and management of patch reports.
 
     This class coordinates various components such as configuration, token management, API interaction,
-    and report generation (both Excel and PDF) to produce comprehensive reports on patch statuses.
+    and report generation (both Excel and PDF) to produce reports on patch statuses.
     """
 
     def __init__(
@@ -42,7 +43,7 @@ class ReportManager:
         :param config: Manages the configuration settings, including credentials.
         :type config: :class:`~patcher.client.config_manager.ConfigManager`
 
-        :param token_manager: Handles the authentication tokens required for API access..
+        :param token_manager: Handles the authentication tokens required for API access.
         :type token_manager: :class:`~patcher.client.token_manager.TokenManager`
 
         :param api_client: Interacts with the Jamf API to retrieve data needed for reporting.
@@ -67,7 +68,7 @@ class ReportManager:
         self.pdf_report = pdf_report
         self.ui_config = ui_config
         self.debug = debug
-        self.log = logger.LogMe(self.__class__.__name__, debug=self.debug)
+        self.log = LogMe(self.__class__.__name__, debug=debug)
 
     def calculate_ios_on_latest(
         self,
@@ -75,7 +76,7 @@ class ReportManager:
         latest_versions: List[Dict[str, str]],
     ) -> Optional[List[PatchTitle]]:
         """
-        Analyzes the iOS version data to determine how many enrolled devices are on the latest version.
+        Analyzes iOS version data to determine how many enrolled devices are on the latest version.
 
         This method compares the operating system versions of managed devices with the latest versions
         provided by the SOFA feed, calculating how many devices are fully updated.
@@ -86,20 +87,14 @@ class ReportManager:
         :type latest_versions: List[Dict[str, str]]
         :return: A list of ``PatchTitle`` objects, each representing a summary of the patch status for an iOS version.
         :rtype: Optional[List[PatchTitle]]
-
-        This method does not interact directly with the user but is crucial in the internal process
-        of generating accurate reports that reflect the patch status across iOS devices.
         """
-        if not device_versions or not latest_versions:
-            self.log.error("Error calculating iOS Versions. Received None instead of a List")
-            return None
-
         latest_versions_dict = {lv.get("OSVersion"): lv for lv in latest_versions}
 
         version_counts = {
             version: {"count": 0, "total": 0} for version in latest_versions_dict.keys()
         }
 
+        self.log.info("Obtaining latest iOS versions")
         for device in device_versions:
             device_os = device.get("OS")
             major_version = device_os.split(".")[0]
@@ -143,6 +138,10 @@ class ReportManager:
         of patch data, sorting, filtering, and ultimately saving the data to an Excel file.
         It can also generate a PDF report and include additional iOS device data.
 
+        This function is not intended to be called directly by users, but rather is a key part of the CLI's
+        automated reporting process. It handles all the necessary steps from data collection to file generation,
+        ensuring that reports are accurate, complete, and formatted according to the user's preferences.
+
         :param path: The directory where the reports will be saved. It must be a valid directory, not a file.
         :type path: Union[str, Path]
 
@@ -160,48 +159,29 @@ class ReportManager:
 
         :param date_format: Specifies the date format for headers in the reports. Default is "%B %d %Y" (Month Day Year).
         :type date_format: str
-
-        :return: None
-        :rtype: None
-
-        :raises exceptions.DirectoryCreationError: If the provided path is a file or directories cannot be created.
-        :raises exceptions.PolicyFetchError: If no policy IDs are retrieved.
-        :raises exceptions.SummaryFetchError: If no patch summaries are retrieved.
-        :raises exceptions.SortError: If sorting by an invalid column name.
-        :raises exceptions.DeviceIDFetchError: If mobile device IDs cannot be retrieved.
-        :raises exceptions.DeviceOSFetchError: If device OS versions cannot be retrieved.
-        :raises exceptions.SofaFeedError: If there is an issue with retrieving data from the SOFA feed.
-        :raises exceptions.ExportError: If there is an error exporting reports to Excel or PDF.
-
-        This function is not intended to be called directly by users, but rather is a key part of the CLI's
-        automated reporting process. It handles all the necessary steps from data collection to file generation,
-        ensuring that reports are accurate, complete, and formatted according to the user's preferences.
         """
         animation = Animation(enable_animation=not self.debug)
 
-        async with animation.error_handling(self.log):
+        async with animation.error_handling():
             self.log.debug("Beginning patcher process...")
             output_path = self._validate_directory(path)
 
             # Async operations for patch data
             self.log.debug("Attempting to retrieve policy IDs.")
-            patch_ids = await self.api_client.get_policies()
-
-            if not patch_ids:
-                self.log.error(
-                    "Policy ID API call returned an empty list. Aborting...",
-                )
-                raise exceptions.PolicyFetchError()
-            self.log.debug(f"Retrieved policy IDs for {len(patch_ids)} policies.")
+            try:
+                patch_ids = await self.api_client.get_policies()
+                self.log.debug(f"Retrieved policy IDs for {len(patch_ids)} policies.")
+            except APIResponseError as e:
+                self.log.error(f"Unable to obtain policy IDs from Jamf instance. Details: {e}")
+                raise PatcherError("Failed to retrieve policy IDs from Jamf instance") from e
 
             self.log.debug("Attempting to retrieve patch summaries.")
-            patch_reports = await self.api_client.get_summaries(patch_ids)
-
-            if not patch_reports:
-                self.log.error("Error establishing patch summaries.")
-                raise exceptions.SummaryFetchError()
-            else:
+            try:
+                patch_reports = await self.api_client.get_summaries(patch_ids)
                 self.log.debug(f"Received policy summaries for {len(patch_reports)} policies.")
+            except APIResponseError as e:
+                self.log.error(f"Unable to fetch patch summaries from Jamf instance. Details: {e}")
+                raise PatcherError("Failed to retrieve patch summaries from Jamf instance") from e
 
             # (option) Sort
             if sort:
@@ -229,25 +209,45 @@ class ReportManager:
             self._success(len(patch_reports), output_path)
 
     def _validate_directory(self, path: Union[str, Path]) -> str:
+        """
+        Validates the provided path exists and is not a file. If checks are successful, the
+        Patch Reports directory path is returned.
+
+        :param path: The file path to validate.
+        :type path: Union[str, Path]
+        :return: The file path to the generated reports directory.
+        :rtype: str
+        :raises PatcherError: If the output path is a file, or if the reports directory could not be created.
+        """
         output_path = os.path.expanduser(path)
         if os.path.exists(output_path) and os.path.isfile(output_path):
-            self.log.error(
-                f"Provided path {output_path} is a file, not a directory. Aborting...",
-            )
-            raise exceptions.DirectoryCreationError(path=output_path)
+            self.log.error(f"Provided path {output_path} is a file, not a directory.")
+            raise PatcherError("Output path provided is a file, not a directory.", path=output_path)
 
-        # Ensure directories exist
         try:
             os.makedirs(output_path, exist_ok=True)
             reports_dir = os.path.join(output_path, "Patch-Reports")
             os.makedirs(reports_dir, exist_ok=True)
             self.log.debug(f"Reports directory created at '{reports_dir}'.")
             return reports_dir
-        except OSError as e:
-            self.log.error(f"Failed to create directory: {e}")
-            raise exceptions.DirectoryCreationError(f"Failed to create directory: {e}")
+        except (OSError, PermissionError) as e:
+            self.log.error(f"Failed to create Patch Reports directory. Details: {e}")
+            raise PatcherError(
+                "Failed to create Patch Reports directory path", path=output_path
+            ) from e
 
     async def _sort(self, patch_reports: List[PatchTitle], sort_key: str) -> List[PatchTitle]:
+        """
+        Sorts provided patch reports by sort key.
+
+        :param patch_reports: List of ``PatchTitle`` objects to sort through.
+        :type patch_reports: List[:class:`~patcher.models.patch.PatchTitle`]
+        :param sort_key: The key in which to sort the ``PatchTitle`` objects by.
+        :type sort_key: str
+        :return: The sorted list of ``PatchTitle`` objects.
+        :rtype: List[`~patcher.models.patch.PatchTitle`]
+        :raises PatcherError: If reports could not be sorted due to a KeyError or AttributeError.
+        """
         self.log.debug(f"Detected sorting option '{sort_key}'")
         sort_key = sort_key.lower().replace(" ", "_")
 
@@ -257,18 +257,31 @@ class ReportManager:
             )
             self.log.debug(f"Patch reports sorted by '{sort_key}'.")
             return sorted_reports
-        except (KeyError, AttributeError):
+        except (KeyError, AttributeError) as e:
             self.log.error(
-                f"Invalid column name for sorting: {sort_key.title().replace('_', ' ')}. Aborting...",
+                f"Invalid column name for sorting: {sort_key.title().replace('_', ' ')}. Details: {e}"
             )
-            raise exceptions.SortError(column=str(sort_key.title().replace("_", " ")))
+            raise PatcherError(
+                "Unable to sort patch reports due to invalid column name",
+                column=str(sort_key.title().replace("_", " ")),
+            ) from e
 
     async def _omit(self, patch_reports: List[PatchTitle]) -> List[PatchTitle]:
+        """
+        Omits patch policies with patches released in past 48 hours from exported reports.
+
+        :param patch_reports: List of ``PatchTitle`` objects to iterate through.
+        :type patch_reports: List[:class:`~patcher.models.patch.PatchTitle`]
+        :return: The filtered list of ``PatchTitle`` objects.
+        :rtype: List[:class:`~patcher.models.patch.PatchTitle`]
+
+        """
         self.log.debug(
             "Detected omit flag. Omitting policies with patches released in past 48 hours."
         )
         cutoff = datetime.now() - timedelta(hours=48)
         original_count = len(patch_reports)
+        self.log.info(f"Attempting to omit reports with patches released since {cutoff}")
         patch_reports = await asyncio.to_thread(
             lambda: [
                 report
@@ -281,32 +294,39 @@ class ReportManager:
         return patch_reports
 
     async def _ios(self, patch_reports: List[PatchTitle]) -> List[PatchTitle]:
+        """
+        Adds iOS information to exported reports.
+
+        :param patch_reports: List of ``PatchTitle`` objects to iterate through.
+        :type patch_reports: List[:class:`~patcher.models.patch.PatchTitle`]
+        :return: The list of ``PatchTitle`` objects with added iOS device information.
+        :rtype: List[:class:`~patcher.models.patch.PatchTitle`]
+        :raises PatcherError: If iOS Device IDs, iOS Device version data, or SOFA feed could not be retrieved.
+        """
         self.log.debug("Detected ios flag. Including iOS information in reports.")
         self.log.debug("Attempting to fetch mobile device IDs.")
-        device_ids = await self.api_client.get_device_ids()
-        if not device_ids:
-            self.log.error(
-                "Received ClientError response when obtaining mobile device IDs",
-            )
-            raise exceptions.DeviceIDFetchError(
-                reason="Received ClientError response when obtaining mobile device IDs"
-            )
+        try:
+            device_ids = await self.api_client.get_device_ids()
+            self.log.debug(f"Obtained device IDs for {len(device_ids)} devices.")
+        except APIResponseError as e:
+            self.log.error(f"Unable to obtain iOS Device IDs from Jamf instance. Details: {e}")
+            raise PatcherError("Unable to obtain iOS Device IDs from Jamf instance") from e
 
-        self.log.debug(f"Obtained device IDs for {len(device_ids)} devices.")
-        device_versions = await self.api_client.get_device_os_versions(device_ids=device_ids)
-        latest_versions = await self.api_client.get_sofa_feed()
-        if not device_versions:
+        try:
+            device_versions = await self.api_client.get_device_os_versions(device_ids=device_ids)
+        except APIResponseError as e:
             self.log.error(
-                "Received empty response obtaining device OS versions from Jamf. Exiting...",
+                f"Received empty response obtaining device OS versions from Jamf instance. Details: {e}"
             )
-            raise exceptions.DeviceOSFetchError(
-                reason="Received empty response obtaining device OS versions from Jamf."
-            )
-        elif not latest_versions:
-            self.log.error("Received empty response from SOFA feed. Exiting...")
-            raise exceptions.SofaFeedError(
-                reason="Received empty response from SOFA feed. Unable to verify amount of devices on latest version."
-            )
+            raise PatcherError(
+                "Failed retrieving iOS Device versions from Jamf instance.", ids=device_ids
+            ) from e
+
+        try:
+            latest_versions = await self.api_client.get_sofa_feed()
+        except APIResponseError as e:
+            self.log.error(f"Received empty response from SOFA feed. Details: {e}")
+            raise PatcherError("Error fetching data from SOFA feed.") from e
 
         self.log.debug("Calculating devices on latest version.")
         ios_data = self.calculate_ios_on_latest(
@@ -317,6 +337,21 @@ class ReportManager:
         return patch_reports
 
     async def _generate_excel(self, patch_reports: List[PatchTitle], reports_dir: str) -> str:
+        """
+        Generates Excel spreadsheet from passed patch reports to passed reports directory.
+
+        .. seealso::
+
+            :meth:`~patcher.models.reports.excel_report.ExcelReport.export_to_excel`
+
+        :param patch_reports: List of ``PatchTitle`` objects to add to spreadsheet.
+        :type patch_reports: List[:class:`~patcher.models.patch.PatchTitle`]
+        :param reports_dir: Patch Reports directory to save generated spreadsheet to.
+        :type reports_dir: str
+        :return: The file path to the created Excel spreadsheet.
+        :rtype: str
+        :raises PatcherError: If the report was unable to be saved as expected.
+        """
         self.log.debug("Generating excel file...")
         try:
             excel_file = await asyncio.to_thread(
@@ -324,26 +359,33 @@ class ReportManager:
             )
             self.log.debug(f"Excel file generated successfully at '{excel_file}'.")
             return excel_file
-        except ValueError as e:
-            self.log.error(f"Error exporting to excel: {e}")
-            raise exceptions.ExportError(f"Error exporting to excel: {e}")
+        except PatcherError as e:
+            self.log.error(f"Error exporting data to Excel. Details: {e}")
+            raise PatcherError("Failed exporting data to Excel.", report_dir=reports_dir) from e
 
     async def _generate_pdf(self, excel_file: str, date_format: str) -> None:
+        """
+        Generates PDF report from passed excel file with custom date format.
+
+        .. seealso::
+
+            :meth:`~patcher.models.reports.pdf_report.PDFReport.export_excel_to_pdf`
+
+        :param excel_file: Path to Excel file with Patch Report data.
+        :type excel_file: str
+        :param date_format: Date format to use in header of PDF reports.
+        :type date_format: str
+        :raises PatcherError: If the PDF file could not be generated.
+        """
         self.log.debug("Generating PDF file...")
         try:
             pdf_report = PDFReport(self.ui_config)
             await asyncio.to_thread(pdf_report.export_excel_to_pdf, excel_file, date_format)
             self.log.debug("PDF file generated successfully.")
-        except (OSError, PermissionError) as e:
-            self.log.error(f"Error generating PDF file. Check file permissions: {e}")
-            raise exceptions.ExportError(file_path=excel_file)
-        except Exception as e:
-            self.log.error(f"Unhandled error encountered: {e}")
-            raise exceptions.ExportError(f"Unhandled error encountered: {e}")
+        except PatcherError as e:
+            self.log.error(f"Error generating PDF file. Details: {e}")
+            raise PatcherError("Failed generating PDF file.", file_path=excel_file) from e
 
     def _success(self, report_count: int, reports_dir: str) -> None:
         self.log.debug(f"{report_count} patch reports saved successfully to {reports_dir}.")
-        success_msg = click.style(
-            f"\rSuccess! Reports saved to {reports_dir}", bold=True, fg="green"
-        )
-        click.echo(success_msg)
+        click.echo(click.style(f"\rSuccess! Reports saved to {reports_dir}", bold=True, fg="green"))

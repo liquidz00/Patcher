@@ -17,11 +17,11 @@ async def test_constructor_and_property(base_api_client):
 
 @pytest.mark.asyncio
 async def test_set_concurrency(base_api_client):
-    base_api_client.set_concurrency(2)
+    base_api_client.concurrency = 2
     assert base_api_client.concurrency == 2
 
     with pytest.raises(ValueError):
-        base_api_client.set_concurrency(0)
+        base_api_client.concurrency = 0
 
 
 # Test command execution

@@ -1,12 +1,12 @@
 import asyncio
 import json
 import re
-import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ..client import BaseAPIClient
 from ..models.label import Label
-from .exceptions import InstallomatorError
+from .exceptions import PatcherError, ShellCommandError
 from .logger import LogMe
 
 
@@ -17,9 +17,14 @@ class Installomator:
         self.installomator_url = (
             "https://api.github.com/repos/Installomator/Installomator/contents/fragments/labels"
         )
+        self.api = BaseAPIClient()
 
     async def _save(self, file_name: str, download_url: str, file_path: Path) -> bool:
-        file_content = await self._fetch(["/usr/bin/curl", "-s", download_url])
+        try:
+            file_content = await self.api.execute(["/usr/bin/curl", "-s", download_url])
+        except ShellCommandError as e:
+            self.log.error(f"Unable to download Installomator fragment as expected. Details: {e}")
+            raise
 
         try:
             with open(file_path, "w") as f:
@@ -28,16 +33,9 @@ class Installomator:
             return True
         except OSError as e:
             self.log.error(f"Could not write to {file_path}: {e}")
-            raise
-
-    async def _fetch(self, command: List[str]) -> str:
-        process = await asyncio.create_subprocess_exec(
-            *command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
-        if process.returncode != 0:
-            self.log.error(f"curl failed with error: {stderr.decode()}")
-        return stdout.decode()
+            raise PatcherError(
+                "Could not write to provided file path due to OSError.", path=file_path
+            ) from e
 
     @staticmethod
     def _parse(fragment: str) -> Dict[str, Any]:
@@ -58,12 +56,12 @@ class Installomator:
         return data
 
     async def fetch_fragments(self) -> Optional[List[Dict]]:
-        response = await self._fetch(["/usr/bin/curl", "-s", self.installomator_url])
+        response = await self.api.execute(["/usr/bin/curl", "-s", self.installomator_url])
         try:
             return json.loads(response)
         except json.JSONDecodeError as e:
             self.log.error(f"Installomator fragment response could not be decoded: {e}")
-            raise InstallomatorError(f"Installomator fragment response could not be decoded: {e}")
+            raise PatcherError("Encountered JSON error when decoding Installomator fragment") from e
 
     async def create_labels(self) -> List[Label]:
         labels = []
@@ -75,7 +73,12 @@ class Installomator:
                 label = Label.from_dict(fragment_dict, installomatorLabel=file_path.stem)
                 labels.append(label)
             except ValueError as e:
-                self.log.error(f"Failed to create Label from fragment {file_path.name}: {e}")
+                self.log.error(
+                    f"Failed to create Label from fragment {file_path.name}. Details: {e}"
+                )
+                raise PatcherError(
+                    "Could not create Label object from fragment", fragment=file_path.stem
+                ) from e
 
         return labels
 

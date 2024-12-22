@@ -4,7 +4,8 @@ from typing import Callable, List, Optional, Union
 import pandas as pd
 
 from ..models.patch import PatchTitle
-from ..utils import exceptions, logger
+from ..utils.exceptions import FetchError, PatcherError
+from ..utils.logger import LogMe
 
 # TODO
 # 3. Analysis based on PatchTitle criteria (completion percent, release date, etc.)
@@ -12,7 +13,7 @@ from ..utils import exceptions, logger
 
 class Analyzer:
     def __init__(self, csv_path: Union[Path, str]):
-        self.log = logger.LogMe(self.__class__.__name__)
+        self.log = LogMe(self.__class__.__name__)
         self.patch_titles: List[PatchTitle] = []
         self.df = self.initialize_dataframe(csv_path)
 
@@ -28,24 +29,27 @@ class Analyzer:
         csv_path = Path(csv_path)
 
         if not csv_path.exists():
-            raise exceptions.PatcherError(message=f"The file at path {csv_path} does not exist.")
+            self.log.error(f"The specified file at {csv_path} does not exist.")
+            raise PatcherError("The specified file does not exist.", path=csv_path)
         if not csv_path.is_file():
-            raise exceptions.PatcherError(message=f"The path {csv_path} is not a file.")
+            self.log.error(f"The specified CSV path {csv_path} is not a file.")
+            raise PatcherError("The specified CSV path is not a file.", path=csv_path)
 
         try:
             df = pd.read_csv(csv_path)
             self.log.info(f"DataFrame successfully initialized from {csv_path}.")
             return df
         except PermissionError as e:
-            raise exceptions.DataframeError(
-                reason=f"Permission denied when trying to read {csv_path}: {e}"
-            )
+            self.log.error(f"Permission denied when trying to read {csv_path}. Details: {e}")
+            raise FetchError(
+                "Unable to read CSV file due to permissions issues.", path=csv_path
+            ) from e
         except pd.errors.EmptyDataError as e:
-            raise exceptions.DataframeError(reason=f"The file at {csv_path} is empty. Details: {e}")
+            self.log.error(f"The file at {csv_path} is empty. Details: {e}")
+            raise FetchError("The CSV file provided is empty.", path=csv_path) from e
         except pd.errors.ParserError as e:
-            raise exceptions.DataframeError(
-                reason=f"Failed to parse the CSV file at {csv_path}: {e}"
-            )
+            self.log.error(f"Failed to parse the CSV file at {csv_path}. Details: {e}")
+            raise FetchError("Unable to parse the CSV file properly.", path=csv_path) from e
 
     @staticmethod
     def format_table(data: List[List[str]], headers: Optional[List[str]] = None) -> str:
@@ -125,8 +129,9 @@ class Analyzer:
 
         # Check for valid criteria
         if criteria not in sort_criteria:
-            raise ValueError(
-                f"Invalid criteria '{criteria}'. Supported criteria: {', '.join(sort_criteria.keys())}."
+            raise PatcherError(
+                f"Invalid criteria '{criteria}'",
+                supported_criteria=(", ".join(sort_criteria.keys())),
             )
 
         # Apply sorting/filtering strategy

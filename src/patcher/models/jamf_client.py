@@ -1,8 +1,9 @@
 from typing import List, Optional
 from urllib.parse import urlparse, urlunparse
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 
+from ..utils.exceptions import PatcherError
 from . import Model
 from .token import AccessToken
 
@@ -12,19 +13,16 @@ class JamfClient(Model):
     Represents a Jamf client configuration.
 
     This class is responsible for holding the configuration necessary to interact
-    with the Jamf API, including client credentials, server information, and SSL
-    settings.
+    with the Jamf API, including client credentials, server information, and
+    :class:`patcher.models.token.AccessToken` objects.
 
-    :param client_id: The client ID used for authentication with the Jamf API.
+    :ivar client_id: The client ID used for authentication with the Jamf API.
     :type client_id: str
-
-    :param client_secret: The client secret used for authentication with the Jamf API.
+    :ivar client_secret: The client secret used for authentication with the Jamf API.
     :type client_secret: str
-
-    :param server: The server URL for the Jamf API.
+    :ivar server: The server URL for the Jamf API.
     :type server: str
-
-    :param token: The access token used for authenticating API requests. Defaults to None.
+    :ivar token: The access token used for authenticating API requests. Defaults to None.
     :type token: Optional[AccessToken]
     """
 
@@ -32,6 +30,20 @@ class JamfClient(Model):
     client_secret: str
     server: str
     token: Optional[AccessToken] = None
+
+    @property
+    def base_url(self):
+        """
+        Gets the base URL of the Jamf server.
+
+        :return: The base URL of the Jamf server.
+        :rtype: str
+        """
+        return self.server
+
+    @property
+    def headers(self):
+        return {"accept": "application/json", "Authorization": f"Bearer {self.token}"}
 
     @staticmethod
     def valid_url(url: str) -> str:
@@ -62,28 +74,24 @@ class JamfClient(Model):
     @field_validator("client_id", "client_secret", mode="before")
     def not_empty(cls, value):
         """
-        Validates that fields for client ID and client secret are not empty.
-
         Ensures that the `client_id` and `client_secret` fields are not empty, raising
-        a ``ValueError`` if they are.
+        a ``PatcherError`` if they are.
 
         :param value: The value to validate.
         :type value: str
-        :raises ValueError: If the value is empty.
         :return: The validated value.
         :rtype: str
+        :raises PatcherError: If the value is empty.
         """
         if not value:
-            raise ValueError("Field cannot be empty")
+            raise PatcherError("Field cannot be empty", field=value)
         return value
 
     @classmethod
     @field_validator("server", mode="before")
     def validate_url(cls, v):
         """
-        Validates and formats the server URL.
-
-        This method ensures that the ``server`` field contains a valid and properly
+        Validates that the ``server`` field contains a valid and properly
         formatted URL by calling the ``valid_url`` method.
 
         :param v: The server URL to validate.
@@ -93,28 +101,10 @@ class JamfClient(Model):
         """
         return cls.valid_url(v)
 
-    @property
-    def base_url(self):
-        """
-        Gets the base URL of the Jamf server.
-
-        :return: The base URL of the Jamf server.
-        :rtype: str
-        """
-        return self.server
-
-    @property
-    def headers(self):
-        return {"accept": "application/json", "Authorization": f"Bearer {self.token}"}
-
 
 class ApiRoleModel(Model):
     """
     Represents an API role with specific privileges required for Patcher to operate.
-
-    The ``ApiRole`` class encapsulates the role's name and the list of privileges
-    associated with that role. This is necessary for managing access control and
-    permissions within the Jamf API.
 
     :ivar display_name: The name of the API role.
     :type display_name: str
@@ -124,26 +114,26 @@ class ApiRoleModel(Model):
     """
 
     display_name: str = "Patcher-Role"
-    privileges: List[str] = [
-        "Read Patch Management Software Titles",
-        "Read Patch Policies",
-        "Read Mobile Devices",
-        "Read Mobile Device Inventory Collection",
-        "Read Mobile Device Applications",
-        "Read Patch Management Settings",
-        "Create API Integrations",
-        "Create API Roles",
-        "Read API Integrations",
-        "Read API Roles",
-        "Update API Integrations",
-        "Update API Roles",
-    ]
+    privileges: List[str] = Field(
+        default_factory=lambda: [
+            "Read Patch Management Software Titles",
+            "Read Patch Policies",
+            "Read Mobile Devices",
+            "Read Mobile Device Inventory Collection",
+            "Read Mobile Device Applications",
+            "Read Patch Management Settings",
+            "Create API Integrations",
+            "Create API Roles",
+            "Read API Integrations",
+            "Read API Roles",
+            "Update API Integrations",
+            "Update API Roles",
+        ]
+    )
 
 
 class ApiClientModel(Model):
     """
-    Represents an API client with specific authentication scopes and settings required for Patcher.
-
     The ``ApiClient`` class defines the configuration for an API client, including its
     authentication scopes, display name, whether it is enabled, and the token lifetime.
 
@@ -159,7 +149,7 @@ class ApiClientModel(Model):
     :type token_lifetime: int
     """
 
-    auth_scopes: List[str] = ["Patcher-Role"]
+    auth_scopes: List[str] = Field(default_factory=lambda: ["Patcher-Role"])
     display_name: str = "Patcher-Client"
     enabled: bool = True
     token_lifetime: int = 1800

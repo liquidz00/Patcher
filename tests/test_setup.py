@@ -1,9 +1,9 @@
 from pathlib import Path
+from plistlib import InvalidFileException
 from unittest.mock import mock_open, patch
 
 import pytest
 from src.patcher.client.setup import Setup
-from src.patcher.utils import exceptions
 
 
 @pytest.fixture
@@ -52,9 +52,9 @@ def test_is_complete(setup_instance):
 
 def test_is_complete_error(setup_instance):
     with patch.object(Path, "exists", return_value=True):
-        with patch("plistlib.load", side_effect=Exception("plist read error")):
-            with pytest.raises(exceptions.PlistError):
-                setup_instance._check_completion()
+        with patch("plistlib.load", side_effect=InvalidFileException("plist read error")):
+            setup_instance._check_completion()
+            assert setup_instance._completed is False
 
 
 @pytest.mark.asyncio

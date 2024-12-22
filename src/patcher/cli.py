@@ -109,7 +109,7 @@ async def main(
 
     setup = Setup(config=config, ui_config=ui_config)
 
-    async with animation.error_handling(log):
+    async with animation.error_handling():
         if not setup.completed:
             await setup.prompt_method(animator=animation)
             click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
@@ -127,7 +127,7 @@ async def main(
         token_manager = TokenManager(config)
         excel_report = ExcelReport()
         pdf_report = PDFReport(ui_config)
-        api_client.set_concurrency(concurrency=concurrency)
+        api_client.concurrency = concurrency
 
         patcher = ReportManager(
             config, token_manager, api_client, excel_report, pdf_report, ui_config, debug
