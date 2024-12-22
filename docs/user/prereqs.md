@@ -9,7 +9,7 @@ Ensure you have the following before proceeding with the installation and setup 
 Patcher can automatically handle the creation of API clients and roles, provided [SSO is not used for Jamf Pro accounts](https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#authentication-and-authorization). If SSO is used, you can either manually create an API Role & Client, *or* you can create a standard user account with admin privileges to pass to the setup assistant. 
 :::
 
-## Handling SSO in Jamf Pro
+## Handling SSO in Jamf Pro {#handling-sso}
 
 If your Jamf Pro environment uses Single Sign-On (SSO), follow the instructions below to ensure proper integration with Patcher:
 
