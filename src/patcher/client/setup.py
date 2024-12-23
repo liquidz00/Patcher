@@ -177,7 +177,7 @@ class Setup:
         .. seealso::
 
             For assistance creating an API integration with Jamf Pro, visit our
-            :doc:`Prerequisites <user/prereqs#handling-sso>` page.
+            :ref:`handling-sso` page.
 
         :param animator: The animation instance to update messages. Defaults to `self.animator`.
         :type animator: :class:`~patcher.utils.animation.Animation`
