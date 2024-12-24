@@ -9,7 +9,7 @@ from ..utils.exceptions import TokenError
 # Automatic checking/refreshing of AccessToken
 def check_token(func: Callable) -> Any:
     """
-    Decorator that ensures the validity of an :class:`patcher.models.token.AccessToken` before
+    Decorator that ensures the validity of an :class:`~patcher.models.token.AccessToken` before
     executing a function.
 
     The ``check_token`` decorator performs several key tasks before the decorated
