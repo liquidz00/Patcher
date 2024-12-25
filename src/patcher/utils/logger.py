@@ -2,36 +2,12 @@ import logging
 import os
 import platform
 import sys
-import traceback
 from logging import LogRecord
 from logging.handlers import RotatingFileHandler
 from types import TracebackType
 from typing import Optional, Type
 
 import asyncclick as click
-
-
-def format_traceback(
-    exc_type: Type[BaseException], exc_value: BaseException, exc_traceback: Optional[TracebackType]
-) -> str:
-    """
-    Format a traceback as a concise string for user-friendly console output.
-
-    :param exc_type: The exception type.
-    :type exc_type: Type[BaseException]
-    :param exc_value: The exception instance.
-    :type exc_value: BaseException
-    :param exc_traceback: The traceback object.
-    :type exc_traceback: Optional[TracebackType]
-    :return: A formatted string representing the exception context.
-    :rtype: str
-    """
-    tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-    if tb_lines:
-        # Show only the last 2-3 lines of the traceback for context
-        concise_tb = "".join(tb_lines[-3:])
-        return concise_tb.strip()
-    return "No traceback available."
 
 
 class UnifiedLogHandler(logging.Handler):
@@ -161,13 +137,10 @@ class PatcherLog:
             child_logger.info("User interrupted the process.")
             sys.exit(130)  # SIGINT
 
-        child_logger.error(
-            "Unhandled exception occurred", exc_info=(exc_type, exc_value, exc_traceback)
-        )
+        child_logger.error(f"Unhandled exception: {exc_type.__name__}: {exc_value}")
 
         # Show user-friendly message in console
-        formatted_tb = format_traceback(exc_type, exc_value, exc_traceback)
-        console_message = f"❌ {exc_type.__name__}: {exc_value}\n\nContext:\n{formatted_tb}"
+        console_message = f"❌ {exc_type.__name__}: {exc_value}"
 
         click.echo(
             click.style(console_message, fg="red", bold=True),
@@ -177,7 +150,7 @@ class PatcherLog:
             f"💡 For more details, please check the log file at: {PatcherLog.LOG_FILE}",
             err=True,
         )
-        sys.exit(1)
+        return
 
 
 class LogMe:
@@ -221,15 +194,9 @@ class LogMe:
         self.logger.warning(msg)
         click.echo(click.style(f"\rWARNING: {msg.strip()}", fg="yellow", bold=True))
 
-    def error(self, msg: str, exc_info: Optional[BaseException] = None):
-        self.logger.error(msg, exc_info=exc_info)
-        if exc_info:
-            formatted_tb = format_traceback(type(exc_info), exc_info, exc_info.__traceback__)
-            console_message = f"ERROR: {msg}\n\nContext:\n{formatted_tb}"
-        else:
-            console_message = f"ERROR: {msg}"
-
-        click.echo(click.style(console_message, fg="red", bold=True))
+    def error(self, msg: str):
+        self.logger.error(msg)
+        click.echo(click.style(f"\rERROR: {msg.strip()}", fg="red", bold=True))
         click.echo(
             f"💡 For more details, please check the log file at: {PatcherLog.LOG_FILE}",
             err=True,
