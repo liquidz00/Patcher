@@ -1,11 +1,58 @@
 import logging
 import os
+import platform
 import sys
+import traceback
+from logging import LogRecord
 from logging.handlers import RotatingFileHandler
 from types import TracebackType
 from typing import Optional, Type
 
 import asyncclick as click
+
+
+def format_traceback(
+    exc_type: Type[BaseException], exc_value: BaseException, exc_traceback: Optional[TracebackType]
+) -> str:
+    """
+    Format a traceback as a concise string for user-friendly console output.
+
+    :param exc_type: The exception type.
+    :type exc_type: Type[BaseException]
+    :param exc_value: The exception instance.
+    :type exc_value: BaseException
+    :param exc_traceback: The traceback object.
+    :type exc_traceback: Optional[TracebackType]
+    :return: A formatted string representing the exception context.
+    :rtype: str
+    """
+    tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+    if tb_lines:
+        # Show only the last 2-3 lines of the traceback for context
+        concise_tb = "".join(tb_lines[-3:])
+        return concise_tb.strip()
+    return "No traceback available."
+
+
+class UnifiedLogHandler(logging.Handler):
+    """Custom logging handler to write logs to macOS Unified Logs using the ``logger`` command."""
+
+    def emit(self, record: LogRecord) -> None:
+        """
+        Emit a log message to macOS Unified Logs.
+
+        :param record: The log record to emit.
+        :type record: LogRecord
+        """
+        if platform.system() != "Darwin":
+            return  # macOS only
+
+        # Format the message using logger's formatter
+        try:
+            message = self.format(record)
+            os.system(f"logger -t {PatcherLog.LOGGER_NAME} '{message}'")
+        except Exception:
+            self.handleError(record)
 
 
 class PatcherLog:
@@ -18,7 +65,9 @@ class PatcherLog:
 
     @staticmethod
     def setup_logger(
-        name: Optional[str] = None, level: Optional[int] = LOG_LEVEL
+        name: Optional[str] = None,
+        level: Optional[int] = LOG_LEVEL,
+        debug: bool = False,
     ) -> logging.Logger:
         """
         Configures and returns a logger. If the logger is already configured, it ensures no duplicate handlers.
@@ -27,6 +76,8 @@ class PatcherLog:
         :type name: Optional[str]
         :param level: Logging level, defaults to INFO if not specified.
         :type level: Optional[int]
+        :param debug: Whether to enable debug logging for console, defaults to False.
+        :type debug: bool
         :return: The configured logger.
         :rtype: logging.logger
         """
@@ -35,8 +86,6 @@ class PatcherLog:
         logger = logging.getLogger(logger_name)
 
         if not logger.hasHandlers():
-            logger.setLevel(level or PatcherLog.LOG_LEVEL)
-
             file_handler = RotatingFileHandler(
                 PatcherLog.LOG_FILE,
                 maxBytes=PatcherLog.MAX_BYTES,
@@ -45,30 +94,44 @@ class PatcherLog:
             file_handler.setFormatter(
                 logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             )
+            file_handler.setLevel(level or PatcherLog.LOG_LEVEL)
             logger.addHandler(file_handler)
+
+            # Console handler for user-facing messages
+            console_handler = logging.StreamHandler(sys.stdout)
+            console_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+            console_handler.setLevel(logging.DEBUG if debug else logging.WARNING)
+            logger.addHandler(console_handler)
+
+            # UnifiedLogHandler for macOS
+            if platform.system() == "Darwin":
+                unified_handler = UnifiedLogHandler()
+                unified_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+                unified_handler.setLevel(level or PatcherLog.LOG_LEVEL)
+                logger.addHandler(unified_handler)
+
+            logger.setLevel(logging.DEBUG)  # Capture all messages, delegate to handlers
 
         return logger
 
     @staticmethod
-    def setup_child_logger(
-        childName: str, loggerName: Optional[str] = None, debug: Optional[bool] = False
-    ) -> logging.Logger:
+    def setup_child_logger(childName: str, loggerName: Optional[str] = None) -> logging.Logger:
         """
         Setup a child logger for a specified context.
+
+        .. versionremoved:: 2.0
+
+            The ``debug`` parameter is now handled at CLI entry point. Child loggers with an explicitly set logging level will not respect configuration changes to the root logger.
 
         :param childName: The name of the child logger.
         :type childName: str
         :param loggerName: The name of the parent logger, defaults to "Patcher".
         :type loggerName: str
-        :param debug: Whether to set the child logger level to DEBUG, defaults to False.
-        :type debug: bool
         :return: The configured child logger.
         :rtype: logging.Logger
         """
         name = loggerName if loggerName else PatcherLog.LOGGER_NAME
-        child_logger = logging.getLogger(name).getChild(childName)
-        child_logger.setLevel(logging.DEBUG) if debug else child_logger.setLevel(logging.INFO)
-        return child_logger
+        return logging.getLogger(name).getChild(childName)
 
     @staticmethod
     def custom_excepthook(
@@ -101,6 +164,19 @@ class PatcherLog:
         child_logger.error(
             "Unhandled exception occurred", exc_info=(exc_type, exc_value, exc_traceback)
         )
+
+        # Show user-friendly message in console
+        formatted_tb = format_traceback(exc_type, exc_value, exc_traceback)
+        console_message = f"❌ {exc_type.__name__}: {exc_value}\n\nContext:\n{formatted_tb}"
+
+        click.echo(
+            click.style(console_message, fg="red", bold=True),
+            err=True,
+        )
+        click.echo(
+            f"💡 For more details, please check the log file at: {PatcherLog.LOG_FILE}",
+            err=True,
+        )
         sys.exit(1)
 
 
@@ -115,61 +191,46 @@ class LogMe:
     """
 
     def __init__(self, class_name: str, debug: Optional[bool] = False):
-        self.logger = PatcherLog.setup_child_logger(class_name, PatcherLog.LOGGER_NAME, debug)
+        self.logger = PatcherLog.setup_child_logger(class_name)
+        self.debug_enabled = debug
 
-    def is_debug_enabled(self) -> bool:
+    def toggle_debug(self, enable: bool) -> None:
         """
-        Check if debug logging is enabled.
+        Dynamically enable or disable debug messages in the console.
 
-        :return: True if debug logging is enabled, False otherwise.
-        :rtype: bool
+        :param enable: Whether to enable debug output in the console.
+        :type enable: bool
         """
-        return self.logger.isEnabledFor(logging.DEBUG)
+        self.debug_enabled = enable
+        console_handler = next(
+            (h for h in self.logger.handlers if isinstance(h, logging.StreamHandler)), None
+        )
+        if console_handler:
+            console_handler.setLevel(logging.DEBUG if enable else logging.WARNING)
 
     def debug(self, msg: str):
-        """
-        Log a debug message and output to console if debug is enabled.
-
-        :param msg: The debug message to log.
-        :type msg: str
-        """
         self.logger.debug(msg)
-        if self.is_debug_enabled():
-            debug_out = click.style(text=f"\rDEBUG: {msg.strip()}", fg="magenta", bold=False)
-            click.echo(message=debug_out, err=False)
+        if self.debug_enabled:
+            click.echo(click.style(f"\rDEBUG: {msg.strip()}", fg="magenta"))
 
     def info(self, msg: str):
-        """
-        Log an info message and output to console.
-
-        :param msg: The info message to log.
-        :type msg: str
-        """
         self.logger.info(msg)
-        if self.is_debug_enabled():
-            std_output = click.style(text=f"\rINFO: {msg.strip()}", fg="blue", bold=False)
-            click.echo(message=std_output, err=False)
+        click.echo(click.style(f"\rINFO: {msg.strip()}", fg="blue"))
 
     def warning(self, msg: str):
-        """
-        Log a warning message and output to console.
-
-        :param msg: The warning message to log.
-        :type msg: str
-        """
         self.logger.warning(msg)
-        if self.is_debug_enabled():
-            warn_out = click.style(text=f"\rWARNING: {msg.strip()}", fg="yellow", bold=True)
-            click.echo(message=warn_out, err=False)
+        click.echo(click.style(f"\rWARNING: {msg.strip()}", fg="yellow", bold=True))
 
-    def error(self, msg: str):
-        """
-        Log an error message and output to console.
+    def error(self, msg: str, exc_info: Optional[BaseException] = None):
+        self.logger.error(msg, exc_info=exc_info)
+        if exc_info:
+            formatted_tb = format_traceback(type(exc_info), exc_info, exc_info.__traceback__)
+            console_message = f"ERROR: {msg}\n\nContext:\n{formatted_tb}"
+        else:
+            console_message = f"ERROR: {msg}"
 
-        :param msg: The error message to log.
-        :type msg: str
-        """
-        self.logger.error(msg, exc_info=True)
-        if self.is_debug_enabled():
-            err_out = click.style(text=f"\rERROR: {msg.strip()}", fg="red", bold=True)
-            click.echo(message=err_out, err=False)
+        click.echo(click.style(console_message, fg="red", bold=True))
+        click.echo(
+            f"💡 For more details, please check the log file at: {PatcherLog.LOG_FILE}",
+            err=True,
+        )
