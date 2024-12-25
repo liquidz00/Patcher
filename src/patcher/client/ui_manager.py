@@ -168,7 +168,9 @@ class UIConfigManager:
     def reset_config(self) -> bool:
         """
         Removes all existing UI settings from the property list file.
-        It can be useful for restoring default values or clearing the configuration.
+
+        This method is useful if the user wants to reconfigure the UI elements of PDF reports,
+        such as header/footer text, font choices, and branding logo.
 
         :return: ``True`` if the reset was successful.
         :rtype: bool
