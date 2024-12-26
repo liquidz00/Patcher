@@ -164,8 +164,6 @@ class Setup:
                     "Failed to obtain an AccessToken during setup. Please check your credentials and try again."
                 ) from e
         elif setup_type == SetupType.STANDARD:
-            self._validate_creds(creds, ("USERNAME", "PASSWORD", "URL"), setup_type)
-
             api_client = BaseAPIClient()
             try:
                 return await api_client.fetch_basic_token(
@@ -287,16 +285,15 @@ class Setup:
 
     async def start(self, animator: Optional[Animation] = None):
         """
-        Allows the user to choose between different setup methods (Standard or SSO) by means of the
-        :meth:`~patcher.client.setup.Setup._run_setup` private method.
+        Allows the user to choose between different setup methods (Standard or SSO).
 
         An optional :class:`~patcher.utils.animation.Animation` object can be passed to update animation
         messages at runtime. Defaults to ``self.animator``.
 
         **Options**:
 
-        - ``"standard"``: prompts for basic credentials, obtains basic token, creates API integration, saves client credentials and obtains an AccessToken.
-        - ``"sso"``: prompts for existing API credentials, obtains AccessToken and saves credentials.
+        - :attr:`~patcher.client.setup.SetupType.STANDARD` prompts for basic credentials, obtains basic token, creates API integration, saves client credentials and obtains an AccessToken.
+        - :attr:`~patcher.client.setup.SetupType.SSO` prompts for existing API credentials, obtains AccessToken and saves credentials.
 
         .. seealso::
 
@@ -321,21 +318,25 @@ class Setup:
             click.echo(click.style("Invalid choice, please choose 1 or 2", fg="red"))
             await self.start()
 
-    # TODO: Move to function at CLI entry, allow for varying types of 'reset' (full, UI, creds)
-    async def reset(self):
+    async def reset_setup(self) -> bool:
         """
-        Resets the UI configuration settings by clearing the existing configuration and starting the setup process again.
+        Resets Setup configuration, removing Patcher's property list file. This effectively marks
+        Setup completion as False and will re-trigger the setup assistant.
 
-        This method is useful if the user wants to reconfigure the UI elements of PDF reports, such as header/footer text, font choices, and branding logo.
+        :return: ``True`` if the property list file was successfully removed, ``False`` if it did not exist.
+        :rtype: bool
+        :raises PatcherError: If the file exists but could not be removed due to an error.
         """
-        reset_config = self.ui_config.reset_config()
-        if not reset_config:
-            self.log.error(
-                f"Encountered an issue resetting elements in property list: {self.plist_path}"
-            )
+        try:
+            os.remove(self.plist_path)
+            self._completed = None
+            self.log.info(f"Successfully removed Patcher property list file: {self.plist_path}")
+            return True
+        except FileNotFoundError:
+            self.log.info(f"Property list file does not exist: {self.plist_path}")
+            return False
+        except OSError as e:
+            self.log.error(f"Unable to delete property list file ({self.plist_path}). Details: {e}")
             raise PatcherError(
-                "The UI elements in the property list could not be reset as expected",
-                path=self.plist_path,
-            )
-        else:
-            self.ui_config.setup_ui()
+                "Unable to delete property list file as expected", path=self.plist_path
+            ) from e
