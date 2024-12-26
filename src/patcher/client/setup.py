@@ -70,6 +70,7 @@ class Setup:
         :rtype: bool
         """
         if self._completed is None:
+            self.log.debug("Checking setup completion status.")
             self._completed = self._check_completion()
         return self._completed
 
@@ -85,14 +86,15 @@ class Setup:
         Determines if the setup has been completed by checking the presence of a plist file. If the
         property list file cannot be read, an error is logged.
         """
-        self.log.debug("Checking setup completion status.")
         if not os.path.exists(self.plist_path):
+            self.log.info("Setup plist file not found. Setup is incomplete.")
             self._completed = False
 
         try:
             with open(self.plist_path, "rb") as fp:
                 plist_data = plistlib.load(fp)
                 self._completed = plist_data.get("Setup", {}).get("first_run_done", False)
+                self.log.info("Setup completion status loaded successfully.")
         except plistlib.InvalidFileException as e:
             self.log.error(f"Unable to read property list file. Details: {e}")
             self._completed = False
@@ -106,6 +108,7 @@ class Setup:
         try:
             with open(self.plist_path, "wb") as fp:
                 plistlib.dump(plist_data, fp)
+            self.log.info("Setup completion status updated successfully.")
         except Exception as e:
             self.log.error(f"Could not write to property list ({self.plist_path}). Details: {e}")
             raise SetupError(
@@ -116,7 +119,7 @@ class Setup:
 
     def _prompt_credentials(self, setup_type: SetupType) -> Dict:
         """Prompt for credentials based on the credential type."""
-        self.log.info(f"Prompting user for {setup_type} credentials.")
+        self.log.info(f"Prompting user for {setup_type.value} credentials.")
         if setup_type == SetupType.STANDARD:
             return {
                 "URL": click.prompt("Enter your Jamf Pro URL"),
@@ -304,10 +307,12 @@ class Setup:
         :raises SetupError: If a token could not be fetched, credentials are missing or setup could not be marked complete.
         """
         if self.completed:
+            self.log.info("Setup already completed. Skipping.")
             return
 
         animator = animator or self.animator
 
+        self.log.debug("Initiating setup process.")
         setup_type_map = {1: SetupType.STANDARD, 2: SetupType.SSO}
         choice = click.prompt(
             "Choose setup method (1: Standard setup, 2: SSO setup)", type=int, default=1
@@ -327,13 +332,14 @@ class Setup:
         :rtype: bool
         :raises PatcherError: If the file exists but could not be removed due to an error.
         """
+        self.log.debug("Attempting to reset setup.")
         try:
             os.remove(self.plist_path)
             self._completed = None
-            self.log.info(f"Successfully removed Patcher property list file: {self.plist_path}")
+            self.log.info("Successfully reset setup.")
             return True
         except FileNotFoundError:
-            self.log.info(f"Property list file does not exist: {self.plist_path}")
+            self.log.warning(f"Property list file does not exist: {self.plist_path}")
             return False
         except OSError as e:
             self.log.error(f"Unable to delete property list file ({self.plist_path}). Details: {e}")

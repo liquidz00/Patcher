@@ -33,6 +33,7 @@ class TokenManager:
     @property
     def client(self):
         if not self._client:
+            self.log.debug("Attempting to attach JamfClient.")
             self._client = self.config.attach_client()
             self.log.info(f"JamfClient initialized with base URL: {self._client.base_url}")
         return self._client
@@ -40,6 +41,7 @@ class TokenManager:
     @property
     def token(self) -> AccessToken:
         if not self._token:
+            self.log.debug("Attempting to load token from JamfClient.")
             self._token = self.client.token
             self.log.info(
                 f"Token ending in {self.client.token.token[-4:]}  loaded successfully from JamfClient."
@@ -55,6 +57,7 @@ class TokenManager:
         :rtype: :class:`~patcher.models.token.AccessToken`
         :raises TokenError: If a token cannot be retrieved from the Jamf API.
         """
+        self.log.debug("Attempting to fetch new AccessToken.")
         url = f"{self.client.base_url}/api/oauth/token"
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
@@ -68,6 +71,7 @@ class TokenManager:
             response = await self.api_client.fetch_json(
                 url, headers=headers, method="POST", data=data
             )
+            self.log.info("Received valid response from Jamf API for AccessToken call.")
         except APIResponseError as e:
             self.log.error(f"Failed to fetch a token from {url}. Details: {e}")
             raise TokenError("Unable to retrieve AccessToken from Jamf instance.", url=url) from e
@@ -84,6 +88,7 @@ class TokenManager:
         :return: The extracted ``AccessToken`` object.
         :rtype: :class:`~patcher.models.token.AccessToken`
         """
+        self.log.debug("Attempting to parse API response for AccessToken.")
         token = response.get("access_token")
         expires_in = response.get("expires_in")
 
@@ -103,6 +108,7 @@ class TokenManager:
         :type token: :class:`~patcher.models.token.AccessToken`
         :raises TokenError: If either the token string or expiration could not be saved.
         """
+        self.log.debug("Attempting to save retrieved AccessToken object.")
         try:
             self.config.set_credential("TOKEN", token.token)
             self.config.set_credential("TOKEN_EXPIRATION", token.expires.isoformat())
@@ -112,7 +118,7 @@ class TokenManager:
 
         self.client.token = token
         self._token = token  # cache token locally
-        self.log.info("Bearer token and expiration updated in keyring")
+        self.log.info("AccessToken object updated in keychain")
 
     def token_valid(self) -> bool:
         """

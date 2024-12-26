@@ -86,7 +86,7 @@ class ReportManager:
         :param latest_versions: A list of the most recent iOS versions available.
         :type latest_versions: List[Dict[str, str]]
         :return: A list of ``PatchTitle`` objects, each representing a summary of the patch status for an iOS version.
-        :rtype: Optional[List[PatchTitle]]
+        :rtype: Optional[List[:class:`~patcher.models.patch.PatchTitle`]]
         """
         latest_versions_dict = {lv.get("OSVersion"): lv for lv in latest_versions}
 
@@ -209,26 +209,15 @@ class ReportManager:
             self._success(len(patch_reports), output_path)
 
     def _validate_directory(self, path: Union[str, Path]) -> str:
-        """
-        Validates the provided path exists and is not a file. If checks are successful, the
-        Patch Reports directory path is returned.
-
-        :param path: The file path to validate.
-        :type path: Union[str, Path]
-        :return: The file path to the generated reports directory.
-        :rtype: str
-        :raises PatcherError: If the output path is a file, or if the reports directory could not be created.
-        """
+        """Validates or creates the reports directory."""
+        self.log.debug(f"Validating directory: {path}")
         output_path = os.path.expanduser(path)
-        if os.path.exists(output_path) and os.path.isfile(output_path):
-            self.log.error(f"Provided path {output_path} is a file, not a directory.")
-            raise PatcherError("Output path provided is a file, not a directory.", path=output_path)
 
         try:
             os.makedirs(output_path, exist_ok=True)
             reports_dir = os.path.join(output_path, "Patch-Reports")
             os.makedirs(reports_dir, exist_ok=True)
-            self.log.debug(f"Reports directory created at '{reports_dir}'.")
+            self.log.info(f"Reports directory validated: '{reports_dir}'.")
             return reports_dir
         except (OSError, PermissionError) as e:
             self.log.error(f"Failed to create Patch Reports directory. Details: {e}")
@@ -237,17 +226,7 @@ class ReportManager:
             ) from e
 
     async def _sort(self, patch_reports: List[PatchTitle], sort_key: str) -> List[PatchTitle]:
-        """
-        Sorts provided patch reports by sort key.
-
-        :param patch_reports: List of ``PatchTitle`` objects to sort through.
-        :type patch_reports: List[:class:`~patcher.models.patch.PatchTitle`]
-        :param sort_key: The key in which to sort the ``PatchTitle`` objects by.
-        :type sort_key: str
-        :return: The sorted list of ``PatchTitle`` objects.
-        :rtype: List[`~patcher.models.patch.PatchTitle`]
-        :raises PatcherError: If reports could not be sorted due to a KeyError or AttributeError.
-        """
+        """Sorts provided patch reports by sort key."""
         self.log.debug(f"Detected sorting option '{sort_key}'")
         sort_key = sort_key.lower().replace(" ", "_")
 
@@ -255,7 +234,7 @@ class ReportManager:
             sorted_reports = await asyncio.to_thread(
                 lambda: sorted(patch_reports, key=lambda x: getattr(x, sort_key))
             )
-            self.log.debug(f"Patch reports sorted by '{sort_key}'.")
+            self.log.info(f"Patch reports sorted successfully by '{sort_key}'.")
             return sorted_reports
         except (KeyError, AttributeError) as e:
             self.log.error(
@@ -276,12 +255,11 @@ class ReportManager:
         :rtype: List[:class:`~patcher.models.patch.PatchTitle`]
 
         """
-        self.log.debug(
-            "Detected omit flag. Omitting policies with patches released in past 48 hours."
-        )
         cutoff = datetime.now() - timedelta(hours=48)
+        self.log.debug(
+            f"Detected omit flag. Attempting to omit reports with patches released since {cutoff}."
+        )
         original_count = len(patch_reports)
-        self.log.info(f"Attempting to omit reports with patches released since {cutoff}")
         patch_reports = await asyncio.to_thread(
             lambda: [
                 report
@@ -290,28 +268,19 @@ class ReportManager:
             ]
         )
         omitted_count = original_count - len(patch_reports)
-        self.log.debug(f"Omitted {omitted_count} policies with recent patches.")
+        self.log.info(f"Omitted {omitted_count} policies with recent patches.")
         return patch_reports
 
     async def _ios(self, patch_reports: List[PatchTitle]) -> List[PatchTitle]:
-        """
-        Adds iOS information to exported reports.
-
-        :param patch_reports: List of ``PatchTitle`` objects to iterate through.
-        :type patch_reports: List[:class:`~patcher.models.patch.PatchTitle`]
-        :return: The list of ``PatchTitle`` objects with added iOS device information.
-        :rtype: List[:class:`~patcher.models.patch.PatchTitle`]
-        :raises PatcherError: If iOS Device IDs, iOS Device version data, or SOFA feed could not be retrieved.
-        """
-        self.log.debug("Detected ios flag. Including iOS information in reports.")
-        self.log.debug("Attempting to fetch mobile device IDs.")
+        """Adds iOS information to exported reports."""
+        self.log.debug("Attempting to fetch iOS device IDs.")
         try:
             device_ids = await self.api_client.get_device_ids()
-            self.log.debug(f"Obtained device IDs for {len(device_ids)} devices.")
         except APIResponseError as e:
             self.log.error(f"Unable to obtain iOS Device IDs from Jamf instance. Details: {e}")
             raise PatcherError("Unable to obtain iOS Device IDs from Jamf instance") from e
 
+        self.log.debug("Attempting to fetch iOS version data for enrolled devices.")
         try:
             device_versions = await self.api_client.get_device_os_versions(device_ids=device_ids)
         except APIResponseError as e:
@@ -322,8 +291,10 @@ class ReportManager:
                 "Failed retrieving iOS Device versions from Jamf instance.", ids=device_ids
             ) from e
 
+        self.log.debug("Attempting to retrieve SOFA feed.")
         try:
             latest_versions = await self.api_client.get_sofa_feed()
+            self.log.info("Obtained latest version information from SOFA feed successfully.")
         except APIResponseError as e:
             self.log.error(f"Received empty response from SOFA feed. Details: {e}")
             raise PatcherError("Error fetching data from SOFA feed.") from e
@@ -333,55 +304,29 @@ class ReportManager:
             device_versions=device_versions, latest_versions=latest_versions
         )
         patch_reports.extend(ios_data)
-        self.log.debug("iOS information successfully appended to patch reports.")
+        self.log.info("iOS information successfully appended to patch reports.")
         return patch_reports
 
     async def _generate_excel(self, patch_reports: List[PatchTitle], reports_dir: str) -> str:
-        """
-        Generates Excel spreadsheet from passed patch reports to passed reports directory.
-
-        .. seealso::
-
-            :meth:`~patcher.models.reports.excel_report.ExcelReport.export_to_excel`
-
-        :param patch_reports: List of ``PatchTitle`` objects to add to spreadsheet.
-        :type patch_reports: List[:class:`~patcher.models.patch.PatchTitle`]
-        :param reports_dir: Patch Reports directory to save generated spreadsheet to.
-        :type reports_dir: str
-        :return: The file path to the created Excel spreadsheet.
-        :rtype: str
-        :raises PatcherError: If the report was unable to be saved as expected.
-        """
-        self.log.debug("Generating excel file...")
+        """Generates Excel spreadsheet from passed patch reports to passed reports directory."""
+        self.log.debug("Attempting to generate Excel report.")
         try:
             excel_file = await asyncio.to_thread(
                 self.excel_report.export_to_excel, patch_reports, reports_dir
             )
-            self.log.debug(f"Excel file generated successfully at '{excel_file}'.")
+            self.log.info(f"Excel report saved to {excel_file}.")
             return excel_file
         except PatcherError as e:
             self.log.error(f"Error exporting data to Excel. Details: {e}")
             raise PatcherError("Failed exporting data to Excel.", report_dir=reports_dir) from e
 
     async def _generate_pdf(self, excel_file: str, date_format: str) -> None:
-        """
-        Generates PDF report from passed excel file with custom date format.
-
-        .. seealso::
-
-            :meth:`~patcher.models.reports.pdf_report.PDFReport.export_excel_to_pdf`
-
-        :param excel_file: Path to Excel file with Patch Report data.
-        :type excel_file: str
-        :param date_format: Date format to use in header of PDF reports.
-        :type date_format: str
-        :raises PatcherError: If the PDF file could not be generated.
-        """
-        self.log.debug("Generating PDF file...")
+        """Generates PDF report from passed excel file with custom date format."""
+        self.log.debug("Attempting to generate PDF report.")
         try:
             pdf_report = PDFReport(self.ui_config)
             await asyncio.to_thread(pdf_report.export_excel_to_pdf, excel_file, date_format)
-            self.log.debug("PDF file generated successfully.")
+            self.log.info("PDF file generated successfully.")
         except PatcherError as e:
             self.log.error(f"Error generating PDF file. Details: {e}")
             raise PatcherError("Failed generating PDF file.", file_path=excel_file) from e

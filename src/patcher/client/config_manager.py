@@ -28,6 +28,7 @@ class ConfigManager:
         """
         self.log = LogMe(self.__class__.__name__)
         self.service_name = service_name
+        self.log.debug(f"ConfigManager initialized with service name: {self.service_name}")
 
     def get_credential(self, key: str) -> str:
         """
@@ -40,12 +41,16 @@ class ConfigManager:
         :rtype: str
         :raises CredentialError: If the specified credential could not be retrieved.
         """
-        self.log.debug(f"Retrieving credential for key: {key}")
+        self.log.debug(f"Attempting to retrieve credential for key: '{key}'")
         try:
             credential = keyring.get_password(self.service_name, key)
+            if credential:
+                self.log.info(f"Credential for key '{key}' retrieved successfully.")
+            else:
+                self.log.warning(f"Credential for key '{key}' is missing or empty.")
             return credential
         except KeyringError as e:
-            self.log.error(f"Unable to retrieve credential for {key}. Details: {e}")
+            self.log.error(f"Unable to retrieve credential for '{key}'. Details: {e}")
             raise CredentialError("Unable to retrieve credential as expected", key=key)
 
     def set_credential(self, key: str, value: str) -> None:
@@ -61,12 +66,12 @@ class ConfigManager:
         :type value: str
         :raises CredentialError: If the specified credential could not be saved.
         """
-        self.log.debug(f"Setting credential for key: {key}")
+        self.log.debug(f"Attempting to store credential for key: '{key}'")
         try:
             keyring.set_password(self.service_name, key, value)
             self.log.info(f"Credential for key '{key}' set successfully")
         except KeyringError as e:
-            self.log.error(f"Unable to save credential for {key}. Details: {e}")
+            self.log.error(f"Unable to save credential for '{key}'. Details: {e}")
             raise CredentialError("Unable to save credential as expected", key=key)
 
     def delete_credential(self, key: str) -> bool:
@@ -81,12 +86,13 @@ class ConfigManager:
         :return: True if the credential was successfully deleted, False otherwise.
         :rtype: bool
         """
+        self.log.debug(f"Attempting to delete credential for key: '{key}'")
         try:
             keyring.delete_password(self.service_name, key)
-            self.log.info(f"Deleted credential for {key} as expected.")
+            self.log.info(f"Credential for key '{key}' deleted successfully.")
             return True
         except KeyringError as e:
-            self.log.error(f"Failed to delete credential for {key}. Details: {e}")
+            self.log.warning(f"Failed to delete credential for '{key}'. Details: {e}")
             return False
 
     def load_token(self) -> AccessToken:
@@ -99,11 +105,15 @@ class ConfigManager:
         :return: An AccessToken object containing the token and its expiration date.
         :rtype: :class:`~patcher.models.token.AccessToken`
         """
-        self.log.debug("Loading token from keychain")
-        token = self.get_credential("TOKEN")
-        expires = self.get_credential("TOKEN_EXPIRATION")
-        self.log.info("Token and expiration loaded from keychain")
-        return AccessToken(token=token, expires=expires)  # type: ignore
+        self.log.debug("Attempting to load token and expiration from keychain.")
+        try:
+            token = self.get_credential("TOKEN")
+            expires = self.get_credential("TOKEN_EXPIRATION")
+            self.log.info("Token and expiration loaded from keychain")
+            return AccessToken(token=token, expires=expires)  # type: ignore
+        except CredentialError:
+            self.log.warning("Token or expiration is missing, loading failed.")
+            raise
 
     def attach_client(self) -> JamfClient:
         """
@@ -113,7 +123,7 @@ class ConfigManager:
         :rtype: :class:`~patcher.models.jamf_client.JamfClient`
         :raises PatcherError: If ``JamfClient`` object fails pydantic validation.
         """
-        self.log.debug("Attaching Jamf client with stored credentials")
+        self.log.debug("Attempting to attach JamfClient with stored credentials")
         try:
             client = JamfClient(
                 client_id=self.get_credential("CLIENT_ID"),
@@ -121,10 +131,10 @@ class ConfigManager:
                 server=self.get_credential("URL"),
                 token=self.load_token(),
             )
-            self.log.info(f"JamfClient ({client.client_id}) attached successfully")
+            self.log.info(f"JamfClient ending in ({(client.client_id[-4:])}) attached successfully")
             return client
         except ValidationError as e:
-            self.log.error(f"Failed attaching JamfClient due to failed validation. Details: {e}")
+            self.log.error(f"Failed attaching JamfClient due to validation error. Details: {e}")
             raise PatcherError("Unable to attach JamfClient due to invalid configuration") from e
 
     def create_client(self, client: JamfClient) -> None:
@@ -140,7 +150,7 @@ class ConfigManager:
         :param client: The ``JamfClient`` object whose credentials will be stored.
         :type client: :class:`~patcher.models.jamf_client.JamfClient`
         """
-        self.log.debug(f"Setting JamfClient: {client.client_id}")
+        self.log.debug(f"Storing credentials for JamfClient ending in: {(client.client_id[-4:])}")
         credentials = {
             "CLIENT_ID": client.client_id,
             "CLIENT_SECRET": client.client_secret,
@@ -151,7 +161,9 @@ class ConfigManager:
         for k, v in credentials.items():
             self.set_credential(k, v)
 
-        self.log.info("JamfClient credentials and token saved successfully")
+        self.log.info(
+            f"Credentials for JamfClient ending in '{(client.client_id[-4:])}' stored successfully."
+        )
 
     def reset(self) -> bool:
         """
@@ -160,11 +172,12 @@ class ConfigManager:
         :return: True if all credentials were successfully deleted, False otherwise.
         :rtype: bool
         """
+        self.log.debug("Attempting to reset all stored credentials.")
         creds = ["CLIENT_ID", "CLIENT_SECRET", "URL", "TOKEN", "TOKEN_EXPIRATION"]
         results = [self.delete_credential(cred) for cred in creds]
         all_deleted = all(results)
         if all_deleted:
-            self.log.info("JamfClient credentials deleted successfully.")
+            self.log.info("All credentials reset successfully.")
         else:
-            self.log.warning("Some credentials could not be deleted.")
+            self.log.warning("Not all credentials could be deleted.")
         return all_deleted
