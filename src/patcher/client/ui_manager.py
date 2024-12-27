@@ -116,7 +116,8 @@ class UIConfigManager:
                 "Could not create directory for Fonts.",
                 path=dest_path,
                 parent_path=dest_path.parent,
-            ) from e
+                error_msg=str(e),
+            )
 
         command = ["/usr/bin/curl", "-sL", url, "-o", str(dest_path)]
         async with self.api.semaphore:
@@ -128,7 +129,11 @@ class UIConfigManager:
                 self.log.info(f"Default fonts saved successfully to {dest_path}")
             except ShellCommandError as e:
                 self.log.error(f"Unable to download font from {url}: {e}")
-                raise
+                raise PatcherError(
+                    "Failed to download default font family.",
+                    url=url,
+                    error_msg=str(e),
+                )
 
     async def create_default_config(self):
         """
@@ -332,7 +337,8 @@ class UIConfigManager:
             raise PatcherError(
                 "The specified logo is not a valid image file. Please try again.",
                 path=logo_src_path,
-            ) from e
+                error_msg=str(e),
+            )
 
         # Copy file
         try:
@@ -351,7 +357,8 @@ class UIConfigManager:
             raise PatcherError(
                 "Unable to save the logo file as expected. Please try again.",
                 path=logo_dest_path,
-            ) from e
+                error_msg=str(e),
+            )
 
         # Save logo path in config
         self.config["LOGO_PATH"] = str(logo_dest_path)
@@ -443,5 +450,7 @@ class UIConfigManager:
             except Exception as e:
                 self.log.error(f"Unable to write to property list. Details: {e}")
                 raise PatcherError(
-                    "Encountered an error trying to write to property list", data=plist_data
-                ) from e
+                    "Encountered an error trying to write to property list",
+                    data=plist_data,
+                    error_msg=str(e),
+                )

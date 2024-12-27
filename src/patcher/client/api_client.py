@@ -60,7 +60,11 @@ class ApiClient(BaseAPIClient):
             return utc_time.strftime("%b %d %Y")
         except ValueError as e:
             self.log.error(f"Invalid time format provided. Details: {e}")
-            raise PatcherError("Invalid time format provided.", time_str=utc_time_str) from e
+            raise PatcherError(
+                "Invalid time format provided.",
+                time_str=utc_time_str,
+                error_msg=str(e),
+            )
 
     @check_token
     async def get_policies(self) -> List[str]:
@@ -167,7 +171,11 @@ class ApiClient(BaseAPIClient):
             result = await self.execute(command)
         except ShellCommandError as e:
             self.log.error(f"Error fetching data from SOFA feed. Details: {e}")
-            raise APIResponseError("Unable to retrieve SOFA feed", command=command) from e
+            raise APIResponseError(
+                "Unable to retrieve SOFA feed",
+                command=command,
+                error_msg=str(e),
+            )
 
         # Convert to JSON for proper parsing
         result_json = json.loads(result)

@@ -112,10 +112,10 @@ class Setup:
         except Exception as e:
             self.log.error(f"Could not write to property list ({self.plist_path}). Details: {e}")
             raise SetupError(
-                "Error encountered trying to write to property list file",
+                "Error encountered trying to write to property list file.",
                 path=str(self.plist_path),
-                details=str(e),
-            ) from e
+                error_msg=str(e),
+            )
 
     def _prompt_credentials(self, setup_type: SetupType) -> Dict:
         """Prompt for credentials based on the credential type."""
@@ -144,7 +144,7 @@ class Setup:
                 f"Missing required credential(s): {', '.join(missing_keys)} for {setup_type.value} setup."
             )
             raise SetupError(
-                "Missing required credentials!",
+                "Missing required credentials.",
                 credential=", ".join(missing_keys),
                 setup_type=setup_type.value,
             )
@@ -164,8 +164,9 @@ class Setup:
                 return await token_manager.fetch_token()
             except TokenError as e:
                 raise SetupError(
-                    "Failed to obtain an AccessToken during setup. Please check your credentials and try again."
-                ) from e
+                    "Failed to obtain an AccessToken during setup. Please check your credentials and try again.",
+                    error_msg=str(e),
+                )
         elif setup_type == SetupType.STANDARD:
             api_client = BaseAPIClient()
             try:
@@ -176,8 +177,9 @@ class Setup:
                 )
             except (KeyError, APIResponseError) as e:
                 raise SetupError(
-                    "Failed to obtain a Basic Token during setup. Please check your credentials and try again."
-                ) from e
+                    "Failed to obtain a Basic Token during setup. Please check your credentials and try again.",
+                    error_msg=str(e),
+                )
 
     async def _configure_integration(
         self, basic_token: str, jamf_url: str
@@ -197,7 +199,9 @@ class Setup:
                 return client_id, client_secret
             except APIResponseError as e:
                 self.log.error(f"Unable to create API client as expected. Details: {e}")
-                raise SetupError from e
+                raise SetupError(
+                    "Failed to create Patcher API Client as expected.", error_msg=str(e)
+                )
 
     async def _run_setup(self, setup_type: SetupType, animator: Optional[Animation] = None) -> None:
         """Handles both types of setup for end-users based on passed `setup_type`."""
@@ -344,5 +348,7 @@ class Setup:
         except OSError as e:
             self.log.error(f"Unable to delete property list file ({self.plist_path}). Details: {e}")
             raise PatcherError(
-                "Unable to delete property list file as expected", path=self.plist_path
-            ) from e
+                "Unable to delete property list file as expected.",
+                path=self.plist_path,
+                error_msg=str(e),
+            )

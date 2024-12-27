@@ -74,7 +74,11 @@ class TokenManager:
             self.log.info("Received valid response from Jamf API for AccessToken call.")
         except APIResponseError as e:
             self.log.error(f"Failed to fetch a token from {url}. Details: {e}")
-            raise TokenError("Unable to retrieve AccessToken from Jamf instance.", url=url) from e
+            raise TokenError(
+                "Unable to retrieve AccessToken from Jamf instance.",
+                url=url,
+                error_msg=str(e),
+            )
 
         return self._parse_token_response(response)
 
@@ -114,7 +118,7 @@ class TokenManager:
             self.config.set_credential("TOKEN_EXPIRATION", token.expires.isoformat())
         except CredentialError as e:
             self.log.error(f"Unable to save AccessToken object to keychain. Details: {e}")
-            raise TokenError("Unable to save AccessToken object to keychain") from e
+            raise TokenError("Unable to save AccessToken object to keychain.", error_msg=str(e))
 
         self.client.token = token
         self._token = token  # cache token locally

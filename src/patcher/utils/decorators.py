@@ -41,7 +41,7 @@ def check_token(func: Callable) -> Any:
             await token_manager.ensure_valid_token()
         except ValidationError as e:
             log.error(f"AccessToken failed validation. Details: {e}")
-            raise TokenError("AccessToken failed validation") from e
+            raise TokenError("AccessToken failed validation", error_msg=str(e))
         except TokenError as e:
             log.error(f"Failed to fetch a new AccessToken. Details: {e}")
             raise

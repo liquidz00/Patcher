@@ -87,39 +87,68 @@ class ReportManager:
         :type latest_versions: List[Dict[str, str]]
         :return: A list of ``PatchTitle`` objects, each representing a summary of the patch status for an iOS version.
         :rtype: Optional[List[:class:`~patcher.models.patch.PatchTitle`]]
+        :raises PatcherError: If a KeyError or ZeroDivisionError is encountered.
         """
-        latest_versions_dict = {lv.get("OSVersion"): lv for lv in latest_versions}
+        self.log.debug("Attempting to calculate iOS devices on latest version.")
 
-        version_counts = {
-            version: {"count": 0, "total": 0} for version in latest_versions_dict.keys()
-        }
+        try:
+            latest_versions_dict = {lv.get("OSVersion"): lv for lv in latest_versions}
+            self.log.info("Mapped latest iOS versions for analysis.")
+        except KeyError as e:
+            self.log.error(f"KeyError while mapping latest versions. Details: {e}")
+            raise PatcherError(
+                "Encountered KeyError while mapping latest iOS versions.", error_msg=str(e)
+            )
 
-        self.log.info("Obtaining latest iOS versions")
-        for device in device_versions:
-            device_os = device.get("OS")
-            major_version = device_os.split(".")[0]
-            if major_version in version_counts:
-                version_counts[major_version]["total"] += 1
-                if device_os == latest_versions_dict[major_version]["ProductVersion"]:
-                    version_counts[major_version]["count"] += 1
+        try:
+            version_counts = {
+                version: {"count": 0, "total": 0} for version in latest_versions_dict.keys()
+            }
+            self.log.debug("Counting devices on the latest versions.")
+            for device in device_versions:
+                device_os = device.get("OS")
+                if not device_os:
+                    self.log.warning(f"Device missing OS information: {device}")
 
-        mapped = []
-        for version, counts in version_counts.items():
-            if counts["total"] > 0:
-                completion_percent = round((counts["count"] / counts["total"]) * 100, 2)
-                mapped.append(
-                    PatchTitle(
-                        title=f"iOS {latest_versions_dict[version]['ProductVersion']}",
-                        released=latest_versions_dict[version]["ReleaseDate"],
-                        hosts_patched=counts["count"],
-                        missing_patch=counts["total"] - counts["count"],
-                        latest_version=latest_versions_dict[version]["ProductVersion"],
-                        completion_percent=completion_percent,
-                        total_hosts=counts["total"],
-                    )
+                major_version = device_os.split(".")[0]
+                if major_version in version_counts:
+                    version_counts[major_version]["total"] += 1
+                    if device_os == latest_versions_dict[major_version]["ProductVersion"]:
+                        version_counts[major_version]["count"] += 1
+        except KeyError as e:
+            self.log.error(f"KeyError while processing device versions. Details: {e}")
+            raise PatcherError(
+                "Encountered KeyError while processing device versions.", error_msg=str(e)
+            )
+
+        try:
+            self.log.debug("Generating patch summary objects.")
+            mapped = [
+                PatchTitle(
+                    title=f"iOS {latest_versions_dict[version]['ProductVersion']}",
+                    released=latest_versions_dict[version]["ReleaseDate"],
+                    hosts_patched=counts["count"],
+                    missing_patch=counts["total"] - counts["count"],
+                    latest_version=latest_versions_dict[version]["ProductVersion"],
+                    completion_percent=round((counts["count"] / counts["total"]) * 100, 2),
+                    total_hosts=counts["total"],
                 )
-
-        return mapped
+                for version, counts in version_counts.items()
+                if counts["total"] > 0
+            ]
+            self.log.info(f"iOS version analysis completed with {len(mapped)} summaries generated.")
+            return mapped
+        except KeyError as e:
+            self.log.error(f"KeyError during summary generation. Details: {e}")
+            raise PatcherError("Encountered KeyError during summary generation.", error_msg=str(e))
+        except ZeroDivisionError as e:
+            self.log.error(
+                f"Division by zero encountered during percentage calculation. Details: {e}"
+            )
+            raise PatcherError(
+                "Division by zero encountered during iOS Device percentage calculation.",
+                error_msg=str(e),
+            )
 
     @check_token
     async def process_reports(
@@ -163,25 +192,28 @@ class ReportManager:
         animation = Animation(enable_animation=not self.debug)
 
         async with animation.error_handling():
-            self.log.debug("Beginning patcher process...")
+            self.log.debug("Starting report generation process.")
             output_path = self._validate_directory(path)
 
-            # Async operations for patch data
             self.log.debug("Attempting to retrieve policy IDs.")
             try:
                 patch_ids = await self.api_client.get_policies()
-                self.log.debug(f"Retrieved policy IDs for {len(patch_ids)} policies.")
+                self.log.info(f"Retrieved policy IDs for {len(patch_ids)} policies.")
             except APIResponseError as e:
                 self.log.error(f"Unable to obtain policy IDs from Jamf instance. Details: {e}")
-                raise PatcherError("Failed to retrieve policy IDs from Jamf instance") from e
+                raise PatcherError(
+                    "Failed to retrieve policy IDs from Jamf instance.", error_msg=str(e)
+                )
 
             self.log.debug("Attempting to retrieve patch summaries.")
             try:
                 patch_reports = await self.api_client.get_summaries(patch_ids)
-                self.log.debug(f"Received policy summaries for {len(patch_reports)} policies.")
+                self.log.info(f"Received policy summaries for {len(patch_reports)} policies.")
             except APIResponseError as e:
                 self.log.error(f"Unable to fetch patch summaries from Jamf instance. Details: {e}")
-                raise PatcherError("Failed to retrieve patch summaries from Jamf instance") from e
+                raise PatcherError(
+                    "Failed to retrieve patch summaries from Jamf instance.", error_msg=str(e)
+                )
 
             # (option) Sort
             if sort:
@@ -205,7 +237,6 @@ class ReportManager:
 
             # Manually stop animation to show success message cleanly
             animation.stop_event.set()
-            self.log.debug("Patcher finished as expected!")
             self._success(len(patch_reports), output_path)
 
     def _validate_directory(self, path: Union[str, Path]) -> str:
@@ -217,13 +248,15 @@ class ReportManager:
             os.makedirs(output_path, exist_ok=True)
             reports_dir = os.path.join(output_path, "Patch-Reports")
             os.makedirs(reports_dir, exist_ok=True)
-            self.log.info(f"Reports directory validated: '{reports_dir}'.")
+            self.log.info(f"Reports directory '{reports_dir}' validated successfully.")
             return reports_dir
         except (OSError, PermissionError) as e:
             self.log.error(f"Failed to create Patch Reports directory. Details: {e}")
             raise PatcherError(
-                "Failed to create Patch Reports directory path", path=output_path
-            ) from e
+                "Failed to create Patch Reports directory path.",
+                path=output_path,
+                error_msg=str(e),
+            )
 
     async def _sort(self, patch_reports: List[PatchTitle], sort_key: str) -> List[PatchTitle]:
         """Sorts provided patch reports by sort key."""
@@ -241,20 +274,13 @@ class ReportManager:
                 f"Invalid column name for sorting: {sort_key.title().replace('_', ' ')}. Details: {e}"
             )
             raise PatcherError(
-                "Unable to sort patch reports due to invalid column name",
+                "Unable to sort patch reports due to invalid column name.",
                 column=str(sort_key.title().replace("_", " ")),
-            ) from e
+                error_msg=str(e),
+            )
 
     async def _omit(self, patch_reports: List[PatchTitle]) -> List[PatchTitle]:
-        """
-        Omits patch policies with patches released in past 48 hours from exported reports.
-
-        :param patch_reports: List of ``PatchTitle`` objects to iterate through.
-        :type patch_reports: List[:class:`~patcher.models.patch.PatchTitle`]
-        :return: The filtered list of ``PatchTitle`` objects.
-        :rtype: List[:class:`~patcher.models.patch.PatchTitle`]
-
-        """
+        """Omits patch policies with patches released in past 48 hours from exported reports."""
         cutoff = datetime.now() - timedelta(hours=48)
         self.log.debug(
             f"Detected omit flag. Attempting to omit reports with patches released since {cutoff}."
@@ -278,7 +304,9 @@ class ReportManager:
             device_ids = await self.api_client.get_device_ids()
         except APIResponseError as e:
             self.log.error(f"Unable to obtain iOS Device IDs from Jamf instance. Details: {e}")
-            raise PatcherError("Unable to obtain iOS Device IDs from Jamf instance") from e
+            raise PatcherError(
+                "Unable to obtain iOS Device IDs from Jamf instance.", error_msg=str(e)
+            )
 
         self.log.debug("Attempting to fetch iOS version data for enrolled devices.")
         try:
@@ -288,8 +316,10 @@ class ReportManager:
                 f"Received empty response obtaining device OS versions from Jamf instance. Details: {e}"
             )
             raise PatcherError(
-                "Failed retrieving iOS Device versions from Jamf instance.", ids=device_ids
-            ) from e
+                "Failed retrieving iOS Device versions from Jamf instance.",
+                ids=device_ids,
+                error_msg=str(e),
+            )
 
         self.log.debug("Attempting to retrieve SOFA feed.")
         try:
@@ -297,9 +327,8 @@ class ReportManager:
             self.log.info("Obtained latest version information from SOFA feed successfully.")
         except APIResponseError as e:
             self.log.error(f"Received empty response from SOFA feed. Details: {e}")
-            raise PatcherError("Error fetching data from SOFA feed.") from e
+            raise PatcherError("Error fetching data from SOFA feed.", error_msg=str(e))
 
-        self.log.debug("Calculating devices on latest version.")
         ios_data = self.calculate_ios_on_latest(
             device_versions=device_versions, latest_versions=latest_versions
         )
@@ -318,7 +347,11 @@ class ReportManager:
             return excel_file
         except PatcherError as e:
             self.log.error(f"Error exporting data to Excel. Details: {e}")
-            raise PatcherError("Failed exporting data to Excel.", report_dir=reports_dir) from e
+            raise PatcherError(
+                "Failed exporting data to Excel.",
+                report_dir=reports_dir,
+                error_msg=str(e),
+            )
 
     async def _generate_pdf(self, excel_file: str, date_format: str) -> None:
         """Generates PDF report from passed excel file with custom date format."""
@@ -329,8 +362,12 @@ class ReportManager:
             self.log.info("PDF file generated successfully.")
         except PatcherError as e:
             self.log.error(f"Error generating PDF file. Details: {e}")
-            raise PatcherError("Failed generating PDF file.", file_path=excel_file) from e
+            raise PatcherError(
+                "Failed generating PDF file.",
+                file_path=excel_file,
+                error_msg=str(e),
+            )
 
     def _success(self, report_count: int, reports_dir: str) -> None:
-        self.log.debug(f"{report_count} patch reports saved successfully to {reports_dir}.")
+        self.log.info(f"{report_count} patch reports saved successfully to {reports_dir}.")
         click.echo(click.style(f"\rSuccess! Reports saved to {reports_dir}", bold=True, fg="green"))

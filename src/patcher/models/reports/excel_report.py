@@ -34,6 +34,7 @@ class ExcelReport:
         :rtype: Optional[str]
         :raises PatcherError: If the dataframe is unable to be created or the excel file unable to be saved.
         """
+        self.log.debug(f"Attempting Excel export to {str(output_dir)}")
         if isinstance(output_dir, Path):
             output_dir = str(output_dir)
 
@@ -47,8 +48,8 @@ class ExcelReport:
         except (ValueError, pd.errors.EmptyDataError) as e:
             self.log.error(f"Error creating DataFrame. Details: {e}")
             raise PatcherError(
-                "Encountered error creating DataFrame", file_path=str(output_dir)
-            ) from e
+                "Encountered error creating DataFrame.", file_path=str(output_dir), error_msg=str(e)
+            )
 
         try:
             excel_path = os.path.join(output_dir, f"patch-report-{current_date}.xlsx")
@@ -58,5 +59,7 @@ class ExcelReport:
         except (OSError, PermissionError) as e:
             self.log.error(f"Unable to save DataFrame to {str(output_dir)}: {e}")
             raise PatcherError(
-                "Encountered error saving DataFrame", file_path=str(output_dir)
-            ) from e
+                "Encountered error saving DataFrame.",
+                file_path=str(output_dir),
+                error_msg=str(e),
+            )

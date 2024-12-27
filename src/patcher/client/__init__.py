@@ -4,7 +4,7 @@ import subprocess
 from typing import Dict, List, Optional, Tuple, Union
 
 from ..models.jamf_client import ApiClientModel, ApiRoleModel
-from ..utils.exceptions import APIResponseError, ShellCommandError
+from ..utils.exceptions import APIResponseError, PatcherError, ShellCommandError
 from ..utils.logger import LogMe
 
 
@@ -21,15 +21,20 @@ class BaseAPIClient:
         It is **strongly recommended** to limit API call concurrency to no more than 5 connections.
         See `Jamf Developer Guide <https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices>`_ for more information.
 
-    :param max_concurrency: The maximum number of API requests that can be sent at once. Defaults to 5.
-    :type max_concurrency: int
     """
 
     def __init__(self, max_concurrency: int = 5):
+        """
+        Initializes the BaseAPIClient class with default settings.
+
+        :param max_concurrency: The maximum number of API requests that can be sent at once. Defaults to 5.
+        :type max_concurrency: int
+        """
         self.max_concurrency = max_concurrency
         self.semaphore = asyncio.Semaphore(max_concurrency)
         self.default_headers = {"accept": "application/json", "Content-Type": "application/json"}
         self.log = LogMe(self.__class__.__name__)
+        self.log.debug(f"BaseAPIClient initialized with max_concurrency: {max_concurrency}")
 
     @property
     def concurrency(self) -> int:
@@ -55,79 +60,25 @@ class BaseAPIClient:
         :raises ValueError: If the concurrency level is less than 1.
         """
         if concurrency < 1:
-            raise ValueError("Concurrency level must be at least 1.")
+            raise PatcherError("Concurrency level must be at least 1.")
         self.max_concurrency = concurrency
 
     @staticmethod
     def _format_headers(headers: Dict[str, str]) -> List[str]:
-        """
-        Formats headers properly for curl commands.
-
-        :param headers: Dictionary of headers to format.
-        :type headers: Dict[str, str]
-        :return: List of formatted headers.
-        :rtype: List[str]
-        """
+        """Formats headers properly for curl commands."""
         formatted_headers = []
         for k, v in headers.items():
             formatted_headers.extend(["-H", f"{k}: {v}"])
         return formatted_headers
 
-    async def execute(self, command: List[str]) -> Optional[Union[Dict, str]]:
-        """
-        Asynchronously executes a shell command using subprocess and returns the output.
-
-        This method leverages asyncio to run a command in a new subprocess. If the
-        command execution is unsuccessful (non-zero return code), an exception is raised.
-
-        .. note::
-            This method should be used for executing shell commands that are essential to the
-            functionality of the API client, such as invoking cURL commands for API calls.
-
-        :param command: A list representing the command and its arguments to be executed in the shell.
-        :type command: List[str]
-        :return: The standard output of the executed command decoded as a string, or None if there is an error.
-        :rtype: Optional[Union[Dict, str]]
-        :raises exceptions.ShellCommandError: If the command execution fails (returns a non-zero exit code).
-        """
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-            )
-            stdout, stderr = await process.communicate()
-            if process.returncode != 0:
-                error_msg = stderr.decode().strip()
-                self.log.error(
-                    f"Command execution failed. Return code: {process.returncode}, Error: {error_msg}"
-                )
-                raise ShellCommandError(
-                    "Command execution failed.",
-                    command=command,
-                    error=error_msg,
-                    return_code=process.returncode,
-                )
-            return stdout.decode().strip()
-        except OSError as exc:
-            self.log.error(f"OSError encountered executing command. Details: {exc}")
-            raise ShellCommandError(
-                "OSError encountered executing command.", command=command, exception=exc
-            )
-
     def _handle_status_code(
         self, status_code: int, response_json: Optional[Dict]
     ) -> Optional[Dict]:
-        """
-        Handles HTTP status codes and returns the appropriate response or raises errors.
+        """Handles HTTP status codes and returns the appropriate response or raises errors."""
+        self.log.debug(f"Parsing API response. (status code: {status_code})")
 
-        :param status_code: The HTTP status code to evaluate.
-        :type status_code: int
-        :param response_json: The parsed JSON response from the API.
-        :type response_json: Optional[Dict]
-        :return: The response if JSON is successful, otherwise raises an exception.
-        :rtype: Optional[Dict]
-        :raises APIResponseError: If a client error, server error, or unexpected response is received.
-        """
         if 200 <= status_code < 300:
+            self.log.info("API call successful.")
             return response_json
 
         error_message = (
@@ -149,6 +100,79 @@ class BaseAPIClient:
                 "Unexpected HTTP status code received.",
                 status_code=status_code,
                 error=error_message,
+            )
+
+    @staticmethod
+    def _sanitize_command(command: List[str]) -> List[str]:
+        """Sanitizes sensitive data in the command list."""
+        sensitive_keys = {"client_id", "client_secret", "password", "username"}
+        sanitized = []
+        skip_next = False  # Handle values immediately following specific flags (e.g., -u)
+
+        for _, part in enumerate(command):
+            if skip_next:
+                sanitized.append("<REDACTED_CREDENTIAL>")
+                skip_next = False
+                continue
+
+            if part == "-u":
+                sanitized.append(part)
+                skip_next = True
+            elif "Bearer" in part:
+                sanitized.append("<REDACTED_TOKEN>")
+            elif any(f"{key}=" in part for key in sensitive_keys):
+                key, value = part.split("=", 1)
+                sanitized.append(f"{key}=<REDACTED_CREDENTIAL>")
+            else:
+                sanitized.append(part)
+
+        return sanitized
+
+    async def execute(self, command: List[str]) -> Optional[Union[Dict, str]]:
+        """
+        Asynchronously executes a shell command using subprocess and returns the output.
+
+        This method leverages asyncio to run a command in a new subprocess. If the
+        command execution is unsuccessful (non-zero return code), an exception is raised.
+
+        .. note::
+            This method should be used for executing shell commands that are essential to the
+            functionality of the API client, such as invoking cURL commands for API calls.
+
+        :param command: A list representing the command and its arguments to be executed in the shell.
+        :type command: List[str]
+        :return: The standard output of the executed command decoded as a string, or None if there is an error.
+        :rtype: Optional[Union[Dict, str]]
+        :raises exceptions.ShellCommandError: If the command execution fails (returns a non-zero exit code).
+        """
+        sanitized_command = self._sanitize_command(command)
+        self.log.debug(
+            f"Attempting to execute {(' '.join(sanitized_command).replace('\n', ''))} command asynchronously"
+        )
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            if process.returncode != 0:
+                error_msg = stderr.decode().strip()
+                self.log.error(
+                    f"Command execution failed. Return code: {process.returncode}, Error: {error_msg}"
+                )
+                raise ShellCommandError(
+                    "Command execution failed.",
+                    command=command,
+                    error=error_msg,
+                    return_code=process.returncode,
+                )
+            self.log.info("Command executed as expected with zero exit code status.")
+            return stdout.decode().strip()
+        except OSError as e:
+            self.log.error(f"OSError encountered executing command. Details: {e}")
+            raise ShellCommandError(
+                "OSError encountered executing command.",
+                command=command,
+                error_msg=str(e),
             )
 
     async def fetch_json(
@@ -173,6 +197,7 @@ class BaseAPIClient:
         :rtype: Optional[Dict]
         :raises APIResponseError: If the response payload is not valid JSON, or if command execution fails.
         """
+        self.log.debug(f"Attempting to fetch JSON from {url}")
         final_headers = headers if headers else self.default_headers
         header_string = self._format_headers(final_headers)
 
@@ -192,6 +217,7 @@ class BaseAPIClient:
 
         # Add form data for POST requests
         if method.upper() == "POST" and data:
+            self.log.debug("Adding POST data to the request.")
             if final_headers.get("Content-Type") == "application/x-www-form-urlencoded":
                 # Format each item separately instead
                 form_data = [item for k, v in data.items() for item in ["-d", f"{k}={v}"]]
@@ -210,13 +236,16 @@ class BaseAPIClient:
             status_code = int(status_line.strip())
             response_json = json.loads(response_body)  # Re-parse body as JSON
         except (json.JSONDecodeError, ValueError) as e:
-            self.log.error(
-                f"Failed to parse JSON response from {url} via command: {command}. Details: {e}"
-            )
+            sanitized = self._sanitize_command(command)
+            self.log.error(f"Failed to parse JSON response from {url} via command. Details: {e}")
             raise APIResponseError(
-                "Failed parsing JSON response from API", url=url, command=command
-            ) from e
+                "Failed parsing JSON response from API",
+                url=url,
+                command=sanitized,
+                error_msg=str(e),
+            )
 
+        self.log.info(f"Retrieved JSON response from {url}.")
         return self._handle_status_code(status_code, response_json)
 
     async def fetch_batch(
@@ -234,6 +263,7 @@ class BaseAPIClient:
         :return: A list of JSON dictionaries or None for URLs that fail to retrieve data.
         :rtype: List[Optional[Dict]]
         """
+        self.log.info(f"Attempting to fetch batch of {len(urls)} URLs")
         results = []
         for i in range(0, len(urls), self.max_concurrency):
             batch = urls[i : i + self.max_concurrency]
@@ -260,6 +290,7 @@ class BaseAPIClient:
         :rtype: str
         :raises APIResponseError: If the call is unauthorized or unsuccessful.
         """
+        self.log.debug("Attempting to retrieve Basic Token with provided credentials.")
         token_url = f"{jamf_url}/api/v1/auth/token"
         command = [
             "/usr/bin/curl",
@@ -276,8 +307,10 @@ class BaseAPIClient:
             resp = await self.execute(command)
             response = json.loads(resp)
             if response and "token" in response:
+                self.log.info("Basic Token retrieved successfully.")
                 return response.get("token")
             else:
+                sanitized = self._sanitize_command(command)
                 self.log.error(
                     f"Unable to retrieve basic token with provided username ({username}) and password."
                 )
@@ -285,6 +318,7 @@ class BaseAPIClient:
                     "Unable to retrieve basic token with provided username and password",
                     username=username,
                     url=jamf_url,
+                    command=sanitized,
                 )
 
     async def create_roles(self, token: str, jamf_url: str) -> bool:
@@ -298,6 +332,7 @@ class BaseAPIClient:
         :return: True if roles were successfully created, False otherwise.
         :rtype: bool
         """
+        self.log.debug("Attempting to create Patcher API Role via Jamf API.")
         role = ApiRoleModel()
         payload = {
             "displayName": role.display_name,
@@ -311,7 +346,13 @@ class BaseAPIClient:
             "Authorization": f"Bearer {token}",
         }
         response = await self.fetch_json(url=role_url, headers=headers, method="POST", data=payload)
-        return response.get("displayName") == role.display_name
+
+        if response.get("displayName") == role.display_name:
+            self.log.info("Patcher API Role created successfully.")
+            return True
+        else:
+            self.log.error("Failed to create Patcher API role as expected.")
+            return False
 
     async def create_client(self, token: str, jamf_url: str) -> Optional[Tuple[str, str]]:
         """
@@ -324,6 +365,7 @@ class BaseAPIClient:
         :return: A tuple containing the client ID and client secret.
         :rtype: Optional[Tuple[str, str]]
         """
+        self.log.debug("Attempting to create Patcher API Client with Jamf API.")
         client = ApiClientModel()
         client_url = f"{jamf_url}/api/v1/api-integrations"
         payload = {
@@ -345,11 +387,14 @@ class BaseAPIClient:
 
         client_id = response.get("clientId")
         integration_id = response.get("id")  # Required for integration API call
+        self.log.info("Created Patcher API Client ID successfully.")
 
         # Obtain client secret
+        self.log.debug("Attempting to retrieve Patcher API Client Secret from Jamf API.")
         secret_url = f"{jamf_url}/api/v1/api-integrations/{integration_id}/client-credentials"
         secret_response = await self.fetch_json(url=secret_url, method="POST", headers=headers)
         client_secret = secret_response.get("clientSecret")
+        self.log.info("Retrieved Patcher API Client Secret successfully.")
 
         # Return credentials
         return client_id, client_secret

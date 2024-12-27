@@ -235,7 +235,11 @@ class PDFReport(FPDF):
             df = pd.read_excel(excel_file)
         except (ParserError, EmptyDataError) as e:
             self.log.error(f"Failed to parse the excel file: {e}")
-            raise PatcherError("Failed to parse the excel file", file=excel_file) from e
+            raise PatcherError(
+                "Failed to parse the excel file",
+                file=excel_file,
+                error_msg=str(e),
+            )
 
         # Create instance of FPDF
         pdf = PDFReport(ui_config=UIConfigManager(), date_format=date_format)
@@ -263,4 +267,8 @@ class PDFReport(FPDF):
             pdf.output(pdf_filename)
         except (OSError, PermissionError) as e:
             self.log.error(f"Error occurred trying to export to PDF: {e}")
-            raise PatcherError("Unable to export PDF report.", file_path=pdf_filename) from e
+            raise PatcherError(
+                "Unable to export PDF report.",
+                file_path=pdf_filename,
+                error_msg=str(e),
+            )

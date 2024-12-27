@@ -51,7 +51,11 @@ class ConfigManager:
             return credential
         except KeyringError as e:
             self.log.error(f"Unable to retrieve credential for '{key}'. Details: {e}")
-            raise CredentialError("Unable to retrieve credential as expected", key=key)
+            raise CredentialError(
+                "Unable to retrieve credential as expected",
+                key=key,
+                error_msg=str(e),
+            )
 
     def set_credential(self, key: str, value: str) -> None:
         """
@@ -72,7 +76,9 @@ class ConfigManager:
             self.log.info(f"Credential for key '{key}' set successfully")
         except KeyringError as e:
             self.log.error(f"Unable to save credential for '{key}'. Details: {e}")
-            raise CredentialError("Unable to save credential as expected", key=key)
+            raise CredentialError(
+                "Unable to save credential as expected", key=key, error_msg=str(e)
+            )
 
     def delete_credential(self, key: str) -> bool:
         """
@@ -135,7 +141,10 @@ class ConfigManager:
             return client
         except ValidationError as e:
             self.log.error(f"Failed attaching JamfClient due to validation error. Details: {e}")
-            raise PatcherError("Unable to attach JamfClient due to invalid configuration") from e
+            raise PatcherError(
+                "Unable to attach JamfClient due to invalid configuration",
+                error_msg=str(e),
+            )
 
     def create_client(self, client: JamfClient) -> None:
         """
