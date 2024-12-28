@@ -126,7 +126,6 @@ class PatcherLog:
         :type exc_value: BaseException
         :param exc_traceback: The traceback object associated with the exception.
         :type exc_traceback: Optional[TracebackType]
-        :raises SystemExit: Exits the program with status code 1 after handling the exception.
         """
         parent_logger = logging.getLogger(PatcherLog.LOGGER_NAME)
         child_logger = parent_logger.getChild("UnhandledException")
@@ -159,31 +158,19 @@ class LogMe:
 
     :param class_name: The name of the class for which the logger is being set up.
     :type class_name: str
-    :param debug: Whether to set the child logger level to DEBUG, defaults to False.
-    :type debug: Optional[bool]
     """
 
-    def __init__(self, class_name: str, debug: Optional[bool] = False):
+    def __init__(self, class_name: str):
         self.logger = PatcherLog.setup_child_logger(class_name)
-        self.debug_enabled = debug
 
-    def toggle_debug(self, enable: bool) -> None:
-        """
-        Dynamically enable or disable debug messages in the console.
-
-        :param enable: Whether to enable debug output in the console.
-        :type enable: bool
-        """
-        self.debug_enabled = enable
-        console_handler = next(
-            (h for h in self.logger.handlers if isinstance(h, logging.StreamHandler)), None
-        )
-        if console_handler:
-            console_handler.setLevel(logging.DEBUG if enable else logging.WARNING)
+    @property
+    def is_debug(self) -> bool:
+        """Check if any logger handlers are set to debug level."""
+        return any(h.level == logging.DEBUG for h in self.logger.handlers)
 
     def debug(self, msg: str):
         self.logger.debug(msg)
-        if self.debug_enabled:
+        if self.is_debug:
             click.echo(click.style(f"\rDEBUG: {msg.strip()}", fg="magenta"))
 
     def info(self, msg: str):

@@ -68,7 +68,7 @@ class ReportManager:
         self.pdf_report = pdf_report
         self.ui_config = ui_config
         self.debug = debug
-        self.log = LogMe(self.__class__.__name__, debug=debug)
+        self.log = LogMe(self.__class__.__name__)
 
     def calculate_ios_on_latest(
         self,
