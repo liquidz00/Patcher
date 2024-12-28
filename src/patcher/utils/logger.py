@@ -175,7 +175,8 @@ class LogMe:
 
     def info(self, msg: str):
         self.logger.info(msg)
-        click.echo(click.style(f"\rINFO: {msg.strip()}", fg="blue"))
+        if self.is_debug:
+            click.echo(click.style(f"\rINFO: {msg.strip()}", fg="blue"))
 
     def warning(self, msg: str):
         self.logger.warning(msg)
