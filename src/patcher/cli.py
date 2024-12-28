@@ -365,7 +365,9 @@ async def analyze(
             with open(output_path, "w") as f:
                 f.write(formatted_table)
         except (OSError, PermissionError, FileNotFoundError) as exc:
-            raise PatcherError("Unable to save summary report as expected.", path=output_path, error_msg=str(exc))
+            raise PatcherError(
+                "Unable to save summary report as expected.", path=output_path, error_msg=str(exc)
+            )
         click.echo(click.style(f"✅ Summary saved to {output_path}", fg="green", bold=True))
 
 
