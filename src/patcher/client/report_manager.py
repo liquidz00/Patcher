@@ -370,4 +370,6 @@ class ReportManager:
 
     def _success(self, report_count: int, reports_dir: str) -> None:
         self.log.info(f"{report_count} patch reports saved successfully to {reports_dir}.")
-        click.echo(click.style(f"\r✅ Success! Reports saved to {reports_dir}", bold=True, fg="green"))
+        click.echo(
+            click.style(f"\r✅ Success! Reports saved to {reports_dir}", bold=True, fg="green")
+        )
