@@ -20,7 +20,7 @@ async def test_set_concurrency(base_api_client):
     base_api_client.concurrency = 2
     assert base_api_client.concurrency == 2
 
-    with pytest.raises(ValueError):
+    with pytest.raises(exceptions.PatcherError):
         base_api_client.concurrency = 0
 
 

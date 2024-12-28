@@ -101,7 +101,7 @@ def test_validate_creds_missing_keys(setup_instance):
     creds = {"URL": "https://example.com"}
     with pytest.raises(SetupError) as excinfo:
         setup_instance._validate_creds(creds, ("URL", "USERNAME", "PASSWORD"), SetupType.STANDARD)
-    assert "Missing required credentials!" in str(excinfo.value)
+    assert "Missing required credentials." in str(excinfo.value)
 
 
 def test_save_creds(setup_instance):

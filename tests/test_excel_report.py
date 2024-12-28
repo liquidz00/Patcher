@@ -34,6 +34,7 @@ def test_export_to_excel_dataframe_creation_error(temp_output_dir):
         with pytest.raises(PatcherError) as excinfo:
             excel_report.export_to_excel([], temp_output_dir)
 
-        assert f"Encountered error creating DataFrame (file_path: {temp_output_dir})" in str(
-            excinfo.value
+        assert (
+            f"Encountered error creating DataFrame. (file_path: {temp_output_dir} | error_msg: Test Error)"
+            in str(excinfo.value)
         )
