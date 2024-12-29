@@ -146,9 +146,8 @@ class BaseAPIClient:
         :raises exceptions.ShellCommandError: If the command execution fails (returns a non-zero exit code).
         """
         sanitized_command = self._sanitize_command(command)
-        self.log.debug(
-            f"Attempting to execute {(' '.join(sanitized_command).replace('\n', ''))} command asynchronously"
-        )
+        sanitized_command_str = " ".join(sanitized_command).replace("\n", "")
+        self.log.debug(f"Attempting to execute {sanitized_command_str} command asynchronously")
         try:
             process = await asyncio.create_subprocess_exec(
                 *command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
