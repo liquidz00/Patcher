@@ -40,7 +40,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 # Entry
-@click.group(context_settings=CONTEXT_SETTINGS)
+@click.group(context_settings=CONTEXT_SETTINGS, options_metavar="<options>")
 @click.version_option(version=__version__)
 @click.option("--debug", "-x", is_flag=True, help="Enable debug logging.")
 @click.pass_context
@@ -85,15 +85,17 @@ async def cli(ctx: click.Context, debug: bool) -> None:
 
 
 # Reset
-@cli.command()
+@cli.command("reset", short_help="Resets configuration based on kind.", options_metavar="<options>")
 @click.argument(
     "kind",
+    metavar="<reset_kind>",
     type=click.Choice(["full", "UI", "creds"], case_sensitive=False),
     required=True,
 )
 @click.option(
     "--credential",
     "-c",
+    metavar="<credential>",
     type=click.Choice(["url", "client_id", "client_secret"], case_sensitive=False),
     help="Specify which credential to reset: URL, Client ID, or Client Secret. Defaults to all if not provided.",
 )
@@ -165,10 +167,11 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
 
 
 # Export
-@cli.command()
+@cli.command("export", short_help="Exports patch management reports.", options_metavar="<options>")
 @click.option(
     "--path",
     "-p",
+    metavar="<path>",
     type=click.Path(),
     required=True,
     help="File path to save the generated report(s).",
@@ -182,6 +185,7 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
 @click.option(
     "--sort",
     "-s",
+    metavar="<column>",
     type=click.STRING,
     required=False,
     help="Sort patch reports by a specified column.",
@@ -195,9 +199,10 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
 @click.option(
     "--date-format",
     "-d",
+    metavar="<date_format>",
     type=click.Choice(list(DATE_FORMATS.keys()), case_sensitive=False),
     default="Month-Day-Year",
-    help="Specify the date format for the PDF header from predefined choices.",
+    help="Specify the date format for the PDF header. Choices: Month-Year, Month-Day-Year, Year-Month-Day, Day-Month-Year, Full.",
 )
 @click.option(
     "--ios",
@@ -207,6 +212,7 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
 )
 @click.option(
     "--concurrency",
+    metavar="<level>",
     type=click.INT,
     default=5,
     help="Set the maximum concurrency level for API calls.",
@@ -275,15 +281,32 @@ async def export(
 
 
 # Analyze
-@cli.command()
-@click.argument("excel_file", type=click.Path(exists=True))
-@click.option("--criteria", "-c", required=True, help="Filter criteria (e.g., 'most-installed').")
-@click.option(
-    "--threshold", "-t", type=float, default=70.0, help="Threshold percentage for filtering."
+@cli.command(
+    "analyze", short_help="Analyzes exported data by criteria.", options_metavar="<options>"
 )
-@click.option("--top-n", "-n", type=int, help="Limit the number of results displayed.")
+@click.argument("excel_file", metavar="<excel_file_path>", type=click.Path(exists=True))
+@click.option(
+    "--criteria",
+    "-c",
+    metavar="<filter_criteria>",
+    required=True,
+    help="Filter criteria (e.g., 'most-installed').",
+)
+@click.option(
+    "--threshold",
+    "-t",
+    metavar="<percentage>",
+    type=float,
+    default=70.0,
+    help="Threshold percentage for filtering.",
+)
+@click.option(
+    "--top-n", "-n", metavar="<int>", type=int, help="Limit the number of results displayed."
+)
 @click.option("--summary", "-s", is_flag=True, help="Generate summary analysis for output.")
-@click.option("--output-dir", "-o", type=click.Path(), help="Directory to save summary.")
+@click.option(
+    "--output-dir", "-o", metavar="<path>", type=click.Path(), help="Directory to save summary."
+)
 @click.pass_context
 async def analyze(
     ctx: click.Context,
