@@ -75,7 +75,6 @@ When defining the access token lifetime, it is recommended to use a duration of 
 In situations where AccessTokens *need* to be generated manually, copy the bash script below into the code editor of your choice. Substitute your Jamf Pro URL in the `url` variable, and modify the `client_id` and `client_secret` values with the Client ID and secret generated from the steps above.
 
 :::{note}
-:class: dropdown
 
 If using the Python version below, be sure to install the `requests` and `keyring` libraries first: 
 ```console
