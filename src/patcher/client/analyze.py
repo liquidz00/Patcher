@@ -26,7 +26,7 @@ class FilterCriteria(Enum):
         Maps CLI-friendly inputs (e.g., '--most-installed') to Enum values.
 
         :param value: CLI-friendly string.
-        :type value: str
+        :type value: :py:class:`str`
         :return: Corresponding Enum value
         :rtype: :class:`~patcher.client.analyze.FilterCriteria`
         :raises PatcherError: If the input is invalid
@@ -47,7 +47,7 @@ class Analyzer:
         Initializes the Analyzer with the path to an Excel file containing patch data.
 
         :param excel_path: Path to the Excel file.
-        :type excel_path: Union[Path, str]
+        :type excel_path: :py:obj:`~typing.Union` of :py:obj:`~pathlib.Path` | :py:class:`str`
         """
         self.log = LogMe(self.__class__.__name__)
         self.patch_titles: Optional[List[PatchTitle]] = None
@@ -60,8 +60,8 @@ class Analyzer:
         """
         Retrieves the validated list of PatchTitle objects.
 
-        :return: List of validated PatchTitle objects.
-        :rtype: List[:class:`~patcher.models.patch.PatchTitle`]
+        :return: :py:obj:`~typing.List` of validated :class:`~patcher.models.patch.PatchTitle` objects.
+        :rtype: :py:obj:`~typing.List` of :class:`~patcher.models.patch.PatchTitle`.
         :raises FetchError: If no valid titles are available.
         """
         if self.patch_titles is None:  # Handle uninitialized state only
@@ -77,7 +77,7 @@ class Analyzer:
         Validates and sets the PatchTitle objects. Ensures the list is non-empty.
 
         :param value: The list of PatchTitle objects to validate.
-        :type value: Iterable[:class:`~patcher.models.patch.PatchTitle`
+        :type value: :py:obj:`~typing.Iterable` of :class:`~patcher.models.patch.PatchTitle`
         :raises PatcherError: If value is not an iterable object.
         :raises FetchError: If any object in the passed iterable object is not a ``PatchTitle`` object, or if titles could not be validated.
         """
@@ -145,9 +145,9 @@ class Analyzer:
         Initializes a DataFrame by reading the Excel file from the provided path.
 
         :param excel_path: The path to the Excel file, either as a string or a :py:class:`~pathlib.Path` object.
-        :type excel_path: Union[Path, str]
+        :type excel_path: :py:obj:`~typing.Union` of :py:obj:`~pathlib.Path` | :py:class:`str`
         :return: A pandas DataFrame loaded from the Excel file.
-        :rtype: pd.DatFrame
+        :rtype: `pandas.DataFrame`
         :raises PatcherError: If the passed ``excel_file`` could not be validated (does not exist, or is not a file).
         :raises FetchError: If the excel file could not be read, if the file is empty, or if the file could not be parsed properly.
         """
@@ -187,11 +187,11 @@ class Analyzer:
         Formats the data passed into a table for CLI output.
 
         :param data: The data to display in the table.
-        :type data: List[List[str]]
+        :type data: :py:obj:`~typing.List` of :py:obj:`~typing.List`
         :param headers: Header names for the columns of the tables.
-        :type headers: Optional[List[str]]
+        :type headers: :py:obj:`~typing.Optional` :py:obj:`~typing.List` of :py:class:`str`
         :return: The formatted table as a string.
-        :rtype: str
+        :rtype: :py:class:`str`
         """
         if headers:
             data = [headers] + data
@@ -215,7 +215,10 @@ class Analyzer:
         """
         Filters and sorts PatchTitle objects based on specified criteria.
 
-        :param criteria: The criteria to filter and sort by. Options include:
+        :param criteria: The criteria to filter and sort by.
+
+            Options include:
+
             - 'most_installed': Returns the most installed software by total_hosts.
             - 'least_installed': Returns the least installed software by total_hosts.
             - 'oldest_least_complete': Returns the oldest patches with the least completion percent.
@@ -223,13 +226,14 @@ class Analyzer:
             - 'high_missing': Titles where missing patches are greater than 50% of total hosts.
             - 'zero_completion': Titles with zero completion percentage.
             - 'top_performers': Titles with completion percentage greater than 90%.
+
         :type criteria: :class:`~patcher.client.analyze.FilterCriteria`
         :param threshold: The threshold for filtering completion percentages, default is 70.0.
-        :type threshold: Optional[float]
+        :type threshold: :py:obj:`~typing.Optional` :py:class:`float`
         :param top_n: Number of results to return. If None (default), return all matching results.
-        :type top_n: Optional[int]
+        :type top_n: :py:obj:`~typing.Optional` :py:class:`int`
         :return: Filtered and sorted list of ``PatchTitle`` objects.
-        :rtype: List[:class:`~patcher.models.patch.PatchTitle`]
+        :rtype: :py:obj:`~typing.List` of :class:`~patcher.models.patch.PatchTitle`
         """
         self.log.debug(f"Attempting to filter titles by {criteria}.")
 
