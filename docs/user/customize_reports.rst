@@ -8,7 +8,7 @@ Tailor the user interface elements of your exported PDF reports. You have the fl
 
 .. _example-pdf-image:
 
-.. image:: ../_static/example_pdf.jpeg
+.. image:: ../_static/example_pdf.jpg
     :alt: Example PDF
     :width: 750px
     :align: center
@@ -68,8 +68,9 @@ To modify the header and footer text using PlistBuddy, use the following command
 
     $ /usr/libexec/PlistBuddy -c "Set :UI:HEADER_TEXT 'Your Custom Header Text'" ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
     $ /usr/libexec/PlistBuddy -c "Set :UI:FOOTER_TEXT 'Your Custom Footer Text'" ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
+    $ /usr/libexec/PlistBuddy -c "Set :UI:LOGO_PATH 'path/to/your/company/logo.png'" ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 
-These commands will correctly update the ``HEADER_TEXT`` and ``FOOTER_TEXT`` keys within the ``UI`` dictionary.
+These commands will correctly update the ``HEADER_TEXT``, ``FOOTER_TEXT`` and ``LOGO_PATH`` keys within the ``UI`` dictionary.
 
 .. note::
     The footer text will automatically append a ``|`` character followed by the page number to the end of the specified footer text.
@@ -97,6 +98,8 @@ Below is an example of what the nested UI dictionary might look like in the prop
             <string>/Users/jappleseed/Library/Application Support/Patcher/fonts/Assistant-Regular.ttf</string>
             <key>FONT_BOLD_PATH</key>
             <string>/Users/jappleseed/Library/Application Support/Patcher/fonts/Assistant-Bold.ttf</string>
+            <key>LOGO_PATH</key>
+            <string>/Users/jappleseed/Desktop/AnyOrg.jpg</string>
         </dict>
     </dict>
     </plist>
@@ -145,6 +148,8 @@ Here is an example configuration with custom header, footer text, and a specifie
             <string>/path/to/Helvetica-Regular.ttf</string>
             <key>FONT_BOLD_PATH</key>
             <string>/path/to/Helvetica-Bold.ttf</string>
+            <key>LOGO_PATH</key>
+            <string>/Users/jappleseed/Desktop/AnyOrg.jpg</string>
         </dict>
     </dict>
     </plist>
