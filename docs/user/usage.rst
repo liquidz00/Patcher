@@ -1,83 +1,51 @@
 .. _usage:
 
-=========
+=====
 Usage
-=========
+=====
 
-Additional options that can be passed to Patcher. These additional options enable users to customize the generation of patch reports according to their specific requirements.
+The main entry point for the Patcher CLI (patcherctl).
 
-Sorting
--------
+.. admonition:: Added in version 2.0
+    :class: success
 
-The ``--sort`` option allows users to sort patch reports based upon a specified column. This option is designed to help users organize their reports more efficiently and improve readability.
+    Patcher has been split into three separate commands; ``analyze``, ``reset`` and ``export``. Details and usage of each command are below.
 
-To use the ``--sort`` option, add ``--sort`` or ``-s`` followed by the column nameyou want to sort the report by. Patcher will automatically handle column name conversion to match column titles in the data frame.
+Global Options & Info
+---------------------
 
-.. code-block:: console
+Exit Codes
+^^^^^^^^^^
 
-    $ patcherctl --path '/path/to/save' --sort "Column Name"
+Patcher leverages specific exit codes depending on what type of error occurred at runtime:
 
-Ensure that the column name provided is valid and exists in the report. Invalid column names will result in an error and the script will abort.
+.. container:: sd-table
 
-Omit
-----
+   .. list-table::
+      :header-rows: 1
+      :widths: auto
 
-The ``--omit`` option enables users to omit software titles from the report that have had patches released in the last 48 hours. This can be particularly useful for focusing on older, potentially unaddressed vulnerabilities. Additionally, this will allow for a more accurate total patch percentage if submitting reports to security or compliance departments.
+      * - Exit Code
+        - Description
+      * - 0
+        - Success
+      * - 1
+        - Handled exception (e.g., PatcherError or user-facing issue)
+      * - 2
+        - Unhandled exception
+      * - 130
+        - KeyboardInterrupt (Ctrl+C)
 
-No additional arguments are required for the omit option. It is simply a flag that can be passed to Patcher:
+Debug Mode (verbose)
+^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: console
-
-    $ patcherctl --path '/path/to/save' --omit
-
-.. _date-format:
-
-Date Format
------------
-
-Specify the format of the date used in the header of exported PDF reports. This feature enables user to tailor the date presentation to their preferences or requirements, enhancing the reports' readability and context understanding.
-
-To use the ``--date-format`` option, add ``-d`` or ``--date-format`` followed by one of the predefined format names.
-
-.. code-block:: console
-
-    $ patcherctl --path '/path/to/save' --date-format "Month-Year"
-
-Options:
-^^^^^^^^
-
-- **Month-Year**: Displays the date as the full month name followed by the year (e.g., January 2024)
-- **Month-Day-Year** (default): Displays the date with the full month name, day and year (e.g., January 31 2024)
-- **Year-Month-Day**: Displays the date with the year followed by the full month name and day (e.g., 2024 April 21)
-- **Day-Month-Year**: Displays the date with the day followed by the full month name and year (16 April 2024)
-- **Full**: Displays the full weekday name, followed by the full month name, day and year (Thursday September 26 2013)
-
-Ensure to select a format name exactly as listed to avoid errors. Invalid format names will result in an error, and the script will abort.
-
-.. _ios:
-
-iOS
----
-
-The ``--ios`` or ``-m`` flags will append the amount of enrolled mobile devices on the latest version of iOS to the end of the data set. This option utilizes `SOFA <https://sofa.macadmins.io>`_, which reports on iOS versions 16 & 17. This means mobile devices on versions lower than iOS 16 will not be included in the report.
-
-Similar to the ``--omit`` option, the ``--ios`` option is a flag. To include iOS data information in your report, simply pass the ``--ios`` or ``-m`` arguments to Patcher.
+Patcher accepts a global ``--debug`` (or ``-x``) flag to show debug log level messages and higher to standard out. This overrides the built in :class:`~patcher.utils.animation.Animator` from showing so no message conflicts occur. This flag is handled at the root CLI level and thus can be passed to any command.
 
 .. code-block:: console
 
-    $ patcherctl --path '/path/to/save' --ios
+    $ patcherctl export --path '/path/to/save' --pdf --debug
 
-Debug
------
-
-Passing ``--debug`` or ``-x`` to Patcher will output debug logs to standard out instead of showing the default animation message. This is meant to assist in troubleshooting issues by providing insight into what is going on behind the scenes.
-
-Usage & Sample output
-^^^^^^^^^^^^^^^^^^^^^
-
-.. code-block:: console
-
-    $ patcherctl --path '/path/to/save' --debug
+Would result in a similar output to stdout as follows:
 
 .. code-block:: text
 
@@ -99,47 +67,275 @@ Usage & Sample output
     DEBUG: Patcher finished as expected. Additional logs can be found at '~/Library/Application Support/Patcher/logs'.
     DEBUG: 41 patch reports saved successfully to /path/to/save/Patch-Reports.
 
+Export
+------
+
+**Description**: The ``export`` command collects patch management data from Jamf API calls, subsequently exporting the data to Excel spreadsheet and optional PDF formats. This command works hand-in-hand with the :meth:`~patcher.client.report_manager.ReportManager.process_reports` method.
+
+Command Parameters (Export)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- ``ctx`` (`click.Context <https://click.palletsprojects.com/en/stable/api/#context>`_):
+    The ``click.Context`` object, providing access to shared state between commands.
+
+- ``path`` (:py:class:`str`):
+    The path to save the generated report(s). (**Required**)
+
+- ``pdf`` (:py:class:`bool`):
+    Specifies whether or not to generate a PDF document in addition to Excel spreadsheet.
+
+- ``sort`` (:py:obj:`~typing.Optional` of :py:class:`str`):
+    Sort the patch reports by specifying a column.
+
+- ``omit`` (:py:class:`bool`):
+    Omit software titles with patches released in last 48 hours.
+
+.. _date-format:
+
+- ``date_format`` (:py:class:`str`):
+    Specify the date format for the PDF header. Default is "%B %d %Y" (Month Day Year). Options:
+
+    - **Month-Year**: Displays the date as the full month name followed by the year (e.g., January 2024)
+    - **Month-Day-Year** (default): Displays the date with the full month name, day and year (e.g., January 31 2024)
+    - **Year-Month-Day**: Displays the date with the year followed by the full month name and day (e.g., 2024 April 21)
+    - **Day-Month-Year**: Displays the date with the day followed by the full month name and year (16 April 2024)
+    - **Full**: Displays the full weekday name, followed by the full month name, day and year (Thursday September 26 2013)
+
+.. _ios:
+
+- ``ios`` (:py:class:`bool`):
+    If passed, includes iOS device data in exported reports.
 
 .. _concurrency:
 
-Concurrency
------------
+- ``concurrency`` (:py:class:`int`):
+    The maximum number of API requests that can be sent at once. Defaults to 5. See :ref:`Concurrency Usage <concurrency>`
 
-.. warning::
-    Use caution when using this option. Higher concurrency settings can cause your Jamf server to become overloaded and fail to perform other basic functions. For more information, reference `Jamf Developer documentation <https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices#rate-limiting>`_ on rate limiting.
+Usage Examples (Export)
+^^^^^^^^^^^^^^^^^^^^^^^
 
-The ``--concurrency`` option sets the *maximum* number of concurrent API requests. By default, this is set to 5. Passing in a different integer to this option will modify this setting.
+.. tab-set::
 
-.. code-block:: console
+    .. tab-item:: Sort
 
-    $ patcherctl --path '/path/to/save' --concurrency 10
+        .. code-block:: console
+
+            $ patcherctl export --path '/path/to/save' --sort "Column Name"
+
+    .. tab-item:: Omit
+
+        .. code-block:: console
+
+            $ patcherctl export --path '/path/to/save' --omit
+
+    .. tab-item:: Date Format
+
+        .. code-block:: console
+
+            $ patcherctl export --path '/path/to/save' --date-format "Month-Year"
+
+    .. tab-item:: iOS
+
+
+
+        .. code-block:: console
+
+            $ patcherctl export --path '/path/to/save' --ios
+
+    .. tab-item:: Concurrency
+
+        .. code-block:: console
+
+            $ patcherctl export --path '/path/to/save' --concurrency 10
 
 .. _resetting_patcher:
 
 Reset
------
+------
+
+**Description**: Allows for resetting of configurations based upon specified kind:
+
+- ``full``: Resets credentials, UI elements, and property list file. Subsequently triggers :class:`~patcher.client.setup.Setup` to start setup.
+- ``UI``: Resets UI elements of PDF reports (header & footer text, custom font and optional logo).
+- ``creds``: Resets credentials stored in Keychain. Useful for testing Patcher in a non-production environment first. Allows specifying which credential to reset using the ``--credential`` option.
 
 .. note::
-    Using this option eliminates the need for the --path argument.
+    Options are not case-sensitive and are converted to lowercase automatically at runtime
 
-To streamline the customization process, you can use the ``--reset`` flag with Patcher. This option will clear the existing header and footer text from the PDF configuration and initiate the UI setup process again. This allows you to specify a custom font and modify the header and footer text options.
+Command Parameters (Reset)
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: console
+- ``kind`` (:py:class:`str`):
+    Specifies the type of reset to perform. (**Required**)
 
-    $ patcherctl --reset
+- ``credential`` (:py:obj:`~typing.Optional` | :py:class:`str`):
+    The specific credential to reset when performing credentials reset. Defaults to all credentials if none specified.
 
+Usage Examples (Reset)
+^^^^^^^^^^^^^^^^^^^^^^
 
-Custom CA File
---------------
+.. tab-set::
 
-.. admonition:: Removed in version 1.4.1
-    :class: danger
+    .. tab-item:: Reset All (Full)
 
-    The ``--custom-ca-file`` flag has been removed entirely. CA file handling is now automatic via ``curl``.
+        .. code-block:: console
 
-Pass a path to a ``.pem`` certificate to use as the default `SSL context <https://docs.python.org/3/library/ssl.html#context-creation>`_. Can be useful if running into SSL Validation Errors when using Patcher.
+            $ patcherctl reset full
 
-.. code-block:: console
+        *This will reset all configurations (credentials, UI elements, and property list file) and initiate the setup process.*
 
-    $ patcherctl --custom-ca-file '/path/to/.pem/file'
+    .. tab-item:: Reset UI Elements
+
+        .. code-block:: console
+
+            $ patcherctl reset UI
+
+        *This is useful if you only need to refresh the appearance of generated reports (header/footer text or custom logos).*
+
+    .. tab-item:: Reset All Credentials
+
+        .. code-block:: console
+
+            $ patcherctl reset creds
+
+        *This will prompt you to provide new values for URL, Client ID, and Client Secret.*
+
+    .. tab-item:: Reset Specific Credential
+
+        .. code-block:: console
+
+            $ patcherctl reset creds --credential url
+
+        *You will be prompted to enter a new value for the credential specified to be reset.*
+
+.. important::
+
+    Performing a full credential reset will prompt for **all client credentials** (URL, Client ID, Client Secret).
+    **Do not use this method** unless you are confident you have access to these credentials, especially if:
+
+    - Your environment does **not** use SSO.
+    - You relied on the automatic setup of Patcher (:attr:`~patcher.client.setup.SetupType.STANDARD`)
+
+.. note::
+
+    You can reset individual credentials by specifying one of the following options:
+
+    - ``url``
+    - ``client_id``
+    - ``client_secret``
+
+Analyze
+-------
+
+**Description**: Analyzes an exported patch report in Excel format and outputs analyzed results.
+
+Command Parameters (Analyze)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- ``excel_file`` (:py:class:`str`):
+    Path to the Excel file containing patch management data. (**Required**)
+
+- ``threshold`` (:py:class:`float`):
+    Filters software titles that are below the specified completion percentage.
+
+- ``criteria`` (:py:class:`str`):
+    Specifies the criteria for filtering patches. See :class:`~patcher.client.analyze.FilterCriteria`
+
+    Options are:
+
+    - :attr:`~patcher.client.analyze.FilterCriteria.MOST_INSTALLED`
+    - :attr:`~patcher.client.analyze.FilterCriteria.LEAST_INSTALLED`
+    - :attr:`~patcher.client.analyze.FilterCriteria.OLDEST_LEAST_COMPLETE`
+    - :attr:`~patcher.client.analyze.FilterCriteria.BELOW_THRESHOLD`
+    - :attr:`~patcher.client.analyze.FilterCriteria.RECENT_RELEASE`
+    - :attr:`~patcher.client.analyze.FilterCriteria.ZERO_COMPLETION`
+    - :attr:`~patcher.client.analyze.FilterCriteria.TOP_PERFORMERS`
+
+- ``top_n`` (:py:class:`int`):
+    Number of top entries to display based on the criteria. Default is ``None``, meaning all results will be returned.
+
+- ``summary`` (:py:class:`bool`):
+    If passed, will generate a summary file in ``.txt`` format in addition to showing results in stdout.
+
+- ``output_dir`` (:py:obj:`~typing.Union` :py:class:`str` | :py:obj:`~pathlib.Path`):
+    Path to save generated summary if ``--summary`` flag is passed.
+
+Usage Examples (Analyze)
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. tab-set::
+
+    .. tab-item:: Analyze with Threshold
+
+        .. code-block:: console
+
+            $ patcherctl analyze /path/to/excel.xlsx --criteria below-threshold --threshold 50.0
+
+        *Filters software titles with completion percentage below 50%. Use this to identify poorly adopted patches.*
+
+    .. tab-item:: Analyze Most Installed
+
+        .. code-block:: console
+
+            $ patcherctl analyze /path/to/excel.xlsx --criteria most-installed
+
+        *Displays software titles with the highest number of total installations.*
+
+    .. tab-item:: Analyze Least Installed
+
+        .. code-block:: console
+
+            $ patcherctl analyze /path/to/excel.xlsx --criteria least-installed --top-n 5
+
+        *Shows the top 5 least-installed software titles.* Use ``--top-n`` to limit results.
+
+    .. tab-item:: Analyze Recent Releases
+
+        .. code-block:: console
+
+            $ patcherctl analyze /path/to/excel.xlsx --criteria recent-release
+
+        *Filters for patches released in the last week. Use for tracking the adoption of new patches.*
+
+        .. tip::
+            :class: success
+
+            Additionally, option is particularly useful for organizations with Service Level Agreements (SLAs) or policies that mandate installing new patches within a specific time frame (e.g., within 7 days of release).
+
+    .. tab-item:: Analyze Zero Completion
+
+        .. code-block:: console
+
+            $ patcherctl analyze /path/to/excel.xlsx --criteria zero-completion
+
+        *Displays software titles with 0% completion, helpful for identifying areas of complete non-adoption.*
+
+    .. tab-item:: Analyze High Missing
+
+        .. code-block:: console
+
+            $ patcherctl analyze /path/to/excel.xlsx --criteria high-missing --top-n 10
+
+        *Filters software titles where missing patches are greater than 50% of total hosts.* Use ``--top-n`` to limit results.
+
+    .. tab-item:: Oldest Least Complete
+
+        .. code-block:: console
+
+            $ patcherctl analyze /path/to/excel.xlsx --criteria oldest-least-complete
+
+        *Returns the oldest patches with the least completion percent.*
+
+    .. tab-item:: Top Performers
+
+        .. code-block:: console
+
+            $ patcherctl analyze /path/to/excel.xlsx --criteria top-performers
+
+        *Lists software titles with completion percentage above 90%. Great for showcasing successful patch adoption.*
+
+.. admonition:: Important
+    :class: warning
+
+    The ``--summary`` option requires an output directory specified via ``--output-dir``. Ensure the directory exists and has write permissions before running the command. Otherwise, the summary file will not be generated.
 
