@@ -2,13 +2,9 @@
 
 .. _cli:
 
-======================
-Command Line Interface
-======================
-
-.. note::
-
-    The CLI entry point collaborates with the :mod:`~patcher.client.report_manager` module. Most of the operations are managed by the Report Manager class, where debug logs are also generated, rather than within the CLI entry point.
+============================
+Command Line Interface (CLI)
+============================
 
 The main entry point for the Patcher CLI (patcherctl).
 
@@ -18,13 +14,13 @@ Parameters
 - **ctx** (*click.Context*):
   Click context object. Used to ensure either the ``--path`` argument OR the ``--reset`` argument is supplied at runtime.
 
-- **path** (*AnyStr*):
+- **path** (*Union[str, pathlib.Path]*):
   The path to save the report(s).
 
 - **pdf** (*bool*):
-  If passed, Patcher will generate a PDF report along with the Excel spreadsheet using the :mod:`~patcher.models.reports.pdf_report` model.
+  If passed, Patcher will generate a PDF report along with the Excel spreadsheet using the :class:`~patcher.models.reports.pdf_report.PDFReport` class.
 
-- **sort** (*Optional[AnyStr]*):
+- **sort** (*Optional[str]*):
   Sort patch reports by a specified column.
 
   .. note::
@@ -49,7 +45,4 @@ Parameters
   Enable debug logging to see detailed debug messages. Providing this option replaces the animation usually shown to ``stdout``.
 
 - **reset** (*bool*):
-  Resets the ``config.ini`` file used for customizable elements in exported PDF reports, then triggers :func:`~patcher.client.setup._setup_ui` method. See :ref:`Customizing Reports <customize_reports>` for more information.
-
-- **custom_ca_file** (*Optional[AnyStr]*):
-  Pass a path to a custom Certificate Authority (CA) file for SSL verification. If provided, this file will be used in place of the default CA paths. See :ref:`ssl-verify`.
+  Resets the ``com.liquidzoo.patcher.plist`` file used for customizable elements in exported PDF reports, then triggers :func:`~patcher.client.setup.Setup.start` method. See :ref:`Customizing Reports <customize_reports>` for more information.

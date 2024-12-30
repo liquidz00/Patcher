@@ -11,19 +11,19 @@ class PatchTitle(Model):
     Represents patch software title information retrieved via API calls.
 
     :ivar title: The name of the patch title.
-    :type title: AnyStr
+    :type title: :py:class:`str`
     :ivar released: The release date of the patch title.
-    :type released: AnyStr
+    :type released: :py:class:`str`
     :ivar hosts_patched: The number of hosts that have applied the patch.
-    :type hosts_patched: int
+    :type hosts_patched: :py:class:`int`
     :ivar missing_patch: The number of hosts missing the patch.
-    :type missing_patch: int
+    :type missing_patch: :py:class:`int`
     :ivar latest_version: The latest version available for the software title.
-    :type latest_version: str
+    :type latest_version: :py:class:`str`
     :ivar completion_percent: The percentage of hosts that have applied the patch.
-    :type completion_percent: float
+    :type completion_percent: :py:class:`float`
     :ivar total_hosts: The total number of hosts.
-    :type total_hosts: int
+    :type total_hosts: :py:class:`int`
     :ivar install_label: The corresponding `Installomator <https://github.com/Installomator/Installomator>`_ label if available.
     """
 

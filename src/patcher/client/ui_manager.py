@@ -13,14 +13,6 @@ from . import BaseAPIClient
 
 
 class UIConfigManager:
-    """
-    Manages the user interface configuration settings.
-
-    This includes the management of header and footer text for exported PDFs,
-    custom fonts, font paths, and an optional branding logo. The class also handles
-    the downloading of default fonts if they are not already present.
-    """
-
     REGULAR_FONT_URL = (
         "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Regular.ttf"
     )
@@ -30,7 +22,11 @@ class UIConfigManager:
 
     def __init__(self):
         """
-        Initializes the UIConfigManager by loading the user interface configuration.
+        Manages the user interface configuration settings.
+
+        This includes the management of header and footer text for exported PDFs,
+        custom fonts, font paths, and an optional branding logo. The class also handles
+        the downloading of default fonts if they are not already present.
         """
         self.log = LogMe(self.__class__.__name__)
         self.plist_path = (
@@ -60,7 +56,7 @@ class UIConfigManager:
         are present in the expected directory.
 
         :return: ``True`` if the fonts are present.
-        :rtype: bool
+        :rtype: :py:class:`bool`
         """
         if self._fonts_saved is None:
             regular_font_path = self.font_dir / "Assistant-Regular.ttf"
@@ -93,14 +89,13 @@ class UIConfigManager:
         Downloads the Assistant font family from the specified URL to the given destination path.
 
         .. note:
-
             This API call is intentionally kept separate from the :class:`~patcher.client.api_client.ApiClient` class as
             the scope of this API call is solely for UI purposes.
 
         :param url: The URL to download the font from.
-        :type url: str
+        :type url: ;:py:class:`str`
         :param dest_path: The local path where the downloaded font should be saved.
-        :type dest_path: str
+        :type dest_path: :py:class:`~pathlib.Path`
         :raises ShellCommandError: Raised if the font cannot be downloaded due to a network error or invalid response.
         :raises PatcherError: If the destination path's parent cannot be created.
         """
@@ -173,21 +168,21 @@ class UIConfigManager:
         Retrieves the user interface configuration settings as a dictionary.
 
         :return: Configuration settings such as header text, footer text, font paths, and branding logo.
-        :rtype: Dict
+        :rtype: :py:obj:`~typing.Dict`
         """
         self.log.debug("Attempting to retrieve UI Configuration settings.")
         return self.config
 
-    def get(self, key: str, fallback: str = None) -> str:
+    def get(self, key: str, fallback: Optional[str] = None) -> str:
         """
         Retrieves a specific configuration value from the UI configuration.
 
         :param key: The key for the configuration value to retrieve.
-        :type key: str
+        :type key: :py:class:`str`
         :param fallback: The value to return if the key is not found. Defaults to ``None``.
-        :type fallback: str, optional
+        :type fallback: :py:obj:`~typing.Optional` of :py:class:`str`
         :return: The configuration value corresponding to the provided key, or the fallback value if the key is not found.
-        :rtype: str
+        :rtype: :py:class:`str`
         """
         return self.get_ui_config().get(key, fallback)
 
@@ -199,7 +194,7 @@ class UIConfigManager:
         such as header/footer text, font choices, and branding logo.
 
         :return: ``True`` if the reset was successful.
-        :rtype: bool
+        :rtype: :py:class:`bool`
         """
         self.log.debug("Attempting to reset configuration settings.")
         try:
@@ -221,7 +216,9 @@ class UIConfigManager:
         Guides the user through configuring UI settings for PDF reports, including header/footer text,
         font choices, and an optional branding logo.
 
-        This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
+        .. note::
+            This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
+
         """
         self.log.debug("Prompting user for UI setup.")
         header_text = click.prompt("Enter the Header Text to use on PDF reports")
@@ -250,14 +247,15 @@ class UIConfigManager:
         If the specified font files cannot be copied to the passed ``font_dir``, the default fonts
         are used and a warning is logged.
 
-        This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
+        .. note::
+            This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
 
         :param use_custom_font: Indicates whether to use a custom font.
-        :type use_custom_font: bool
+        :type use_custom_font: :py:class:`bool`
         :param font_dir: The directory to store the font files.
-        :type font_dir: Union[str, Path]
+        :type font_dir: :py:class:`~pathlib.Path`
         :return: A tuple containing the font name, regular font path, and bold font path.
-        :rtype: Tuple[str, str, str]
+        :rtype: :py:obj:`~typing.Tuple` of :py:class:`str` and :py:class:`~pathlib.Path`
         """
         if use_custom_font:
             self.log.debug(
@@ -304,9 +302,9 @@ class UIConfigManager:
         solely used in conjunction with the :class:`~patcher.client.setup.Setup` class.
 
         :param use_logo: Indicates whether or not to use a custom logo.
-        :type use_logo: bool
+        :type use_logo: :py:class:`bool`
         :return: The path to the saved logo file, or None if no logo is configured.
-        :rtype: Optional[str]
+        :rtype: :py:obj:`~typing.Optional` of :py:class:`str`
         :raises SetupError: If the provided logo path does not exist.
         :raises PatcherError: If the provided logo fails pillow validation.
         :raises PatcherError: If the logo file could not be copied to the destination path.
@@ -381,20 +379,22 @@ class UIConfigManager:
     ):
         """
         Saves the UI configuration settings to the configuration file.
-        This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
+
+        .. note::
+            This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
 
         :param header_text: The header text for PDF reports.
-        :type header_text: str
+        :type header_text: :py:class:`str`
         :param footer_text: The footer text for PDF reports.
-        :type footer_text: str
+        :type footer_text: :py:class:`str`
         :param font_name: The name of the font to use.
-        :type font_name: str
+        :type font_name: :py:class:`str`
         :param font_regular_path: The path to the regular font file.
-        :type font_regular_path: Union[str, Path]
+        :type font_regular_path: :py:obj:`~typing.Union` of :py:class:`str` or :py:class:`~pathlib.Path`
         :param font_bold_path: The path to the bold font file.
-        :type font_bold_path: Union[str, Path]
-        :param logo_path: The path to company/branding logo file.
-        :type logo_path: Optional[Union[str, Path]], defaults to None.
+        :type font_bold_path: :py:obj:`~typing.Union` of :py:class:`str` or :py:class:`~pathlib.Path`
+        :param logo_path: The path to company/branding logo file. Defaults to None.
+        :type logo_path: :py:obj:`~typing.Optional` of :py:obj:`~typing.Union` of :py:class:`str` or :py:class:`~pathlib.Path`
         """
         # Load existing plist file if it exists
         plist_data = self._load_plist_file()
@@ -416,7 +416,7 @@ class UIConfigManager:
         Retrieves the logo path from the UI configuration.
 
         :return: The logo path as a string if it exists, else None.
-        :rtype: Union[str, None]
+        :rtype: :py:obj:`~typing.Union` of :py:class:`str` or None
         """
         return self.get("LOGO_PATH", None)
 

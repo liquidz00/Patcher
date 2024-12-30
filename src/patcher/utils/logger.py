@@ -18,7 +18,7 @@ class UnifiedLogHandler(logging.Handler):
         Emit a log message to macOS Unified Logs.
 
         :param record: The log record to emit.
-        :type record: LogRecord
+        :type record: :py:obj:`~logging.LogRecord`
         """
         if platform.system() != "Darwin":
             return  # macOS only
@@ -49,13 +49,13 @@ class PatcherLog:
         Configures and returns a logger. If the logger is already configured, it ensures no duplicate handlers.
 
         :param name: Name of the logger, defaults to "Patcher".
-        :type name: Optional[str]
+        :type name: :py:obj:`~typing.Optional` of :py:class:`str`
         :param level: Logging level, defaults to INFO if not specified.
-        :type level: Optional[int]
+        :type level: :py:obj:`~typing.Optional` of :py:class:`int`
         :param debug: Whether to enable debug logging for console, defaults to False.
-        :type debug: bool
+        :type debug: :py:class:`bool`
         :return: The configured logger.
-        :rtype: logging.logger
+        :rtype: :py:obj:`~logging.Logger`
         """
         logger_name = name if name else PatcherLog.LOGGER_NAME
         os.makedirs(PatcherLog.LOG_DIR, exist_ok=True)
@@ -96,15 +96,14 @@ class PatcherLog:
         Setup a child logger for a specified context.
 
         .. versionremoved:: 2.0
-
             The ``debug`` parameter is now handled at CLI entry point. Child loggers with an explicitly set logging level will not respect configuration changes to the root logger.
 
         :param childName: The name of the child logger.
-        :type childName: str
+        :type childName: :py:class:`str`
         :param loggerName: The name of the parent logger, defaults to "Patcher".
-        :type loggerName: str
+        :type loggerName: :py:class:`str`
         :return: The configured child logger.
-        :rtype: logging.Logger
+        :rtype: :py:obj:`~logging.Logger`
         """
         name = loggerName if loggerName else PatcherLog.LOGGER_NAME
         return logging.getLogger(name).getChild(childName)
@@ -121,11 +120,11 @@ class PatcherLog:
         This method is intended to be assigned to ``sys.excepthook`` to handle any uncaught exceptions in the application.
 
         :param exc_type: The class of the exception raised.
-        :type exc_type: Type[BaseException]
+        :type exc_type: :py:obj:`~typing.Type` of :py:class:`BaseException`
         :param exc_value: The instance of the exception raised.
-        :type exc_value: BaseException
+        :type exc_value: :py:class:`BaseException`
         :param exc_traceback: The traceback object associated with the exception.
-        :type exc_traceback: Optional[TracebackType]
+        :type exc_traceback: :py:obj:`~typing.Optional` of :py:obj:`~types.TracebackType`
         """
         parent_logger = logging.getLogger(PatcherLog.LOGGER_NAME)
         child_logger = parent_logger.getChild("UnhandledException")
@@ -153,14 +152,13 @@ class PatcherLog:
 
 
 class LogMe:
-    """
-    A wrapper class for logging with optional output to console using click.
-
-    :param class_name: The name of the class for which the logger is being set up.
-    :type class_name: str
-    """
-
     def __init__(self, class_name: str):
+        """
+        A wrapper class for logging with optional output to console using click.
+
+        :param class_name: The name of the class for which the logger is being set up.
+        :type class_name: :py:class:`str`
+        """
         self.logger = PatcherLog.setup_child_logger(class_name)
 
     @property

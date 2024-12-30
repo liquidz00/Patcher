@@ -15,39 +15,33 @@ from ...utils.logger import LogMe
 
 
 class PDFReport(FPDF):
-    """
-    The ``PDFReport`` class extends FPDF to create a PDF report from an Excel file
-    containing patch data. It supports custom headers, footers, font styles,
-    and an optional branding logo based on the UI configuration.
-    """
-
     def __init__(
         self,
-        ui_config: UIConfigManager,
         orientation="L",
         unit="mm",
         format="A4",
         date_format="%B %d %Y",
     ):
         """
-        Initializes the PDFReport with the provided parameters and UIConfigManager.
+        The ``PDFReport`` class extends FPDF to create a PDF report from an Excel file containing patch data.
 
-        :param ui_config: An instance of ``UIConfigManager`` for managing UI configuration.
-        :type ui_config: :class:`patcher.client.ui_manager.UIConfigManager`
+        It supports custom headers, footers, font styles, and an optional branding logo based on the UI configuration.
+
         :param orientation: Orientation of the PDF, default is "L" (landscape).
-        :type orientation: str
+        :type orientation: :py:class:`str`
         :param unit: Unit of measurement, default is "mm".
-        :type unit: str
+        :type unit: :py:class:`str`
         :param format: Page format, default is "A4".
-        :type format: str
+        :type format: :py:class:`str`
         :param date_format: Date format string for the PDF report header, default is "%B %d %Y".
-        :type date_format: str
+        :type date_format: :py:class:`str`
         """
         self.log = LogMe(self.__class__.__name__)
         super().__init__(orientation=orientation, unit=unit, format=format)  # type: ignore
         self.date_format = date_format
-        self.ui_config = ui_config.get_ui_config()
-        self.logo_path = ui_config.get_logo_path()
+        self.ui = UIConfigManager()
+        self.ui_config = self.ui.get_ui_config()
+        self.logo_path = self.ui.get_logo_path()
 
         self.add_font(self.ui_config.get("FONT_NAME"), "", self.ui_config.get("FONT_REGULAR_PATH"))
         self.add_font(self.ui_config.get("FONT_NAME"), "B", self.ui_config.get("FONT_BOLD_PATH"))
@@ -61,9 +55,9 @@ class PDFReport(FPDF):
         Gets the aspect ratio of the logo provided.
 
         :param image_path: Path to the image file
-        :type image_path: str
+        :type image_path: :py:class:`str`
         :return: The width-to-height ratio of the image.
-        :rtype: float
+        :rtype: :py:class:`float`
         """
         with Image.open(image_path) as img:
             width, height = img.size
@@ -75,9 +69,9 @@ class PDFReport(FPDF):
         Trims transparent padding from the logo and returns the path to a temporary file.
 
         :param image_path: Path to the input image file.
-        :type image_path: str
+        :type image_path: :py:class:`str`
         :return: Path to the trimmed image.
-        :rtype: str
+        :rtype: :py:class:`str`
         """
         with Image.open(image_path) as img:
             bbox = img.getbbox()
@@ -187,7 +181,7 @@ class PDFReport(FPDF):
         :param data: DataFrame containing dataset to be included in PDF.
         :type data: pandas.DataFrame
         :return: A list of column widths proportional to header lengths.
-        :rtype: List[float]
+        :rtype: :py:obj:`~typing.List` of :py:class:`float`
         """
         # Assign widths based on header lengths
         page_width = self.w - 20  # Account for left/right margins
@@ -224,9 +218,9 @@ class PDFReport(FPDF):
         the same directory as the Excel file.
 
         :param excel_file: Path to the Excel file to convert to PDF.
-        :type excel_file: Union[str, Path]
+        :type excel_file: :py:obj:`~typing.Union` of :py:class:`str` or :py:class:`~pathlib.Path`
         :param date_format: The date format string for the PDF report header.
-        :type date_format: str
+        :type date_format: :py:class:`str`
         :raises PatcherError: If the data could not be parsed or is empty.
         :raises PatcherError: If the PDF could not be exported due to permissions or OS issues.
         """
@@ -242,7 +236,7 @@ class PDFReport(FPDF):
             )
 
         # Create instance of FPDF
-        pdf = PDFReport(ui_config=UIConfigManager(), date_format=date_format)
+        pdf = PDFReport(date_format=date_format)
 
         # Set headers and calculate column widths
         pdf.table_headers = df.columns.tolist()

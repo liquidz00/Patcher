@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Union
 
 import pandas as pd
 
@@ -11,27 +11,24 @@ from ..patch import PatchTitle
 
 
 class ExcelReport:
-    """
-    The ``ExcelReport`` class provides functionality to export patch data into an
-    Excel spreadsheet, saving it to the specified directory.
-    """
-
     def __init__(self):
+        """
+        The ``ExcelReport`` class provides functionality to export patch data into an
+        Excel spreadsheet, saving it to the specified directory.
+        """
         self.log = LogMe(self.__class__.__name__)
 
-    def export_to_excel(
-        self, patch_reports: List[PatchTitle], output_dir: Union[str, Path]
-    ) -> Optional[str]:
+    def export_to_excel(self, patch_reports: List[PatchTitle], output_dir: Union[str, Path]) -> str:
         """
         This method converts a list of :class:`~patcher.models.patch.PatchTitle` instances into a DataFrame and
         writes it to an Excel file. The file is saved with a timestamp in the filename.
 
         :param patch_reports: List of ``PatchTitle`` instances containing patch report data.
-        :type patch_reports: List[PatchTitle]
+        :type patch_reports: :py:obj:`~typing.List` of :class:`~patcher.models.patch.PatchTitle`
         :param output_dir: Directory where the Excel spreadsheet will be saved.
-        :type output_dir: Union[str, Path]
+        :type output_dir: :py:obj:`~typing.Union` of :py:class:`str` or :py:class:`~pathlib.Path`
         :return: Path to the created Excel spreadsheet.
-        :rtype: Optional[str]
+        :rtype: :py:class:`str`
         :raises PatcherError: If the dataframe is unable to be created or the excel file unable to be saved.
         """
         self.log.debug(f"Attempting Excel export to {str(output_dir)}")

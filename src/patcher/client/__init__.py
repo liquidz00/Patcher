@@ -9,26 +9,21 @@ from ..utils.logger import LogMe
 
 
 class BaseAPIClient:
-    """
-    The BaseAPIClient class controls concurrency settings and secure connections for *all* API calls.
-
-    This class forms the backbone of Patcher's ability to interact with external APIs.
-    It manages the number of API requests that can be made simultaneously, ensuring the tool is both
-    efficient and does not overload any servers.
-
-    .. warning::
-        Changing the max_concurrency value could lead to your Jamf server being unable to perform other basic tasks.
-        It is **strongly recommended** to limit API call concurrency to no more than 5 connections.
-        See `Jamf Developer Guide <https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices>`_ for more information.
-
-    """
-
     def __init__(self, max_concurrency: int = 5):
         """
-        Initializes the BaseAPIClient class with default settings.
+        The BaseAPIClient class controls concurrency settings and secure connections for *all* API calls.
 
-        :param max_concurrency: The maximum number of API requests that can be sent at once. Defaults to 5.
-        :type max_concurrency: int
+        This class forms the backbone of Patcher's ability to interact with external APIs.
+        It manages the number of API requests that can be made simultaneously, ensuring the tool is both
+        efficient and does not overload any servers.
+
+        .. warning::
+            Changing the max_concurrency value could lead to your Jamf server being unable to perform other basic tasks.
+            It is **strongly recommended** to limit API call concurrency to no more than 5 connections.
+            See `Jamf Developer Guide <https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices>`_ for more information.
+
+        :param max_concurrency: The maximum number of API requests that can be sent at once. Defaults to ``5``.
+        :type max_concurrency: :py:class:`int`
         """
         self.max_concurrency = max_concurrency
         self.semaphore = asyncio.Semaphore(max_concurrency)
@@ -42,7 +37,7 @@ class BaseAPIClient:
         Gets the current concurrency setting used by Patcher.
 
         :return: The maximum number of concurrent API requests that can be made.
-        :rtype: int
+        :rtype: :py:class:`int`
         """
         return self.max_concurrency
 
@@ -56,8 +51,8 @@ class BaseAPIClient:
         to 5 connections to avoid overloading the Jamf server.
 
         :param concurrency: The new maximum concurrency level.
-        :type concurrency: int
-        :raises ValueError: If the concurrency level is less than 1.
+        :type concurrency: :py:class:`int`
+        :raises PatcherError: If the concurrency level is less than 1.
         """
         if concurrency < 1:
             raise PatcherError("Concurrency level must be at least 1.")
@@ -71,9 +66,7 @@ class BaseAPIClient:
             formatted_headers.extend(["-H", f"{k}: {v}"])
         return formatted_headers
 
-    def _handle_status_code(
-        self, status_code: int, response_json: Optional[Dict]
-    ) -> Optional[Dict]:
+    def _handle_status_code(self, status_code: int, response_json: Optional[Dict]) -> Dict:
         """Handles HTTP status codes and returns the appropriate response or raises errors."""
         self.log.debug(f"Parsing API response. (status code: {status_code})")
 
@@ -128,7 +121,7 @@ class BaseAPIClient:
 
         return sanitized
 
-    async def execute(self, command: List[str]) -> Optional[Union[Dict, str]]:
+    async def execute(self, command: List[str]) -> Union[Dict, str]:
         """
         Asynchronously executes a shell command using subprocess and returns the output.
 
@@ -140,10 +133,10 @@ class BaseAPIClient:
             functionality of the API client, such as invoking cURL commands for API calls.
 
         :param command: A list representing the command and its arguments to be executed in the shell.
-        :type command: List[str]
-        :return: The standard output of the executed command decoded as a string, or None if there is an error.
-        :rtype: Optional[Union[Dict, str]]
-        :raises exceptions.ShellCommandError: If the command execution fails (returns a non-zero exit code).
+        :type command: :py:obj:`~typing.List` of :py:class:`str`
+        :return: The standard output of the executed command decoded as a string.
+        :rtype: :py:obj:`~typing.Union` of either :py:obj:`~typing.Dict` or :py:class:`str`
+        :raises ShellCommandError: If the command execution fails (returns a non-zero exit code).
         """
         sanitized_command = self._sanitize_command(command)
         sanitized_command_str = " ".join(sanitized_command).replace("\n", "")
@@ -182,18 +175,18 @@ class BaseAPIClient:
         data: Optional[Dict[str, str]] = None,
     ) -> Dict:
         """
-        Asynchronously fetches JSON data from the specified URL using a specified HTTP method.
+        Asynchronously fetches JSON data from the specified URL using the specified HTTP method.
 
         :param url: The URL to fetch data from.
-        :type url: str
-        :param headers: Optional headers to include in the request.
-        :type headers: Optional[Dict[str, str]]
+        :type url: :py:class:`str`
+        :param headers: Optional headers to include in the request. Defaults to ``self.headers``.
+        :type headers: :py:obj:`~typing.Optional` of :py:obj:`~typing.Dict`
         :param method: HTTP method to use ("GET" or "POST"). Defaults to "GET".
-        :type method: str
+        :type method: :py:class:`str`
         :param data: Optional form data to include for POST request.
-        :type data: Optional[Dict[str, str]]
-        :return: The fetched JSON data as a dictionary, or None if the request fails.
-        :rtype: Optional[Dict]
+        :type data: :py:obj:`~typing.Optional` of :py:obj:`~typing.Dict`
+        :return: The fetched JSON data as a dictionary.
+        :rtype: :py:obj:`~typing.Dict`
         :raises APIResponseError: If the response payload is not valid JSON, or if command execution fails.
         """
         self.log.debug(f"Attempting to fetch JSON from {url}")
@@ -249,18 +242,18 @@ class BaseAPIClient:
 
     async def fetch_batch(
         self, urls: List[str], headers: Optional[Dict[str, str]] = None
-    ) -> List[Optional[Dict]]:
+    ) -> List[Dict]:
         """
-        Fetches JSON data in batches to respect the concurrency limit. Data is fetched
-        from each URL in the provided list, ensuring that no more than ``max_concurrency``
-        requests are sent concurrently.
+        Fetches JSON data in batches to respect the concurrency limit.
+
+        Data is fetched from each URL in the provided list, ensuring that no more than ``max_concurrency`` requests are sent concurrently.
 
         :param urls: List of URLs to fetch data from.
-        :type urls: List[str]
-        :param headers:
-        :type headers: Optional[Dict[str, str]] = None
-        :return: A list of JSON dictionaries or None for URLs that fail to retrieve data.
-        :rtype: List[Optional[Dict]]
+        :type urls: :py:obj:`~typing.List` of :py:class:`str`
+        :param headers: Optional headers to include in the request. Defaults to ``self.headers`` via the :meth:`~patcher.client.__init__.fetch_json` method.
+        :type headers: :py:obj:`~typing.Optional` of :py:obj:`~typing.Dict`
+        :return: A list of JSON dictionaries.
+        :rtype: :py:obj:`~typing.List` of :py:obj:`~typing.Dict`
         """
         self.log.info(f"Attempting to fetch batch of {len(urls)} URLs")
         results = []
@@ -274,19 +267,19 @@ class BaseAPIClient:
     # API calls for client setup
     async def fetch_basic_token(self, username: str, password: str, jamf_url: str) -> str:
         """
-        Asynchronously retrieves a bearer token using basic authentication.
+        Asynchronously retrieves a basic token using basic authentication.
 
         This method is intended for initial setup to obtain client credentials for API clients and roles.
         It should not be used for regular token retrieval after setup.
 
         :param username: Username of admin Jamf Pro account for authentication. Not permanently stored, only used for initial token retrieval.
-        :type username: str
+        :type username: :py:class:`str`
         :param password: Password of admin Jamf Pro account. Not permanently stored, only used for initial token retrieval.
-        :type password: str
+        :type password: :py:class:`str`
         :param jamf_url: Jamf Server URL (See :attr:`~patcher.models.jamf_client.JamfClient.server`).
-        :type jamf_url: str
+        :type jamf_url: :py:class:`str`
         :returns: The BasicToken string.
-        :rtype: str
+        :rtype: :py:class:`str`
         :raises APIResponseError: If the call is unauthorized or unsuccessful.
         """
         self.log.debug("Attempting to retrieve Basic Token with provided credentials.")
@@ -322,14 +315,17 @@ class BaseAPIClient:
 
     async def create_roles(self, token: str, jamf_url: str) -> bool:
         """
-        Creates the necessary API roles using the provided bearer token.
+        Creates the necessary API roles using the provided basic token.
 
-        :param token: The bearer token to use for authentication. Defaults to the stored token if not provided.
-        :type token: Optional[str]
+        .. seealso::
+            :class:`~patcher.models.jamf_client.ApiRoleModel`
+
+        :param token: The basic token to use for authentication.
+        :type token: :py:class:`str`
         :param jamf_url: Jamf Server URL
-        :type jamf_url: str
+        :type jamf_url: :py:class:`str`
         :return: True if roles were successfully created, False otherwise.
-        :rtype: bool
+        :rtype: :py:class:`bool`
         """
         self.log.debug("Attempting to create Patcher API Role via Jamf API.")
         role = ApiRoleModel()
@@ -353,16 +349,19 @@ class BaseAPIClient:
             self.log.error("Failed to create Patcher API role as expected.")
             return False
 
-    async def create_client(self, token: str, jamf_url: str) -> Optional[Tuple[str, str]]:
+    async def create_client(self, token: str, jamf_url: str) -> Tuple[str, str]:
         """
         Creates an API client and retrieves its client ID and client secret.
 
-        :param token: The bearer token to use for authentication. Defaults to the stored token if not provided.
-        :type token: Optional[str]
+        .. seealso::
+            :class:`~patcher.models.jamf_client.ApiClientModel`
+
+        :param token: The basic token to use for authentication.
+        :type token: :py:class:`str`
         :param jamf_url: Jamf Server URL
-        :type jamf_url: str
+        :type jamf_url: :py:class:`str`
         :return: A tuple containing the client ID and client secret.
-        :rtype: Optional[Tuple[str, str]]
+        :rtype: :py:obj:`~typing.Tuple` of :py:class:`str`
         """
         self.log.debug("Attempting to create Patcher API Client with Jamf API.")
         client = ApiClientModel()

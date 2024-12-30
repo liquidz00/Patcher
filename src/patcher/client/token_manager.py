@@ -10,15 +10,13 @@ from .config_manager import ConfigManager
 
 
 class TokenManager:
-    """
-    The ``TokenManager`` class handles all operations related to the token lifecycle, including fetching,
-    saving, and validating the access token. It is initialized with a :class:`~patcher.client.config_manager.ConfigManager`
-    instance, which provides the necessary credentials.
-    """
-
     def __init__(self, config: ConfigManager):
         """
-        Initializes the TokenManager with a provided ``ConfigManager`` instance.
+        The ``TokenManager`` class handles all operations related to the token lifecycle, including fetching,
+        saving, and validating the access token.
+
+        It is initialized with a :class:`~patcher.client.config_manager.ConfigManager` instance, which
+        provides the necessary credentials.
 
         :param config: A ``ConfigManager`` instance for managing credentials and configurations.
         :type config: :class:`~patcher.client.config_manager.ConfigManager`
@@ -88,7 +86,7 @@ class TokenManager:
         token string and token expiration.
 
         :param response: The API response payload from Jamf.
-        :type response: Dict
+        :type response: :py:obj:`~typing.Dict`
         :return: The extracted ``AccessToken`` object.
         :rtype: :class:`~patcher.models.token.AccessToken`
         """
@@ -130,7 +128,7 @@ class TokenManager:
         expiration date.
 
         :return: ``True`` if the token is valid (not expired), otherwise ``False``.
-        :rtype: bool
+        :rtype: :py:class:`bool`
         """
         return not self.token.is_expired
 
@@ -140,7 +138,6 @@ class TokenManager:
         If the token is found to be invalid, a new token is requested and refreshed.
 
         .. seealso::
-
             The :meth:`~patcher.utils.decorators.check_token` decorator leverages
             this method with thread locking to ensure tokens are valid before API calls.
 

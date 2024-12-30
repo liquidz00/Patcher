@@ -144,7 +144,7 @@ class Analyzer:
         """
         Initializes a DataFrame by reading the Excel file from the provided path.
 
-        :param excel_path: The path to the Excel file, either as a string or a pathlib.Path object.
+        :param excel_path: The path to the Excel file, either as a string or a :py:class:`~pathlib.Path` object.
         :type excel_path: Union[Path, str]
         :return: A pandas DataFrame loaded from the Excel file.
         :rtype: pd.DatFrame

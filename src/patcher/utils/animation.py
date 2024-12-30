@@ -5,25 +5,21 @@ import asyncclick as click
 
 
 class Animation:
-    """
-    Handles displaying an animated spinner with a message during long-running operations.
-
-    The ``Animation`` class provides a simple way to display a rotating spinner along with
-    a customizable message in the terminal, which can be useful for indicating progress
-    in asynchronous tasks.
-    """
-
     def __init__(self, message_template: str = "Processing", enable_animation: bool = True):
         """
-        Initialize the Animation object.
+        Handles displaying an animated spinner with a message during long-running operations.
 
-        Sets up the necessary attributes for controlling the animation, including the
-        message template, the spinner characters, and the color scheme.
+        The ``Animation`` class provides a simple way to display a rotating spinner along with
+        a customizable message in the terminal, which can be useful for indicating progress
+        in asynchronous tasks.
+
+        Necessary attributes for controlling the Animation are set up during initialization
+        of Animation objects (e.g., the message template, spinner characters, and color scheme).
 
         :param message_template: The base message to display alongside the spinner.
-        :type message_template: str
+        :type message_template: :py:class:`str`
         :param enable_animation: Flag to enable or disable the spinner animation.
-        :type enable_animation: bool
+        :type enable_animation: :py:class:`bool`
         """
         self.stop_event = asyncio.Event()
         self.message_template = message_template
@@ -59,7 +55,7 @@ class Animation:
         previous message before displaying the new one.
 
         :param new_message_template: The new message to display alongside the spinner.
-        :type new_message_template: str
+        :type new_message_template: :py:class:`str`
         """
         async with self.lock:
             clear_message = "\r" + " " * self.last_message_length + "\r"

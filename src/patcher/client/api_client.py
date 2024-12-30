@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from ..models.patch import PatchTitle
 from ..utils.decorators import check_token
@@ -12,28 +12,22 @@ from .token_manager import TokenManager
 
 
 class ApiClient(BaseAPIClient):
-    """
-    Provides methods for interacting with the Jamf API, specifically fetching patch data, device information, and OS versions.
-
-    All methods of the ApiClient class will raise an :exc:`~patcher.utils.exceptions.APIResponseError` if the API call is
-    unsuccessful.
-
-    .. seealso::
-        :meth:`~patcher.client.__init__.BaseAPIClient.fetch_json`
-
-    """
-
     def __init__(self, config: ConfigManager, concurrency: int):
         """
-        Initializes the ApiClient with the provided :class:`~patcher.client.config_manager.ConfigManager`.
+        Provides methods for interacting with the Jamf API, specifically fetching patch data, device information, and OS versions.
 
-        This sets up the API client with necessary credentials and session parameters for interacting with the Jamf API.
+        .. note::
+            All methods of the ApiClient class will raise an :exc:`~patcher.utils.exceptions.APIResponseError` if the API call is unsuccessful.
 
         .. seealso::
-            :class:`~patcher.models.jamf_client.JamfClient`
 
-        :param config: Instance of ConfigManager for loading and storing credentials.
-        :type config: ConfigManager
+            - :meth:`~patcher.client.__init__.BaseAPIClient.fetch_json`
+            - :class:`~patcher.models.jamf_client.JamfClient`
+
+        :param config: Instance of ``ConfigManager`` for loading and storing credentials.
+        :type config: :class:`~patcher.client.config_manager.ConfigManager`
+        :param concurrency: Maximum number of concurrent API requests. See :class:`~patcher.client.__init__.BaseAPIClient.concurrency`.
+        :type concurrency: :py:class:`int`
         """
         self.log = LogMe(self.__class__.__name__)
         self.config = config
@@ -50,9 +44,9 @@ class ApiClient(BaseAPIClient):
         Converts a UTC time string to a formatted string without timezone information.
 
         :param utc_time_str: UTC time string in ISO 8601 format (e.g., "2023-08-09T12:34:56+0000").
-        :type utc_time_str: str
+        :type utc_time_str: :py:class:`str`
         :return: Formatted date string (e.g., "Aug 09 2023") or None if the input format is invalid.
-        :rtype: str
+        :rtype: :py:class:`str`
         :raises PatcherError: If the time format provided is invalid.
         """
         try:
@@ -71,8 +65,8 @@ class ApiClient(BaseAPIClient):
         """
         Retrieves a list of patch software title IDs from the Jamf API.
 
-        :return: A list of software title IDs or None if an error occurs.
-        :rtype: List
+        :return: A list of software title IDs.
+        :rtype: :py:obj:`~typing.List` of :py:class:`str`
         """
         url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
         response = await self.fetch_json(url=url, headers=self.jamf_client.headers)
@@ -85,9 +79,9 @@ class ApiClient(BaseAPIClient):
         Retrieves patch summaries asynchronously for the specified policy IDs from the Jamf API.
 
         :param policy_ids: List of policy IDs to retrieve summaries for.
-        :type policy_ids: List[str]
+        :type policy_ids: :py:obj:`~typing.List` of :py:class:`str`
         :return: List of ``PatchTitle`` objects containing patch summaries.
-        :rtype: List[:class:`~patcher.models.patch.PatchTitle`]
+        :rtype: :py:obj:`~typing.List` of :class:`~patcher.models.patch.PatchTitle`
         """
         urls = [
             f"{self.jamf_url}/api/v2/patch-software-title-configurations/{policy}/patch-summary"
@@ -110,13 +104,15 @@ class ApiClient(BaseAPIClient):
         return patch_titles
 
     @check_token
-    async def get_device_ids(self) -> Optional[List[int]]:
+    async def get_device_ids(self) -> List[int]:
         """
         Asynchronously fetches the list of mobile device IDs from the Jamf Pro API.
-        This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
 
-        :return: A list of mobile device IDs or None on error.
-        :rtype: Optional[List[int]]
+        .. note::
+            This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
+
+        :return: A list of mobile device IDs.
+        :rtype: :py:obj:`~typing.List` of :py:class:`int`
         """
         url = f"{self.jamf_url}/api/v2/mobile-devices"
         response = await self.fetch_json(url=url, headers=self.jamf_client.headers)
@@ -128,15 +124,17 @@ class ApiClient(BaseAPIClient):
     async def get_device_os_versions(
         self,
         device_ids: List[int],
-    ) -> Optional[List[Dict[str, str]]]:
+    ) -> List[Dict[str, str]]:
         """
         Asynchronously fetches the OS version and serial number for each device ID provided.
-        This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
+
+        .. note::
+            This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
 
         :param device_ids: A list of mobile device IDs to retrieve information for.
-        :type device_ids: List[int]
-        :return: A list of dictionaries containing the serial numbers and OS versions, or None on error.
-        :rtype: Optional[List[Dict[str, str]]]
+        :type device_ids: :py:obj:`~typing.List` of :py:class:`int`
+        :return: A list of dictionaries containing the serial numbers and OS versions.
+        :rtype: :py:obj:`~typing.List` of :py:obj:`~typing.Dict`
         """
         urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
         subsets = await self.fetch_batch(urls, headers=self.jamf_client.headers)
@@ -152,17 +150,18 @@ class ApiClient(BaseAPIClient):
         self.log.info(f"Successfully obtained OS versions for {len(devices)} devices.")
         return devices
 
-    async def get_sofa_feed(self) -> Optional[List[Dict[str, str]]]:
+    async def get_sofa_feed(self) -> List[Dict[str, str]]:
         """
         Fetches iOS Data feeds from SOFA and extracts latest OS version information.
-        To limit the amount of possible SSL verification checks, this method utilizes a subprocess call
-        instead.
-        This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
 
-        :return: A list of dictionaries containing base OS versions, latest iOS versions and release dates,
-                or None on error.
-        :rtype: Optional[List[Dict[str, str]]]
-        :raises APIResponseError: If return code from SOFA command is non-zero.
+        To limit the amount of possible SSL verification checks, this method utilizes a subprocess call instead.
+
+        .. note::
+            This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
+
+        :return: A list of dictionaries containing base OS versions, latest iOS versions, and release dates.
+        :rtype: :py:obj:`~typing.List` of :py:obj:`~typing.Dict`
+        :raises APIResponseError: If return code from SOFA is non-zero.
         """
         # Call can be made directly as no additional headers or payloads need to be added
         command = ["/usr/bin/curl", "-s", "https://sofafeed.macadmins.io/v1/ios_data_feed.json"]

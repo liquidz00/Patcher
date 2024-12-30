@@ -29,15 +29,23 @@ release = f"v{__version__}"
 extensions = [
     "sphinx_design",
     "sphinx.ext.autodoc",
-    "sphinx.ext.viewcode",
-    "sphinx.ext.githubpages",
-    "sphinx.ext.autosummary",
     "sphinx.ext.autosectionlabel",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.githubpages",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.viewcode",
     "sphinxcontrib.autodoc_pydantic",
     "sphinx_copybutton",
     "myst_parser",
     "sphinx_togglebutton",
 ]
+
+# Intersphinx mapping
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+}
+
+default_role = "py:obj"
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]

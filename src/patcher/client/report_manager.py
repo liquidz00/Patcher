@@ -20,13 +20,6 @@ from .ui_manager import UIConfigManager
 
 
 class ReportManager:
-    """
-    Handles the generation and management of patch reports.
-
-    This class coordinates various components such as configuration, token management, API interaction,
-    and report generation (both Excel and PDF) to produce reports on patch statuses.
-    """
-
     def __init__(
         self,
         config: ConfigManager,
@@ -38,7 +31,10 @@ class ReportManager:
         debug=False,
     ):
         """
-        Initializes the patcher class with the provided components.
+        Handles the generation and management of patch reports.
+
+        This class coordinates various components such as configuration, token management, API interaction,
+        and report generation (both Excel and PDF) to produce reports on patch statuses.
 
         :param config: Manages the configuration settings, including credentials.
         :type config: :class:`~patcher.client.config_manager.ConfigManager`
@@ -58,8 +54,8 @@ class ReportManager:
         :param ui_config: Manages the UI configuration for PDF report generation.
         :type ui_config: :class:`~patcher.client.ui_manager.UIConfigManager`
 
-        :param debug: Enables debug mode if True, providing detailed logging.
-        :type debug: bool
+        :param debug: Overrides animation of `~patcher.client.report_manager.ReportManager.process_reports` method if True.
+        :type debug: :py:class:`bool`
         """
         self.config = config
         self.token_manager = token_manager
@@ -74,7 +70,7 @@ class ReportManager:
         self,
         device_versions: List[Dict[str, str]],
         latest_versions: List[Dict[str, str]],
-    ) -> Optional[List[PatchTitle]]:
+    ) -> List[PatchTitle]:
         """
         Analyzes iOS version data to determine how many enrolled devices are on the latest version.
 
@@ -82,11 +78,11 @@ class ReportManager:
         provided by the SOFA feed, calculating how many devices are fully updated.
 
         :param device_versions: A list of dictionaries containing devices and their respective iOS versions.
-        :type device_versions: List[Dict[str, str]]
+        :type device_versions: :py:obj:`~typing.List` of :py:obj:`~typing.Dict`
         :param latest_versions: A list of the most recent iOS versions available.
-        :type latest_versions: List[Dict[str, str]]
+        :type latest_versions: :py:obj:`~typing.List` of :py:obj:`~typing.Dict`
         :return: A list of ``PatchTitle`` objects, each representing a summary of the patch status for an iOS version.
-        :rtype: Optional[List[:class:`~patcher.models.patch.PatchTitle`]]
+        :rtype: :py:obj:`~typing.List` of :class:`~patcher.models.patch.PatchTitle`
         :raises PatcherError: If a KeyError or ZeroDivisionError is encountered.
         """
         self.log.debug("Attempting to calculate iOS devices on latest version.")
@@ -172,22 +168,22 @@ class ReportManager:
         ensuring that reports are accurate, complete, and formatted according to the user's preferences.
 
         :param path: The directory where the reports will be saved. It must be a valid directory, not a file.
-        :type path: Union[str, Path]
+        :type path: :py:obj:`~typing.Union` of :py:class:`str` or :py:class:`~pathlib.Path`
 
         :param pdf: If True, generates PDF versions of the reports in addition to Excel.
-        :type pdf: bool
+        :type pdf: :py:class:`bool`
 
         :param sort: Specifies the column by which to sort the reports (e.g., 'released' or 'completion_percent').
-        :type sort: Optional[str]
+        :type sort: :py:obj:`~typing.Optional` of :py:class:`str`
 
         :param omit: If True, omits patches that were released within the last 48 hours.
-        :type omit: bool
+        :type omit: :py:class:`bool`
 
         :param ios: If True, includes iOS device data in the reports.
-        :type ios: bool
+        :type ios: :py:class:`bool`
 
         :param date_format: Specifies the date format for headers in the reports. Default is "%B %d %Y" (Month Day Year).
-        :type date_format: str
+        :type date_format: :py:class:`str`
         """
         animation = Animation(enable_animation=not self.debug)
 
@@ -357,7 +353,7 @@ class ReportManager:
         """Generates PDF report from passed excel file with custom date format."""
         self.log.debug("Attempting to generate PDF report.")
         try:
-            pdf_report = PDFReport(self.ui_config)
+            pdf_report = PDFReport()
             await asyncio.to_thread(pdf_report.export_excel_to_pdf, excel_file, date_format)
             self.log.info("PDF file generated successfully.")
         except PatcherError as e:

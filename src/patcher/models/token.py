@@ -12,9 +12,9 @@ class AccessToken(Model):
     remaining before it expires.
 
     :param token: The access token string used for authentication.
-    :type token: str
+    :type token: :py:class:`str`
     :param expires: The expiration datetime of the token. The default is set to January 1, 1970.
-    :type expires: datetime
+    :type expires: :py:obj:`~datetime.datetime`
     """
 
     token: str = ""
@@ -25,7 +25,7 @@ class AccessToken(Model):
         Returns the string representation of the access token.
 
         :return: The access token string.
-        :rtype: str
+        :rtype: :py:class:`str`
         """
         return self.token
 
@@ -37,7 +37,7 @@ class AccessToken(Model):
         time.
 
         :return: ``True`` if the token is expired.
-        :rtype: bool
+        :rtype: :py:class:`bool`
         """
         return self.expires - timedelta(seconds=60) < datetime.now(timezone.utc)
 
@@ -48,6 +48,6 @@ class AccessToken(Model):
         If the token is already expired, it returns 0.
 
         :return: The number of seconds remaining until the token expires.
-        :rtype: int
+        :rtype: :py:class:`int`
         """
         return max(0, int((self.expires - datetime.now(timezone.utc)).total_seconds()))

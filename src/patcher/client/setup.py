@@ -33,21 +33,17 @@ class SetupType(Enum):
 
 
 class Setup:
-    """
-    Handles the initial setup process for the Patcher CLI tool.
-
-    This class guides users through configuring the necessary components to integrate
-    with their Jamf environment. The setup includes creating API roles, clients, and configuring
-    user interface settings for PDF reports.
-    """
-
     def __init__(
         self,
         config: ConfigManager,
         ui_config: UIConfigManager,
     ):
         """
-        Initializes the Setup class with configuration and UI configuration managers.
+        Handles the initial setup process for the Patcher CLI tool.
+
+        This class guides users through configuring the necessary components to integrate
+        with their Jamf environment. The setup includes creating API roles, clients, and configuring
+        user interface settings for PDF reports.
 
         :param config: Manages application configuration, including credential storage.
         :type config: :class:`~patcher.client.config_manager.ConfigManager`
@@ -67,7 +63,7 @@ class Setup:
         Indicates whether the setup process has been completed.
 
         :return: True if setup has been completed, False otherwise.
-        :rtype: bool
+        :rtype: :py:class:`bool`
         """
         if self._completed is None:
             self.log.debug("Checking setup completion status.")
@@ -290,7 +286,7 @@ class Setup:
         # Mark setup as complete
         self._mark_completion(value=True)
 
-    async def start(self, animator: Optional[Animation] = None):
+    async def start(self, animator: Optional[Animation] = None) -> None:
         """
         Allows the user to choose between different setup methods (Standard or SSO).
 
@@ -303,11 +299,10 @@ class Setup:
         - :attr:`~patcher.client.setup.SetupType.SSO` prompts for existing API credentials, obtains AccessToken and saves credentials.
 
         .. seealso::
-
             For SSO users, reference our :ref:`handling-sso` page for assistance creating an API integration.
 
         :param animator: The animation instance to update messages. Defaults to ``self.animator``.
-        :type animator: :class:`~patcher.utils.animation.Animation`
+        :type animator: :py:obj:`~typing.Optional` of :class:`~patcher.utils.animation.Animation`
         :raises SetupError: If a token could not be fetched, credentials are missing or setup could not be marked complete.
         """
         if self.completed:
@@ -333,7 +328,7 @@ class Setup:
         Setup completion as False and will re-trigger the setup assistant.
 
         :return: ``True`` if the property list file was successfully removed, ``False`` if it did not exist.
-        :rtype: bool
+        :rtype: :py:class:`bool`
         :raises PatcherError: If the file exists but could not be removed due to an error.
         """
         self.log.debug("Attempting to reset setup.")

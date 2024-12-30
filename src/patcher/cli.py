@@ -114,9 +114,9 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
     :param ctx: The context object, providing access to shared state between commands.
     :type ctx: click.Context
     :param kind: Specifies the type of reset to perform.
-    :type kind: str
+    :type kind: :py:class:`str`
     :param credential: The specific credential to reset when performing credentials reset. Defaults to all credentials if none specified.
-    :type credential: Optional[str]
+    :type credential: :py:obj:`~typing.Optional` of :py:class:`str`
     """
     log = ctx.obj.get("log")
     config = ctx.obj.get("config")
@@ -242,19 +242,19 @@ async def export(
     :param ctx: The context object, providing access to shared state between commands.
     :type ctx: click.Context
     :param path: The path to save the generated report(s).
-    :type path: str
+    :type path: :py:class:`str`
     :param pdf: Specifies whether or not to generate a PDF document in addition to Excel spreadsheet.
-    :type pdf: bool
+    :type pdf: :py:class:`bool`
     :param sort: Sort the patch reports by specifying a column.
-    :type sort: Optional[str]
+    :type sort: :py:obj:`~typing.Optional` of :py:class:`str`
     :param omit: Omit software titles with patches released in last 48 hours.
-    :type omit: bool
+    :type omit: :py:class:`bool`
     :param date_format: Specify the date format for the PDF header. Default is "%B %d %Y" (Month Day Year).
-    :type date_format: str
+    :type date_format: :py:class:`str`
     :param ios: If passed, includes iOS device data in exported reports.
-    :type ios: bool
+    :type ios: :py:class:`bool`
     :param concurrency: The maximum number of API requests that can be sent at once. Defaults to 5.
-    :type concurrency: int
+    :type concurrency: :py:class:`int`
     """
     config = ConfigManager()
     ui_config = UIConfigManager()
@@ -262,7 +262,7 @@ async def export(
     api_client = ApiClient(config, concurrency)
     token_manager = TokenManager(config)
     excel_report = ExcelReport()
-    pdf_report = PDFReport(ui_config)
+    pdf_report = PDFReport()
 
     patcher = ReportManager(
         config,
@@ -325,17 +325,17 @@ async def analyze(
     :param ctx: Context object for shared state across CLI commands.
     :type ctx: click.Context
     :param excel_file: Path to the Excel file containing patch management data.
-    :type excel_file: str
+    :type excel_file: :py:class:`str`
     :param threshold: Filters patches below the specified completion percentage.
-    :type threshold: float
+    :type threshold: :py:class:`float`
     :param criteria: Specifies the criteria for filtering patches.
-    :type criteria: str
+    :type criteria: :py:class:`str`
     :param top_n: Number of top entries to display based on the criteria.
-    :type top_n: int
+    :type top_n: :py:class:`int`
     :param summary: Flag to generate a summary file.
-    :type summary: bool
+    :type summary: :py:class:`bool`
     :param output_dir: Path to save generated summary, only if `--summary` flag passed.
-    :type output_dir: Union[str, Path]
+    :type output_dir: :py:obj:`~typing.Union` of :py:class:`str` or pathlib.Path
     """
     if summary and not output_dir:
         click.echo(
