@@ -1,15 +1,16 @@
 from datetime import datetime, timedelta, timezone
 
-from . import Model
+from pydantic import Field
 
-EPOCH_DT = datetime(1970, 1, 1, tzinfo=timezone.utc)
+from . import Model
 
 
 class AccessToken(Model):
     """
-    The ``AccessToken`` class encapsulates the access token string and its expiration
-    time. It provides methods to check the token's expiration status and the time
-    remaining before it expires.
+    Represents a `Bearer Token <https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#bearer-tokens>`_ used for authentication.
+
+    The ``AccessToken`` class additionally provides methods to check the token's expiration
+    status and the time remaining before it expires.
 
     :param token: The access token string used for authentication.
     :type token: :py:class:`str`
@@ -18,7 +19,7 @@ class AccessToken(Model):
     """
 
     token: str = ""
-    expires: datetime = EPOCH_DT
+    expires: datetime = Field(default_factory=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc))
 
     def __str__(self):
         """
