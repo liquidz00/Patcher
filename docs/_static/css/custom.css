@@ -25,3 +25,9 @@ html[data-theme="dark"] {
     --pst-color-secondary: #9d7eea; /* Lighter Grape */
     --pst-color-link-hover: #2a9df4; /* Lighter Dodger Blue */
 }
+
+
+.sd-table tr:hover {
+    /* Override hover when using sd-table directive */
+    background-color: unset !important;
+}
