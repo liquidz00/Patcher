@@ -31,10 +31,10 @@ class ApiClient(BaseAPIClient):
         """
         self.log = LogMe(self.__class__.__name__)
         self.config = config
-        self.token_manager = TokenManager(config)  # Use for check_token decorator
+        self.token_manager = TokenManager(config)
 
         # Creds can be loaded here as ApiClient objects can only exist after successful JamfClient creation.
-        self.jamf_client = config.attach_client()
+        self.jamf_client = self.token_manager.attach_client()
         self.jamf_url = self.jamf_client.base_url
 
         super().__init__(max_concurrency=concurrency)
@@ -68,8 +68,9 @@ class ApiClient(BaseAPIClient):
         :return: A list of software title IDs.
         :rtype: :py:obj:`~typing.List` of :py:class:`str`
         """
+        headers = await self.token_manager.headers()
         url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
-        response = await self.fetch_json(url=url, headers=self.jamf_client.headers)
+        response = await self.fetch_json(url=url, headers=headers)
         self.log.info("Patch policies obtained as expected.")
         return [title.get("id") for title in response]
 
@@ -87,7 +88,8 @@ class ApiClient(BaseAPIClient):
             f"{self.jamf_url}/api/v2/patch-software-title-configurations/{policy}/patch-summary"
             for policy in policy_ids
         ]
-        summaries = await self.fetch_batch(urls, headers=self.jamf_client.headers)
+        headers = await self.token_manager.headers()
+        summaries = await self.fetch_batch(urls, headers=headers)
 
         patch_titles = [
             PatchTitle(
@@ -115,7 +117,8 @@ class ApiClient(BaseAPIClient):
         :rtype: :py:obj:`~typing.List` of :py:class:`int`
         """
         url = f"{self.jamf_url}/api/v2/mobile-devices"
-        response = await self.fetch_json(url=url, headers=self.jamf_client.headers)
+        headers = await self.token_manager.headers()
+        response = await self.fetch_json(url=url, headers=headers)
         devices = response.get("results")
         self.log.info(f"Received {len(devices)} device IDs successfully.")
         return [device.get("id") for device in devices if device]
@@ -137,7 +140,8 @@ class ApiClient(BaseAPIClient):
         :rtype: :py:obj:`~typing.List` of :py:obj:`~typing.Dict`
         """
         urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
-        subsets = await self.fetch_batch(urls, headers=self.jamf_client.headers)
+        headers = await self.token_manager.headers()
+        subsets = await self.fetch_batch(urls, headers=headers)
 
         devices = [
             {
@@ -169,7 +173,7 @@ class ApiClient(BaseAPIClient):
         try:
             result = await self.execute(command)
         except ShellCommandError as e:
-            self.log.error(f"Error fetching data from SOFA feed. Details: {e}")
+            self.log.error(f"Failed to fetch data from SOFA feed. Details: {e}")
             raise APIResponseError(
                 "Unable to retrieve SOFA feed",
                 command=command,
