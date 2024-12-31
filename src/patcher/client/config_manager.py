@@ -2,6 +2,7 @@ import keyring
 from keyring.errors import KeyringError
 
 from ..models.jamf_client import JamfClient
+from ..models.token import AccessToken
 from ..utils.exceptions import CredentialError
 from ..utils.logger import LogMe
 
@@ -93,7 +94,7 @@ class ConfigManager:
             self.log.warning(f"Failed to delete credential for '{key}'. Details: {e}")
             return False
 
-    def create_client(self, client: JamfClient) -> None:
+    def create_client(self, client: JamfClient, token: AccessToken) -> None:
         """
         Stores a ``JamfClient`` object's credentials in the keyring.
 
@@ -105,12 +106,16 @@ class ConfigManager:
 
         :param client: The ``JamfClient`` object whose credentials will be stored.
         :type client: :class:`~patcher.models.jamf_client.JamfClient`
+        :param token: The ``AccessToken`` object to save.
+        :type token: :class:`~patcher.models.token.AccessToken`
         """
         self.log.debug(f"Storing credentials for JamfClient ending in: {(client.client_id[-4:])}")
         credentials = {
             "CLIENT_ID": client.client_id,
             "CLIENT_SECRET": client.client_secret,
             "URL": client.base_url,
+            "TOKEN": token.token,
+            "TOKEN_EXPIRATION": token.expires,
         }
         for k, v in credentials.items():
             self.set_credential(k, v)

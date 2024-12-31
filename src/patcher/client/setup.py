@@ -248,8 +248,8 @@ class Setup:
                     client_id=client_id,
                     client_secret=client_secret,
                     server=jamf_url,
-                    token=token,
-                )
+                ),
+                token=token,
             )
         elif setup_type == SetupType.SSO:
             # `first_run` method
@@ -273,8 +273,8 @@ class Setup:
                     client_id=creds.get("CLIENT_ID"),
                     client_secret=creds.get("CLIENT_SECRET"),
                     server=creds.get("URL"),
-                    token=token,
-                )
+                ),
+                token=token,
             )
 
         # Set stop event before prompting
