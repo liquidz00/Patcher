@@ -1,10 +1,8 @@
 import keyring
 from keyring.errors import KeyringError
-from pydantic import ValidationError
 
 from ..models.jamf_client import JamfClient
-from ..models.token import AccessToken
-from ..utils.exceptions import CredentialError, PatcherError
+from ..utils.exceptions import CredentialError
 from ..utils.logger import LogMe
 
 
@@ -46,7 +44,6 @@ class ConfigManager:
                 self.log.warning(f"Credential for key '{key}' is missing or empty.")
             return credential
         except KeyringError as e:
-            self.log.error(f"Unable to retrieve credential for '{key}'. Details: {e}")
             raise CredentialError(
                 "Unable to retrieve credential as expected",
                 key=key,
@@ -71,7 +68,6 @@ class ConfigManager:
             keyring.set_password(self.service_name, key, value)
             self.log.info(f"Credential for key '{key}' set successfully")
         except KeyringError as e:
-            self.log.error(f"Unable to save credential for '{key}'. Details: {e}")
             raise CredentialError(
                 "Unable to save credential as expected", key=key, error_msg=str(e)
             )
@@ -97,51 +93,6 @@ class ConfigManager:
             self.log.warning(f"Failed to delete credential for '{key}'. Details: {e}")
             return False
 
-    def load_token(self) -> AccessToken:
-        """
-        Loads the ``AccessToken`` and its expiration from the keyring.
-
-        If either the AccessToken string or AccessToken expiration cannot
-        be retrieved, a :exc:`~patcher.utils.exceptions.CredentialError` is raised.
-
-        :return: An AccessToken object containing the token and its expiration date.
-        :rtype: :class:`~patcher.models.token.AccessToken`
-        """
-        self.log.debug("Attempting to load token and expiration from keychain.")
-        try:
-            token = self.get_credential("TOKEN")
-            expires = self.get_credential("TOKEN_EXPIRATION")
-            self.log.info("Token and expiration loaded from keychain")
-            return AccessToken(token=token, expires=expires)  # type: ignore
-        except CredentialError:
-            self.log.warning("Token or expiration is missing, loading failed.")
-            raise
-
-    def attach_client(self) -> JamfClient:
-        """
-        Creates and returns a ``JamfClient`` object using the stored credentials.
-
-        :return: The ``JamfClient`` object if validation is successful.
-        :rtype: :class:`~patcher.models.jamf_client.JamfClient`
-        :raises PatcherError: If ``JamfClient`` object fails pydantic validation.
-        """
-        self.log.debug("Attempting to attach JamfClient with stored credentials")
-        try:
-            client = JamfClient(
-                client_id=self.get_credential("CLIENT_ID"),
-                client_secret=self.get_credential("CLIENT_SECRET"),
-                server=self.get_credential("URL"),
-                token=self.load_token(),
-            )
-            self.log.info(f"JamfClient ending in ({(client.client_id[-4:])}) attached successfully")
-            return client
-        except ValidationError as e:
-            self.log.error(f"Failed attaching JamfClient due to validation error. Details: {e}")
-            raise PatcherError(
-                "Unable to attach JamfClient due to invalid configuration",
-                error_msg=str(e),
-            )
-
     def create_client(self, client: JamfClient) -> None:
         """
         Stores a ``JamfClient`` object's credentials in the keyring.
@@ -159,9 +110,7 @@ class ConfigManager:
         credentials = {
             "CLIENT_ID": client.client_id,
             "CLIENT_SECRET": client.client_secret,
-            "URL": client.server,
-            "TOKEN": client.token.token,
-            "TOKEN_EXPIRATION": client.token.expires.isoformat(),
+            "URL": client.base_url,
         }
         for k, v in credentials.items():
             self.set_credential(k, v)

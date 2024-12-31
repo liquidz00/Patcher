@@ -2,8 +2,11 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Dict
 
+from pydantic import ValidationError
+
+from ..models.jamf_client import JamfClient
 from ..models.token import AccessToken
-from ..utils.exceptions import APIResponseError, CredentialError, TokenError
+from ..utils.exceptions import APIResponseError, CredentialError, PatcherError, TokenError
 from ..utils.logger import LogMe
 from . import BaseAPIClient
 from .config_manager import ConfigManager
@@ -24,7 +27,7 @@ class TokenManager:
         self.log = LogMe(self.__class__.__name__)
         self.config = config
         self.api_client = BaseAPIClient()
-        self._client = None  # avoid loading credentials at init
+        self._client = None  # lazy load creds
         self._token = None
         self.lock = asyncio.Lock()
 
@@ -32,7 +35,7 @@ class TokenManager:
     def client(self):
         if not self._client:
             self.log.debug("Attempting to attach JamfClient.")
-            self._client = self.config.attach_client()
+            self._client = self.attach_client()
             self.log.info(f"JamfClient initialized with base URL: {self._client.base_url}")
         return self._client
 
@@ -40,11 +43,77 @@ class TokenManager:
     def token(self) -> AccessToken:
         if not self._token:
             self.log.debug("Attempting to load token from JamfClient.")
-            self._token = self.client.token
+            try:
+                self._token = self.load_token()
+            except CredentialError:
+                self.log.warning("Failed to load token from keychain. Defaulting to client token.")
+                self._token = self.client.token
             self.log.info(
                 f"Token ending in {self.client.token.token[-4:]}  loaded successfully from JamfClient."
             )
         return self._token
+
+    async def headers(self) -> Dict[str, str]:
+        """
+        Generates headers for API calls, ensuring the latest token is used.
+
+        :return: A dictionary containing the headers for an API request.
+        :rtype: :py:obj:`~typing.Dict` of :py:class:`str`, :py:class:`str`
+        """
+        await self.ensure_valid_token()
+        latest_token = self.token
+        self.log.debug(f"Using token ending in {latest_token[-4:]}")
+        return {"accept": "application/json", "Authorization": f"Bearer {self.token}"}
+
+    def load_token(self) -> AccessToken:
+        """
+        Loads the ``AccessToken`` and its expiration from the keyring.
+
+        If either the AccessToken string or AccessToken expiration cannot
+        be retrieved, a :exc:`~patcher.utils.exceptions.CredentialError` is raised.
+
+        :return: An AccessToken object containing the token and its expiration date.
+        :rtype: :class:`~patcher.models.token.AccessToken`
+        """
+        self.log.debug("Attempting to load token and expiration from keychain.")
+        try:
+            token = self.config.get_credential("TOKEN")
+            expires = datetime.strptime(
+                (
+                    self.config.get_credential("TOKEN_EXPIRATION")
+                    or datetime(1970, 1, 1, tzinfo=timezone.utc).isoformat()
+                ),
+                "%Y-%m-%dT%H:%M:%S.%f%z",
+            )
+            self.log.info("Token and expiration loaded from keychain")
+            return AccessToken(token=token, expires=expires)
+        except CredentialError as e:
+            self.log.error("Token or expiration is missing, loading failed.")
+            raise TokenError("Unable to load token from keychain.", error_msg=str(e))
+
+    def attach_client(self) -> JamfClient:
+        """
+        Creates and returns a ``JamfClient`` object using the stored credentials.
+
+        :return: The ``JamfClient`` object if validation is successful.
+        :rtype: :class:`~patcher.models.jamf_client.JamfClient`
+        :raises PatcherError: If ``JamfClient`` object fails pydantic validation.
+        """
+        self.log.debug("Attempting to attach JamfClient with stored credentials")
+        try:
+            client = JamfClient(
+                client_id=self.config.get_credential("CLIENT_ID"),
+                client_secret=self.config.get_credential("CLIENT_SECRET"),
+                server=self.config.get_credential("URL"),
+            )
+            self.log.info(f"JamfClient ending in ({(client.client_id[-4:])}) attached successfully")
+            return client
+        except ValidationError as e:
+            self.log.error(f"Failed attaching JamfClient due to validation error. Details: {e}")
+            raise PatcherError(
+                "Unable to attach JamfClient due to invalid configuration",
+                error_msg=str(e),
+            )
 
     async def fetch_token(self) -> AccessToken:
         """
@@ -118,19 +187,8 @@ class TokenManager:
             self.log.error(f"Unable to save AccessToken object to keychain. Details: {e}")
             raise TokenError("Unable to save AccessToken object to keychain.", error_msg=str(e))
 
-        self.client.token = token
-        self._token = token  # cache token locally
+        self._token = None  # clear cache; force reload on next access
         self.log.info("AccessToken object updated in keychain")
-
-    def token_valid(self) -> bool:
-        """
-        Determines if the current access token is still valid by evaluating its
-        expiration date.
-
-        :return: ``True`` if the token is valid (not expired), otherwise ``False``.
-        :rtype: :py:class:`bool`
-        """
-        return not self.token.is_expired
 
     async def ensure_valid_token(self):
         """
@@ -143,7 +201,11 @@ class TokenManager:
 
         """
         async with self.lock:
-            if not self.token_valid():
+            if self.token.is_expired:
                 self.log.warning("Bearer token is invalid or expired, attempting to refresh...")
                 await self.fetch_token()
-            self.log.info("Token retrieved successfully")
+
+            self.log.info(
+                f"Token ending in ({self.token.token[-4:]}) retrieved successfully. Remaining seconds: {self.token.seconds_remaining}"
+            )
+            return self.token

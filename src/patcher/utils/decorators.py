@@ -3,7 +3,7 @@ from typing import Any, Callable
 
 from pydantic import ValidationError
 
-from ..utils.exceptions import TokenError
+from .exceptions import TokenError
 
 
 # Automatic checking/refreshing of AccessToken
@@ -36,13 +36,14 @@ def check_token(func: Callable) -> Any:
         log = instance.log
 
         try:
-            log.info("Validating access token before API call...")
+            log.debug(f"Validating access token for function {func.__name__}")
             await token_manager.ensure_valid_token()
+            latest_token = token_manager.token
+            log.info(f"Token after validation: {latest_token.token[-4:]}")
         except ValidationError as e:
-            log.error(f"AccessToken failed validation. Details: {e}")
+            log.error(f"AccessToken ({token_manager.token[-4:]}) failed validation. Details: {e}")
             raise TokenError("AccessToken failed validation", error_msg=str(e))
-        except TokenError as e:
-            log.error(f"Failed to fetch a new AccessToken. Details: {e}")
+        except TokenError:
             raise
 
         # Proceed with original function
