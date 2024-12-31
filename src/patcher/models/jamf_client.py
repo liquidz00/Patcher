@@ -1,11 +1,10 @@
-from typing import List, Optional
+from typing import List
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import Field, field_validator
 
 from ..utils.exceptions import PatcherError
 from . import Model
-from .token import AccessToken
 
 
 class JamfClient(Model):
@@ -21,14 +20,16 @@ class JamfClient(Model):
     :type client_secret: :py:class:`str`
     :ivar server: The server URL for the Jamf API.
     :type server: :py:class:`str`
-    :ivar token: The access token used for authenticating API requests. Defaults to None.
-    :type token: :py:obj:`~typing.Optional` of :class:`~patcher.models.token.AccessToken`
+
+    .. admonition:: Removed in v2.0
+        :class: danger
+
+        :class:`~patcher.models.token.AccessToken` objects are handled exclusively by the :class:`~patcher.client.token_manager.TokenManager` class. This ensures 'stale' tokens are not used, causing 401 responses.
     """
 
     client_id: str
     client_secret: str
     server: str
-    token: Optional[AccessToken] = None
 
     @property
     def base_url(self):
@@ -39,10 +40,6 @@ class JamfClient(Model):
         :rtype: :py:class:`str`
         """
         return self.server
-
-    @property
-    def headers(self):
-        return {"accept": "application/json", "Authorization": f"Bearer {self.token}"}
 
     @staticmethod
     def valid_url(url: str) -> str:
