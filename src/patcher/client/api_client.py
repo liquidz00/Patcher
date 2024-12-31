@@ -60,6 +60,14 @@ class ApiClient(BaseAPIClient):
                 error_msg=str(e),
             )
 
+    async def _headers(self) -> Dict[str, str]:
+        """Generates headers for API calls, ensuring the latest token is used."""
+        # Ensure token is valid
+        await self.token_manager.ensure_valid_token()
+        latest_token = self.token_manager.token
+        self.log.debug(f"Using token ending in {latest_token.token[-4:]}")
+        return {"accept": "application/json", "Authorization": f"Bearer {latest_token}"}
+
     @check_token
     async def get_policies(self) -> List[str]:
         """
@@ -68,7 +76,7 @@ class ApiClient(BaseAPIClient):
         :return: A list of software title IDs.
         :rtype: :py:obj:`~typing.List` of :py:class:`str`
         """
-        headers = await self.token_manager.headers()
+        headers = await self._headers()
         url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
         response = await self.fetch_json(url=url, headers=headers)
         self.log.info("Patch policies obtained as expected.")
@@ -88,7 +96,7 @@ class ApiClient(BaseAPIClient):
             f"{self.jamf_url}/api/v2/patch-software-title-configurations/{policy}/patch-summary"
             for policy in policy_ids
         ]
-        headers = await self.token_manager.headers()
+        headers = await self._headers()
         summaries = await self.fetch_batch(urls, headers=headers)
 
         patch_titles = [
@@ -117,7 +125,7 @@ class ApiClient(BaseAPIClient):
         :rtype: :py:obj:`~typing.List` of :py:class:`int`
         """
         url = f"{self.jamf_url}/api/v2/mobile-devices"
-        headers = await self.token_manager.headers()
+        headers = await self._headers()
         response = await self.fetch_json(url=url, headers=headers)
         devices = response.get("results")
         self.log.info(f"Received {len(devices)} device IDs successfully.")
@@ -140,7 +148,7 @@ class ApiClient(BaseAPIClient):
         :rtype: :py:obj:`~typing.List` of :py:obj:`~typing.Dict`
         """
         urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
-        headers = await self.token_manager.headers()
+        headers = await self._headers()
         subsets = await self.fetch_batch(urls, headers=headers)
 
         devices = [

@@ -42,28 +42,15 @@ class TokenManager:
     @property
     def token(self) -> AccessToken:
         if not self._token:
-            self.log.debug("Attempting to load token from JamfClient.")
+            self.log.debug("Attempting to load AccessToken.")
             try:
                 self._token = self.load_token()
             except CredentialError:
-                self.log.warning("Failed to load token from keychain. Defaulting to client token.")
-                self._token = self.client.token
+                self.log.warning("Failed to load token from keychain.")
             self.log.info(
-                f"Token ending in {self.client.token.token[-4:]}  loaded successfully from JamfClient."
+                f"Token ending in {self._token.token[-4:]}  loaded successfully from JamfClient."
             )
         return self._token
-
-    async def headers(self) -> Dict[str, str]:
-        """
-        Generates headers for API calls, ensuring the latest token is used.
-
-        :return: A dictionary containing the headers for an API request.
-        :rtype: :py:obj:`~typing.Dict` of :py:class:`str`, :py:class:`str`
-        """
-        await self.ensure_valid_token()
-        latest_token = self.token
-        self.log.debug(f"Using token ending in {latest_token[-4:]}")
-        return {"accept": "application/json", "Authorization": f"Bearer {self.token}"}
 
     def load_token(self) -> AccessToken:
         """
@@ -77,16 +64,13 @@ class TokenManager:
         """
         self.log.debug("Attempting to load token and expiration from keychain.")
         try:
-            token = self.config.get_credential("TOKEN")
-            expires = datetime.strptime(
-                (
-                    self.config.get_credential("TOKEN_EXPIRATION")
-                    or datetime(1970, 1, 1, tzinfo=timezone.utc).isoformat()
-                ),
-                "%Y-%m-%dT%H:%M:%S.%f%z",
+            token = self.config.get_credential("TOKEN") or ""
+            expires = (
+                self.config.get_credential("TOKEN_EXPIRATION")
+                or datetime(1970, 1, 1, tzinfo=timezone.utc).isoformat()
             )
             self.log.info("Token and expiration loaded from keychain")
-            return AccessToken(token=token, expires=expires)
+            return AccessToken(token=token, expires=expires)  # type: ignore
         except CredentialError as e:
             self.log.error("Token or expiration is missing, loading failed.")
             raise TokenError("Unable to load token from keychain.", error_msg=str(e))
@@ -106,7 +90,7 @@ class TokenManager:
                 client_secret=self.config.get_credential("CLIENT_SECRET"),
                 server=self.config.get_credential("URL"),
             )
-            self.log.info(f"JamfClient ending in ({(client.client_id[-4:])}) attached successfully")
+            self.log.info(f"JamfClient ending in {client.client_id[-4:]} attached successfully")
             return client
         except ValidationError as e:
             self.log.error(f"Failed attaching JamfClient due to validation error. Details: {e}")
@@ -190,7 +174,7 @@ class TokenManager:
         self._token = None  # clear cache; force reload on next access
         self.log.info("AccessToken object updated in keychain")
 
-    async def ensure_valid_token(self):
+    async def ensure_valid_token(self) -> AccessToken:
         """
         Verifies the current access token is valid (present and not expired).
         If the token is found to be invalid, a new token is requested and refreshed.
@@ -198,6 +182,9 @@ class TokenManager:
         .. seealso::
             The :meth:`~patcher.utils.decorators.check_token` decorator leverages
             this method with thread locking to ensure tokens are valid before API calls.
+
+        :return: The ``AccessToken`` object by way of ``self.token`` property.
+        :rtype: :class:`~patcher.models.token.AccessToken`
 
         """
         async with self.lock:
