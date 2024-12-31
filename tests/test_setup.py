@@ -1,5 +1,6 @@
 import os
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from plistlib import InvalidFileException
 from unittest.mock import AsyncMock, MagicMock, mock_open, patch
@@ -25,7 +26,6 @@ def setup_instance(
             config=config_manager,
             ui_config=ui_config,
         )
-        instance.config.attach_client.return_value = mock_jamf_client
         instance.config.set_credential = MagicMock()
         instance.config.create_client = MagicMock()
         instance.animator.stop_event.set = AsyncMock()
@@ -125,7 +125,7 @@ def test_mark_completion(setup_instance):
 
 @pytest.mark.asyncio
 async def test_run_setup_standard(setup_instance):
-    mock_token = AccessToken(access_token="mock_token", token_type="Bearer", expires_in=3600)
+    mock_token = AccessToken(token="mock_token", expires=datetime(2028, 1, 1, tzinfo=timezone.utc))
     with (
         patch("asyncclick.prompt", side_effect=["https://example.com", "user", "pass"]),
         patch.object(setup_instance, "_token_fetching", return_value=mock_token),
@@ -144,7 +144,7 @@ async def test_run_setup_standard(setup_instance):
 
 @pytest.mark.asyncio
 async def test_run_setup_sso(setup_instance):
-    mock_token = AccessToken(access_token="mock_token", token_type="Bearer", expires_in=3600)
+    mock_token = AccessToken(token="mock_token", expires=datetime(2028, 1, 1, tzinfo=timezone.utc))
     with (
         patch(
             "asyncclick.prompt", side_effect=["https://example.com", "client_id", "client_secret"]

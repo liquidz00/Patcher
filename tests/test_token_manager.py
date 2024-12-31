@@ -18,12 +18,14 @@ def test_token_manager_initialization(mock_token, config_manager):
     assert token_manager.token.expires == datetime(2030, 1, 1, tzinfo=timezone.utc)
 
 
-@patch.object(ConfigManager, "set_credential")
-@patch.object(TokenManager, "token", new_callable=PropertyMock)
-def test_save_token(mock_token, mock_set_credential, config_manager):
-    token_manager = TokenManager(config=config_manager)
+@patch.object(ConfigManager, "set_credential", new_callable=MagicMock)
+def test_save_token(mock_set_credential):
+    mock_config_manager = MagicMock()
+
+    mock_config_manager.set_credential = mock_set_credential
+
+    token_manager = TokenManager(config=mock_config_manager)
     token = AccessToken(token="new_token", expires=datetime(2031, 1, 1, tzinfo=timezone.utc))
-    mock_token.return_value = token
 
     token_manager._save_token(token)
 
@@ -39,7 +41,7 @@ def test_token_valid_true(mock_token, token_manager):
     # Make future_time timezone-aware by specifying tzinfo
     future_time = datetime.now(timezone.utc).replace(tzinfo=timezone.utc) + timedelta(hours=1)
     mock_token.return_value = AccessToken(token="dummy_token", expires=future_time)
-    assert token_manager.token_valid() is True
+    assert token_manager.token.is_expired is False
 
 
 @patch.object(TokenManager, "token", new_callable=PropertyMock)
@@ -47,25 +49,24 @@ def test_token_valid_false(mock_token, token_manager):
     # Make past_time timezone-aware by specifying tzinfo
     past_time = datetime.now(timezone.utc).replace(tzinfo=timezone.utc) - timedelta(hours=1)
     mock_token.return_value = AccessToken(token="dummy_token", expires=past_time)
-    assert token_manager.token_valid() is False
+    assert token_manager.token.is_expired is True
 
 
 @patch.object(TokenManager, "token", new_callable=PropertyMock)
 def test_token_valid_no_expiration(mock_token, token_manager):
     past_time = datetime(1970, 1, 1, tzinfo=timezone.utc)
     mock_token.return_value = AccessToken(token="dummy_token", expires=past_time)
-    assert token_manager.token_valid() is False
+    assert token_manager.token.is_expired is True
 
 
 # Test validity
 @pytest.mark.asyncio
-@patch.object(TokenManager, "token", new_callable=PropertyMock)
-async def test_ensure_valid_token_valid_token(mock_token, token_manager):
-    mock_token.return_value = AccessToken(
-        token="valid_token", expires=datetime.now(timezone.utc) + timedelta(hours=1)
-    )
+@patch.object(AccessToken, "is_expired", new_callable=PropertyMock)
+async def test_ensure_valid_token_valid_token(mock_is_expired, token_manager):
+    token_manager.fetch_token = AsyncMock()
+
     # Mock token_valid to return True
-    token_manager.token_valid = MagicMock(return_value=True)
+    mock_is_expired.return_value = False
 
     await token_manager.ensure_valid_token()
 
