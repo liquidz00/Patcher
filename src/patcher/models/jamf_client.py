@@ -21,7 +21,7 @@ class JamfClient(Model):
     :ivar server: The server URL for the Jamf API.
     :type server: :py:class:`str`
 
-    .. admonition:: Removed in v2.0
+    .. admonition:: Removed in version 2.0
         :class: danger
 
         :class:`~patcher.models.token.AccessToken` objects are handled exclusively by the :class:`~patcher.client.token_manager.TokenManager` class. This ensures 'stale' tokens are not used, causing 401 responses.
