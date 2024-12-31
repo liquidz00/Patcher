@@ -42,7 +42,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 # Entry
 @click.group(context_settings=CONTEXT_SETTINGS, options_metavar="<options>")
 @click.version_option(version=__version__)
-@click.option("--debug", "-x", is_flag=True, help="Enable debug logging.")
+@click.option("--debug", "-x", is_flag=True, help="Enable debug logging (verbose mode).")
 @click.pass_context
 async def cli(ctx: click.Context, debug: bool) -> None:
     """
@@ -107,9 +107,9 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
     \f
     **Options**:
 
-    - ``"full"``: Resets credentials, UI elements, and property list file. Subsequently triggers :class:`~patcher.client.setup.Setup` to start setup.
-    - ``"UI"``: Resets UI elements of PDF reports (header & footer text, custom font and optional logo).
-    - ``"creds"``: Resets credentials stored in Keychain. Useful for testing Patcher in a non-production environment first. Allows specifying which credential to reset using the ``--credential`` option.
+    - ``full``: Resets credentials, UI elements, and property list file. Subsequently triggers :class:`~patcher.client.setup.Setup` to start setup.
+    - ``UI``: Resets UI elements of PDF reports (header & footer text, custom font and optional logo).
+    - ``creds``: Resets credentials stored in Keychain. Useful for testing Patcher in a non-production environment first. Allows specifying which credential to reset using the ``--credential`` option.
 
     :param ctx: The context object, providing access to shared state between commands.
     :type ctx: click.Context
@@ -335,7 +335,7 @@ async def analyze(
     :param summary: Flag to generate a summary file.
     :type summary: :py:class:`bool`
     :param output_dir: Path to save generated summary, only if `--summary` flag passed.
-    :type output_dir: :py:obj:`~typing.Union` of :py:class:`str` or pathlib.Path
+    :type output_dir: :py:obj:`~typing.Union` of :py:class:`str` | :py:obj:`~pathlib.Path`
     """
     if summary and not output_dir:
         click.echo(
