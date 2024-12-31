@@ -74,21 +74,19 @@ class BaseAPIClient:
             self.log.info("API call successful.")
             return response_json
 
+        # Propagate logs to caller
         error_message = (
             response_json.get("errors", "Unknown error") if response_json else "No details"
         )
         if 400 <= status_code < 500:
-            self.log.error(f"Client error ({status_code}): {error_message}")
             raise APIResponseError(
                 "Client error received.", status_code=status_code, error=error_message
             )
         elif 500 <= status_code < 600:
-            self.log.error(f"Server error ({status_code}): {error_message}")
             raise APIResponseError(
                 "Server error received.", status_code=status_code, error=error_message
             )
         else:
-            self.log.error(f"Unexpected HTTP status code ({status_code}): {error_message}")
             raise APIResponseError(
                 "Unexpected HTTP status code received.",
                 status_code=status_code,
@@ -160,7 +158,6 @@ class BaseAPIClient:
             self.log.info("Command executed as expected with zero exit code status.")
             return stdout.decode().strip()
         except OSError as e:
-            self.log.error(f"OSError encountered executing command. Details: {e}")
             raise ShellCommandError(
                 "OSError encountered executing command.",
                 command=command,
@@ -229,7 +226,6 @@ class BaseAPIClient:
             response_json = json.loads(response_body)  # Re-parse body as JSON
         except (json.JSONDecodeError, ValueError) as e:
             sanitized = self._sanitize_command(command)
-            self.log.error(f"Failed to parse JSON response from {url} via command. Details: {e}")
             raise APIResponseError(
                 "Failed parsing JSON response from API",
                 url=url,
@@ -255,7 +251,7 @@ class BaseAPIClient:
         :return: A list of JSON dictionaries.
         :rtype: :py:obj:`~typing.List` of :py:obj:`~typing.Dict`
         """
-        self.log.info(f"Attempting to fetch batch of {len(urls)} URLs")
+        self.log.debug(f"Attempting to fetch batch of {len(urls)} URLs")
         results = []
         for i in range(0, len(urls), self.max_concurrency):
             batch = urls[i : i + self.max_concurrency]
@@ -346,7 +342,7 @@ class BaseAPIClient:
             self.log.info("Patcher API Role created successfully.")
             return True
         else:
-            self.log.error("Failed to create Patcher API role as expected.")
+            self.log.warning("Failed to create Patcher API role as expected.")
             return False
 
     async def create_client(self, token: str, jamf_url: str) -> Tuple[str, str]:
