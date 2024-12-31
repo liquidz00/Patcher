@@ -35,7 +35,7 @@ class PatcherLog:
     LOGGER_NAME = "Patcher"
     LOG_DIR = os.path.expanduser("~/Library/Application Support/Patcher/logs")
     LOG_FILE = os.path.join(LOG_DIR, "patcher.log")
-    LOG_LEVEL = logging.INFO
+    LOG_LEVEL = logging.DEBUG
     MAX_BYTES = 1048576 * 100  # 100 MB
     BACKUP_COUNT = 10
 
@@ -73,11 +73,12 @@ class PatcherLog:
             file_handler.setLevel(level or PatcherLog.LOG_LEVEL)
             logger.addHandler(file_handler)
 
-            # Console handler for user-facing messages
-            console_handler = logging.StreamHandler(sys.stdout)
-            console_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
-            console_handler.setLevel(logging.DEBUG if debug else logging.WARNING)
-            logger.addHandler(console_handler)
+            # Console handler for user-facing messages if debug is True
+            if debug:
+                console_handler = logging.StreamHandler(sys.stdout)
+                console_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+                console_handler.setLevel(logging.DEBUG)
+                logger.addHandler(console_handler)
 
             # UnifiedLogHandler for macOS
             if platform.system() == "Darwin":
@@ -95,7 +96,9 @@ class PatcherLog:
         """
         Setup a child logger for a specified context.
 
-        .. versionremoved:: 2.0
+        .. admonition:: Removed in version 2.0
+            :class: warning
+
             The ``debug`` parameter is now handled at CLI entry point. Child loggers with an explicitly set logging level will not respect configuration changes to the root logger.
 
         :param childName: The name of the child logger.
@@ -178,12 +181,10 @@ class LogMe:
 
     def warning(self, msg: str):
         self.logger.warning(msg)
-        click.echo(click.style(f"\rWARNING: {msg.strip()}", fg="yellow", bold=True))
+        if self.is_debug:
+            click.echo(click.style(f"\rWARNING: {msg.strip()}", fg="yellow", bold=True))
 
     def error(self, msg: str):
+        # Error message formatting is handled by CLI, bypassing need to format error messages
+        # at the class level
         self.logger.error(msg)
-        click.echo(click.style(f"\rERROR: {msg.strip()}", fg="red", bold=True))
-        click.echo(
-            f"💡 For more details, please check the log file at: {PatcherLog.LOG_FILE}",
-            err=True,
-        )
