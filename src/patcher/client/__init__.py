@@ -131,9 +131,9 @@ class BaseAPIClient:
             functionality of the API client, such as invoking cURL commands for API calls.
 
         :param command: A list representing the command and its arguments to be executed in the shell.
-        :type command: :py:obj:`~typing.List` of :py:class:`str`
+        :type command: :py:obj:`~typing.List` [:py:class:`str`]
         :return: The standard output of the executed command decoded as a string.
-        :rtype: :py:obj:`~typing.Union` of either :py:obj:`~typing.Dict` or :py:class:`str`
+        :rtype: :py:obj:`~typing.Union` [:py:obj:`~typing.Dict` | :py:class:`str`]
         :raises ShellCommandError: If the command execution fails (returns a non-zero exit code).
         """
         sanitized_command = self._sanitize_command(command)
@@ -146,9 +146,6 @@ class BaseAPIClient:
             stdout, stderr = await process.communicate()
             if process.returncode != 0:
                 error_msg = stderr.decode().strip()
-                self.log.error(
-                    f"Command execution failed. Return code: {process.returncode}, Error: {error_msg}"
-                )
                 raise ShellCommandError(
                     "Command execution failed.",
                     command=command,
@@ -160,7 +157,7 @@ class BaseAPIClient:
         except OSError as e:
             raise ShellCommandError(
                 "OSError encountered executing command.",
-                command=command,
+                command=sanitized_command_str,
                 error_msg=str(e),
             )
 
@@ -177,16 +174,16 @@ class BaseAPIClient:
         :param url: The URL to fetch data from.
         :type url: :py:class:`str`
         :param headers: Optional headers to include in the request. Defaults to ``self.headers``.
-        :type headers: :py:obj:`~typing.Optional` of :py:obj:`~typing.Dict`
+        :type headers: :py:obj:`~typing.Optional` [:py:obj:`~typing.Dict`]
         :param method: HTTP method to use ("GET" or "POST"). Defaults to "GET".
         :type method: :py:class:`str`
         :param data: Optional form data to include for POST request.
-        :type data: :py:obj:`~typing.Optional` of :py:obj:`~typing.Dict`
+        :type data: :py:obj:`~typing.Optional` [:py:obj:`~typing.Dict`]
         :return: The fetched JSON data as a dictionary.
         :rtype: :py:obj:`~typing.Dict`
         :raises APIResponseError: If the response payload is not valid JSON, or if command execution fails.
         """
-        self.log.debug(f"Attempting to fetch JSON from {url}")
+        self.log.debug("Attempting to fetch JSON.")
         final_headers = headers if headers else self.default_headers
         header_string = self._format_headers(final_headers)
 
@@ -233,7 +230,7 @@ class BaseAPIClient:
                 error_msg=str(e),
             )
 
-        self.log.info(f"Retrieved JSON response from {url}.")
+        self.log.info("Retrieved valid JSON response API call.")
         return self._handle_status_code(status_code, response_json)
 
     async def fetch_batch(
@@ -245,11 +242,11 @@ class BaseAPIClient:
         Data is fetched from each URL in the provided list, ensuring that no more than ``max_concurrency`` requests are sent concurrently.
 
         :param urls: List of URLs to fetch data from.
-        :type urls: :py:obj:`~typing.List` of :py:class:`str`
+        :type urls: :py:obj:`~typing.List` [:py:class:`str`]
         :param headers: Optional headers to include in the request. Defaults to ``self.headers`` via the :meth:`~patcher.client.__init__.fetch_json` method.
-        :type headers: :py:obj:`~typing.Optional` of :py:obj:`~typing.Dict`
+        :type headers: :py:obj:`~typing.Optional` [:py:obj:`~typing.Dict`]
         :return: A list of JSON dictionaries.
-        :rtype: :py:obj:`~typing.List` of :py:obj:`~typing.Dict`
+        :rtype: :py:obj:`~typing.List` [:py:obj:`~typing.Dict`]
         """
         self.log.debug(f"Attempting to fetch batch of {len(urls)} URLs")
         results = []
@@ -299,9 +296,6 @@ class BaseAPIClient:
                 return response.get("token")
             else:
                 sanitized = self._sanitize_command(command)
-                self.log.error(
-                    f"Unable to retrieve basic token with provided username ({username}) and password."
-                )
                 raise APIResponseError(
                     "Unable to retrieve basic token with provided username and password",
                     username=username,
@@ -357,7 +351,7 @@ class BaseAPIClient:
         :param jamf_url: Jamf Server URL
         :type jamf_url: :py:class:`str`
         :return: A tuple containing the client ID and client secret.
-        :rtype: :py:obj:`~typing.Tuple` of :py:class:`str`
+        :rtype: :py:obj:`~typing.Tuple` [:py:class:`str`, :py:class:`str`]
         """
         self.log.debug("Attempting to create Patcher API Client with Jamf API.")
         client = ApiClientModel()

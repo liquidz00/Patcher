@@ -92,7 +92,7 @@ class Setup:
                 self._completed = plist_data.get("Setup", {}).get("first_run_done", False)
                 self.log.info("Setup completion status loaded successfully.")
         except plistlib.InvalidFileException as e:
-            self.log.error(f"Unable to read property list file. Details: {e}")
+            self.log.warning(f"Unable to read property list file. Details: {e}")
             self._completed = False
 
         return self._completed
@@ -172,6 +172,9 @@ class Setup:
                     jamf_url=creds.get("URL"),
                 )
             except (KeyError, APIResponseError) as e:
+                self.log.error(
+                    f"Unable to retrieve basic token with provided username {creds.get('USERNAME')} and password. Details: {e}"
+                )
                 raise SetupError(
                     "Failed to obtain a Basic Token during setup. Please check your credentials and try again.",
                     error_msg=str(e),
@@ -278,7 +281,7 @@ class Setup:
             )
 
         # Set stop event before prompting
-        await animator.stop_event.set()
+        await animator.stop()
 
         # Setup UI components
         self.ui_config.setup_ui()
@@ -302,16 +305,14 @@ class Setup:
             For SSO users, reference our :ref:`handling-sso` page for assistance creating an API integration.
 
         :param animator: The animation instance to update messages. Defaults to ``self.animator``.
-        :type animator: :py:obj:`~typing.Optional` of :class:`~patcher.utils.animation.Animation`
+        :type animator: :py:obj:`~typing.Optional` [:class:`~patcher.utils.animation.Animation`]
         :raises SetupError: If a token could not be fetched, credentials are missing or setup could not be marked complete.
         """
         if self.completed:
-            self.log.info("Setup already completed. Skipping.")
             return
 
         animator = animator or self.animator
 
-        self.log.debug("Initiating setup process.")
         setup_type_map = {1: SetupType.STANDARD, 2: SetupType.SSO}
         choice = click.prompt(
             "Choose setup method (1: Standard setup, 2: SSO setup)", type=int, default=1

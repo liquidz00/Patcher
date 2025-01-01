@@ -185,7 +185,6 @@ class TokenManager:
 
         :return: The ``AccessToken`` object by way of ``self.token`` property.
         :rtype: :class:`~patcher.models.token.AccessToken`
-
         """
         async with self.lock:
             if self.token.is_expired:

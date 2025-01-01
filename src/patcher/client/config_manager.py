@@ -124,7 +124,7 @@ class ConfigManager:
             f"Credentials for JamfClient ending in '{(client.client_id[-4:])}' stored successfully."
         )
 
-    def reset(self) -> bool:
+    def reset_config(self) -> bool:
         """
         Resets all credentials by deleting them from the keyring.
 

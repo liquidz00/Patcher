@@ -180,7 +180,7 @@ class UIConfigManager:
         :param key: The key for the configuration value to retrieve.
         :type key: :py:class:`str`
         :param fallback: The value to return if the key is not found. Defaults to ``None``.
-        :type fallback: :py:obj:`~typing.Optional` of :py:class:`str`
+        :type fallback: :py:obj:`~typing.Optional` [:py:class:`str`]
         :return: The configuration value corresponding to the provided key, or the fallback value if the key is not found.
         :rtype: :py:class:`str`
         """
@@ -255,7 +255,7 @@ class UIConfigManager:
         :param font_dir: The directory to store the font files.
         :type font_dir: :py:class:`~pathlib.Path`
         :return: A tuple containing the font name, regular font path, and bold font path.
-        :rtype: :py:obj:`~typing.Tuple` of :py:class:`str` and :py:class:`~pathlib.Path`
+        :rtype: :py:obj:`~typing.Tuple` [:py:class:`str`, :py:class:`~pathlib.Path`, :py:class:`~pathlib.Path`]
         """
         if use_custom_font:
             self.log.debug(
@@ -304,7 +304,7 @@ class UIConfigManager:
         :param use_logo: Indicates whether or not to use a custom logo.
         :type use_logo: :py:class:`bool`
         :return: The path to the saved logo file, or None if no logo is configured.
-        :rtype: :py:obj:`~typing.Optional` of :py:class:`str`
+        :rtype: :py:obj:`~typing.Optional` [:py:class:`str`]
         :raises SetupError: If the provided logo path does not exist.
         :raises PatcherError: If the provided logo fails pillow validation.
         :raises PatcherError: If the logo file could not be copied to the destination path.
@@ -390,11 +390,11 @@ class UIConfigManager:
         :param font_name: The name of the font to use.
         :type font_name: :py:class:`str`
         :param font_regular_path: The path to the regular font file.
-        :type font_regular_path: :py:obj:`~typing.Union` of :py:class:`str` or :py:class:`~pathlib.Path`
+        :type font_regular_path: :py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]
         :param font_bold_path: The path to the bold font file.
-        :type font_bold_path: :py:obj:`~typing.Union` of :py:class:`str` or :py:class:`~pathlib.Path`
+        :type font_bold_path: :py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]
         :param logo_path: The path to company/branding logo file. Defaults to None.
-        :type logo_path: :py:obj:`~typing.Optional` of :py:obj:`~typing.Union` of :py:class:`str` or :py:class:`~pathlib.Path`
+        :type logo_path: :py:obj:`~typing.Optional` [:py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]]
         """
         # Load existing plist file if it exists
         plist_data = self._load_plist_file()
@@ -416,7 +416,7 @@ class UIConfigManager:
         Retrieves the logo path from the UI configuration.
 
         :return: The logo path as a string if it exists, else None.
-        :rtype: :py:obj:`~typing.Union` of :py:class:`str` or None
+        :rtype: :py:obj:`~typing.Union` :py:class:`str` | None]
         """
         return self.get("LOGO_PATH", None)
 

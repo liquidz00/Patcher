@@ -11,7 +11,6 @@ from .client.api_client import ApiClient
 from .client.config_manager import ConfigManager
 from .client.report_manager import ReportManager
 from .client.setup import Setup
-from .client.token_manager import TokenManager
 from .client.ui_manager import UIConfigManager
 from .models.reports.excel_report import ExcelReport
 from .models.reports.pdf_report import PDFReport
@@ -126,12 +125,26 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
 
     async with animation.error_handling():
         if kind.lower() == "full":
-            # Perform full reset_config here
             log.info("Performing full reset...")
-            config.reset_config()
-            ui_config.reset_config()
-            setup.reset_setup()
-            async with animation.error_handling():
+
+            reset_functions = [
+                config.reset_config,
+                ui_config.reset_config,
+                setup.reset_setup,
+            ]
+
+            # Only trigger setup if all resets successful
+            results = [reset_method() for reset_method in reset_functions]
+            if not all(results):
+                # Notify user
+                failed_indices = [i for i, result in enumerate(results) if result]
+                failed_methods = [reset_functions[i].__name__ for i in failed_indices]
+                log.error(f"Reset failed. {' '.join(failed_methods)} method(s) were unsuccessful.")
+                raise PatcherError(
+                    "Reset could not be completed as expected.", failed=(" ".join(failed_methods))
+                )
+            else:
+                log.info("All resets successful. Triggering setup.")
                 await setup.start(animation)
         elif kind.lower() == "ui":
             log.info("Resetting UI elements...")
@@ -256,21 +269,14 @@ async def export(
     :param concurrency: The maximum number of API requests that can be sent at once. Defaults to 5.
     :type concurrency: :py:class:`int`
     """
-    config = ConfigManager()
-    ui_config = UIConfigManager()
-
-    api_client = ApiClient(config, concurrency)
-    token_manager = TokenManager(config)
+    api_client = ApiClient(config=ctx.obj.get("config"), concurrency=concurrency)
     excel_report = ExcelReport()
     pdf_report = PDFReport()
 
     patcher = ReportManager(
-        config,
-        token_manager,
-        api_client,
-        excel_report,
-        pdf_report,
-        ui_config,
+        api_client=api_client,
+        excel_report=excel_report,
+        pdf_report=pdf_report,
         debug=ctx.obj.get("debug"),
     )
 

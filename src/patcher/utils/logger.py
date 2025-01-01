@@ -49,9 +49,9 @@ class PatcherLog:
         Configures and returns a logger. If the logger is already configured, it ensures no duplicate handlers.
 
         :param name: Name of the logger, defaults to "Patcher".
-        :type name: :py:obj:`~typing.Optional` of :py:class:`str`
+        :type name: :py:obj:`~typing.Optional` [:py:class:`str`]
         :param level: Logging level, defaults to INFO if not specified.
-        :type level: :py:obj:`~typing.Optional` of :py:class:`int`
+        :type level: :py:obj:`~typing.Optional` [:py:class:`int`]
         :param debug: Whether to enable debug logging for console, defaults to False.
         :type debug: :py:class:`bool`
         :return: The configured logger.
@@ -138,7 +138,9 @@ class PatcherLog:
             child_logger.info("User interrupted the process.")
             sys.exit(130)  # SIGINT
 
-        child_logger.error(f"Unhandled exception: {exc_type.__name__}: {exc_value}")
+        child_logger.error(
+            f"Unhandled exception: {exc_type.__name__}: {exc_value}\n{exc_traceback}"
+        )
 
         # Show user-friendly message in console
         console_message = f"❌ {exc_type.__name__}: {exc_value}"

@@ -179,9 +179,9 @@ class PDFReport(FPDF):
         ensuring they fit within the page width.
 
         :param data: DataFrame containing dataset to be included in PDF.
-        :type data: pandas.DataFrame
+        :type data: `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
         :return: A list of column widths proportional to header lengths.
-        :rtype: :py:obj:`~typing.List` of :py:class:`float`
+        :rtype: :py:obj:`~typing.List` [:py:class:`float`]
         """
         # Assign widths based on header lengths
         page_width = self.w - 20  # Account for left/right margins
@@ -218,7 +218,7 @@ class PDFReport(FPDF):
         the same directory as the Excel file.
 
         :param excel_file: Path to the Excel file to convert to PDF.
-        :type excel_file: :py:obj:`~typing.Union` of :py:class:`str` or :py:class:`~pathlib.Path`
+        :type excel_file: :py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]
         :param date_format: The date format string for the PDF report header.
         :type date_format: :py:class:`str`
         :raises PatcherError: If the data could not be parsed or is empty.
@@ -228,7 +228,6 @@ class PDFReport(FPDF):
         try:
             df = pd.read_excel(excel_file)
         except (ParserError, EmptyDataError) as e:
-            self.log.error(f"Failed to parse the excel file: {e}")
             raise PatcherError(
                 "Failed to parse the excel file",
                 file=excel_file,
@@ -260,7 +259,6 @@ class PDFReport(FPDF):
         try:
             pdf.output(pdf_filename)
         except (OSError, PermissionError) as e:
-            self.log.error(f"Error occurred trying to export to PDF: {e}")
             raise PatcherError(
                 "Unable to export PDF report.",
                 file_path=pdf_filename,

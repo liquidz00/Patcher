@@ -19,11 +19,6 @@ class ApiClient(BaseAPIClient):
         .. note::
             All methods of the ApiClient class will raise an :exc:`~patcher.utils.exceptions.APIResponseError` if the API call is unsuccessful.
 
-        .. seealso::
-
-            - :meth:`~patcher.client.__init__.BaseAPIClient.fetch_json`
-            - :class:`~patcher.models.jamf_client.JamfClient`
-
         :param config: Instance of ``ConfigManager`` for loading and storing credentials.
         :type config: :class:`~patcher.client.config_manager.ConfigManager`
         :param concurrency: Maximum number of concurrent API requests. See :class:`~patcher.client.__init__.BaseAPIClient.concurrency`.
@@ -74,12 +69,11 @@ class ApiClient(BaseAPIClient):
         Retrieves a list of patch software title IDs from the Jamf API.
 
         :return: A list of software title IDs.
-        :rtype: :py:obj:`~typing.List` of :py:class:`str`
+        :rtype: :py:obj:`~typing.List` [:py:class:`str`]
         """
         headers = await self._headers()
         url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
         response = await self.fetch_json(url=url, headers=headers)
-        self.log.info("Patch policies obtained as expected.")
         return [title.get("id") for title in response]
 
     @check_token
@@ -88,9 +82,9 @@ class ApiClient(BaseAPIClient):
         Retrieves patch summaries asynchronously for the specified policy IDs from the Jamf API.
 
         :param policy_ids: List of policy IDs to retrieve summaries for.
-        :type policy_ids: :py:obj:`~typing.List` of :py:class:`str`
+        :type policy_ids: :py:obj:`~typing.List` [:py:class:`str`]
         :return: List of ``PatchTitle`` objects containing patch summaries.
-        :rtype: :py:obj:`~typing.List` of :class:`~patcher.models.patch.PatchTitle`
+        :rtype: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
         """
         urls = [
             f"{self.jamf_url}/api/v2/patch-software-title-configurations/{policy}/patch-summary"
@@ -110,7 +104,6 @@ class ApiClient(BaseAPIClient):
             for summary in summaries
             if summary
         ]
-        self.log.info(f"Successfully obtained policy summaries for {len(patch_titles)} policies.")
         return patch_titles
 
     @check_token
@@ -122,20 +115,16 @@ class ApiClient(BaseAPIClient):
             This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
 
         :return: A list of mobile device IDs.
-        :rtype: :py:obj:`~typing.List` of :py:class:`int`
+        :rtype: :py:obj:`~typing.List` [:py:class:`int`]
         """
         url = f"{self.jamf_url}/api/v2/mobile-devices"
         headers = await self._headers()
         response = await self.fetch_json(url=url, headers=headers)
         devices = response.get("results")
-        self.log.info(f"Received {len(devices)} device IDs successfully.")
         return [device.get("id") for device in devices if device]
 
     @check_token
-    async def get_device_os_versions(
-        self,
-        device_ids: List[int],
-    ) -> List[Dict[str, str]]:
+    async def get_device_os_versions(self, device_ids: List[int]) -> List[Dict[str, str]]:
         """
         Asynchronously fetches the OS version and serial number for each device ID provided.
 
@@ -143,9 +132,9 @@ class ApiClient(BaseAPIClient):
             This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
 
         :param device_ids: A list of mobile device IDs to retrieve information for.
-        :type device_ids: :py:obj:`~typing.List` of :py:class:`int`
+        :type device_ids: :py:obj:`~typing.List` [:py:class:`int`]
         :return: A list of dictionaries containing the serial numbers and OS versions.
-        :rtype: :py:obj:`~typing.List` of :py:obj:`~typing.Dict`
+        :rtype: :py:obj:`~typing.List` [:py:obj:`~typing.Dict`]
         """
         urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
         headers = await self._headers()
@@ -159,7 +148,6 @@ class ApiClient(BaseAPIClient):
             for subset in subsets
             if subset
         ]
-        self.log.info(f"Successfully obtained OS versions for {len(devices)} devices.")
         return devices
 
     async def get_sofa_feed(self) -> List[Dict[str, str]]:
@@ -172,7 +160,7 @@ class ApiClient(BaseAPIClient):
             This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
 
         :return: A list of dictionaries containing base OS versions, latest iOS versions, and release dates.
-        :rtype: :py:obj:`~typing.List` of :py:obj:`~typing.Dict`
+        :rtype: :py:obj:`~typing.List` [:py:obj:`~typing.Dict`]
         :raises APIResponseError: If return code from SOFA is non-zero.
         """
         # Call can be made directly as no additional headers or payloads need to be added
@@ -181,7 +169,6 @@ class ApiClient(BaseAPIClient):
         try:
             result = await self.execute(command)
         except ShellCommandError as e:
-            self.log.error(f"Failed to fetch data from SOFA feed. Details: {e}")
             raise APIResponseError(
                 "Unable to retrieve SOFA feed",
                 command=command,

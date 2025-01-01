@@ -35,13 +35,12 @@ def check_token(func: Callable) -> Any:
         token_manager = instance.token_manager
         log = instance.log
 
+        log.debug(f"Validating access token for function {func.__name__}")
         try:
-            log.debug(f"Validating access token for function {func.__name__}")
             await token_manager.ensure_valid_token()
             latest_token = token_manager.token
             log.info(f"Token after validation: {latest_token.token[-4:]}")
         except ValidationError as e:
-            log.error(f"AccessToken ({token_manager.token[-4:]}) failed validation. Details: {e}")
             raise TokenError("AccessToken failed validation", error_msg=str(e))
         except TokenError:
             raise
