@@ -10,59 +10,34 @@ from ..models.patch import PatchTitle
 from ..models.reports.excel_report import ExcelReport
 from ..models.reports.pdf_report import PDFReport
 from ..utils.animation import Animation
-from ..utils.decorators import check_token
 from ..utils.exceptions import APIResponseError, PatcherError
 from ..utils.logger import LogMe
 from .api_client import ApiClient
-from .config_manager import ConfigManager
-from .token_manager import TokenManager
-from .ui_manager import UIConfigManager
 
 
 class ReportManager:
     def __init__(
         self,
-        config: ConfigManager,
-        token_manager: TokenManager,
         api_client: ApiClient,
         excel_report: ExcelReport,
         pdf_report: PDFReport,
-        ui_config: UIConfigManager,
         debug=False,
     ):
         """
         Handles the generation and management of patch reports.
 
-        This class coordinates various components such as configuration, token management, API interaction,
-        and report generation (both Excel and PDF) to produce reports on patch statuses.
-
-        :param config: Manages the configuration settings, including credentials.
-        :type config: :class:`~patcher.client.config_manager.ConfigManager`
-
-        :param token_manager: Handles the authentication tokens required for API access.
-        :type token_manager: :class:`~patcher.client.token_manager.TokenManager`
-
         :param api_client: Interacts with the Jamf API to retrieve data needed for reporting.
         :type api_client: :class:`~patcher.client.api_client.ApiClient`
-
         :param excel_report: Generates Excel reports from collected patch data.
         :type excel_report: :class:`~patcher.models.reports.excel_report.ExcelReport`
-
         :param pdf_report: Generates PDF reports from the Excel files, adding visual elements..
         :type pdf_report: :class:`~patcher.models.reports.pdf_report.PDFReport`
-
-        :param ui_config: Manages the UI configuration for PDF report generation.
-        :type ui_config: :class:`~patcher.client.ui_manager.UIConfigManager`
-
         :param debug: Overrides animation of `~patcher.client.report_manager.ReportManager.process_reports` method if True.
         :type debug: :py:class:`bool`
         """
-        self.config = config
-        self.token_manager = token_manager
         self.api_client = api_client
         self.excel_report = excel_report
         self.pdf_report = pdf_report
-        self.ui_config = ui_config
         self.debug = debug
         self.log = LogMe(self.__class__.__name__)
 
@@ -78,29 +53,20 @@ class ReportManager:
         provided by the SOFA feed, calculating how many devices are fully updated.
 
         :param device_versions: A list of dictionaries containing devices and their respective iOS versions.
-        :type device_versions: :py:obj:`~typing.List` of :py:obj:`~typing.Dict`
+        :type device_versions: :py:obj:`~typing.List` [:py:obj:`~typing.Dict`]
         :param latest_versions: A list of the most recent iOS versions available.
-        :type latest_versions: :py:obj:`~typing.List` of :py:obj:`~typing.Dict`
+        :type latest_versions: :py:obj:`~typing.List` [:py:obj:`~typing.Dict`]
         :return: A list of ``PatchTitle`` objects, each representing a summary of the patch status for an iOS version.
-        :rtype: :py:obj:`~typing.List` of :class:`~patcher.models.patch.PatchTitle`
+        :rtype: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
         :raises PatcherError: If a KeyError or ZeroDivisionError is encountered.
         """
         self.log.debug("Attempting to calculate iOS devices on latest version.")
 
         try:
             latest_versions_dict = {lv.get("OSVersion"): lv for lv in latest_versions}
-            self.log.info("Mapped latest iOS versions for analysis.")
-        except KeyError as e:
-            self.log.error(f"KeyError while mapping latest versions. Details: {e}")
-            raise PatcherError(
-                "Encountered KeyError while mapping latest iOS versions.", error_msg=str(e)
-            )
-
-        try:
             version_counts = {
                 version: {"count": 0, "total": 0} for version in latest_versions_dict.keys()
             }
-            self.log.debug("Counting devices on the latest versions.")
             for device in device_versions:
                 device_os = device.get("OS")
                 if not device_os:
@@ -111,14 +77,7 @@ class ReportManager:
                     version_counts[major_version]["total"] += 1
                     if device_os == latest_versions_dict[major_version]["ProductVersion"]:
                         version_counts[major_version]["count"] += 1
-        except KeyError as e:
-            self.log.error(f"KeyError while processing device versions. Details: {e}")
-            raise PatcherError(
-                "Encountered KeyError while processing device versions.", error_msg=str(e)
-            )
 
-        try:
-            self.log.debug("Generating patch summary objects.")
             mapped = [
                 PatchTitle(
                     title=f"iOS {latest_versions_dict[version]['ProductVersion']}",
@@ -135,18 +94,16 @@ class ReportManager:
             self.log.info(f"iOS version analysis completed with {len(mapped)} summaries generated.")
             return mapped
         except KeyError as e:
-            self.log.error(f"KeyError during summary generation. Details: {e}")
-            raise PatcherError("Encountered KeyError during summary generation.", error_msg=str(e))
-        except ZeroDivisionError as e:
-            self.log.error(
-                f"Division by zero encountered during percentage calculation. Details: {e}"
+            raise PatcherError(
+                "Encountered KeyError while calculating iOS devices on latest version.",
+                error_msg=str(e),
             )
+        except ZeroDivisionError as e:
             raise PatcherError(
                 "Division by zero encountered during iOS Device percentage calculation.",
                 error_msg=str(e),
             )
 
-    @check_token
     async def process_reports(
         self,
         path: Union[str, Path],
@@ -168,13 +125,13 @@ class ReportManager:
         ensuring that reports are accurate, complete, and formatted according to the user's preferences.
 
         :param path: The directory where the reports will be saved. It must be a valid directory, not a file.
-        :type path: :py:obj:`~typing.Union` of :py:class:`str` or :py:class:`~pathlib.Path`
+        :type path: :py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]
 
         :param pdf: If True, generates PDF versions of the reports in addition to Excel.
         :type pdf: :py:class:`bool`
 
         :param sort: Specifies the column by which to sort the reports (e.g., 'released' or 'completion_percent').
-        :type sort: :py:obj:`~typing.Optional` of :py:class:`str`
+        :type sort: :py:obj:`~typing.Optional` [:py:class:`str`]
 
         :param omit: If True, omits patches that were released within the last 48 hours.
         :type omit: :py:class:`bool`
@@ -231,9 +188,9 @@ class ReportManager:
             if pdf:
                 await self._generate_pdf(excel_file=excel_file, date_format=date_format)
 
-            # Manually stop animation to show success message cleanly
-            animation.stop_event.set()
-            self._success(len(patch_reports), output_path)
+        # Manually stop animation to show success message cleanly
+        animation.stop_event.set()
+        self._success(len(patch_reports), output_path)
 
     def _validate_directory(self, path: Union[str, Path]) -> str:
         """Validates or creates the reports directory."""
@@ -298,6 +255,7 @@ class ReportManager:
         self.log.debug("Attempting to fetch iOS device IDs.")
         try:
             device_ids = await self.api_client.get_device_ids()
+            self.log.info(f"Received {len(device_ids)} device IDs successfully.")
         except APIResponseError as e:
             self.log.error(f"Unable to obtain iOS Device IDs from Jamf instance. Details: {e}")
             raise PatcherError(
@@ -307,6 +265,7 @@ class ReportManager:
         self.log.debug("Attempting to fetch iOS version data for enrolled devices.")
         try:
             device_versions = await self.api_client.get_device_os_versions(device_ids=device_ids)
+            self.log.info(f"Successfully obtained OS versions for {len(device_versions)} devices.")
         except APIResponseError as e:
             self.log.error(
                 f"Received empty response obtaining device OS versions from Jamf instance. Details: {e}"
@@ -322,19 +281,26 @@ class ReportManager:
             latest_versions = await self.api_client.get_sofa_feed()
             self.log.info("Obtained latest version information from SOFA feed successfully.")
         except APIResponseError as e:
-            self.log.error(f"Received empty response from SOFA feed. Details: {e}")
+            self.log.error(f"Failed to fetch data from SOFA feed. Details: {e}")
             raise PatcherError("Error fetching data from SOFA feed.", error_msg=str(e))
 
-        ios_data = self.calculate_ios_on_latest(
-            device_versions=device_versions, latest_versions=latest_versions
-        )
+        try:
+            ios_data = self.calculate_ios_on_latest(
+                device_versions=device_versions, latest_versions=latest_versions
+            )
+        except PatcherError as e:
+            self.log.error(
+                f"Encountered error trying to calculate amount of iOS devices on latest version. Details: {e}"
+            )
+            raise
+
         patch_reports.extend(ios_data)
         self.log.info("iOS information successfully appended to patch reports.")
         return patch_reports
 
     async def _generate_excel(self, patch_reports: List[PatchTitle], reports_dir: str) -> str:
         """Generates Excel spreadsheet from passed patch reports to passed reports directory."""
-        self.log.debug("Attempting to generate Excel report.")
+        self.log.debug(f"Attempting Excel export to {reports_dir}")
         try:
             excel_file = await asyncio.to_thread(
                 self.excel_report.export_to_excel, patch_reports, reports_dir
@@ -342,7 +308,7 @@ class ReportManager:
             self.log.info(f"Excel report saved to {excel_file}.")
             return excel_file
         except PatcherError as e:
-            self.log.error(f"Error exporting data to Excel. Details: {e}")
+            self.log.error(f"Error exporting Excel document to {reports_dir}. Details: {e}")
             raise PatcherError(
                 "Failed exporting data to Excel.",
                 report_dir=reports_dir,
@@ -351,7 +317,7 @@ class ReportManager:
 
     async def _generate_pdf(self, excel_file: str, date_format: str) -> None:
         """Generates PDF report from passed excel file with custom date format."""
-        self.log.debug("Attempting to generate PDF report.")
+        self.log.debug(f"Attempting to generate PDF report from {excel_file}.")
         try:
             pdf_report = PDFReport()
             await asyncio.to_thread(pdf_report.export_excel_to_pdf, excel_file, date_format)
@@ -360,7 +326,7 @@ class ReportManager:
             self.log.error(f"Error generating PDF file. Details: {e}")
             raise PatcherError(
                 "Failed generating PDF file.",
-                file_path=excel_file,
+                excel_file=excel_file,
                 error_msg=str(e),
             )
 

@@ -327,9 +327,6 @@ def stop_event_fixture():
 
 @pytest.fixture
 def patcher_instance(mock_policy_response, mock_patch_title_response):
-    config = MagicMock()
-    ui_config = MagicMock()
-    token_manager = AsyncMock()
     api_client = AsyncMock()
 
     api_client.get_policies.return_value = mock_policy_response
@@ -339,12 +336,9 @@ def patcher_instance(mock_policy_response, mock_patch_title_response):
     pdf_report = MagicMock()
 
     return ReportManager(
-        config=config,
-        token_manager=token_manager,
         api_client=api_client,
         excel_report=excel_report,
         pdf_report=pdf_report,
-        ui_config=ui_config,
         debug=True,
     )
 
