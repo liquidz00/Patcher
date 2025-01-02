@@ -6,40 +6,6 @@
 Command Line Interface (CLI)
 ============================
 
-Functions
----------
-
-.. function:: setup_logging(debug: bool) -> None
-
-    Configures global logging based on the debug flag.
-
-    :param debug: Whether to enable debug logging.
-    :type debug: :py:class:`bool`
-
-Viewing Help
-------------
-
-Patcher accepts both ``--help`` and ``-h`` parameters to view the help menu. Additionally, help is available for each subcommand and can be viewed by executing ``patcherctl <command> --help``.
-
-.. code-block:: console
-
-    $ patcherctl --help
-
-.. container:: sd-table
-
-    .. list-table::
-       :header-rows: 1
-       :widths: auto
-
-       * - Option
-         - Description
-       * - ``--version``
-         - Show the version and exit.
-       * - ``-x``, ``--debug``
-         - Enable debug logging (verbose mode).
-       * - ``-h``, ``--help``
-         - Show this message and exit.
-
 Entry Point
 -----------
 
@@ -61,7 +27,7 @@ Subcommands
 .. admonition:: Added in version 2.0
     :class: success
 
-    Patcher has been split into three separate commands; ``analyze``, ``reset`` and ``export``.
+    Patcher has been split into three separate commands; ``analyze``, ``reset`` and ``export``. For usage and examples, see our `Usage <usage>` page.
 
 Reset Command
 ^^^^^^^^^^^^^
@@ -81,11 +47,6 @@ Reset Command
     **Options**:
       - ``--credential``, ``-c``: Specify which credential to reset.
 
-    Example usage:
-
-    .. code-block:: console
-
-        $ patcherctl reset full
 
 Export Command
 ^^^^^^^^^^^^^^
@@ -104,11 +65,6 @@ Export Command
       - ``ios``: Include mobile device data if `True`.
       - ``concurrency``: Maximum number of API requests sent concurrently.
 
-    Example usage:
-
-    .. code-block:: console
-
-        $ patcherctl export --path /path/to/save --pdf --sort "Released"
 
 Analyze Command
 ^^^^^^^^^^^^^^^
@@ -126,8 +82,3 @@ Analyze Command
       - ``summary``: Generate a summary file if `True`.
       - ``output_dir``: Directory to save the summary.
 
-    Example usage:
-
-    .. code-block:: console
-
-        $ patcherctl analyze /path/to/excel.xlsx --criteria below-threshold --threshold 50.0
