@@ -15,7 +15,7 @@ from .client.ui_manager import UIConfigManager
 from .models.reports.excel_report import ExcelReport
 from .models.reports.pdf_report import PDFReport
 from .utils.animation import Animation
-from .utils.exceptions import PatcherError
+from .utils.exceptions import APIResponseError, PatcherError
 from .utils.logger import LogMe, PatcherLog
 
 DATE_FORMATS = {
@@ -32,6 +32,15 @@ sys.excepthook = PatcherLog.custom_excepthook  # Log unhandled exceptions
 def setup_logging(debug: bool) -> None:
     """Configures global logging based on the debug flag."""
     PatcherLog.setup_logger(debug=debug)
+
+
+def format_err(exc: PatcherError) -> None:
+    """Formats error messages to console."""
+    click.echo(click.style(f"❌ Error: {str(exc)}", fg="red", bold=True), err=True)
+    click.echo(
+        f"💡 For more details, please check the log file at: {PatcherLog.LOG_FILE}",
+        err=True,
+    )
 
 
 # Context settings to enable both ``-h`` and ``--help`` for help output
@@ -54,6 +63,7 @@ async def cli(ctx: click.Context, debug: bool) -> None:
         0   Success
         1   General error (e.g., PatcherError or user-facing issue)
         2   Unhandled exception
+        4   API error (e.g., unauthorized, invalid response)
         130 KeyboardInterrupt (Ctrl+C)
     """
     setup_logging(debug)
@@ -403,12 +413,11 @@ async def analyze(
 if __name__ == "__main__":
     try:
         asyncio.run(cli())
+    except APIResponseError as e:
+        format_err(e)
+        sys.exit(4)
     except PatcherError as e:
-        click.echo(click.style(f"❌Error: {str(e)}", fg="red", bold=True), err=True)
-        click.echo(
-            f"💡 For more details, please check the log file at: {PatcherLog.LOG_FILE}",
-            err=True,
-        )
+        format_err(e)
         sys.exit(1)
     except Exception as e:
         # Delegate to sys.excepthook
