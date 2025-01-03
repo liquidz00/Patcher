@@ -31,3 +31,8 @@ html[data-theme="dark"] {
     /* Override hover when using sd-table directive */
     background-color: unset !important;
 }
+
+.patcher-title {
+    font-size: 1.25rem;
+    font-weight: bold;
+}
