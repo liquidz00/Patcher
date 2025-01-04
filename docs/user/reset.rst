@@ -8,7 +8,7 @@
 Reset
 ======
 
-**Description**: Allows for resetting of configurations based upon specified kind:
+Allows for resetting of configurations based upon specified kind:
 
 - ``full``: Resets credentials, UI elements, and property list file. Subsequently triggers :class:`~patcher.client.setup.Setup` to start setup.
 - ``UI``: Resets UI elements of PDF reports (header & footer text, custom font and optional logo).
@@ -45,8 +45,10 @@ Usage
     - ``client_id``
     - ``client_secret``
 
-.. tab-set::
+.. _full_reset:
 
+.. tab-set::
+    
     .. tab-item:: All (Full)
 
         .. code-block:: console

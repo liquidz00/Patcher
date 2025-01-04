@@ -6,7 +6,7 @@
 Export
 =======
 
-**Description**: The ``export`` command collects patch management data from Jamf API calls, subsequently exporting the data to Excel spreadsheet and optional PDF formats. This command works hand-in-hand with the :meth:`~patcher.client.report_manager.ReportManager.process_reports` method.
+The ``export`` command collects patch management data from Jamf API calls, subsequently exporting the data to Excel spreadsheet and optional PDF formats. This command works hand-in-hand with the :meth:`~patcher.client.report_manager.ReportManager.process_reports` method.
 
 Parameters
 ----------
