@@ -23,7 +23,7 @@ The included LaunchAgent is configured to:
 Using this LaunchAgent eliminates the need for manual report exports, helping you maintain a consistent reporting schedule.
 
 ```{warning}
-Ensure that the Python executable and the CLI are on your system's ``PATH``. When installing the project via PyPI, Patcher is typically placed in the ``bin`` directory of your Python installation. If these directories are not in your ``PATH``, Patcher may not work as expected. See {ref}`<add_to_path>`
+Ensure that the Python executable and the CLI are on your system's ``PATH``. When installing the project via PyPI, Patcher is typically placed in the ``bin`` directory of your Python installation. If these directories are not in your ``PATH``, Patcher may not work as expected. See {ref}`Adding to PATH <add-path>`
 ```
 
 ## Setting Up the LaunchAgent
@@ -37,7 +37,11 @@ Customize the provided ``.plist`` file to suit your needs. Key fields to update 
 - **``ProgramArguments``**: Adjust the boilerplate options in the ``patcherctl export`` command with your desired path or options. See {ref}`Export <export>` command page for more.
 - **``StartCalendarInterval``**: Define the schedule for your task. [Launched](https://launched.zerowidth.com/) is an amazing resource for this.
 
-*(Optional)* Update the ``StandardErrorPath`` and ``StandardOutPath`` strings if you would like LaunchAgent logs to go to a different directory.
+:::{admonition} Optional
+:class: admonition-optional
+
+Update the ``StandardErrorPath`` and ``StandardOutPath`` strings if you would like LaunchAgent logs to go to a different directory.
+:::
 
 #### Example ``.plist`` Configuration
 
@@ -57,9 +61,9 @@ The example below schedules the task to run on the first day of each month at 9:
       <string>patcherctl export --path /path/to/save --pdf</string>
     </array>
     <key>StandardErrorPath</key>
-    <string>$HOME/Library/Application\ Support/Patcher/logs/agent.err.log</string>
+    <string>$HOME/Library/Application\ Support/Patcher/logs/patcher-agent.err.log</string>
     <key>StandardOutPath</key>
-    <string>$HOME/Library/Application\ Support/Patcher/logs/agent.out.log</string>
+    <string>$HOME/Library/Application\ Support/Patcher/logs/patcher-agent.out.log</string>
     <key>StartCalendarInterval</key>
     <array>
       <dict>
@@ -107,8 +111,8 @@ To ensure the LaunchAgent is working:
 
 1. Manually run the ``patcherctl export`` command to confirm it executes as expected. 
 2. Check the logs for errors or confirmation of success:
-   - **Standard Output**: ``~/Library/Application Support/Patcher/logs/agent.out.log``
-   - **Standard Error**: ``~/Library/Application Support/Patcher/logs/agent.err.log``
+   - **Standard Output**: ``~/Library/Application Support/Patcher/logs/patcher-agent.out.log``
+   - **Standard Error**: ``~/Library/Application Support/Patcher/logs/patcher-agent.err.log``
 
 ### Troubleshooting
 
@@ -119,6 +123,6 @@ If the LaunchAgent does not work as expected:
 - Review the logs for detailed error messages: 
 
 ```{code-block} bash
-tail -f ~/Library/Application\ Support/Patcher/logs/agent.err.log
+tail -f ~/Library/Application\ Support/Patcher/logs/patcher-agent.err.log
 ```
 
