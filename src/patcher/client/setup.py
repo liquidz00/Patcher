@@ -84,18 +84,16 @@ class Setup:
         """
         if not os.path.exists(self.plist_path):
             self.log.info("Setup plist file not found. Setup is incomplete.")
-            self._completed = False
+            return False
 
         try:
             with open(self.plist_path, "rb") as fp:
                 plist_data = plistlib.load(fp)
-                self._completed = plist_data.get("Setup", {}).get("first_run_done", False)
                 self.log.info("Setup completion status loaded successfully.")
+                return plist_data.get("Setup", {}).get("first_run_done", False)
         except plistlib.InvalidFileException as e:
             self.log.warning(f"Unable to read property list file. Details: {e}")
-            self._completed = False
-
-        return self._completed
+            return False
 
     def _mark_completion(self, value: bool = False):
         """Updates the plist file to reflect the completion status of the setup."""
@@ -210,8 +208,7 @@ class Setup:
         # Setup animation
         animator = animator or self.animator
 
-        # Greet users, prompt for credentials
-        self._greet()
+        # Prompt for credentials
         creds = self._prompt_credentials(setup_type)
 
         if setup_type == SetupType.STANDARD:
@@ -311,6 +308,9 @@ class Setup:
         if self.completed:
             return
 
+        # Greet users
+        self._greet()
+
         animator = animator or self.animator
 
         setup_type_map = {1: SetupType.STANDARD, 2: SetupType.SSO}
@@ -323,7 +323,7 @@ class Setup:
             click.echo(click.style("Invalid choice, please choose 1 or 2", fg="red"))
             await self.start()
 
-    async def reset_setup(self) -> bool:
+    def reset_setup(self) -> bool:
         """
         Resets Setup configuration, removing Patcher's property list file. This effectively marks
         Setup completion as False and will re-trigger the setup assistant.
