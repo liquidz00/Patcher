@@ -36,6 +36,8 @@ Patcher accepts both ``--help`` and ``-h`` parameters to view the help menu. Add
        * - ``-h``, ``--help``
          - Show this message and exit.
 
+.. _exit-codes:
+
 Exit Codes
 ----------
 
@@ -59,6 +61,8 @@ Patcher leverages specific exit codes depending on what type of error occurred a
         - API error (e.g., unauthorized, invalid response)
       * - 130
         - KeyboardInterrupt (Ctrl+C)
+
+.. _debug:
 
 Debug Mode (verbose)
 --------------------
