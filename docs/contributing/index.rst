@@ -5,13 +5,6 @@ Contributing
 
 Contributions to Patcher are encouraged and welcomed. Contributing does not *have* to mean writing Python code! Project documentation can always be improved and `feature requests <https://github.com/liquidz00/Patcher/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=%5BFEATURE%5D+Your+feature+request+title>`_ can be submitted for new ideas or functionality. We, the developers of this tool, **firmly believe** that diverse backgrounds strengthen a product. Therefore, we encourage you to share your ideas and thoughts, regardless of your programming experience.
 
-Some topics we are hoping to develop in future versions of Patcher are:
-
-- **Support for other MDM vendors**; Implementing functionality for other MDM vendors (such as Kandji)
-- **Windows compatibility**; whether via Docker container or additional windows-specific credential libraries
-- **Patch analyzation**; providing information on which patch titles may need TLC above others (e.g., titles that have been released longer than 'x' amount of time that have active CVEs)
-- **Installomator support**; identifying which patch titles have an `Installomator <https://github.com/Installomator/Installomator>`_ label available to assist Admins in setting up automatic patching.
-
 How to Contribute
 -----------------
 
