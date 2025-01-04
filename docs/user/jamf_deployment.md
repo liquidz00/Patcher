@@ -65,7 +65,7 @@ You can now pass the client ID and client secret values when prompted by the set
 ## Access Token Lifetime
 
 :::{note}
-Generating an access token is not required. Patcher handles obtaining and refreshing of tokens automatically. See {class}`~patcher.token_manager.TokenManager` for more.
+Generating an access token is not required. Patcher handles obtaining and refreshing of tokens automatically. See {class}`~patcher.client.token_manager.TokenManager` for more.
 :::
 
 When defining the access token lifetime, it is recommended to use a duration of at least 5 minutes. Patcher is designed to handle automatic token refreshing and generation. Longer durations reduce the frequency of token regeneration, thereby decreasing administrative overhead. However, ensure that the chosen duration aligns with your organization's security policies.
