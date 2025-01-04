@@ -1,8 +1,7 @@
 import logging
 import os
-import platform
 import sys
-from logging import LogRecord
+import traceback
 from logging.handlers import RotatingFileHandler
 from types import TracebackType
 from typing import Optional, Type
@@ -10,32 +9,11 @@ from typing import Optional, Type
 import asyncclick as click
 
 
-class UnifiedLogHandler(logging.Handler):
-    """Custom logging handler to write logs to macOS Unified Logs using the ``logger`` command."""
-
-    def emit(self, record: LogRecord) -> None:
-        """
-        Emit a log message to macOS Unified Logs.
-
-        :param record: The log record to emit.
-        :type record: :py:obj:`~logging.LogRecord`
-        """
-        if platform.system() != "Darwin":
-            return  # macOS only
-
-        # Format the message using logger's formatter
-        try:
-            message = self.format(record)
-            os.system(f"logger -t {PatcherLog.LOGGER_NAME} '{message}'")
-        except Exception:
-            self.handleError(record)
-
-
 class PatcherLog:
     LOGGER_NAME = "Patcher"
     LOG_DIR = os.path.expanduser("~/Library/Application Support/Patcher/logs")
     LOG_FILE = os.path.join(LOG_DIR, "patcher.log")
-    LOG_LEVEL = logging.DEBUG
+    LOG_LEVEL = logging.INFO
     MAX_BYTES = 1048576 * 100  # 100 MB
     BACKUP_COUNT = 10
 
@@ -80,13 +58,6 @@ class PatcherLog:
                 console_handler.setLevel(logging.DEBUG)
                 logger.addHandler(console_handler)
 
-            # UnifiedLogHandler for macOS
-            if platform.system() == "Darwin":
-                unified_handler = UnifiedLogHandler()
-                unified_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
-                unified_handler.setLevel(level or PatcherLog.LOG_LEVEL)
-                logger.addHandler(unified_handler)
-
             logger.setLevel(logging.DEBUG)  # Capture all messages, delegate to handlers
 
         return logger
@@ -97,7 +68,7 @@ class PatcherLog:
         Setup a child logger for a specified context.
 
         .. admonition:: Removed in version 2.0
-            :class: warning
+            :class: danger
 
             The ``debug`` parameter is now handled at CLI entry point. Child loggers with an explicitly set logging level will not respect configuration changes to the root logger.
 
@@ -138,8 +109,13 @@ class PatcherLog:
             child_logger.info("User interrupted the process.")
             sys.exit(130)  # SIGINT
 
+        # format traceback
+        formatted_traceback = "".join(
+            traceback.format_exception(exc_type, exc_value, exc_traceback)
+        )
+
         child_logger.error(
-            f"Unhandled exception: {exc_type.__name__}: {exc_value}\n{exc_traceback}"
+            f"Unhandled exception: {exc_type.__name__}: {exc_value}\n{formatted_traceback}"
         )
 
         # Show user-friendly message in console
