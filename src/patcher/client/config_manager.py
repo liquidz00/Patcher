@@ -115,7 +115,7 @@ class ConfigManager:
             "CLIENT_SECRET": client.client_secret,
             "URL": client.base_url,
             "TOKEN": token.token,
-            "TOKEN_EXPIRATION": token.expires,
+            "TOKEN_EXPIRATION": str(token.expires),
         }
         for k, v in credentials.items():
             self.set_credential(k, v)
