@@ -1,3 +1,5 @@
+(install)=
+
 # Installation
 
 Once prerequisites have been satisfied, Patcher can be installed via `pip`:
@@ -33,30 +35,44 @@ This should display the installed version of Patcher. Additionally, the `--help`
 ```shell
 $ patcherctl --help
 
-Usage: patcherctl [OPTIONS]
+Usage: python -m patcher.cli <options> COMMAND [ARGS]...
+
+  Main CLI entry point for Patcher.
+
+  Visit our project documentation for full details:
+  https://patcher.liquidzoo.io.
+
+  Exit Codes:
+      0   Success
+      1   General error (e.g., PatcherError or user-facing issue)
+      2   Unhandled exception
+      4   API error (e.g., unauthorized, invalid response)
+      130 KeyboardInterrupt (Ctrl+C)
 
 Options:
-  --version                       Show the version and exit.
-  -p, --path PATH                 Path to save the report(s)
-  -f, --pdf                       Generate a PDF report along with Excel
-                                  spreadsheet
-  -s, --sort TEXT                 Sort patch reports by a specified column.
-  -o, --omit                      Omit software titles with patches released
-                                  in last 48 hours
-  -d, --date-format [Month-Year|Month-Day-Year|Year-Month-Day|Day-Month-Year|Full]
-                                  Specify the date format for the PDF header
-                                  from predefined choices.
-  -m, --ios                       Include the amount of enrolled mobile
-                                  devices on the latest version of their
-                                  respective OS.
-  --concurrency INTEGER           Set the maximum concurrency level for API
-                                  calls.
-  -x, --debug                     Enable debug logging to see detailed debug
-                                  messages.
-  -r, --reset                     Resets the setup process and triggers the
-                                  setup assistant again.
-  --help                          Show this message and exit.
+  --version    Show the version and exit.
+  -x, --debug  Enable debug logging (verbose mode).
+  -h, --help   Show this message and exit.
+
+Commands:
+  analyze  Analyzes exported data by criteria.
+  export   Exports patch management reports.
+  reset    Resets configuration based on kind.
 ```
+
+If instead you are presented with an error such as ``command not found``, ensure your ``PATH`` includes the appropriate directory. If you installed Python from python.org, the installer automatically added the Python framework to your PATH.
+
+(add-path)=
+
+### Adding Python to ``PATH``
+
+CLI tools are typically installed to the ``/bin`` subdirectory of the Python framework. This can be added to your shell ``PATH`` by executing: 
+
+```{code-block} bash
+echo 'export PATH=$(python3 -m site --user-base)/bin:$PATH' >> ~/.zshrc && source ~/.zshrc
+```
+
+If ``zsh`` is not your default shell, adjust the command to reflect the proper shell profile (e.g., ``bashrc``)
 
 (ssl-verify)=
 ## SSL Verification
