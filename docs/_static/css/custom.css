@@ -36,3 +36,18 @@ html[data-theme="dark"] {
     font-size: 1.25rem;
     font-weight: bold;
 }
+
+/* Custom "Optional" Admonition */
+div.admonition.admonition-optional {
+    border-color: hsl(0 0% 80%);
+}
+
+div.admonition.admonition-optional > .admonition-title {
+    background-color: hsl(0 0% 80%);
+    color: black;
+}
+
+div.admonition.admonition-optional > .admonition-title::after {
+    color: hsl(0 0% 30%);
+    content: "\f08d";
+}
