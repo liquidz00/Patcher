@@ -13,6 +13,8 @@ Unified Log Handler
 PatcherLog
 ----------
 
+.. _child-logger:
+
 .. autoclass:: patcher.utils.logger.PatcherLog
     :members:
 
