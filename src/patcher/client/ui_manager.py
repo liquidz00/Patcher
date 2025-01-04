@@ -80,7 +80,7 @@ class UIConfigManager:
         self.config = plist_data.get("UI", {})
 
         if "LOGO_PATH" not in self.config:  # Ensure LOGO_PATH is initialized properly
-            self.config["LOGO_PATH"] = None
+            self.config["LOGO_PATH"] = ""
 
         self.log.info("Loaded UI configuration settings from property list successfully.")
 
@@ -143,7 +143,7 @@ class UIConfigManager:
             "FONT_NAME": "Assistant",
             "FONT_REGULAR_PATH": str(self.font_dir / "Assistant-Regular.ttf"),
             "FONT_BOLD_PATH": str(self.font_dir / "Assistant-Bold.ttf"),
-            "LOGO_PATH": None,
+            "LOGO_PATH": "",
         }
 
         # Ensure directory exists
@@ -406,7 +406,7 @@ class UIConfigManager:
             "FONT_NAME": font_name,
             "FONT_REGULAR_PATH": str(font_regular_path),
             "FONT_BOLD_PATH": str(font_bold_path),
-            "LOGO_PATH": str(logo_path) if logo_path else None,
+            "LOGO_PATH": str(logo_path) if logo_path else "",
         }
         self._write_plist_file(plist_data)
         self.log.info("Saved UI configuration settings successfully.")
