@@ -2,9 +2,10 @@ import asyncio
 import plistlib
 import shutil
 from pathlib import Path
-from typing import Dict, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import asyncclick as click
+from PIL import Image
 
 from ..utils import exceptions, logger
 from . import BaseAPIClient
@@ -72,12 +73,18 @@ class UIConfigManager:
         This method reads the Patcher property list file to retrieve the settings. If the
         property list file does not exist, it is created with default values.
         """
+        if not self.plist_path.parent.exists():
+            self.plist_path.parent.mkdir(parents=True, exist_ok=True)
+
         if not self.plist_path.exists():
             self.config = {}  # Set to empty initially since async task will fill it later
         else:
             # Load configs
             plist_data = self._load_plist_file()
             self.config = plist_data.get("UI", {})
+            # Ensure LOGO_PATH is initialized properly
+            if "LOGO_PATH" not in self.config:
+                self.config["LOGO_PATH"] = None
 
     async def download_font(self, url: str, dest_path: Path):
         """
@@ -94,13 +101,18 @@ class UIConfigManager:
         :type dest_path: str
         :raises exceptions.ShellCommandError: Raised if the font cannot be downloaded due to a network error or invalid response.
         """
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+        except PermissionError as e:
+            self.log.error(f"Unable to create directory for fonts: {e}")
+            raise exceptions.PatcherError("Could not create directory for Fonts.")
+
         command = ["/usr/bin/curl", "-sL", url, "-o", str(dest_path)]
         async with self.api.semaphore:
             try:
-                result = await self.api.execute(command)
+                await self.api.execute(command)
             except exceptions.ShellCommandError as e:
-                self.log.error(f"Unable to download font from {url}")
+                self.log.error(f"Unable to download font from {url}: {e}")
                 raise
 
     async def create_default_config(self):
@@ -183,13 +195,19 @@ class UIConfigManager:
         header_text = click.prompt("Enter the Header Text to use on PDF reports")
         footer_text = click.prompt("Enter the Footer Text to use on PDF reports")
         use_custom_font = click.confirm("Would you like to use a custom font?", default=False)
+        use_logo = click.confirm(
+            "Would you like to use a logo in your exported PDFs?", default=False
+        )
         self.font_dir.mkdir(parents=True, exist_ok=True)
 
         font_name, font_regular_path, font_bold_path = self.configure_font(
             use_custom_font, self.font_dir
         )
+        logo_path = self.configure_logo(use_logo)
 
-        self.save_ui_config(header_text, footer_text, font_name, font_regular_path, font_bold_path)
+        self.save_ui_config(
+            header_text, footer_text, font_name, font_regular_path, font_bold_path, logo_path
+        )
 
     @staticmethod
     def configure_font(use_custom_font: bool, font_dir: Path) -> Tuple[str, Path, Path]:
@@ -223,6 +241,64 @@ class UIConfigManager:
 
         return font_name, font_regular_dest_path, font_bold_dest_path
 
+    def configure_logo(self, use_logo: bool) -> Optional[str]:
+        """
+        Configures the logo file for PDF reports based on user input.
+
+        If a logo file is specified, it is validated and copied to Patcher's Application Support directory.
+        Similar to :meth:`~patcher.client.ui_manager.configure_font` this method is solely used in conjunction with the :class:`~patcher.client.setup.Setup` class.
+
+        :param use_logo: Indicates whether or not to use a custom logo.
+        :type use_logo: bool
+        :return: The path to the saved logo file, or None if no logo is configured.
+        :rtype: Optional[str]
+        :raises exceptions.SetupError: If the provided logo path does not exist.
+        :raises exceptions.PatcherError: If the provided logo fails pillow validation.
+        """
+        if not use_logo:
+            self.log.info("Skipping logo configuration...")
+            return None
+
+        logo_dest_path = self.plist_path.parent / "logo.png"
+
+        # Prompt for path
+        logo_src_path = Path(click.prompt("Enter the path to the logo file"))
+        if not logo_src_path.exists():
+            self.log.error(f"Logo path does not exist: {logo_src_path}")
+            raise exceptions.SetupError(
+                f"{logo_src_path} does not exist, please check the path and try again."
+            )
+
+        # Validate file is an image
+        try:
+            with Image.open(logo_src_path) as img:
+                img.verify()
+        except (IOError, Image.UnidentifiedImageError) as e:
+            self.log.error(f"Image validation failed for {logo_src_path}: {e}")
+            raise exceptions.PatcherError(
+                f"{logo_src_path} is not a valid image file. Please try again."
+            )
+
+        # Copy file
+        try:
+            shutil.copy(logo_src_path, logo_dest_path)
+            self.log.info(f"Logo saved to {logo_dest_path}.")
+        except Exception as e:
+            self.log.error(f"Failed to copy logo to destination {logo_dest_path}: {e}")
+            raise exceptions.PatcherError(
+                f"Unable to save the logo file to {logo_dest_path}. Please try again."
+            )
+
+        # Save logo path in config
+        self.config["LOGO_PATH"] = str(logo_dest_path)
+
+        # Update plist file
+        plist_data = self._load_plist_file()
+        plist_data["UI"] = self.config
+        self._write_plist_file(plist_data)
+
+        return str(logo_dest_path)
+
     def save_ui_config(
         self,
         header_text: str,
@@ -230,6 +306,7 @@ class UIConfigManager:
         font_name: str,
         font_regular_path: Union[str, Path],
         font_bold_path: Union[str, Path],
+        logo_path: Optional[Union[str, Path]] = None,
     ):
         """
         Saves the UI configuration settings to the configuration file.
@@ -245,6 +322,8 @@ class UIConfigManager:
         :type font_regular_path: Union[str, Path]
         :param font_bold_path: The path to the bold font file.
         :type font_bold_path: Union[str, Path]
+        :param logo_path: The path to company/branding logo file.
+        :type logo_path: Optional[Union[str, Path]], defaults to None.
         """
         # Load existing plist file if it exists
         plist_data = self._load_plist_file()
@@ -255,8 +334,18 @@ class UIConfigManager:
             "FONT_NAME": font_name,
             "FONT_REGULAR_PATH": str(font_regular_path),
             "FONT_BOLD_PATH": str(font_bold_path),
+            "LOGO_PATH": str(logo_path) if logo_path else None,
         }
         self._write_plist_file(plist_data)
+
+    def get_logo_path(self) -> Union[str, None]:
+        """
+        Retrieves the logo path from the UI configuration.
+
+        :return: The logo path as a string if it exists, else None.
+        :rtype: Union[str, None]
+        """
+        return self.get("LOGO_PATH", None)
 
     def _load_plist_file(self) -> Dict:
         if self.plist_path.exists():

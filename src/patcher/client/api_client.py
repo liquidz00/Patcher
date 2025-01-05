@@ -108,6 +108,7 @@ class ApiClient(BaseAPIClient):
                 released=self._convert_tz(summary.get("releaseDate")),
                 hosts_patched=summary.get("upToDate"),
                 missing_patch=summary.get("outOfDate"),
+                latest_version=summary.get("latestVersion"),
             )
             for summary in summaries
             if summary

@@ -123,18 +123,21 @@ def mock_patch_title_response():
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=3)),
             hosts_patched=23,
             missing_patch=163,
+            latest_version="2.0.0",
         ),
         PatchTitle(
             title="Jamf Connect",
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(hours=24)),
             hosts_patched=185,
             missing_patch=19,
+            latest_version="1.4.5",
         ),
         PatchTitle(
             title="Apple macOS Ventura",
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=7)),
             hosts_patched=6,
             missing_patch=5,
+            latest_version="13.7.1",
         ),
     ]
 
@@ -404,6 +407,7 @@ def sample_patch_reports():
             released="2024-01-01",
             hosts_patched=10,
             missing_patch=2,
+            latest_version="1.1.4",
             completion_percent=83.33,
             total_hosts=12,
         )
