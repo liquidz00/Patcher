@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 from src.patcher.models.reports.excel_report import ExcelReport
-from src.patcher.utils.exceptions import ExportError
+from src.patcher.utils.exceptions import PatcherError
 
 
 def test_export_to_excel_success(sample_patch_reports, temp_output_dir):
@@ -31,9 +31,10 @@ def test_export_to_excel_dataframe_creation_error(temp_output_dir):
     excel_report = ExcelReport()
 
     with patch.object(pd, "DataFrame", side_effect=ValueError("Test Error")):
-        with pytest.raises(ExportError) as excinfo:
+        with pytest.raises(PatcherError) as excinfo:
             excel_report.export_to_excel([], temp_output_dir)
 
-        assert "Error exporting data - file_path: Error creating DataFrame: Test Error" in str(
-            excinfo.value
+        assert (
+            f"Encountered error creating DataFrame. (file_path: {temp_output_dir} | error_msg: Test Error)"
+            in str(excinfo.value)
         )

@@ -8,7 +8,6 @@ import pytest
 import pytz
 from src.patcher.client import BaseAPIClient
 from src.patcher.client.api_client import ApiClient
-from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.report_manager import ReportManager
 from src.patcher.client.token_manager import TokenManager
 from src.patcher.models.jamf_client import JamfClient
@@ -183,24 +182,6 @@ def mock_api_integration_response():
 
 
 @pytest.fixture
-def mock_lifetime_response():
-    return {
-        "totalCount": 1,
-        "results": [
-            {
-                "authorizationScopes": ["Read Computers"],
-                "displayName": "short-lived-token",
-                "enabled": True,
-                "accessTokenLifetimeSeconds": 30,
-                "id": 7,
-                "appType": "CLIENT_CREDENTIALS",
-                "clientId": "short-lived-client-id",
-            }
-        ],
-    }
-
-
-@pytest.fixture
 def mock_ios_device_id_list_response():
     return {
         "totalCount": 2,
@@ -311,36 +292,30 @@ def mock_sofa_response():
 
 
 @pytest.fixture
+def mock_access_token():
+    return AccessToken(token="mocked_token", expires=datetime(2026, 1, 1, tzinfo=timezone.utc))
+
+
+@pytest.fixture
 def mock_jamf_client():
-    mock_token = AccessToken(
-        token="mocked_token", expires=datetime(2030, 1, 1, tzinfo=timezone.utc)
-    )
     return JamfClient(
         client_id="mocked_client_id",
         client_secret="mocked_client_secret",
         server="https://mocked.url",
-        token=mock_token,
     )
 
 
 @pytest.fixture
-def short_lived_jamf_client():
-    mock_token = AccessToken(token="mocked_token", expires=(datetime.now() + timedelta(seconds=30)))
-    return JamfClient(
-        client_id="short-lived-client-id",
-        client_secret="mocked_client_secret",
-        server="https://mocked.url",
-        token=mock_token,
-    )
-
-
-@pytest.fixture
-def config_manager(mock_jamf_client):
-    with patch(
-        "src.patcher.client.config_manager.ConfigManager.attach_client",
-        return_value=mock_jamf_client,
-    ):
-        yield ConfigManager(service_name="patcher")
+def config_manager():
+    mock_config = MagicMock()
+    mock_config.get_credential.side_effect = lambda key: {
+        "TOKEN": "mocked_token",
+        "TOKEN_EXPIRATION": datetime(2026, 1, 1, tzinfo=timezone.utc),
+        "CLIENT_ID": "mock_client_id",
+        "CLIENT_SECRET": "mock_client_secret",
+        "URL": "https://mocked.url",
+    }.get(key, None)
+    return mock_config
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -352,9 +327,6 @@ def stop_event_fixture():
 
 @pytest.fixture
 def patcher_instance(mock_policy_response, mock_patch_title_response):
-    config = MagicMock()
-    ui_config = MagicMock()
-    token_manager = AsyncMock()
     api_client = AsyncMock()
 
     api_client.get_policies.return_value = mock_policy_response
@@ -364,26 +336,18 @@ def patcher_instance(mock_policy_response, mock_patch_title_response):
     pdf_report = MagicMock()
 
     return ReportManager(
-        config=config,
-        token_manager=token_manager,
         api_client=api_client,
         excel_report=excel_report,
         pdf_report=pdf_report,
-        ui_config=ui_config,
         debug=True,
     )
 
 
 @pytest.fixture
-def token_manager(config_manager):
+def token_manager(config_manager, mock_access_token):
     token_manager = TokenManager(config_manager)
-    token_manager.fetch_token = AsyncMock(
-        return_value=AccessToken(
-            token="mocked_token", expires=datetime(2030, 1, 1, tzinfo=timezone.utc)
-        )
-    )
-    token_manager._check_token_lifetime = MagicMock()
-    yield token_manager
+    token_manager._token = mock_access_token
+    return token_manager
 
 
 @pytest.fixture
@@ -445,9 +409,7 @@ def mock_click():
 
 @pytest.fixture
 def ui_config():
-    ui = MagicMock()
-    ui.user_config_path = "/mock/path/to/config.ini"
-    return ui
+    return MagicMock()
 
 
 @pytest.fixture

@@ -4,10 +4,15 @@
 Setup
 =====
 
-.. dropdown:: Summary
-    :icon: archive
+Setup Type Enum
+---------------
 
-    The ``Setup`` class handles the initial setup of Patcher the first time it is executed. For additional reference, visit the :ref:`Setup <setup>` page in the User Guide.
+.. autoclass:: patcher.client.setup.SetupType
+    :members:
+    :show-inheritance:
+
+Setup Class
+-----------
 
 .. autoclass:: patcher.client.setup.Setup
     :members:

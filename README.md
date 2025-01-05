@@ -12,7 +12,7 @@ Project documentation can now be found [on our project homepage](https://patcher
 
 ### Sample PDF
 Assuming 'AnyOrg' is the name of your organization, an exported PDF could look like this:
-<p align="left"><img src="docs/_static/example_pdf.jpg" width="750"/></p>
+<p align="left"><img src="docs/_static/example_pdf.png" width="750"/></p>
 
 ### Installation
 Install via `pip`:

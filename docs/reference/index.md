@@ -9,6 +9,7 @@ html_theme.sidebar_secondary.remove: True
 
 base_api_client
 api_client
+analyze
 config_manager
 report_manager
 setup

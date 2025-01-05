@@ -4,5 +4,5 @@
 Excel Report
 ============
 
-.. automodule:: patcher.models.reports.excel_report
+.. autoclass:: patcher.models.reports.excel_report.ExcelReport
     :members:

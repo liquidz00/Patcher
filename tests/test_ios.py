@@ -35,7 +35,7 @@ async def test_get_device_ids_invalid(api_client):
         with pytest.raises(exceptions.APIResponseError) as excinfo:
             await api_client.get_device_ids()
 
-        assert "Failed to decode JSON or parse status code from response" in str(excinfo.value)
+        assert "Failed parsing JSON response from API" in str(excinfo.value)
 
 
 # Test API error response

@@ -4,5 +4,22 @@
 Logging
 =======
 
-.. automodule:: patcher.utils.logger
+Unified Log Handler
+-------------------
+
+.. autoclass:: patcher.utils.logger.UnifiedLogHandler
+    :members:
+
+PatcherLog
+----------
+
+.. _child-logger:
+
+.. autoclass:: patcher.utils.logger.PatcherLog
+    :members:
+
+LogMe Wrapper
+-------------
+
+.. autoclass:: patcher.utils.logger.LogMe
     :members:

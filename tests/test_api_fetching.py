@@ -32,7 +32,7 @@ async def test_get_policies_invalid_response(api_client):
         with pytest.raises(exceptions.APIResponseError) as excinfo:
             await api_client.get_policies()
 
-        assert "Failed to decode JSON or parse status code from response" in str(excinfo.value)
+        assert "Failed parsing JSON response from API" in str(excinfo.value)
 
 
 @pytest.mark.asyncio

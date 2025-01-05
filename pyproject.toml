@@ -101,6 +101,7 @@ select = [
   "N806"
 ]
 per-file-ignores = {"utils/animation.py" = ["F403"]}
+ignore = ["E722"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"

@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from src.patcher.utils.exceptions import SortError
+from src.patcher.utils.exceptions import PatcherError
 
 
 # Test successful report processing
@@ -51,7 +51,7 @@ async def test_invalid_sort(
     stop_event_fixture,
     patcher_instance,
 ):
-    with pytest.raises(SortError):
+    with pytest.raises(PatcherError):
         with patch.object(patcher_instance.excel_report, "export_to_excel") as mock_error:
             await patcher_instance.process_reports(
                 path="~/",

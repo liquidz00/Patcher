@@ -10,6 +10,8 @@ When utilizing the Patcher tool with Jamf Pro, it's important to understand that
 
 Refer to [Configuring a Patch Management Software Title](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Configuring_a_Patch_Management_Software_Title.html) in the Jamf Pro Documentation for instructions on setting up software titles for patch management purposes.
 
+(api-creation)=
+
 ## Creating an API Role & Client
 
 To utilize Patcher with Jamf Pro, you need to create an API Role and Client first. Reference the [Jamf Pro Documentation](https://learn.jamf.com/bundle/jamf-pro-documentation-current/page/API_Roles_and_Clients.html) or follow the steps below.
@@ -65,7 +67,7 @@ You can now pass the client ID and client secret values when prompted by the set
 ## Access Token Lifetime
 
 :::{note}
-Generating an access token is not required. Patcher handles obtaining and refreshing of tokens automatically. See {class}`~patcher.token_manager.TokenManager` for more.
+Generating an access token is not required. Patcher handles obtaining and refreshing of tokens automatically. See {class}`~patcher.client.token_manager.TokenManager` for more.
 :::
 
 When defining the access token lifetime, it is recommended to use a duration of at least 5 minutes. Patcher is designed to handle automatic token refreshing and generation. Longer durations reduce the frequency of token regeneration, thereby decreasing administrative overhead. However, ensure that the chosen duration aligns with your organization's security policies.
@@ -75,7 +77,6 @@ When defining the access token lifetime, it is recommended to use a duration of 
 In situations where AccessTokens *need* to be generated manually, copy the bash script below into the code editor of your choice. Substitute your Jamf Pro URL in the `url` variable, and modify the `client_id` and `client_secret` values with the Client ID and secret generated from the steps above.
 
 :::{note}
-:class: dropdown
 
 If using the Python version below, be sure to install the `requests` and `keyring` libraries first: 
 ```console

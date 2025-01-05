@@ -1,3 +1,5 @@
+(prereqs)=
+
 # Prerequisites
 
 Ensure you have the following before proceeding with the installation and setup of Patcher:
@@ -5,10 +7,13 @@ Ensure you have the following before proceeding with the installation and setup 
 - **Python 3.10 or Higher**: Make sure Python is installed on your system. You can download it from [python.org](https://www.python.org/downloads/). 
 - **Access to a Jamf Pro Instance**: You need an instance of Jamf Pro with administrator privileges to perform setup tasks.
 
-:::{versionadded} 1.3.5
+:::{admonition} Added in version 1.3.5
+:class: tip
+
 Patcher can automatically handle the creation of API clients and roles, provided [SSO is not used for Jamf Pro accounts](https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#authentication-and-authorization). If SSO is used, you can either manually create an API Role & Client, *or* you can create a standard user account with admin privileges to pass to the setup assistant. 
 :::
 
+(handling-sso)=
 ## Handling SSO in Jamf Pro
 
 If your Jamf Pro environment uses Single Sign-On (SSO), follow the instructions below to ensure proper integration with Patcher:
