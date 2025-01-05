@@ -42,7 +42,7 @@ class PatchTitle(Model):
         """
         Calculates the completion percentage and total hosts of a :class:`~patcher.models.patch.PatchTitle` object based on hosts patched and missing patch.
 
-        See :meth:`~patcher.clients.api_client.ApiClient.get_summaries`
+        See :meth:`~patcher.client.api_client.ApiClient.get_summaries`
         """
         # Calculate total hosts
         self.total_hosts = self.hosts_patched + self.missing_patch
