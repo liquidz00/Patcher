@@ -1,3 +1,7 @@
+---
+html_theme.sidebar_secondary.remove: True
+---
+
 (install)=
 
 # Installation
@@ -7,9 +11,9 @@ Once prerequisites have been satisfied, Patcher can be installed via `pip`:
 ```console
 $ python3 -m pip install --upgrade patcherctl
 ```
-:::
-### Installing Beta Releases from TestPyPI
-:::
+
+## Installing Beta Releases from TestPyPI
+
 Patcher beta releases are published to [Test PyPI](https://test.pypi.org/project/patcherctl/). To install a beta version, you must specify the TestPyPI index:
 
 ```console
@@ -18,7 +22,7 @@ $ python3 -m pip install -i https://test.pypi.org/simple --extra-index-url https
 
 Replace `{VERSION}` with the specific beta version number, such as `1.3.4b2`.
 
-:::{note}
+:::{important}
 Using the `--pre` option alone will not install beta releases from TestPyPI since it only applies to the main PyPI repository. You must explicitly specify the TestPyPI URL to access beta versions.
 :::
 

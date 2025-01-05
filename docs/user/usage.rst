@@ -7,7 +7,7 @@ Usage
 The main entry point for the Patcher CLI (patcherctl).
 
 .. admonition:: Added in version 2.0
-    :class: success
+    :class: tip
 
     Patcher has been split into three separate commands; :ref:`Analyze <analyze>`, :ref:`Export <export>`, and :ref:`Reset <reset>`
 

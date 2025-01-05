@@ -26,6 +26,7 @@ Choosing Setup type
 The setup assistant will show a greeting message and then prompt you which setup method to proceed with:
 
 .. code-block:: console
+
     Thanks for downloading Patcher!
 
     [...]  # Rest of greeting

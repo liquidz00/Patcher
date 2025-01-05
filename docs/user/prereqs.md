@@ -1,3 +1,7 @@
+---
+html_theme.sidebar_secondary.remove: True
+---
+
 (prereqs)=
 
 # Prerequisites
@@ -10,7 +14,7 @@ Ensure you have the following before proceeding with the installation and setup 
 :::{admonition} Added in version 1.3.5
 :class: tip
 
-Patcher can automatically handle the creation of API clients and roles, provided [SSO is not used for Jamf Pro accounts](https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#authentication-and-authorization). If SSO is used, you can either manually create an API Role & Client, *or* you can create a standard user account with admin privileges to pass to the setup assistant. 
+Patcher can automatically handle the creation of API clients and roles, provided [SSO is not used for Jamf Pro accounts](https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#authentication-and-authorization). For more information, see {ref}`Choosing Setup Type <setup_type>` on the Setup page.
 :::
 
 (handling-sso)=
@@ -38,7 +42,3 @@ If your Jamf Pro environment uses Single Sign-On (SSO), follow the instructions 
    
 2. **Remove the Temporary Account**:
     - After setup has completed, delete the temporary account to maintain security standards.
-
-:::{seealso}
-Refer to the [Jamf Pro Documentation](https://learn.jamf.com/bundle/jamf-pro-documentation-current/page/API_Roles_and_Clients.html) on API Roles and Clients for more information on creating roles and clients.
-:::

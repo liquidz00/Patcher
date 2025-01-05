@@ -4,5 +4,6 @@
 Access Token
 ============
 
-.. automodule:: patcher.models.token
+.. autoclass:: patcher.models.token.AccessToken
     :members:
+    :exclude-members: model_computed_fields, model_config, model_fields

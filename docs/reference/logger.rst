@@ -4,12 +4,6 @@
 Logging
 =======
 
-Unified Log Handler
--------------------
-
-.. autoclass:: patcher.utils.logger.UnifiedLogHandler
-    :members:
-
 PatcherLog
 ----------
 
