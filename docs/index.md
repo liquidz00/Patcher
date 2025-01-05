@@ -17,6 +17,7 @@ Patcher is crafted with the needs of Mac Admins in mind, offering a streamlined 
 
 :::{grid-item-card} {fas}`user;sd-text-primary` User Guide
 :class-card: sd-card
+:class-title: patcher-title
 :shadow: md
 :columns: 12
 
@@ -37,6 +38,7 @@ User Guide
 
 :::{grid-item-card} {fas}`book;sd-text-primary` Reference
 :class-card: sd-card
+:class-title: patcher-title
 :shadow: md
 :columns: 6
 
@@ -57,6 +59,7 @@ Reference Guide
 
 :::{grid-item-card} {fas}`hands-helping;sd-text-primary` Contributing
 :class-card: sd-card
+:class-title: patcher-title
 :shadow: md
 :columns: 6
 
