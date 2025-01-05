@@ -12,7 +12,7 @@ class JamfClient(Model):
     Represents a Jamf client configuration.
 
     This class is responsible for holding the configuration necessary to interact with the Jamf API,
-    including client credentials, server information, and :class:`patcher.models.token.AccessToken` objects.
+    including client credentials, server information, and :class:`~patcher.models.token.AccessToken` objects.
 
     :ivar client_id: The client ID used for authentication with the Jamf API.
     :type client_id: :py:class:`str`
