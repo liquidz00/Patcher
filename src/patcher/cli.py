@@ -163,6 +163,7 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
                 ui_config.setup_ui()
         elif kind.lower() == "creds":
             log.info(f"Resetting credentials... (specific: {credential if credential else 'all'})")
+
             # Keyring automatically overwrites existing passwords if key and service_name are the same.
             # This allows us to just call the set_credential method instead of having to delete existing
             # entries first.
@@ -260,7 +261,7 @@ async def export(
 
         - :meth:`~patcher.client.report_manager.ReportManager.process_reports`
         - :meth:`~patcher.client.__init__.BaseAPIClient.concurrency`
-        - :ref: `usage`
+        - :ref: `export`
 
     :param ctx: The context object, providing access to shared state between commands.
     :type ctx: click.Context
