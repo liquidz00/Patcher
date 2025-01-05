@@ -51,3 +51,13 @@ div.admonition.admonition-optional > .admonition-title::after {
     color: hsl(0 0% 30%);
     content: "\f08d";
 }
+
+.version-switcher__container a[data-version="main"] {
+    font-weight: bold;
+    color: var(--pst-color-primary);
+}
+
+.version-switcher__container a[data-version="develop"] {
+    font-weight: bold;
+    color: var(--pst-color-secondary);
+}

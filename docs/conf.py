@@ -18,7 +18,7 @@ sys.path.append(str(Path(".").resolve()))
 
 project = "Patcher"
 copyright = "2024, Andrew Lerman & Chris Ball"
-author = "Andrew Speciale & Chris Ball"
+author = "Andrew Lerman & Chris Ball"
 
 version = __version__
 release = f"v{__version__}"
@@ -102,9 +102,13 @@ html_theme_options = {
     "navbar_align": "left",
     "announcement": "https://raw.githubusercontent.com/liquidz00/Patcher/main/docs/_templates/custom-template.html",
     "show_prev_next": False,
-    "navbar_start": ["navbar-logo"],
+    "navbar_start": ["navbar-logo", "version-switcher"],
     "navbar_center": ["navbar-nav"],
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
+    "switcher": {
+        "json_url": "https://patcher.liquidzoo.io/en/develop/_static/switcher.json",
+        "version_match": __version__,
+    },
     "icon_links": [
         {
             "name": "GitHub",

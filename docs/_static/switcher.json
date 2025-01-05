@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Main (stable)",
+    "version": "main",
+    "url": "https://patcher.liquidzoo.io/en/main/"
+  },
+  {
+    "name": "Develop (beta)",
+    "version": "develop",
+    "url": "https://patcher.liquidzoo.io/en/develop/"
+  }
+]
