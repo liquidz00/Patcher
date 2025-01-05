@@ -54,15 +54,15 @@ def test_is_complete(setup_instance):
         patch("plistlib.load", return_value={"Setup": {"first_run_done": True}}),
         patch("builtins.open", mock_open(read_data=b"")),
     ):
-        setup_instance._check_completion()
-        assert setup_instance._completed is True
+        result = setup_instance._check_completion()
+        assert result is True
 
 
 def test_is_complete_error(setup_instance):
     with patch.object(Path, "exists", return_value=True):
         with patch("plistlib.load", side_effect=InvalidFileException("plist read error")):
-            setup_instance._check_completion()
-            assert setup_instance._completed is False
+            result = setup_instance._check_completion()
+            assert result is False
 
 
 def test_setup_type_enum():
