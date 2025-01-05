@@ -218,6 +218,7 @@ class Setup:
             )
 
             # Validate needed credentials are present
+            await animator.update_msg("Starting Standard setup...")
             self._validate_creds(creds, ("USERNAME", "PASSWORD", "URL"), setup_type)
 
             # Extract jamf_url
@@ -256,6 +257,7 @@ class Setup:
             self.log.debug("Detected first run has not been completed. Starting SSO setup...")
 
             # Ensure client ID and client secret are present in credentials
+            await animator.update_msg("Starting SSO setup...")
             self._validate_creds(creds, ("CLIENT_ID", "CLIENT_SECRET", "URL"), setup_type)
 
             # Store credentials
@@ -328,7 +330,9 @@ class Setup:
         Resets Setup configuration, removing Patcher's property list file. This effectively marks
         Setup completion as False and will re-trigger the setup assistant.
 
-        :return: ``True`` if the property list file was successfully removed, ``False`` if it did not exist.
+        If the file does not exist, a warning is logged but the function will return ``True``.
+
+        :return: ``True`` if the property list file was successfully removed or if it does not exist.
         :rtype: :py:class:`bool`
         :raises PatcherError: If the file exists but could not be removed due to an error.
         """
@@ -340,7 +344,7 @@ class Setup:
             return True
         except FileNotFoundError:
             self.log.warning(f"Property list file does not exist: {self.plist_path}")
-            return False
+            return True
         except OSError as e:
             self.log.error(f"Unable to delete property list file ({self.plist_path}). Details: {e}")
             raise PatcherError(
