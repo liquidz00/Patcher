@@ -3,6 +3,10 @@
     --pst-color-primary: #4bb3fdff; /* Dodger Blue */
     --pst-color-secondary: #6432bdff; /* Grape */
 
+    /* accent colors */
+    --pst-color-accent-orange: #fd8c4b;
+    --pst-color-accent-lime: #63C764;
+
     /* Override hover colors */
     --pst-color-link-hover: #2a9df4; /* Lighter Dodger Blue for hover */
     --pst-color-button-hover-bg: #3C1E71; /* Grape for button hover background */
@@ -17,6 +21,8 @@ html[data-theme="light"] {
     --pst-color-primary: #4bb3fdff; /* Dodger Blue */
     --pst-color-secondary: #6432bdff; /* Grape */
     --pst-color-link-hover: #2a9df4; /* Lighter Dodger Blue */
+    --pst-color-accent-orange: #fd8c4b;
+    --pst-color-accent-lime: #63C764;
 }
 
 html[data-theme="dark"] {
@@ -24,4 +30,43 @@ html[data-theme="dark"] {
     --pst-color-primary: #4bb3fdff; /* Dodger Blue */
     --pst-color-secondary: #9d7eea; /* Lighter Grape */
     --pst-color-link-hover: #2a9df4; /* Lighter Dodger Blue */
+    --pst-color-accent-orange: #fd8c4b;
+    --pst-color-accent-lime: #63C764;
+}
+
+
+.sd-table tr:hover {
+    /* Override hover when using sd-table directive */
+    background-color: unset !important;
+}
+
+.patcher-title {
+    font-size: 1.25rem;
+    font-weight: bold;
+}
+
+/* Custom "Optional" Admonition */
+div.admonition.admonition-optional {
+    border-color: hsl(0 0% 80%);
+}
+
+div.admonition.admonition-optional > .admonition-title {
+    background-color: hsl(0 0% 80%);
+    color: black;
+}
+
+div.admonition.admonition-optional > .admonition-title::after {
+    color: hsl(0 0% 30%);
+    content: "\f08d";
+}
+
+/* Optional: Add an icon next to active versions */
+.version-switcher__container a[data-version="main"]::before {
+    content: "🌟";
+    margin-right: 4px;
+}
+
+.version-switcher__container a[data-version="develop"]::before {
+    content: "⚙️";
+    margin-right: 4px;
 }
