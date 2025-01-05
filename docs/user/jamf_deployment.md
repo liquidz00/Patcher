@@ -10,6 +10,8 @@ When utilizing the Patcher tool with Jamf Pro, it's important to understand that
 
 Refer to [Configuring a Patch Management Software Title](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Configuring_a_Patch_Management_Software_Title.html) in the Jamf Pro Documentation for instructions on setting up software titles for patch management purposes.
 
+(api-creation)=
+
 ## Creating an API Role & Client
 
 To utilize Patcher with Jamf Pro, you need to create an API Role and Client first. Reference the [Jamf Pro Documentation](https://learn.jamf.com/bundle/jamf-pro-documentation-current/page/API_Roles_and_Clients.html) or follow the steps below.
