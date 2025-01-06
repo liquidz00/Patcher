@@ -2,7 +2,8 @@
   {
     "name": "main (stable)",
     "version": "main",
-    "url": "https://patcher.liquidzoo.io/en/main/"
+    "url": "https://patcher.liquidzoo.io/en/main/",
+    "preferred": true
   },
   {
     "name": "develop (beta)",
