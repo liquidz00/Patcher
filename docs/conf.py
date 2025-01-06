@@ -106,7 +106,7 @@ html_theme_options = {
     "navbar_center": ["navbar-nav"],
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "switcher": {
-        "json_url": "https://patcher.liquidzoo.io/en/develop/_static/switcher.json",
+        "json_url": "https://patcher.liquidzoo.io/en/main/_static/switcher.json",
         "version_match": "develop",
     },
     "icon_links": [
