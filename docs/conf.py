@@ -102,13 +102,9 @@ html_theme_options = {
     "navbar_align": "left",
     "announcement": "https://raw.githubusercontent.com/liquidz00/Patcher/main/docs/_templates/custom-template.html",
     "show_prev_next": False,
-    "navbar_start": ["navbar-logo", "version-switcher"],
+    "navbar_start": ["navbar-logo"],
     "navbar_center": ["navbar-nav"],
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
-    "switcher": {
-        "json_url": "https://patcher.liquidzoo.io/en/main/_static/switcher.json",
-        "version_match": "main",
-    },
     "icon_links": [
         {
             "name": "GitHub",

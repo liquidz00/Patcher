@@ -59,14 +59,3 @@ div.admonition.admonition-optional > .admonition-title::after {
     color: hsl(0 0% 30%);
     content: "\f08d";
 }
-
-/* Optional: Add an icon next to active versions */
-.version-switcher__container a[data-version="main"]::before {
-    content: "🌟";
-    margin-right: 4px;
-}
-
-.version-switcher__container a[data-version="develop"]::before {
-    content: "⚙️";
-    margin-right: 4px;
-}
