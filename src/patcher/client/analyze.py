@@ -1,16 +1,18 @@
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import pandas as pd
-from pydantic import ValidationError
 
 from ..models.patch import PatchTitle
+from ..utils.data_manager import DataManager
 from ..utils.exceptions import FetchError, PatcherError
 from ..utils.logger import LogMe
 
 
 class FilterCriteria(Enum):
+    """Enumeration for filtering criteria used in patch data analysis."""
+
     MOST_INSTALLED = "most_installed"
     LEAST_INSTALLED = "least_installed"
     OLDEST_LEAST_COMPLETE = "oldest_least_complete"
@@ -42,58 +44,23 @@ class FilterCriteria(Enum):
 
 
 class Analyzer:
-    def __init__(self, excel_path: Union[Path, str]):
+    def __init__(self, data_manager: DataManager, excel_path: Optional[Union[Path, str]] = None):
         """
-        Initializes the Analyzer with the path to an Excel file containing patch data.
+        Performs analysis on patch data retrieved via :class:`~patcher.utils.data_manager.DataManager`.
 
+        ``Analyzer`` class objects are initialized with a :class:`~patcher.utils.data_manager.DataManager` instance and optional Excel file path.
+
+        :param data_manager: The ``DataManager`` instance for retrieving and managing patch data.
+        :type data_manager: :class:`~patcher.utils.data_manager.DataManager`
         :param excel_path: Path to the Excel file.
         :type excel_path: :py:obj:`~typing.Union` [:py:obj:`~pathlib.Path` | :py:class:`str`]
         """
         self.log = LogMe(self.__class__.__name__)
-        self.patch_titles: Optional[List[PatchTitle]] = None
-        self.df = self.initialize_dataframe(excel_path)
-        if self.df is not None:
-            self.titles = self._create_titles(self.df)  # Explicitly use setter for validation
-
-    @property
-    def titles(self) -> List[PatchTitle]:
-        """
-        Retrieves the validated list of PatchTitle objects.
-
-        :return: :py:obj:`~typing.List` of validated :class:`~patcher.models.patch.PatchTitle` objects.
-        :rtype: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
-        :raises FetchError: If no valid titles are available.
-        """
-        if self.patch_titles is None:  # Handle uninitialized state only
-            raise FetchError(
-                "PatchTitles are not available or no valid titles could be created. "
-                "Ensure the Excel file provided is valid and contains the required data."
-            )
-        return self.patch_titles
-
-    @titles.setter
-    def titles(self, value: Iterable[PatchTitle]):
-        """
-        Validates and sets the PatchTitle objects. Ensures the list is non-empty.
-
-        :param value: The list of PatchTitle objects to validate.
-        :type value: :py:obj:`~typing.Iterable` [:class:`~patcher.models.patch.PatchTitle`]
-        :raises PatcherError: If value is not an iterable object.
-        :raises FetchError: If any object in the passed iterable object is not a ``PatchTitle`` object, or if titles could not be validated.
-        """
-        if not isinstance(value, Iterable):
-            raise PatcherError(f"Value {value} must be an iterable of PatchTitle objects.")
-
-        validated_titles = []
-        for item in value:
-            if not isinstance(item, PatchTitle):
-                raise PatcherError(f"Item {item} in list is not of PatchTitle type.")
-            validated_titles.append(item)
-
-        if not validated_titles:  # Ensure the list is not empty
-            raise FetchError("PatchTitles cannot be set to an empty list.")
-
-        self.patch_titles = validated_titles
+        self.data_manager = data_manager
+        if excel_path:
+            self.df = self.initialize_dataframe(excel_path)
+        else:
+            self.df = pd.DataFrame([patch.model_dump() for patch in self.data_manager.titles])
 
     def _validate_path(self, file_path: Union[Path, str]) -> bool:
         """Ensures the file path passed exists and is a file (not a directory)."""
@@ -110,35 +77,6 @@ class Analyzer:
 
         self.log.info(f"File at {file_path} validated successfully.")
         return True
-
-    def _create_titles(self, df: pd.DataFrame) -> List[PatchTitle]:
-        """Creates PatchTitle objects from passed dataframe object."""
-        self.log.debug(f"Creating PatchTitle objects from DataFrame with {len(df)} rows.")
-        patch_titles = []
-        skipped_rows = 0
-
-        for index, row in df.iterrows():
-            try:
-                patch = PatchTitle(
-                    title=row.get("Title"),
-                    released=row.get("Released"),
-                    hosts_patched=row.get("Hosts Patched"),
-                    missing_patch=row.get("Missing Patch"),
-                    latest_version=row.get("Latest Version"),
-                    total_hosts=row.get("Total Hosts", 0),
-                )
-                patch_titles.append(patch)
-            except (KeyError, ValueError, TypeError, ValidationError) as e:
-                self.log.warning(
-                    f"Error processing row at {index}. Skipping this row. Details: {e.__class__.__name__} - {e}."
-                )
-                skipped_rows += 1
-
-        if skipped_rows > 0:
-            self.log.warning(f"{skipped_rows} rows were skipped during PatchTitle creation.")
-        self.log.info(f"Successfully created {len(patch_titles)} PatchTitle objects.")
-
-        return patch_titles
 
     def initialize_dataframe(self, excel_path: Union[Path, str]) -> pd.DataFrame:
         """
@@ -237,38 +175,37 @@ class Analyzer:
         """
         self.log.debug(f"Attempting to filter titles by {criteria}.")
 
+        titles = self.data_manager.titles
         sort_criteria: Dict[FilterCriteria, Callable[[], List[PatchTitle]]] = {
             FilterCriteria.MOST_INSTALLED: lambda: sorted(
-                self.patch_titles, key=lambda pt: pt.total_hosts, reverse=True
+                titles, key=lambda pt: pt.total_hosts, reverse=True
             ),
-            FilterCriteria.LEAST_INSTALLED: lambda: sorted(
-                self.patch_titles, key=lambda pt: pt.total_hosts
-            ),
+            FilterCriteria.LEAST_INSTALLED: lambda: sorted(titles, key=lambda pt: pt.total_hosts),
             FilterCriteria.OLDEST_LEAST_COMPLETE: lambda: sorted(
-                self.patch_titles, key=lambda pt: (pt.released, pt.completion_percent)
+                titles, key=lambda pt: (pt.released, pt.completion_percent)
             ),
             FilterCriteria.BELOW_THRESHOLD: lambda: sorted(
-                [pt for pt in self.patch_titles if pt.completion_percent < threshold],
+                [pt for pt in titles if pt.completion_percent < threshold],
                 key=lambda pt: pt.completion_percent,
             ),
             FilterCriteria.HIGH_MISSING: lambda: sorted(
-                [pt for pt in self.patch_titles if pt.missing_patch > (pt.total_hosts * 0.5)],
+                [pt for pt in titles if pt.missing_patch > (pt.total_hosts * 0.5)],
                 key=lambda pt: pt.missing_patch,
             ),
             FilterCriteria.RECENT_RELEASE: lambda: sorted(
                 [
                     pt
-                    for pt in self.patch_titles
+                    for pt in titles
                     if pd.Timestamp(pt.released) >= pd.Timestamp.now() - pd.DateOffset(weeks=1)
                 ],
                 key=lambda pt: pt.released,
                 reverse=True,
             ),
             FilterCriteria.ZERO_COMPLETION: lambda: [
-                pt for pt in self.patch_titles if pt.completion_percent == 0
+                pt for pt in titles if pt.completion_percent == 0
             ],
             FilterCriteria.TOP_PERFORMERS: lambda: sorted(
-                [pt for pt in self.patch_titles if pt.completion_percent > 90],
+                [pt for pt in titles if pt.completion_percent > 90],
                 key=lambda pt: pt.completion_percent,
                 reverse=True,
             ),

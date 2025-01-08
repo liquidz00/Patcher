@@ -4,7 +4,6 @@ import pandas as pd
 import pytest
 from src.patcher.client.analyze import Analyzer, FilterCriteria
 from src.patcher.models.patch import PatchTitle
-from src.patcher.utils.exceptions import FetchError, PatcherError
 
 # Mock DataFrame for testing
 mock_data = {
@@ -20,11 +19,11 @@ mock_df = pd.DataFrame(mock_data)
 
 
 @pytest.fixture
-def analyzer(tmp_path):
+def analyzer(tmp_path, mock_data_manager):
     """Fixture to initialize Analyzer with a temporary file."""
     test_excel_path = tmp_path / "test.xlsx"
     mock_df.to_excel(test_excel_path, index=False)
-    return Analyzer(test_excel_path)
+    return Analyzer(excel_path=test_excel_path, data_manager=mock_data_manager)
 
 
 def test_patch_title_calculation():
@@ -52,7 +51,7 @@ def test_patch_title_calculation():
 
 
 @patch("pandas.read_excel")
-def test_initialize_dataframe(mock_read_excel, tmp_path):
+def test_initialize_dataframe(mock_read_excel, tmp_path, mock_data_manager):
     """Test DataFrame initialization from an Excel file."""
     # Mock the return value of read_excel
     mock_read_excel.return_value = mock_df
@@ -62,15 +61,11 @@ def test_initialize_dataframe(mock_read_excel, tmp_path):
     mock_df.to_excel(test_excel_path, index=False)
 
     # Initialize Analyzer
-    analyzer = Analyzer(test_excel_path)
+    analyzer = Analyzer(excel_path=test_excel_path, data_manager=mock_data_manager)
 
     # Assert DataFrame loaded correctly
     assert not analyzer.df.empty
     assert len(analyzer.df) == len(mock_df)
-
-    # Assert PatchTitle objects created correctly
-    assert len(analyzer.titles) == len(mock_df)
-    assert all(isinstance(title, PatchTitle) for title in analyzer.titles)
 
 
 def test_validate_path_success(analyzer, tmp_path):
@@ -86,56 +81,7 @@ def test_validate_path_invalid_file(analyzer):
     assert not analyzer._validate_path(invalid_file)
 
 
-def test_titles_property_uninitialized(analyzer):
-    """Test titles property access when uninitialized."""
-    analyzer.patch_titles = None
-    with pytest.raises(FetchError, match="PatchTitles are not available or no valid titles"):
-        _ = analyzer.titles
-
-
-def test_titles_property_setter_invalid_type(analyzer):
-    """Test titles setter with invalid type."""
-    with pytest.raises(PatcherError, match="Item I in list is not of PatchTitle type."):
-        analyzer.titles = "Invalid Type"
-
-
-def test_titles_property_setter_empty_list(analyzer):
-    """Test titles setter with an empty list."""
-    with pytest.raises(FetchError, match="PatchTitles cannot be set to an empty list"):
-        analyzer.titles = []
-
-
-def test_titles_property_setter_valid(analyzer):
-    """Test titles setter with valid PatchTitle objects."""
-    patch_titles = [
-        PatchTitle(
-            title="Patch A",
-            released="2022-01-01",
-            hosts_patched=50,
-            missing_patch=10,
-            latest_version="1.0.0",
-        ),
-        PatchTitle(
-            title="Patch B",
-            released="2023-01-01",
-            hosts_patched=30,
-            missing_patch=20,
-            latest_version="2.0.0",
-        ),
-    ]
-    analyzer.titles = patch_titles
-    assert analyzer.titles == patch_titles
-
-
-@patch.object(Analyzer, "initialize_dataframe", return_value=mock_df)
-def test_create_titles(mock_initialize, analyzer):
-    """Test creation of PatchTitle objects from DataFrame."""
-    titles = analyzer._create_titles(mock_df)
-    assert len(titles) == len(mock_df)
-    assert all(isinstance(title, PatchTitle) for title in titles)
-
-
-def test_filter_titles(analyzer):
+def test_filter_titles(analyzer, mock_data_manager):
     """Test filtering PatchTitle objects by criteria."""
     patch_titles = [
         PatchTitle(
@@ -166,7 +112,7 @@ def test_filter_titles(analyzer):
             total_hosts=20 + 5,
         ),
     ]
-    analyzer.patch_titles = patch_titles
+    mock_data_manager.titles = patch_titles
 
     # Test MOST_INSTALLED filter
     filtered = analyzer.filter_titles(FilterCriteria.MOST_INSTALLED)
@@ -196,9 +142,9 @@ def test_filter_titles(analyzer):
         (FilterCriteria.ZERO_COMPLETION, 0),  # No titles with zero completion initially
     ],
 )
-def test_filter_titles_parametrized(analyzer, criteria, expected_count):
+def test_filter_titles_parametrized(analyzer, criteria, expected_count, mock_data_manager):
     """Test filtering with parametrized criteria."""
-    analyzer.patch_titles = [
+    mock_data_manager.titles = [
         PatchTitle(
             title="Patch A",
             released="2022-01-01",

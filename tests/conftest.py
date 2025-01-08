@@ -2,6 +2,7 @@ import plistlib
 import threading
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
@@ -13,6 +14,7 @@ from src.patcher.client.token_manager import TokenManager
 from src.patcher.models.jamf_client import JamfClient
 from src.patcher.models.patch import PatchTitle
 from src.patcher.models.token import AccessToken
+from src.patcher.utils.data_manager import DataManager
 
 
 @pytest.fixture
@@ -332,12 +334,12 @@ def patcher_instance(mock_policy_response, mock_patch_title_response):
     api_client.get_policies.return_value = mock_policy_response
     api_client.get_summaries.return_value = mock_patch_title_response
 
-    excel_report = MagicMock()
+    data_manager = MagicMock()
     pdf_report = MagicMock()
 
     return ReportManager(
         api_client=api_client,
-        excel_report=excel_report,
+        data_manager=data_manager,
         pdf_report=pdf_report,
         debug=True,
     )
@@ -353,6 +355,12 @@ def token_manager(config_manager, mock_access_token):
 @pytest.fixture
 def base_api_client():
     return BaseAPIClient(max_concurrency=3)
+
+
+@pytest.fixture
+def mock_data_manager():
+    d = DataManager(disable_cache=True)
+    return MagicMock(return_value=d)
 
 
 @pytest.fixture
@@ -381,6 +389,11 @@ def sample_patch_reports():
 @pytest.fixture
 def temp_output_dir(tmpdir):
     return str(tmpdir)
+
+
+@pytest.fixture
+def temp_output_path(tmpdir):
+    return Path(tmpdir)
 
 
 @pytest.fixture

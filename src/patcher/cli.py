@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import sys
 from pathlib import Path
 from typing import Optional, Union
@@ -12,11 +13,11 @@ from .client.config_manager import ConfigManager
 from .client.report_manager import ReportManager
 from .client.setup import Setup
 from .client.ui_manager import UIConfigManager
-from .models.reports.excel_report import ExcelReport
-from .models.reports.pdf_report import PDFReport
 from .utils.animation import Animation
+from .utils.data_manager import DataManager
 from .utils.exceptions import APIResponseError, PatcherError
 from .utils.logger import LogMe, PatcherLog
+from .utils.pdf_report import PDFReport
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -25,6 +26,9 @@ DATE_FORMATS = {
     "Day-Month-Year": "%d %B %Y",  # 16 April 2024
     "Full": "%A %B %d %Y",  # Thursday September 26 2013
 }
+
+# Context settings to enable both ``-h`` and ``--help`` for help output
+CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 sys.excepthook = PatcherLog.custom_excepthook  # Log unhandled exceptions
 
@@ -43,16 +47,53 @@ def format_err(exc: PatcherError) -> None:
     )
 
 
-# Context settings to enable both ``-h`` and ``--help`` for help output
-CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+def get_data_manager(ctx: click.Context) -> DataManager:
+    """
+    Lazily initializes and returns the shared ``DataManager`` instance.
+
+    This ensures consistent handling of ``DataManager`` objects. Inconsistent handling of said objects could lead to inaccurate patch reports or false errors getting raised.
+
+    :param ctx: Click context object.
+    :type ctx: `click.Context <https://click.palletsprojects.com/en/stable/api/#click.Context>`_
+    :return: The initialized ``DataManager`` instance.
+    :rtype: :class:`~patcher.utils.data_manager.DataManager`
+    """
+    if "data_manager" not in ctx.obj or ctx.obj.get("data_manager") is None:
+        ctx.obj["data_manager"] = DataManager(disable_cache=ctx.obj.get("disable_cache", False))
+    return ctx.obj["data_manager"]
+
+
+def initialize_cache(cache_dir: Path) -> None:
+    """
+    Ensures the cache directory exists while avoiding creating system-managed directories.
+
+    :param cache_dir: The full path to the cache directory (e.g., ~/Library/Caches/Patcher).
+    :type cache_dir: :py:obj:`~pathlib.Path`
+    """
+    log = LogMe(inspect.currentframe().f_code.co_name)
+
+    parent_dir = cache_dir.parent
+    if not parent_dir.exists():
+        log.warning(f"Parent directory {parent_dir} does not exist. Skipping cache setup.")
+        return
+
+    try:
+        cache_dir.mkdir(parents=False, exist_ok=True)
+        log.debug(f"Cache directory initialized at {cache_dir}")
+    except OSError as err:
+        log.warning(f"Failed to initialize cache directory. Details: {err}")
+        return
 
 
 # Entry
 @click.group(context_settings=CONTEXT_SETTINGS, options_metavar="<options>")
 @click.version_option(version=__version__)
 @click.option("--debug", "-x", is_flag=True, help="Enable debug logging (verbose mode).")
+@click.option(
+    "--disable-cache", is_flag=True, help="Disable automatic caching of patch report data."
+)
 @click.pass_context
-async def cli(ctx: click.Context, debug: bool) -> None:
+async def cli(ctx: click.Context, debug: bool, disable_cache: bool) -> None:
     """
     Main CLI entry point for Patcher.
 
@@ -65,12 +106,25 @@ async def cli(ctx: click.Context, debug: bool) -> None:
         2   Unhandled exception
         4   API error (e.g., unauthorized, invalid response)
         130 KeyboardInterrupt (Ctrl+C)
+    \f
+
+    :param ctx: The context object, providing access to shared state between commands.
+    :type ctx: `click.Context <https://click.palletsprojects.com/en/stable/api/#click.Context>`_
+    :param debug: Enables debug (verbose) logging if ``True``. Defaults to ``False``.
+    :type debug: :py:class:`bool`
+    :param disable_cache: Disables automatic caching of patch report data if ``True``. Defaults to ``False``.
+    :type disable_cache: :py:class:`bool`
     """
     setup_logging(debug)
+
+    if not disable_cache:
+        cache_dir = Path.home() / "Library/Caches/Patcher"
+        initialize_cache(cache_dir)
 
     # Instantiate classes, store in context
     ctx.obj = {
         "debug": debug,
+        "disable_cache": disable_cache,
         "animation": Animation(enable_animation=not debug),
         "log": LogMe(__name__),
         "config": ConfigManager(),
@@ -132,19 +186,25 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
     ui_config = ctx.obj.get("ui_config")
     setup = ctx.obj.get("setup")
     animation = ctx.obj.get("animation")
+    disable_cache = ctx.obj.get("disable_cache")
+
+    reset_functions = [
+        config.reset_config,
+        ui_config.reset_config,
+        setup.reset_setup,
+    ]
+
+    if not disable_cache:
+        data_manager = get_data_manager(ctx)
+        reset_functions.append(data_manager.reset_cache)
 
     async with animation.error_handling():
         if kind.lower() == "full":
             log.info("Performing full reset...")
 
-            reset_functions = [
-                config.reset_config,
-                ui_config.reset_config,
-                setup.reset_setup,
-            ]
-
             # Only trigger setup if all resets successful
             results = [reset_method() for reset_method in reset_functions]
+
             if not all(results):
                 # Notify user
                 failed_indices = [i for i, result in enumerate(results) if result]
@@ -280,13 +340,15 @@ async def export(
     :param concurrency: The maximum number of API requests that can be sent at once. Defaults to 5.
     :type concurrency: :py:class:`int`
     """
+    data_manager = DataManager(disable_cache=ctx.obj.get("disable_cache"))
+    ctx.obj["data_manager"] = data_manager  # Store in context for analyze
+
     api_client = ApiClient(config=ctx.obj.get("config"), concurrency=concurrency)
-    excel_report = ExcelReport()
     pdf_report = PDFReport()
 
     patcher = ReportManager(
         api_client=api_client,
-        excel_report=excel_report,
+        data_manager=data_manager,
         pdf_report=pdf_report,
         debug=ctx.obj.get("debug"),
     )
@@ -366,13 +428,20 @@ async def analyze(
 
     animation = ctx.obj.get("animation")
     async with animation.error_handling():
-        analyzer = Analyzer(excel_file)
+        analyzer = Analyzer(
+            excel_path=excel_file if excel_file else None, data_manager=ctx.obj.get("data_manager")
+        )
         filter_criteria = FilterCriteria.from_cli(criteria)
         filtered_titles = analyzer.filter_titles(filter_criteria, threshold, top_n)
         if len(filtered_titles) == 0:
             await animation.stop()
-            click.echo(f"No PatchTitle objects meet criteria {criteria}")
-            return
+            click.echo(
+                click.style(
+                    f"⚠️ No PatchTitle objects meet criteria {criteria}", fg="yellow", bold=True
+                ),
+                err=False,
+            )
+            ctx.exit(0)
 
         table_data = [
             [

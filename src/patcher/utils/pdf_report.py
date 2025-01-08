@@ -9,9 +9,9 @@ from fpdf import FPDF
 from pandas.errors import EmptyDataError, ParserError
 from PIL import Image
 
-from ...client.ui_manager import UIConfigManager
-from ...utils.exceptions import PatcherError
-from ...utils.logger import LogMe
+from patcher.client.ui_manager import UIConfigManager
+from patcher.utils.exceptions import PatcherError
+from patcher.utils.logger import LogMe
 
 
 class PDFReport(FPDF):

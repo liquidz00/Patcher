@@ -7,11 +7,11 @@ from typing import Dict, List, Optional, Union
 import asyncclick as click
 
 from ..models.patch import PatchTitle
-from ..models.reports.excel_report import ExcelReport
-from ..models.reports.pdf_report import PDFReport
 from ..utils.animation import Animation
+from ..utils.data_manager import DataManager
 from ..utils.exceptions import APIResponseError, PatcherError
 from ..utils.logger import LogMe
+from ..utils.pdf_report import PDFReport
 from .api_client import ApiClient
 
 
@@ -19,7 +19,7 @@ class ReportManager:
     def __init__(
         self,
         api_client: ApiClient,
-        excel_report: ExcelReport,
+        data_manager: DataManager,
         pdf_report: PDFReport,
         debug=False,
     ):
@@ -28,15 +28,15 @@ class ReportManager:
 
         :param api_client: Interacts with the Jamf API to retrieve data needed for reporting.
         :type api_client: :class:`~patcher.client.api_client.ApiClient`
-        :param excel_report: Generates Excel reports from collected patch data.
-        :type excel_report: :class:`~patcher.models.reports.excel_report.ExcelReport`
+        :param data_manager: Generates Excel reports from collected patch data.
+        :type data_manager: :class:`~patcher.models.reports.excel_report.ExcelReport`
         :param pdf_report: Generates PDF reports from the Excel files, adding visual elements..
         :type pdf_report: :class:`~patcher.models.reports.pdf_report.PDFReport`
         :param debug: Overrides animation of `~patcher.client.report_manager.ReportManager.process_reports` method if True.
         :type debug: :py:class:`bool`
         """
         self.api_client = api_client
-        self.excel_report = excel_report
+        self.data_manager = data_manager
         self.pdf_report = pdf_report
         self.debug = debug
         self.log = LogMe(self.__class__.__name__)
@@ -303,7 +303,7 @@ class ReportManager:
         self.log.debug(f"Attempting Excel export to {reports_dir}")
         try:
             excel_file = await asyncio.to_thread(
-                self.excel_report.export_to_excel, patch_reports, reports_dir
+                self.data_manager.export_to_excel, patch_reports, reports_dir
             )
             self.log.info(f"Excel report saved to {excel_file}.")
             return excel_file
