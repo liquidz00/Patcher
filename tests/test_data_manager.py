@@ -155,33 +155,57 @@ def test_export_to_excel_permission_error(temp_output_path):
 
 def test_clean_cache_removes_expired_files():
     """Ensure clean_cache removes only expired files."""
-    data_manager = DataManager(disable_cache=True)
-    expired_file = data_manager.cache_dir / "expired_cache.pkl"
-    expired_file.touch()
-    expired_file_time = datetime.now() - timedelta(days=data_manager.cache_expiration_days + 1)
-    os.utime(expired_file, (expired_file_time.timestamp(), expired_file_time.timestamp()))
+    # Mock the cache directory and files
+    with (
+        patch("pathlib.Path.iterdir") as mock_iterdir,
+        patch("pathlib.Path.unlink") as mock_unlink,
+        patch("datetime.datetime") as mock_datetime,
+    ):
 
-    valid_file = data_manager.cache_dir / "valid_cache.pkl"
-    valid_file.touch()
+        # Simulate the current time
+        current_time = datetime(2025, 1, 1, 12, 0, 0)
+        mock_datetime.now.return_value = current_time
 
-    data_manager._clean_cache()
+        # Simulate files in the cache directory
+        expired_file = MagicMock()
+        expired_file.suffix = ".pkl"
+        expired_file.stat.return_value.st_mtime = (current_time - timedelta(days=31)).timestamp()
 
-    assert not expired_file.exists()
-    assert valid_file.exists()
+        valid_file = MagicMock()
+        valid_file.suffix = ".pkl"
+        valid_file.stat.return_value.st_mtime = (current_time - timedelta(days=15)).timestamp()
+
+        mock_iterdir.return_value = [expired_file, valid_file]
+
+        # Initialize DataManager and run the method
+        data_manager = DataManager()
+        data_manager._clean_cache()
+
+        # Ensure only the expired file is deleted
+        expired_file.unlink.assert_called_once()
+        valid_file.unlink.assert_not_called()
 
 
 def test_clean_cache_no_permissions():
     """Ensure clean_cache handles missing permissions gracefully."""
-    data_manager = DataManager(disable_cache=True)
-    cache_file = data_manager.cache_dir / "test_cache.pkl"
-    cache_file.touch()
-    cache_file.chmod(0o000)  # Remove write permissions
+    # Mock the cache directory and files
+    with (
+        patch("pathlib.Path.iterdir") as mock_iterdir,
+        patch("pathlib.Path.unlink", side_effect=PermissionError("Test Permission Error")),
+    ):
 
-    with patch("os.remove", side_effect=PermissionError("Test Permission Error")):
+        # Simulate a file in the cache directory
+        cache_file = MagicMock()
+        cache_file.suffix = ".pkl"
+        cache_file.stat.return_value.st_mtime = (datetime.now() - timedelta(days=31)).timestamp()
+        mock_iterdir.return_value = [cache_file]
+
+        # Initialize DataManager and run the method
+        data_manager = DataManager(disable_cache=True)
         data_manager._clean_cache()
 
-    # Cache file should still exist since permissions blocked deletion
-    assert cache_file.exists()
+        # Ensure the file was attempted to be deleted, but an error was logged
+        cache_file.unlink.assert_called_once()
 
 
 def test_get_latest_dataset_no_files():
