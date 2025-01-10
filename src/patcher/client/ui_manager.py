@@ -64,6 +64,41 @@ class UIConfigManager:
             self._fonts_saved = regular_font_path.exists() and bold_font_path.exists()
         return self._fonts_saved
 
+    def _load_plist_file(self) -> Dict:
+        """
+        Reads values from Patcher property list file after verifying it exists.
+        If the property list file does not exist, an empty dictionary is returned.
+
+        If the property list file cannot be read, a warning is logged and an
+        empty dictionary is returned.
+        """
+        if self.plist_path.exists():
+            self.log.debug("Attempting to load property list file data.")
+            with self.plist_path.open("rb") as plistfile:
+                try:
+                    plist_data = plistlib.load(plistfile)
+                    self.log.info("Loaded property list data successfully.")
+                    return plist_data
+                except Exception as e:
+                    self.log.warning(f"Unable to read property list file. Details: {e}")
+                    return {}
+        return {}
+
+    def _write_plist_file(self, plist_data: Dict) -> None:
+        """Writes specified data to Patcher property list file."""
+        self.log.debug("Attempting to save passed plist_data to property list.")
+        with self.plist_path.open("wb") as plistfile:
+            try:
+                plistlib.dump(plist_data, plistfile)
+                self.log.info("Saved property list data successfully.")
+            except Exception as e:
+                self.log.error(f"Unable to write to property list. Details: {e}")
+                raise PatcherError(
+                    "Encountered an error trying to write to property list",
+                    data=plist_data,
+                    error_msg=str(e),
+                )
+
     def load_ui_config(self):
         """
         Reads the Patcher property list file to retrieve UI settings and loads them.
@@ -203,8 +238,7 @@ class UIConfigManager:
                 del plist_data["UI"]
                 self._write_plist_file(plist_data)
                 self.log.info("Configuration settings reset as expected.")
-                return True
-            return False
+            return True
         except Exception as e:
             self.log.error(
                 f"An unexpected error occurred when resetting UI settings in property list. Details: {e}"
@@ -419,47 +453,3 @@ class UIConfigManager:
         :rtype: :py:obj:`~typing.Union` :py:class:`str` | None]
         """
         return self.get("LOGO_PATH", None)
-
-    def get_logo_path(self) -> Union[str, None]:
-        """
-        Retrieves the logo path from the UI configuration.
-
-        :return: The logo path as a string if it exists, else None.
-        :rtype: Union[str, None]
-        """
-        return self.get("LOGO_PATH", None)
-
-    def _load_plist_file(self) -> Dict:
-        """
-        Reads values from Patcher property list file after verifying it exists.
-        If the property list file does not exist, an empty dictionary is returned.
-
-        If the property list file cannot be read, a warning is logged and an
-        empty dictionary is returned.
-        """
-        if self.plist_path.exists():
-            self.log.debug("Attempting to load property list file data.")
-            with self.plist_path.open("rb") as plistfile:
-                try:
-                    plist_data = plistlib.load(plistfile)
-                    self.log.info("Loaded property list data successfully.")
-                    return plist_data
-                except Exception as e:
-                    self.log.warning(f"Unable to read property list file. Details: {e}")
-                    return {}
-        return {}
-
-    def _write_plist_file(self, plist_data: Dict) -> None:
-        """Writes specified data to Patcher property list file."""
-        self.log.debug("Attempting to save passed plist_data to property list.")
-        with self.plist_path.open("wb") as plistfile:
-            try:
-                plistlib.dump(plist_data, plistfile)
-                self.log.info("Saved property list data successfully.")
-            except Exception as e:
-                self.log.error(f"Unable to write to property list. Details: {e}")
-                raise PatcherError(
-                    "Encountered an error trying to write to property list",
-                    data=plist_data,
-                    error_msg=str(e),
-                )
