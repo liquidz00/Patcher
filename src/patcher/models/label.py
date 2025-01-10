@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from pydantic import field_validator
 
@@ -11,10 +11,11 @@ class Label(Model):
     type: str
     expected_team_id: str
     installomator_label: str
+    downloadURL: str
+    curlOptions: Optional[List[str]] = None
 
     # NOTE: Planning on implementing these properties at a later time, commenting out for now.
 
-    # downloadURL: str = ""  # Not required for Patcher uses presently
     # Strongly recommended variables
     # appNewVersion: Optional[str] = None
     # versionKey: Optional[str] = None
@@ -31,7 +32,6 @@ class Label(Model):
     # CLIInstaller: Optional[str] = None
     # CLIArguments: Optional[list[str]] = None
     # installerTool: Optional[str] = None
-    # curlOptions: Optional[list[str]] = None
 
     @classmethod
     @field_validator("type", mode="before")
@@ -49,7 +49,7 @@ class Label(Model):
         return v
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], **kwargs) -> "Label":
+    def from_dict(cls, data: Dict[str, Any], **kwargs) -> "Label":
         """
         Creates a Label instance from a dictionary. Only includes keys that
         match the fields defined in the Label model.
