@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import model_validator
 
@@ -34,7 +34,7 @@ class PatchTitle(Model):
     latest_version: str
     completion_percent: float = 0.0
     total_hosts: int = 0
-    install_label: Optional[Label] = None
+    install_label: Optional[List[Label]] = None  # account for variants (e.g., zulujdk8, zulujdk9)
 
     # Calculate completion percent via model validator
     @model_validator(mode="after")
