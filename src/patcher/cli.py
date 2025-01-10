@@ -247,7 +247,7 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
                     for k, v in cred_map.items():
                         config.set_credential(k, v)
 
-    click.echo(click.style("✅ Reset finished successfully.", fg="green", bold=True))
+    click.echo(click.style("\n✅ Reset finished successfully.", fg="green", bold=True))
 
 
 # Export
@@ -363,7 +363,13 @@ async def export(
 @cli.command(
     "analyze", short_help="Analyzes exported data by criteria.", options_metavar="<options>"
 )
-@click.argument("excel_file", metavar="<excel_file_path>", type=click.Path(exists=True))
+@click.option(
+    "--excel-file",
+    "-e",
+    type=click.Path(exists=True),
+    metavar="<file_path>",
+    help="Provide path to alternate excel report. Latest exported excel report is used by default.",
+)
 @click.option(
     "--criteria",
     "-c",
@@ -427,9 +433,11 @@ async def analyze(
         return
 
     animation = ctx.obj.get("animation")
+    data_manager = get_data_manager(ctx)
+
     async with animation.error_handling():
         analyzer = Analyzer(
-            excel_path=excel_file if excel_file else None, data_manager=ctx.obj.get("data_manager")
+            excel_path=excel_file if excel_file else None, data_manager=data_manager
         )
         filter_criteria = FilterCriteria.from_cli(criteria)
         filtered_titles = analyzer.filter_titles(filter_criteria, threshold, top_n)
