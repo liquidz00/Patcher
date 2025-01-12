@@ -51,7 +51,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-        with:
-          path: 'docs/_build/html'
-          branch-folder: ${{ github.ref_name }}
-
