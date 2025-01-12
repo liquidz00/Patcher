@@ -161,6 +161,48 @@ class BaseAPIClient:
                 error_msg=str(e),
             )
 
+    def execute_sync(self, command: List[str]) -> Union[bytes, str]:
+        """
+        Identical to ``execute`` method, but does not leverage async functionality.
+
+        Method is primarily intended for :class:`~patcher.client.ui_manager.UIConfigManager` to ensure default font files are downloaded properly. See :meth:`~patcher.client.ui_manager.UIConfigManager._download_font` for details.
+
+        .. important::
+
+            If used in separate context from downloading font files, output **needs to be decoded from bytes**:
+
+            .. code-block:: python
+
+                b = BaseAPIClient()
+                result = b.execute_sync(["/usr/bin/curl", "-s", "-L", "https://ifconfig.co"])  # Returns <class 'bytes'>
+                decoded = result.decode().strip()  # Returns <class 'str'>
+
+        :param command: A list representing the command and its arguments to be executed in the shell.
+        :type command: :py:obj:`~typing.List` [:py:class:`str`]
+        :return: The standard output of the executed command decoded as a string.
+        :rtype: :py:obj:`~typing.Union` [:py:obj:`~typing.Dict` | :py:class:`str`]
+        :raises ShellCommandError: If the command execution fails (returns a non-zero exit code).
+        """
+        sanitized_command = self._sanitize_command(command)
+        sanitized_command_str = " ".join(sanitized_command).replace("\n", "")
+        self.log.debug(f"Attempting to execute {sanitized_command_str} command (no async).")
+        try:
+            result = subprocess.run(
+                command,  # subprocess expects unpacked list
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
+            return result.stdout
+        except (subprocess.CalledProcessError, OSError) as e:
+            error_msg = e.stderr.decode("utf-8", errors="replace").strip()
+            raise ShellCommandError(
+                "Command execution failed.",
+                return_code=e.returncode,
+                error_msg=error_msg,
+                command=sanitized_command_str,
+            )
+
     async def fetch_json(
         self,
         url: str,
