@@ -1,8 +1,11 @@
 SHELL := /bin/bash
 .PHONY: docs
 
-install:
+install-dev:
 	python3 -m pip install --upgrade --force-reinstall --editable '.[dev]'
+
+install-docs:
+	python3 -m pip install --upgrade --force-reinstall --editable '.[docs'
 
 uninstall:
 	python3 -m pip uninstall -y -r <(python3 -m pip freeze)
@@ -28,4 +31,4 @@ build:
 	python3 -m build --sdist --wheel
 
 docs:
-	sphinx-build -b html docs/ docs/_build/
+	sphinx-build -b html docs/ docs/_build/html

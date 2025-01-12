@@ -49,19 +49,20 @@ patcherctl = "patcher.cli:main"
 
 [project.optional-dependencies]
 dev = [
-  "aioresponses>=0.7.6",
-  "autodoc-pydantic",
   "black>=24.3.0",
   "build",
-  "pydata-sphinx-theme",
   "pytest>=8.2.2",
   "pytest-asyncio>=0.23.5",
   "pytest-cov>=4.0.0",
   "ruff>=0.5.1",
+]
+docs = [
+  "autodoc-pydantic",
+  "myst-parser",
+  "pydata-sphinx-theme",
   "sphinx>=7.3.7",
   "sphinx-design",
   "sphinx-copybutton",
-  "myst-parser",
   "sphinx-togglebutton",
 ]
 
@@ -101,6 +102,7 @@ select = [
   "N806"
 ]
 per-file-ignores = {"utils/animation.py" = ["F403"]}
+ignore = ["E722"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
