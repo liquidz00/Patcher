@@ -24,7 +24,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install
-        run: make install
+        run: make install-dev
 
       - name: Lint and format
         run: make lint

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'main'
+      - 'develop'
     paths:
       - 'docs/**'
       - 'src/**'
@@ -34,7 +35,7 @@ jobs:
           python-version: '3.x'
 
       - name: Install dependencies
-        run: make install
+        run: make install-docs
 
       - name: Build Sphinx Docs
         env:
@@ -44,10 +45,13 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'docs/_build'
+          path: 'docs/_build/html'
 
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          path: 'docs/_build/html'
+          branch-folder: ${{ github.ref_name }}
 
