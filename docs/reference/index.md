@@ -18,13 +18,6 @@ ui_manager
 ```
 
 ```{toctree}
-:caption: Report Models
-
-excel_report
-pdf_report
-```
-
-```{toctree}
 :caption: Data Models
 
 jamf_client
@@ -36,9 +29,11 @@ token
 :caption: Utilities
 
 animation
+data_manager
 decorators
 exceptions
 logger
+pdf_report
 ```
 
 ```{toctree}

@@ -29,9 +29,9 @@ class ReportManager:
         :param api_client: Interacts with the Jamf API to retrieve data needed for reporting.
         :type api_client: :class:`~patcher.client.api_client.ApiClient`
         :param data_manager: Generates Excel reports from collected patch data.
-        :type data_manager: :class:`~patcher.models.reports.excel_report.ExcelReport`
+        :type data_manager: :class:`~patcher.utils.data_manager.DataManager`
         :param pdf_report: Generates PDF reports from the Excel files, adding visual elements..
-        :type pdf_report: :class:`~patcher.models.reports.pdf_report.PDFReport`
+        :type pdf_report: :class:`~patcher.utils.pdf_report.PDFReport`
         :param debug: Overrides animation of `~patcher.client.report_manager.ReportManager.process_reports` method if True.
         :type debug: :py:class:`bool`
         """
