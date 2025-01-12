@@ -1,8 +1,7 @@
-import asyncio
 import plistlib
 import shutil
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Set, Tuple, Union
 
 import asyncclick as click
 from PIL import Image
@@ -13,12 +12,22 @@ from . import BaseAPIClient
 
 
 class UIConfigManager:
-    REGULAR_FONT_URL = (
+    _REGULAR_FONT_URL = (
         "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Regular.ttf"
     )
-    BOLD_FONT_URL = (
+    _BOLD_FONT_URL = (
         "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Bold.ttf"
     )
+
+    # Config schema
+    _CONFIG_SCHEMA: Set[str] = {
+        "HEADER_TEXT",
+        "FOOTER_TEXT",
+        "FONT_NAME",
+        "FONT_REGULAR_PATH",
+        "FONT_BOLD_PATH",
+        "LOGO_PATH",
+    }
 
     def __init__(self):
         """
@@ -30,24 +39,56 @@ class UIConfigManager:
         """
         self.log = LogMe(self.__class__.__name__)
         self.plist_path = (
-            Path.home()
-            / "Library"
-            / "Application Support"
-            / "Patcher"
-            / "com.liquidzoo.patcher.plist"
+            Path.home() / "Library/Application Support/Patcher/com.liquidzoo.patcher.plist"
         )
         self.font_dir = self.plist_path.parent / "fonts"
         self._fonts_saved = None
         self.api = BaseAPIClient()
-        self.config = {}  # Set to empty initially since async task will fill it later
+        self._config = None  # Lazy-loaded
 
-        self.load_ui_config()
+        self._ensure_directory(self.plist_path.parent)
 
-        if not self.plist_path.exists():
-            self.log.debug(
-                f"Detected missing property list file ({self.plist_path}). Attempting to create default configuration."
+    @property
+    def config(self) -> Dict:
+        """
+        Retrieves the current UI configuration from property list.
+
+        If no configuration is found, the default configuration is created.
+
+        :return: Retrieved UI configuration settings or default config.
+        :rtype: :py:obj:`~typing.Dict`
+        """
+        if self._config is None:
+            plist_data = self._load_plist_file()
+            self._config = plist_data.get("UI", {})
+            if not self._config:  # Init with default if still empty
+                self.log.debug("No configuration found. Creating default UI configuration.")
+                self.create_default_config()
+        return self._config
+
+    @config.setter
+    def config(self, value: Dict = None, **kwargs):
+        """
+        Set specific UI configuration values with validation.
+
+        A patcher error is raised if any passed kwargs are not in the schema.
+
+        :param kwargs: Key-values to add to ``self._config``
+        :type kwargs:
+        :return:
+        :rtype:
+        """
+        if value and not kwargs:  # Dict input
+            kwargs = value
+        invalid_keys = set(kwargs.keys()) - self._CONFIG_SCHEMA
+        if invalid_keys:
+            raise PatcherError(
+                "Invalid configuration keys passed to Configuration setter.",
+                keys=(", ".join(invalid_keys)),
             )
-            asyncio.create_task(self.create_default_config())
+        self._config.update(kwargs)
+        self.log.debug(f"Updated configuration: {self._config}")
+        self._write_plist_file({"UI": self._config})
 
     @property
     def fonts_present(self) -> bool:
@@ -64,40 +105,81 @@ class UIConfigManager:
             self._fonts_saved = regular_font_path.exists() and bold_font_path.exists()
         return self._fonts_saved
 
+    def _ensure_directory(self, path: Path) -> None:
+        """Ensures the given directory exists and creates it if it does not."""
+        self.log.debug(f"Validating {path} exists.")
+        if not path.exists():
+            self.log.info(f"Creating directory: {path}")
+            try:
+                path.mkdir(parents=True, exist_ok=True)
+            except PermissionError as e:
+                self.log.error(
+                    f"Unable to create directory {path} due to PermissionError. Details: {e}"
+                )
+                raise PatcherError(
+                    "Failed to create directory as expected due to PermissionError.",
+                    path=path,
+                    parent_path=path.parent,
+                    error_msg=str(e),
+                )
+
     def _load_plist_file(self) -> Dict:
         """
         Reads values from Patcher property list file after verifying it exists.
         If the property list file does not exist, an empty dictionary is returned.
 
-        If the property list file cannot be read, a warning is logged and an
-        empty dictionary is returned.
+        If an error is raised trying to read the property list values, a warning is logged
+        and an empty dictionary is returned.
         """
-        if self.plist_path.exists():
-            self.log.debug("Attempting to load property list file data.")
+        if not self.plist_path.exists():
+            return {}
+        try:
             with self.plist_path.open("rb") as plistfile:
-                try:
-                    plist_data = plistlib.load(plistfile)
-                    self.log.info("Loaded property list data successfully.")
-                    return plist_data
-                except Exception as e:
-                    self.log.warning(f"Unable to read property list file. Details: {e}")
-                    return {}
-        return {}
+                return plistlib.load(plistfile)
+        except Exception as e:
+            self.log.warning(f"Failed to load plist file. Details: {e}")
+            return {}
 
     def _write_plist_file(self, plist_data: Dict) -> None:
         """Writes specified data to Patcher property list file."""
-        self.log.debug("Attempting to save passed plist_data to property list.")
-        with self.plist_path.open("wb") as plistfile:
-            try:
+        self._ensure_directory(self.plist_path.parent)
+        try:
+            with self.plist_path.open("wb") as plistfile:
                 plistlib.dump(plist_data, plistfile)
-                self.log.info("Saved property list data successfully.")
-            except Exception as e:
-                self.log.error(f"Unable to write to property list. Details: {e}")
-                raise PatcherError(
-                    "Encountered an error trying to write to property list",
-                    data=plist_data,
-                    error_msg=str(e),
-                )
+            self.log.info(f"Configuration saved to {self.plist_path}")
+        except Exception as e:
+            self.log.error(f"Failed to write plist file. Details: {e}")
+            raise PatcherError(
+                "Could not write to plist file.", path=self.plist_path, error_msg=str(e)
+            )
+
+    def _download_font(self, url: str, dest_path: Path):
+        """
+        Downloads the Assistant font family from the specified URL to the given destination path.
+
+        .. note:
+            This API call is intentionally kept separate from the :class:`~patcher.client.api_client.ApiClient` class as
+            the scope of this API call is solely for UI purposes.
+
+        :param url: The URL to download the font from.
+        :type url: :py:class:`str`
+        :param dest_path: The local path where the downloaded font should be saved.
+        :type dest_path: :py:obj:`~pathlib.Path`
+        :raises ShellCommandError: Raised if the font cannot be downloaded due to a network error or invalid response.
+        :raises PatcherError: If the destination path's parent cannot be created.
+        """
+        command = ["/usr/bin/curl", "-sL", url, "-o", str(dest_path)]
+        self.log.debug(f"Attempting to download default font family from {url} to {str(dest_path)}")
+        try:
+            self.api.execute_sync(command)
+            self.log.info(f"Default fonts saved successfully to {dest_path}")
+        except ShellCommandError as e:
+            self.log.error(f"Unable to download font from {url}: {e}")
+            raise PatcherError(
+                "Failed to download default font family.",
+                url=url,
+                error_msg=str(e),
+            )
 
     def load_ui_config(self):
         """
@@ -119,53 +201,7 @@ class UIConfigManager:
 
         self.log.info("Loaded UI configuration settings from property list successfully.")
 
-    async def download_font(self, url: str, dest_path: Path):
-        """
-        Downloads the Assistant font family from the specified URL to the given destination path.
-
-        .. note:
-            This API call is intentionally kept separate from the :class:`~patcher.client.api_client.ApiClient` class as
-            the scope of this API call is solely for UI purposes.
-
-        :param url: The URL to download the font from.
-        :type url: ;:py:class:`str`
-        :param dest_path: The local path where the downloaded font should be saved.
-        :type dest_path: :py:class:`~pathlib.Path`
-        :raises ShellCommandError: Raised if the font cannot be downloaded due to a network error or invalid response.
-        :raises PatcherError: If the destination path's parent cannot be created.
-        """
-        try:
-            self.log.debug(
-                f"Validating {dest_path.parent} exists. Will attempt to create if it does not exist already."
-            )
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
-            self.log.info(f"Validated {dest_path.parent} successfully.")
-        except PermissionError as e:
-            self.log.error(f"Unable to create directory for fonts. Details: {e}")
-            raise PatcherError(
-                "Could not create directory for Fonts.",
-                path=dest_path,
-                parent_path=dest_path.parent,
-                error_msg=str(e),
-            )
-
-        command = ["/usr/bin/curl", "-sL", url, "-o", str(dest_path)]
-        async with self.api.semaphore:
-            self.log.debug(
-                f"Attempting to download default font family from {url} to {str(dest_path)}"
-            )
-            try:
-                await self.api.execute(command)
-                self.log.info(f"Default fonts saved successfully to {dest_path}")
-            except ShellCommandError as e:
-                self.log.error(f"Unable to download font from {url}: {e}")
-                raise PatcherError(
-                    "Failed to download default font family.",
-                    url=url,
-                    error_msg=str(e),
-                )
-
-    async def create_default_config(self):
+    def create_default_config(self):
         """
         This method writes default values for header text, footer text, font paths
         and optional branding logo into the property list file. It also ensures that the
@@ -182,44 +218,18 @@ class UIConfigManager:
         }
 
         # Ensure directory exists
-        self.font_dir.mkdir(parents=True, exist_ok=True)
+        self._ensure_directory(self.font_dir)
 
         # Download fonts if not already present
         if not self.fonts_present:
             try:
-                await self.download_font(
-                    self.REGULAR_FONT_URL, self.font_dir / "Assistant-Regular.ttf"
-                )
-                await self.download_font(self.BOLD_FONT_URL, self.font_dir / "Assistant-Bold.ttf")
+                self._download_font(self._REGULAR_FONT_URL, self.font_dir / "Assistant-Regular.ttf")
+                self._download_font(self._BOLD_FONT_URL, self.font_dir / "Assistant-Bold.ttf")
             except (PatcherError, ShellCommandError):
-                raise
+                raise  # Avoid chaining exception in this instance
 
-        plist_data = self._load_plist_file()
-        plist_data["UI"] = default_config
-        self._write_plist_file(plist_data)
-
-    def get_ui_config(self) -> Dict:
-        """
-        Retrieves the user interface configuration settings as a dictionary.
-
-        :return: Configuration settings such as header text, footer text, font paths, and branding logo.
-        :rtype: :py:obj:`~typing.Dict`
-        """
-        self.log.debug("Attempting to retrieve UI Configuration settings.")
-        return self.config
-
-    def get(self, key: str, fallback: Optional[str] = None) -> str:
-        """
-        Retrieves a specific configuration value from the UI configuration.
-
-        :param key: The key for the configuration value to retrieve.
-        :type key: :py:class:`str`
-        :param fallback: The value to return if the key is not found. Defaults to ``None``.
-        :type fallback: :py:obj:`~typing.Optional` [:py:class:`str`]
-        :return: The configuration value corresponding to the provided key, or the fallback value if the key is not found.
-        :rtype: :py:class:`str`
-        """
-        return self.get_ui_config().get(key, fallback)
+        # Leverage setter
+        self.config = default_config
 
     def reset_config(self) -> bool:
         """
@@ -237,6 +247,7 @@ class UIConfigManager:
             if "UI" in plist_data:
                 del plist_data["UI"]
                 self._write_plist_file(plist_data)
+                self._config = None  # Invalidate cache
                 self.log.info("Configuration settings reset as expected.")
             return True
         except Exception as e:
@@ -452,4 +463,4 @@ class UIConfigManager:
         :return: The logo path as a string if it exists, else None.
         :rtype: :py:obj:`~typing.Union` :py:class:`str` | None]
         """
-        return self.get("LOGO_PATH", None)
+        return self.config.get("LOGO_PATH", "")
