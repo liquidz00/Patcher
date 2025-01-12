@@ -138,8 +138,8 @@ class DataManager:
         self.log.debug("Attempting to create DataFrame from PatchTitle objects.")
         try:
             df = pd.DataFrame([patch.model_dump() for patch in patch_titles])
-            df.columns = [column.replace("_", " ").title() for column in df.columns]
             df = df.drop(columns=DataManager._IGNORED, errors="ignore")  # Drop excluded columns
+            df.columns = [column.replace("_", " ").title() for column in df.columns]
             self.log.info(
                 f"Created DataFrame from {len(patch_titles)} PatchTitle objects successfully."
             )
