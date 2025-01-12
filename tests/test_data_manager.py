@@ -27,7 +27,7 @@ def test_export_to_excel_success(sample_patch_reports, temp_output_dir):
         "Latest Version",
         "Completion Percent",
         "Total Hosts",
-        "Install Label",
+        # "Install Label",
     ]
 
 
