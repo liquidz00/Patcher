@@ -97,7 +97,11 @@ class Setup:
 
     def _mark_completion(self, value: bool = False):
         """Updates the plist file to reflect the completion status of the setup."""
-        plist_data = {"Setup": {"first_run_done": value}}
+        # Intentionally calling private method as functionality is needed here.
+        # noinspection PyProtectedMember
+        plist_data = self.ui_config._load_plist_file()
+        plist_data["Setup"] = {"first_run_done": value}
+
         os.makedirs(os.path.dirname(self.plist_path), exist_ok=True)
         try:
             with open(self.plist_path, "wb") as fp:
