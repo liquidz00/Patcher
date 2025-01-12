@@ -8,7 +8,7 @@ Tailor the user interface elements of your exported PDF reports. You have the fl
 
 .. _example-pdf-image:
 
-.. image:: ../_static/example_pdf.jpg
+.. image:: ../_static/example_pdf.png
     :alt: Example PDF
     :width: 750px
     :align: center
