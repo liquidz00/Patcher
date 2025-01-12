@@ -40,6 +40,7 @@ jobs:
       - name: Build Sphinx Docs
         env:
           PYTHONPATH: ${{ github.workspace }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
         run: make docs
 
       - name: Upload Artifact
