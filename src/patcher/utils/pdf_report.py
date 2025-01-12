@@ -40,7 +40,7 @@ class PDFReport(FPDF):
         super().__init__(orientation=orientation, unit=unit, format=format)  # type: ignore
         self.date_format = date_format
         self.ui = UIConfigManager()
-        self.ui_config = self.ui.get_ui_config()
+        self.ui_config = self.ui.config
         self.logo_path = self.ui.get_logo_path()
 
         self.add_font(self.ui_config.get("FONT_NAME"), "", self.ui_config.get("FONT_REGULAR_PATH"))
