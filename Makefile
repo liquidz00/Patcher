@@ -5,7 +5,7 @@ install-dev:
 	python3 -m pip install --upgrade --force-reinstall --editable '.[dev]'
 
 install-docs:
-	python3 -m pip install --upgrade --force-reinstall --editable '.[docs'
+	python3 -m pip install --upgrade --force-reinstall --editable '.[docs]'
 
 uninstall:
 	python3 -m pip uninstall -y -r <(python3 -m pip freeze)
