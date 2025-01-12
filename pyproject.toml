@@ -49,7 +49,6 @@ patcherctl = "patcher.cli:main"
 
 [project.optional-dependencies]
 dev = [
-  "aioresponses>=0.7.6",
   "autodoc-pydantic",
   "black>=24.3.0",
   "build",
