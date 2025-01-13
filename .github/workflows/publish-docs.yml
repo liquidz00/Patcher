@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - 'main'
-      - 'develop'
     paths:
       - 'docs/**'
       - 'src/**'
@@ -40,14 +39,12 @@ jobs:
       - name: Build Sphinx Docs
         env:
           PYTHONPATH: ${{ github.workspace }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
-        run: make docs BRANCH=${{ github.ref_name }}
+        run: make docs
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'docs/_build/html/${{ github.ref_name }}/'
-
+          path: 'docs/_build/'
 
       - name: Deploy to GitHub Pages
         id: deployment
