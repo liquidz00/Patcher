@@ -11,8 +11,8 @@ Analyzes an exported patch report in Excel format and outputs analyzed results.
 Parameters
 ----------
 
-- ``excel_file`` (:py:class:`str`) (**Required**):
-    Path to the Excel file containing patch management data. 
+- ``excel_file`` (:py:class:`str`):
+    Path to the Excel file containing patch management data.
 
 - ``threshold`` (:py:class:`float`):
     Filters software titles that are below the specified completion percentage.
