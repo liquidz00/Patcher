@@ -50,14 +50,14 @@ jobs:
             echo "Unknown branch or tag" && exit 1
           fi
 
-      - name: Copy CNAME to build
-        run: |
-          cp CNAME docs/_build/${{ env.VERSION }}
-
       - name: Build Sphinx Docs
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: make docs-version VERSION=${{ env.VERSION }}
+
+      - name: Copy CNAME to build
+        run: |
+          cp CNAME docs/_build/${{ env.VERSION }}
 
       - name: Generate switcher.json
         run: |
