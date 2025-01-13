@@ -62,6 +62,7 @@ jobs:
       - name: Generate switcher.json
         run: |
           cat <<EOF > generate_switcher.py
+          import os
           import json
           import subprocess
 
@@ -79,14 +80,18 @@ jobs:
           for tag in tags:
               if tag:
                   versions.append({"version": tag, "url": f"https://patcher.liquidzoo.io/{tag}/"})
+          
+          output_dir = f"docs/_build/${{ env.VERSION }}/_static"
+          os.makedirs(output_dir, exist_ok=True)
 
-          with open("docs/_build/latest/_static/switcher.json", "w") as f:
+          with open(f"{output_dir}/switcher.json", "w") as f:
               json_data = json.dump(versions, f, indent=4)
           EOF
           python3 generate_switcher.py
           rm generate_switcher.py
 
-      - name: Ensure switcher is deployed
+      - name: Ensure switcher is deployed (only for main)
+        if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           cp docs/_build/latest/_static/switcher.json docs/_build/
 
