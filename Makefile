@@ -31,6 +31,6 @@ build:
 	python3 -m build --sdist --wheel
 
 docs:
-	@BRANCH=$(shell echo $(GITHUB_REF_NAME)) && \
-	mkdir -p docs/_build/$$BRANCH && \
-	sphinx-build -b html docs/ docs/_build/$$BRANCH
+	@BRANCH=${BRANCH:-main} && \
+	mkdir -p docs/_build/html/$$BRANCH && \
+	sphinx-build -b html docs/ docs/_build/html/$$BRANCH
