@@ -31,4 +31,11 @@ build:
 	python3 -m build --sdist --wheel
 
 docs:
-	sphinx-build -b html docs/ docs/_build/
+	@echo "Building Sphinx Docs for version $(VERSION)..."
+	sphinx-build -b html docs/ docs/_build/$(VERSION)
+
+docs-latest:
+	$(MAKE) docs VERSION=latest
+
+docs-version:
+	$(MAKE) docs VERSION=$(VERSION)

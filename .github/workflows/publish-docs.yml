@@ -4,9 +4,10 @@ on:
   push:
     branches:
       - 'main'
-    paths:
-      - 'docs/**'
-      - 'src/**'
+      - 'develop'
+    tags:
+      - 'v*.*'
+
   workflow_dispatch:
 
 permissions:
@@ -36,10 +37,58 @@ jobs:
       - name: Install dependencies
         run: make install-docs
 
+      - name: Determine Documentation Context
+        id: version
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "VERSION=latest" >> $GITHUB_ENV
+          elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+            echo "VERSION=develop" >> $GITHUB_ENV
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+          else
+            echo "Unknown branch or tag" && exit 1
+          fi
+
+      - name: Generate switcher.json
+        run: |
+          cat <<EOF > generate_switcher.py
+          import json
+          import subprocess
+          
+          tags_output = subprocess.run(
+              ["git", "tag", "-l", "v*.*"], capture_output=True, text=True
+          ).stdout.strip()
+          
+          tags = tags_output.split("\n") if tags_output else []
+          
+          versions = [
+              {"version": "latest", "url": "https://patcher.liquidzoo.io/latest/"},
+              {"version": "develop", "url": "https://patcher.liquidzoo.io/develop/"},
+          ]
+          
+          for tag in tags:
+              if tag:
+                  versions.append({"version": tag, "url": f"https://patcher.liquidzoo.io/{tag}/"})
+          
+          with open("docs/_build/_static/switcher.json", "w") as f:
+              json_data = json.dump(versions, f, indent=4)
+          EOF
+          python3 generate_switcher.py
+          rm generate_switcher.py
+
+      - name: Copy CNAME to build
+        run: |
+          cp CNAME docs/_build/${{ env.VERSION }}
+
       - name: Build Sphinx Docs
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: make docs
+        run: make docs-version VERSION=${{ env.VERSION }}
+
+      - name: Ensure switcher is deployed
+        run: |
+          cp docs/_build/_static/switcher.json docs/_build/
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
@@ -49,3 +98,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
