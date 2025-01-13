@@ -80,7 +80,7 @@ jobs:
               if tag:
                   versions.append({"version": tag, "url": f"https://patcher.liquidzoo.io/{tag}/"})
 
-          with open("docs/_build/_static/switcher.json", "w") as f:
+          with open("docs/_build/latest/_static/switcher.json", "w") as f:
               json_data = json.dump(versions, f, indent=4)
           EOF
           python3 generate_switcher.py
