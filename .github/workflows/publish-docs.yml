@@ -88,7 +88,7 @@ jobs:
 
       - name: Ensure switcher is deployed
         run: |
-          cp docs/_build/_static/switcher.json docs/_build/
+          cp docs/_build/latest/_static/switcher.json docs/_build/
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
