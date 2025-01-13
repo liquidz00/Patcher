@@ -50,33 +50,6 @@ jobs:
             echo "Unknown branch or tag" && exit 1
           fi
 
-      - name: Generate switcher.json
-        run: |
-          cat <<EOF > generate_switcher.py
-          import json
-          import subprocess
-          
-          tags_output = subprocess.run(
-              ["git", "tag", "-l", "v*.*"], capture_output=True, text=True
-          ).stdout.strip()
-          
-          tags = tags_output.split("\n") if tags_output else []
-          
-          versions = [
-              {"version": "latest", "url": "https://patcher.liquidzoo.io/latest/"},
-              {"version": "develop", "url": "https://patcher.liquidzoo.io/develop/"},
-          ]
-          
-          for tag in tags:
-              if tag:
-                  versions.append({"version": tag, "url": f"https://patcher.liquidzoo.io/{tag}/"})
-          
-          with open("docs/_build/_static/switcher.json", "w") as f:
-              json_data = json.dump(versions, f, indent=4)
-          EOF
-          python3 generate_switcher.py
-          rm generate_switcher.py
-
       - name: Copy CNAME to build
         run: |
           cp CNAME docs/_build/${{ env.VERSION }}
@@ -85,6 +58,33 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: make docs-version VERSION=${{ env.VERSION }}
+
+      - name: Generate switcher.json
+        run: |
+          cat <<EOF > generate_switcher.py
+          import json
+          import subprocess
+
+          tags_output = subprocess.run(
+              ["git", "tag", "-l", "v*.*"], capture_output=True, text=True
+          ).stdout.strip()
+
+          tags = tags_output.split("\n") if tags_output else []
+
+          versions = [
+              {"version": "latest", "url": "https://patcher.liquidzoo.io/latest/"},
+              {"version": "develop", "url": "https://patcher.liquidzoo.io/develop/"},
+          ]
+
+          for tag in tags:
+              if tag:
+                  versions.append({"version": tag, "url": f"https://patcher.liquidzoo.io/{tag}/"})
+
+          with open("docs/_build/_static/switcher.json", "w") as f:
+              json_data = json.dump(versions, f, indent=4)
+          EOF
+          python3 generate_switcher.py
+          rm generate_switcher.py
 
       - name: Ensure switcher is deployed
         run: |
