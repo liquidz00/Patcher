@@ -27,6 +27,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -67,43 +68,41 @@ jobs:
           import json
           import os
           import subprocess
-          
+
+          # Retrieve the VERSION environment variable
+          version = os.environ.get("VERSION", "latest")  # Default to 'latest' if VERSION is not set
+
           # Collect all tags
           tags_output = subprocess.run(
               ["git", "tag", "-l"], capture_output=True, text=True
           ).stdout.strip()
-          
-          # Filter tags to include only those >= v1.4.0
-          valid_tags = []
-          for tag in tags_output.split("\n"):
-              if tag and tag >= "v1.4.0":  # Compare lexicographically
-                  valid_tags.append(tag)
-          
+
+          # Filter tags (simple string comparison)
+          valid_tags = [tag for tag in tags_output.split("\n") if tag and tag >= "v1.4.0"]
+
           # Define static entries
           versions = [
               {"version": "latest", "url": "https://patcher.liquidzoo.io/latest/"},
               {"version": "develop", "url": "https://patcher.liquidzoo.io/develop/"},
-          ]
-          
-          # Add valid tags to the versions list
-          for tag in valid_tags:
-              versions.append({"version": tag, "url": f"https://patcher.liquidzoo.io/{tag}/"})
-          
-          # Write to the correct location
-          output_dir = f"docs/_build/${{ env.VERSION }}/_static"
+          ] + [{"version": tag, "url": f"https://patcher.liquidzoo.io/{tag}/"} for tag in valid_tags]
+
+          # Define the output directory
+          output_dir = f"docs/_build/{version}/_static"
           os.makedirs(output_dir, exist_ok=True)
-          
-          with open(f"{output_dir}/switcher.json", "w") as f:
+
+          # Write the switcher.json file
+          output_file = os.path.join(output_dir, "switcher.json")
+          with open(output_file, "w") as f:
               json.dump(versions, f, indent=4)
 
           EOF
           python3 generate_switcher.py
           rm generate_switcher.py
 
-      - name: Ensure switcher is deployed (only for main)
-        if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Ensure switcher is deployed
         run: |
-          cp docs/_build/latest/_static/switcher.json docs/_build/
+          cp docs/_build/${{ env.VERSION }}/_static/switcher.json docs/_build/latest/_static/
+          cp docs/_build/${{ env.VERSION }}/_static/switcher.json docs/_build/${{ env.VERSION }}/_static/
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
@@ -113,4 +112,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-

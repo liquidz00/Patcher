@@ -104,7 +104,7 @@ html_theme_options = {
     "show_prev_next": False,
     "navbar_start": ["navbar-logo", "version-switcher"],
     "switcher": {
-        "json_url": "https://patcher.liquidzoo.io/_static/switcher.json",
+        "json_url": "https://patcher.liquidzoo.io/latest/_static/switcher.json",
         "version_match": version,
     },
     "navbar_center": ["navbar-nav"],
