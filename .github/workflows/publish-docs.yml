@@ -41,12 +41,12 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
-        run: make docs
+        run: make docs BRANCH=${{ github.ref_name }}
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'docs/_build/'
+          path: 'docs/_build/${{ github.ref_name }}/'
 
       - name: Deploy to GitHub Pages
         id: deployment
