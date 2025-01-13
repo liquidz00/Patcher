@@ -79,9 +79,7 @@ togglebutton_hint_hide = str(_("Click to collapse"))
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-branch = os.getenv("GITHUB_REF", "main").split("/")[-1]
-
-html_baseurl = f"http://patcher.liquidzoo.io/{branch}"
+html_baseurl = "http://patcher.liquidzoo.io"
 html_theme = "pydata_sphinx_theme"
 html_logo = "_static/logo.svg"
 html_favicon = "_static/logo.svg"
@@ -104,11 +102,7 @@ html_theme_options = {
     "navbar_align": "left",
     "announcement": "https://raw.githubusercontent.com/liquidz00/Patcher/main/docs/_templates/custom-template.html",
     "show_prev_next": False,
-    "switcher": {
-        "json_url": "https://patcher.liquidzoo.io/_static/switcher.json",
-        "version_match": branch,  # Dynamically match
-    },
-    "navbar_start": ["navbar-logo", "version-switcher"],
+    "navbar_start": ["navbar-logo"],
     "navbar_center": ["navbar-nav"],
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "icon_links": [

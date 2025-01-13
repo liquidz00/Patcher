@@ -31,6 +31,4 @@ build:
 	python3 -m build --sdist --wheel
 
 docs:
-	@BRANCH=${BRANCH:-main} && \
-	mkdir -p docs/_build/html/$$BRANCH && \
-	sphinx-build -b html docs/ docs/_build/html/$$BRANCH
+	sphinx-build -b html docs/ docs/_build/
