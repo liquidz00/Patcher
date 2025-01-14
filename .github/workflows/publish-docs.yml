@@ -4,11 +4,6 @@ on:
   push:
     branches:
       - 'main'
-      - 'develop'
-    tags:
-      - 'v1.4.*'
-      - 'v1.[5-9]*'
-      - 'v[2-9]*.*'
 
   workflow_dispatch:
 
@@ -40,72 +35,10 @@ jobs:
       - name: Install dependencies
         run: make install-docs
 
-      - name: Determine Documentation Context
-        id: version
-        run: |
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "VERSION=latest" >> $GITHUB_ENV
-          elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
-            echo "VERSION=develop" >> $GITHUB_ENV
-          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
-          else
-            echo "Unknown branch or tag" && exit 1
-          fi
-
       - name: Build Sphinx Docs
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: make docs-version VERSION=${{ env.VERSION }}
-
-      - name: Copy CNAME to build
-        run: |
-          cp CNAME docs/_build/${{ env.VERSION }}
-
-      - name: Generate switcher.json
-        run: |
-          cat <<EOF > generate_switcher.py
-          import json
-          import os
-          import subprocess
-
-          # Retrieve the VERSION environment variable
-          version = os.environ.get("VERSION", "latest")  # Default to 'latest' if VERSION is not set
-
-          # Collect all tags
-          tags_output = subprocess.run(
-              ["git", "tag", "-l"], capture_output=True, text=True
-          ).stdout.strip()
-
-          # Filter tags (simple string comparison)
-          valid_tags = [tag for tag in tags_output.split("\n") if tag and tag >= "v1.4.0"]
-
-          # Define static entries
-          versions = [
-              {"version": "latest", "url": "https://patcher.liquidzoo.io/latest/"},
-              {"version": "develop", "url": "https://patcher.liquidzoo.io/develop/"},
-          ] + [{"version": tag, "url": f"https://patcher.liquidzoo.io/{tag}/"} for tag in valid_tags]
-
-          # Define the output directory
-          output_dir = f"docs/_build/{version}/_static"
-          os.makedirs(output_dir, exist_ok=True)
-
-          # Write the switcher.json file
-          output_file = os.path.join(output_dir, "switcher.json")
-          with open(output_file, "w") as f:
-              json.dump(versions, f, indent=4)
-
-          # Debugging output
-          print(f"Switcher JSON generated at: {output_file}")
-          print(f"Contents of switcher.json:\\n{json.dumps(versions, indent=4)}")
-          EOF
-          python3 generate_switcher.py
-          rm generate_switcher.py
-
-      - name: Ensure switcher is deployed
-        run: |
-          cp docs/_build/${{ env.VERSION }}/_static/switcher.json docs/_build/latest/_static/
-          cp docs/_build/${{ env.VERSION }}/_static/switcher.json docs/_build/${{ env.VERSION }}/_static/
+        run: make docs
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
