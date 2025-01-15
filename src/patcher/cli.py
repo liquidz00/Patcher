@@ -152,7 +152,7 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool) -> None:
 @click.argument(
     "kind",
     metavar="<reset_kind>",
-    type=click.Choice(["full", "UI", "creds"], case_sensitive=False),
+    type=click.Choice(["full", "UI", "creds", "cache"], case_sensitive=False),
     required=True,
 )
 @click.option(
@@ -173,6 +173,7 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
     - ``full``: Resets credentials, UI elements, and property list file. Subsequently triggers :class:`~patcher.client.setup.Setup` to start setup.
     - ``UI``: Resets UI elements of PDF reports (header & footer text, custom font and optional logo).
     - ``creds``: Resets credentials stored in Keychain. Useful for testing Patcher in a non-production environment first. Allows specifying which credential to reset using the ``--credential`` option.
+    - ``cache``: Removes all cached data from the cache directory stored in ``~/Library/Caches/Patcher``
 
     :param ctx: The context object, providing access to shared state between commands.
     :type ctx: click.Context
@@ -246,6 +247,22 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
                     }
                     for k, v in cred_map.items():
                         config.set_credential(k, v)
+        elif kind.lower() == "cache":
+            log.info("Removing cached data...")
+
+            # Check for DataManager presence, which implies caching is enabled
+            data_manager = ctx.obj.get("data_manager")
+            if not data_manager:
+                log.warning("Caching is disabled. No cache data to reset.")
+                click.echo(
+                    click.style(
+                        "⚠️ Caching is disabled. No cached data to reset.", fg="yellow", bold=True
+                    )
+                )
+                ctx.exit(0)
+
+            if not data_manager.reset_cache():
+                raise PatcherError("Encountered an error trying to reset cache.")
 
     click.echo(click.style("\n✅ Reset finished successfully.", fg="green", bold=True))
 

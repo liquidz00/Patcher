@@ -13,6 +13,7 @@ Allows for resetting of configurations based upon specified kind:
 - ``full``: Resets credentials, UI elements, and property list file. Subsequently triggers :class:`~patcher.client.setup.Setup` to start setup.
 - ``UI``: Resets UI elements of PDF reports (header & footer text, custom font and optional logo).
 - ``creds``: Resets credentials stored in Keychain. Useful for testing Patcher in a non-production environment first. Allows specifying which credential to reset using the ``--credential`` option.
+- ``cache``: Removes all cached data from the cache directory stored in ``~/Library/Caches/Patcher``
 
 .. note::
     Options are not case-sensitive and are converted to lowercase automatically at runtime
@@ -80,3 +81,9 @@ Usage
             $ patcherctl reset creds --credential url
 
         You will be prompted to enter a new value for the credential specified to be reset.
+
+    .. tab-item:: Cached data
+
+        .. code-block:: console
+
+            $ patcherctl reset cache
