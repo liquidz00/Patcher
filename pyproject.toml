@@ -48,6 +48,21 @@ Issues = "https://github.com/liquidz00/Patcher/issues/new?assignees=&labels=bug&
 patcherctl = "patcher.cli:main"
 
 [project.optional-dependencies]
+all = [
+  "black>=24.3.0",
+  "build",
+  "pytest>=8.2.2",
+  "pytest-asyncio>=0.23.5",
+  "pytest-cov>=4.0.0",
+  "ruff>=0.5.1",
+  "autodoc-pydantic",
+  "myst-parser",
+  "pydata-sphinx-theme",
+  "sphinx>=7.3.7",
+  "sphinx-design",
+  "sphinx-copybutton",
+  "sphinx-togglebutton",
+]
 dev = [
   "black>=24.3.0",
   "build",

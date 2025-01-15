@@ -1,6 +1,9 @@
 SHELL := /bin/bash
 .PHONY: docs
 
+install:
+	python3 -m pip install --upgrade --force-reinstall --editable '.[all]'
+
 install-dev:
 	python3 -m pip install --upgrade --force-reinstall --editable '.[dev]'
 
