@@ -12,7 +12,11 @@ Parameters
 ----------
 
 - ``excel_file`` (:py:class:`str`):
-    Path to the Excel file containing patch management data.
+    *(Optional)* Path to the Excel file containing patch management data.
+
+    .. seealso::
+
+        :ref:`Data caching <caching>`
 
 - ``threshold`` (:py:class:`float`):
     Filters software titles that are below the specified completion percentage.
