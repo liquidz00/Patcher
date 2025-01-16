@@ -136,4 +136,7 @@ filterwarnings = [
   "ignore::RuntimeWarning",
 ]
 
+[tool.coverage.run]
+omit = ["tests/*"]
+
 
