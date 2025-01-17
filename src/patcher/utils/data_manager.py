@@ -2,6 +2,7 @@ import os
 import pickle
 from datetime import datetime, timedelta
 from pathlib import Path
+from string import Template
 from typing import List, Optional, Union
 
 import pandas as pd
@@ -205,6 +206,40 @@ class DataManager:
                 file_path=str(output_dir),
                 error_msg=str(e),
             )
+
+    def export_to_html(self, output_dir: Path, patch_titles: Optional[List[PatchTitle]]) -> Path:
+        """Export PatchTitles to HTML format."""
+        titles = patch_titles or self.titles
+        current_date = datetime.now().strftime("%m-%d-%y")
+        file_path = output_dir / f"patch-analysis-{current_date}.html"
+        template = Template((Path(__file__).parent / "../templates/analysis.html").read_text())
+
+        headers = "".join(
+            f'<th onclick="sortTable({i})">{field.replace("_", " ").title()}</th>'
+            for i, field in enumerate(PatchTitle.model_fields)  # type: ignore
+        )
+        rows = "".join(
+            f"<tr>{''.join(f'<td>{cell}</td>' for cell in patch.model_dump().values())}</tr>"
+            for patch in titles
+        )
+
+        rendered_html = template.substitute(
+            title="Patch Report Analysis",
+            heading="Patch Report Analysis",
+            date=current_date,
+            headers=headers,
+            rows=rows,
+        )
+
+        try:
+            with open(file_path, "w") as f:
+                f.write(rendered_html)
+        except OSError as e:
+            raise PatcherError(
+                "Error saving HTML file.", file_path=str(file_path), error_msg=str(e)
+            )
+
+        return file_path
 
     def reset_cache(self) -> bool:
         """
