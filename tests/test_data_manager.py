@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
+from pandas.testing import assert_frame_equal
 from src.patcher.models.patch import PatchTitle
 from src.patcher.utils.data_manager import DataManager
 from src.patcher.utils.exceptions import FetchError, PatcherError
@@ -13,22 +14,29 @@ from src.patcher.utils.exceptions import FetchError, PatcherError
 
 def test_export_to_excel_success(sample_patch_reports, temp_output_dir):
     data_manager = DataManager()
-    excel_path = data_manager.export_to_excel(sample_patch_reports, temp_output_dir)
 
-    assert excel_path is not None
-    assert os.path.exists(excel_path)
-    df = pd.read_excel(excel_path)
-    assert not df.empty
-    assert list(df.columns) == [
-        "Title",
-        "Released",
-        "Hosts Patched",
-        "Missing Patch",
-        "Latest Version",
-        "Completion Percent",
-        "Total Hosts",
-        # "Install Label",
-    ]
+    with patch.object(data_manager, "_cache_data", return_value=None) as mock_cache_data:
+        excel_path = data_manager.export_to_excel(sample_patch_reports, temp_output_dir)
+
+        assert excel_path is not None
+        assert os.path.exists(excel_path)
+        df = pd.read_excel(excel_path)
+        assert not df.empty
+        assert list(df.columns) == [
+            "Title",
+            "Released",
+            "Hosts Patched",
+            "Missing Patch",
+            "Latest Version",
+            "Completion Percent",
+            "Total Hosts",
+            # "Install Label",
+        ]
+
+        args, _ = mock_cache_data.call_args
+        cached_df = args[0]
+
+        assert_frame_equal(df, cached_df)
 
 
 def test_export_to_excel_dataframe_creation_error(temp_output_dir):
@@ -153,37 +161,30 @@ def test_export_to_excel_permission_error(temp_output_path):
             data_manager.export_to_excel(mock_patches, temp_file)
 
 
-def test_clean_cache_removes_expired_files():
+def test_clean_cache_removes_expired_files(temp_output_path):
     """Ensure clean_cache removes only expired files."""
-    # Mock the cache directory and files
-    with (
-        patch("pathlib.Path.iterdir") as mock_iterdir,
-        patch("pathlib.Path.unlink") as mock_unlink,
-        patch("datetime.datetime") as mock_datetime,
-    ):
+    data_manager = DataManager()
+    data_manager.cache_dir = temp_output_path
 
-        # Simulate the current time
-        current_time = datetime(2025, 1, 1, 12, 0, 0)
-        mock_datetime.now.return_value = current_time
+    expired_file = temp_output_path / "expired.pkl"
+    valid_file = temp_output_path / "valid.pkl"
 
-        # Simulate files in the cache directory
-        expired_file = MagicMock()
-        expired_file.suffix = ".pkl"
-        expired_file.stat.return_value.st_mtime = (current_time - timedelta(days=31)).timestamp()
+    expired_file.touch()
+    valid_file.touch()
 
-        valid_file = MagicMock()
-        valid_file.suffix = ".pkl"
-        valid_file.stat.return_value.st_mtime = (current_time - timedelta(days=15)).timestamp()
+    expired_time = (datetime.now() - timedelta(days=31)).timestamp()
+    valid_time = (datetime.now() - timedelta(days=15)).timestamp()
+    os.utime(expired_file, (expired_time, expired_time))
+    os.utime(valid_file, (valid_time, valid_time))
 
-        mock_iterdir.return_value = [expired_file, valid_file]
+    mock_iterdir = MagicMock(return_value=[expired_file, valid_file])
 
-        # Initialize DataManager and run the method
-        data_manager = DataManager()
+    with patch.object(Path, "iterdir", mock_iterdir):
         data_manager._clean_cache()
 
-        # Ensure only the expired file is deleted
-        expired_file.unlink.assert_called_once()
-        valid_file.unlink.assert_not_called()
+    # Ensure only the expired file is removed
+    assert not expired_file.exists()
+    assert valid_file.exists()
 
 
 def test_clean_cache_no_permissions():
