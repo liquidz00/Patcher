@@ -212,30 +212,37 @@ class DataManager:
         patch_titles: Optional[List[PatchTitle]],
         output_dir: Union[str, Path],
         title: str,
-        heading: str,
         date_format: str = "%B %d %Y",
     ) -> str:
         """Export PatchTitles to HTML format."""
         if isinstance(output_dir, str):
             output_dir = Path(output_dir)
 
+        export_dir = output_dir / "Patch-Analysis-Reports"
+        export_dir.mkdir(parents=True, exist_ok=True)
+
         titles = patch_titles or self.titles
         current_date = datetime.now().strftime(date_format)
-        file_path = output_dir / f"patch-analysis-{current_date}.html"
-        template = Template((Path(__file__).parent / "../templates/analysis.html").read_text())
+        file_path = export_dir / f"patch-analysis-{current_date}.html"
 
+        filtered_data = [
+            {key: value for key, value in patch.model_dump().items() if key not in self._IGNORED}
+            for patch in titles
+        ]
+
+        template = Template((Path(__file__).parent / "../templates/analysis.html").read_text())
         headers = "".join(
             f'<th onclick="sortTable({i})">{field.replace("_", " ").title()}</th>'
-            for i, field in enumerate(PatchTitle.model_fields)  # type: ignore
+            for i, field in enumerate(filtered_data[0].keys())
         )
         rows = "".join(
-            f"<tr>{''.join(f'<td>{cell}</td>' for cell in patch.model_dump().values())}</tr>"
-            for patch in titles
+            f"<tr>{''.join(f'<td>{cell}</td>' for cell in patch.values())}</tr>"
+            for patch in filtered_data
         )
 
         rendered_html = template.substitute(
             title=title,
-            heading=heading,
+            heading=title,
             date=current_date,
             headers=headers,
             rows=rows,
@@ -248,6 +255,9 @@ class DataManager:
             raise PatcherError(
                 "Error saving HTML file.", file_path=str(file_path), error_msg=str(e)
             )
+
+        if not file_path.exists():
+            print("HTML file was not created as expected.")
 
         return str(file_path)
 

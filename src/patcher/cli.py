@@ -407,7 +407,11 @@ async def export(
 )
 @click.option("--summary", "-s", is_flag=True, help="Generate summary analysis for output.")
 @click.option(
-    "--output-dir", "-o", metavar="<path>", type=click.Path(), help="Directory to save summary."
+    "--output-dir",
+    "-o",
+    metavar="<path>",
+    type=click.Path(file_okay=False, dir_okay=True, writable=True, resolve_path=True),
+    help="Directory to save summary.",
 )
 @click.pass_context
 async def analyze(
@@ -434,9 +438,9 @@ async def analyze(
     :type criteria: :py:class:`str`
     :param top_n: Number of top entries to display based on the criteria.
     :type top_n: :py:class:`int`
-    :param summary: Flag to generate a summary file.
+    :param summary: Flag to generate a summary file in HTML format.
     :type summary: :py:class:`bool`
-    :param output_dir: Path to save generated summary, only if `--summary` flag passed.
+    :param output_dir: Directory to save generated summary, only if `--summary` flag passed.
     :type output_dir: :py:obj:`~typing.Union` of :py:class:`str` | :py:obj:`~pathlib.Path`
     """
     if summary and not output_dir:
@@ -450,6 +454,7 @@ async def analyze(
         return
 
     animation = ctx.obj.get("animation")
+    ui_config = ctx.obj.get("ui_config")
     data_manager = get_data_manager(ctx)
 
     async with animation.error_handling():
@@ -494,15 +499,15 @@ async def analyze(
     click.echo(formatted_table)
 
     if summary:
-        output_path = Path(output_dir) / "analysis_summary.txt"
         try:
-            with open(output_path, "w") as f:
-                f.write(formatted_table)
+            data_manager.export_to_html(
+                filtered_titles, output_dir, title=ui_config.config.get("HEADER_TEXT")
+            )
         except (OSError, PermissionError, FileNotFoundError) as exc:
             raise PatcherError(
-                "Unable to save summary report as expected.", path=output_path, error_msg=str(exc)
+                "Unable to save summary report as expected.", dir=output_dir, error_msg=str(exc)
             )
-        click.echo(click.style(f"✅ Summary saved to {output_path}", fg="green", bold=True))
+        click.echo(click.style(f"✅ HTML summary saved to {output_dir}", fg="green", bold=True))
 
 
 if __name__ == "__main__":
