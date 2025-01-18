@@ -173,13 +173,13 @@ class DataManager:
 
         return patch_titles
 
-    def export_to_excel(self, patch_reports: List[PatchTitle], output_dir: Union[str, Path]) -> str:
+    def export_to_excel(self, patch_titles: List[PatchTitle], output_dir: Union[str, Path]) -> str:
         """
         This method converts a list of :class:`~patcher.models.patch.PatchTitle` instances into a DataFrame and
         writes it to an Excel file. The file is saved with a timestamp in the filename.
 
-        :param patch_reports: List of ``PatchTitle`` instances containing patch report data.
-        :type patch_reports: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
+        :param patch_titles: List of ``PatchTitle`` instances containing patch report data.
+        :type patch_titles: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
         :param output_dir: Directory where the Excel spreadsheet will be saved.
         :type output_dir: :py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]
         :return: Path to the created Excel spreadsheet.
@@ -190,7 +190,7 @@ class DataManager:
             output_dir = str(output_dir)
 
         current_date = datetime.now().strftime("%m-%d-%y")
-        df = self._create_dataframe(patch_reports)
+        df = self._create_dataframe(patch_titles)
 
         self.log.debug("Attempting to export patch reports to Excel.")
         try:
@@ -207,10 +207,20 @@ class DataManager:
                 error_msg=str(e),
             )
 
-    def export_to_html(self, output_dir: Path, patch_titles: Optional[List[PatchTitle]]) -> Path:
+    def export_to_html(
+        self,
+        patch_titles: Optional[List[PatchTitle]],
+        output_dir: Union[str, Path],
+        title: str,
+        heading: str,
+        date_format: str = "%B %d %Y",
+    ) -> str:
         """Export PatchTitles to HTML format."""
+        if isinstance(output_dir, str):
+            output_dir = Path(output_dir)
+
         titles = patch_titles or self.titles
-        current_date = datetime.now().strftime("%m-%d-%y")
+        current_date = datetime.now().strftime(date_format)
         file_path = output_dir / f"patch-analysis-{current_date}.html"
         template = Template((Path(__file__).parent / "../templates/analysis.html").read_text())
 
@@ -224,8 +234,8 @@ class DataManager:
         )
 
         rendered_html = template.substitute(
-            title="Patch Report Analysis",
-            heading="Patch Report Analysis",
+            title=title,
+            heading=heading,
             date=current_date,
             headers=headers,
             rows=rows,
@@ -239,7 +249,7 @@ class DataManager:
                 "Error saving HTML file.", file_path=str(file_path), error_msg=str(e)
             )
 
-        return file_path
+        return str(file_path)
 
     def reset_cache(self) -> bool:
         """
