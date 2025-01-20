@@ -6,7 +6,8 @@
 Analyze
 =======
 
-Analyzes an exported patch report in Excel format and outputs analyzed results.
+Analyzes an exported patch report in Excel format and outputs analyzed results. The Analyzer class works in conjunction with :class:`~patcher.utils.data_manager.DataManager` objects to retrieve cached data and stored :class:`~patcher.models.patch.PatchTitle` objects.
+
 
 Parameters
 ----------
@@ -14,9 +15,8 @@ Parameters
 - ``excel_file`` (:py:class:`str`):
     *(Optional)* Path to the Excel file containing patch management data.
 
-    .. seealso::
-
-        :ref:`Data caching <caching>`
+- ``all_time`` (:py:class:`bool`):
+    Allows for analyzation of patch report trends across all cached data instead of a single dataset.
 
 - ``threshold`` (:py:class:`float`):
     Filters software titles that are below the specified completion percentage.
@@ -32,14 +32,24 @@ Parameters
     - ``zero-completion``
     - ``top-performers``
 
+    Additional criteria can be passed when using the ``--all-time`` flag. See :class:`~patcher.client.analyze.TrendCriteria`. Trend criteria options are: 
+
+    - ``patch_adoption``: Calculates completion rates over time for different software titles.
+    - ``release_frequency``: Analyzes the release frequency of updates for software titles. 
+    - ``completion_trends``: Evaluates the correlation between release dates and completion percentages.
+
 - ``top_n`` (:py:class:`int`):
     Number of top entries to display based on the criteria. Default is ``None``, meaning all results will be returned.
 
 - ``summary`` (:py:class:`bool`):
-    If passed, will generate a summary file in ``.txt`` format in addition to showing results in stdout.
+    If passed, will generate a summary file in ``.html`` format in addition to showing results in stdout.
+
+    .. note::
+
+        The ``--summary`` option requires an output directory specified via ``--output-dir``. Ensure the directory exists and has write permissions before running the command. Otherwise, the summary file will not be generated.
 
 - ``output_dir`` (:py:obj:`~typing.Union` [:py:class:`str` | :py:obj:`~pathlib.Path`]):
-    Path to save generated summary if ``--summary`` flag is passed.
+    Directory to save generated summary if ``--summary`` flag is passed. HTML report will follow a similar naming scheme to exported reports (i.e., ``patch-analysis-<current-date>.html``).
 
 Usage
 -----
@@ -113,8 +123,3 @@ Usage
     +++
     Lists software titles with completion percentage above 90%.
 
-
-.. admonition:: Important
-    :class: warning
-
-    The ``--summary`` option requires an output directory specified via ``--output-dir``. Ensure the directory exists and has write permissions before running the command. Otherwise, the summary file will not be generated.

@@ -95,6 +95,43 @@ Would result in a similar output as:
     DEBUG: Patcher finished as expected. Additional logs can be found at '~/Library/Application Support/Patcher/logs'.
     DEBUG: 41 patch reports saved successfully to /path/to/save/Patch-Reports.
 
+Workflow Dependency: Export and Analyze
+---------------------------------------
+
+The :ref:`analyze <analyze>` command is tightly integrated with the :ref:`export <export>` command. It is important to understand this dependency for using Patcher effectively. 
+
+Key Points
+^^^^^^^^^^
+
+- **Export Command Requirement**: The ``export`` command caches patch report data for later use by the ``analyze`` command, ensuring the data is available for analysis without having to run multiple export commands. 
+- **Alternative Input**: The ``analyze`` command can accept patch reports via the ``--excel-file`` option, but these files *must* adhere to the schema of an exported patch report to prevent errors. Refer to the exported report structure for details.
+
+Example Workflow
+^^^^^^^^^^^^^^^^
+
+1. Export patch reports: 
+
+  .. code-block:: console
+
+    $ patcherctl export --path /path/to/save --pdf
+
+2. Analyze exported or cached reports: 
+
+  .. code-block:: console
+
+    $ patcherctl analyze --criteria most-installed --threshold 75
+  
+  Alternatively, specify a compatible patch report file: 
+
+  .. code-block:: console
+
+    $ patcherctl analyze --excel-file /path/to/patch-report.xlsx --criteria least-installed
+
+**Avoiding Errors**
+
+- Verify that exported patch reports are up-to-date before running the ``analyze`` command. 
+- Double-check that manually provided files conform to the patch report schema to avoid processing errors. 
+
 .. _caching:
 
 Data Caching
@@ -106,7 +143,7 @@ Caching Behavior
 ^^^^^^^^^^^^^^^^
 
 - **Enabled by Default**: Cached data is stored as `pickle files <https://docs.python.org/3.12/library/pickle.html>`_ (``*.pkl``) for quick reuse.
-- **Automatic Cleaning**: Cache files older than *30 days* are automatically removed to save disk space.
+- **Automatic Cleaning**: Cache files older than *90 days* are automatically removed to save disk space.
 - **Disabling Caching**: Caching can be disabled at any time by passing the ``--disable-cache`` flag with any command at runtime.
 
 Managing Cached Data
@@ -152,4 +189,4 @@ The following commands are available to assist in managing cache data:
 Automatic Cache Cleaning
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-As mentioned previously, cache files older than 30 days are automatically cleaned each time data is cached or retrieved. This is designed to ensure efficient use of disk space.
+As mentioned previously, cache files older than 90 days are automatically cleaned each time data is cached or retrieved. This is designed to ensure efficient use of disk space while providing an ample time range for analysis. 

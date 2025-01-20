@@ -10,6 +10,14 @@ html_theme.sidebar_secondary.remove: True
 
 Patcher is crafted with the needs of Mac Admins in mind, offering a streamlined approach to the often complex and time-consuming task of patch management. By automating the extraction and formatting of patch data, Patcher not only saves time but also ensures accuracy and consistency in the management of software updates.
 
+### Features
+
+- **Real-Time Patch Information Export**: Quickly extract up-to-date patch data for analysis.
+- **Excel Spreadsheet Integration**: Seamlessly export patch information into Excel for in-depth analysis and record-keeping.
+- **PDF Reporting**: Generate neatly formatted PDFs for easy sharing and documentation of patch statuses.
+- **Customization Options**: Tailor the tool to match your organizations branding scheme with custom fonts and logo support.
+- **Analysis**: Quickly analyze Patch Reports to identify which software titles may need some extra TLC.
+
 ::::{grid} 1 1 1 3
 :gutter: 2
 :padding: 2 2 0 0

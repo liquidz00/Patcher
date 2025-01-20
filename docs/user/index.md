@@ -4,15 +4,14 @@ html_theme.sidebar_secondary.remove: True
 
 # User Guide
 
-Patcher is an innovative tool designed for Mac Admins. Leveraging the Jamf Pro API, Patcher streamlines the process of fetching patch management data and generating comprehensive reports, facilitating efficient tracking and reporting on software update compliance across macOS devices managed through Jamf Pro.
+The User Guide is designed to be your go-to resource for learning how to set up, customize, and utilize Patcher effectively. Whether you're just getting started or looking to dive deeper into some features, this guide is here to help each step of the way.
 
-## Features
+## What You'll Find Here
 
-- **Real-Time Patch Information Export**: Quickly extract up-to-date patch data for analysis.
-- **Excel Spreadsheet Integration**: Seamlessly export patch information into Excel for in-depth analysis and record-keeping.
-- **PDF Reporting**: Generate neatly formatted PDFs for easy sharing and documentation of patch statuses.
-- **Customization Options**: Tailor the tool to match your organizations branding scheme with custom fonts and logo support.
-- **Analysis**: Quickly analyze Patch Reports to identify which software titles may need some extra TLC.
+- **Getting Started**: Learn about prerequisites, installation, and running the setup assistant to configure Patcher for the first time.
+- **Setup**: Detailed instructions for configuring Patcher to fit your organization's needs, including Jamf Pro integration and scheduling automated reports. 
+- **Usage**: Explore how to use Patcher's commands and features, from exporting patch data and customizing reports to analyzing software titles and trends.
+- **Support and Troubleshooting**: Get answers to common questions and find solutions to potential issues. 
 
 * * *
 
