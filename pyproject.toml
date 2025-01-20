@@ -5,12 +5,12 @@ description = "Fetch patch management data from Jamf Pro to generate comprehensi
 keywords = ["jamf", "pro", "jss", "patch", "macOS"]
 license = { file = "LICENSE.txt" }
 authors = [
-  { name = "Andrew Speciale" },
+  { name = "Andrew Lerman" },
   { name = "Chris Ball" },
   { email = "info@liquidzoo.io" },
 ]
 maintainers = [
-  { name = "Andrew Speciale" },
+  { name = "Andrew Lerman" },
   { name = "Chris Ball" },
 ]
 requires-python = ">=3.10"
