@@ -27,7 +27,7 @@ class DataManager:
         :type disable_cache: :py:class:`bool`
         """
         self.cache_dir = Path.home() / "Library/Caches/Patcher"
-        self.cache_expiration_days = 30
+        self.cache_expiration_days = 90  # Increase for better trend analysis
         self.latest_excel_file: Optional[Path] = None
         self.log = LogMe(self.__class__.__name__)
         self._disabled = disable_cache
