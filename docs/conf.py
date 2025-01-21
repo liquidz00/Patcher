@@ -128,6 +128,8 @@ html_theme_options = {
         "**/*": ["page-toc", "sourcelink"],
     },
     "show_toc_level": 3,
+    "pygments_light_style": "xcode",
+    "pygments_dark_style": "github-dark",
 }
 
 # Remove primary sidebar from contributing page
