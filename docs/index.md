@@ -2,15 +2,21 @@
 html_theme.sidebar_secondary.remove: True
 ---
 
-# Patcher
+```{image} _static/v2-patcher-banner-light.svg
+:class: only-light patcher-banner
+:align: center
+```
 
-*Patch reporting simplified*
+```{image} _static/v2-patcher-banner-dark.svg
+:class: only-dark patcher-banner
+:align: center
+```
 
-## Welcome to Patcher's Documentation!
+# Welcome to Patcher's Documentation!
 
 Patcher is crafted with the needs of Mac Admins in mind, offering a streamlined approach to the often complex and time-consuming task of patch management. By automating the extraction and formatting of patch data, Patcher not only saves time but also ensures accuracy and consistency in the management of software updates.
 
-### Features
+## Features
 
 - **Real-Time Patch Information Export**: Quickly extract up-to-date patch data for analysis.
 - **Excel Spreadsheet Integration**: Seamlessly export patch information into Excel for in-depth analysis and record-keeping.
