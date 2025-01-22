@@ -42,7 +42,7 @@ def format_err(exc: PatcherError) -> None:
     """Formats error messages to console."""
     click.echo(click.style(f"❌ Error: {str(exc)}", fg="red", bold=True), err=True)
     click.echo(
-        f"💡 For more details, please check the log file at: {PatcherLog.LOG_FILE}",
+        f"💡 For more details, please check the log file at: '{PatcherLog.LOG_FILE}'",
         err=True,
     )
 
