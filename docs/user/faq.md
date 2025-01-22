@@ -11,6 +11,14 @@ html_theme.sidebar_secondary.remove: True
 :gutter: 2
 :margin: 2
 
+:::{grid-item-card} {fas}`question;sd-text-secondary`  Why ``patcherctl``?
+:class-card: sd-card
+:shadow: md
+
+The package (and binary) for Patcher is called ``patcherctl`` because the name patcher was already taken on PyPI. Despite this, the project itself is referred to as Patcher. 
+
+:::
+
 :::{grid-item-card} {fas}`question;sd-text-secondary`  Does this tool work on Windows?
 :class-card: sd-card
 :shadow: md
