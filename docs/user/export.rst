@@ -1,5 +1,3 @@
-:html_theme.sidebar_secondary.remove: True
-
 .. _export:
 
 =======
@@ -84,4 +82,3 @@ Usage
     .. code-block:: console
 
         $ patcherctl export --path '/path/to/save' --concurrency 10
-    

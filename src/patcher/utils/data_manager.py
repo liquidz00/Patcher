@@ -27,7 +27,7 @@ class DataManager:
         :type disable_cache: :py:class:`bool`
         """
         self.cache_dir = Path.home() / "Library/Caches/Patcher"
-        self.cache_expiration_days = 30
+        self.cache_expiration_days = 90  # Increase for better trend analysis
         self.latest_excel_file: Optional[Path] = None
         self.log = LogMe(self.__class__.__name__)
         self._disabled = disable_cache
@@ -104,7 +104,7 @@ class DataManager:
         if self.cache_off:
             return  # Only cache if enabled
 
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d")
         cache_file = self.cache_dir / f"patch_data_{timestamp}.pkl"
         self.log.debug(f"Attempting to cache data to {cache_file}.")
         try:
@@ -214,7 +214,23 @@ class DataManager:
         title: str,
         date_format: str = "%B %d %Y",
     ) -> str:
-        """Export PatchTitles to HTML format."""
+        """
+        Exports patch analysis data to an HTML file.
+
+        The HTML report includes functionality to sort each column in ascending or descending order.
+
+        :param patch_titles: A list of ``PatchTitle`` objects to include in the report. Defaults to ``self.titles`` if not provided.
+        :type patch_titles: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
+        :param output_dir: The directory in which to save the generated HTML file.
+        :type output_dir: :py:obj:`~typing.Union` [:py:class:`str` | :py:obj:`~pathlib.Path`]
+        :param title: The title to use for the HTML report. Defaults to ``HEADER_TEXT`` key in ``com.liquidzoo.patcher.plist`` file.
+        :type title: :py:class:`str`
+        :param date_format: Format string for the current date. Defaults is "%B %d %Y" (Month Day Year) to align with PDF formats
+        :type date_format: :py:class:`str`
+        :return: The full file path of the generated HTML file as a string.
+        :rtype: :py:class:`str`
+        :raises PatcherError: If an error occurs while saving the HTML file to the specified directory.
+        """
         if isinstance(output_dir, str):
             output_dir = Path(output_dir)
 

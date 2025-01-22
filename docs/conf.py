@@ -81,8 +81,8 @@ togglebutton_hint_hide = str(_("Click to collapse"))
 
 html_baseurl = "http://patcher.liquidzoo.io"
 html_theme = "pydata_sphinx_theme"
-html_logo = "_static/logo.svg"
-html_favicon = "_static/logo.svg"
+html_logo = "_static/v2-logo.svg"
+html_favicon = "_static/v2-logo-favicon.svg"
 html_static_path = ["_static"]
 html_title = f"{release}"
 
@@ -116,10 +116,15 @@ html_theme_options = {
             "url": "https://pypi.org/project/patcherctl/",
             "icon": "fab fa-python",
         },
+        {
+            "name": "MacAdmins Slack",
+            "url": "https://macadmins.slack.com/archives/C07EH1R7LB0",
+            "icon": "fab fa-slack",
+        },
     ],
     "logo": {
         "text": "Patcher",
-        "image_dark": "_static/logo-dark.svg",
+        "image_dark": "_static/v2-logo-dark.svg",
     },
     "footer_start": ["copyright"],
     "footer_end": ["theme-version"],
@@ -128,6 +133,8 @@ html_theme_options = {
         "**/*": ["page-toc", "sourcelink"],
     },
     "show_toc_level": 3,
+    "pygments_light_style": "xcode",
+    "pygments_dark_style": "github-dark",
 }
 
 # Remove primary sidebar from contributing page

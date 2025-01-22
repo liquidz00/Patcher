@@ -7,7 +7,7 @@ from typing import Optional, Union
 import asyncclick as click
 
 from .__about__ import __version__
-from .client.analyze import Analyzer, FilterCriteria
+from .client.analyze import Analyzer, FilterCriteria, TrendCriteria
 from .client.api_client import ApiClient
 from .client.config_manager import ConfigManager
 from .client.report_manager import ReportManager
@@ -42,7 +42,7 @@ def format_err(exc: PatcherError) -> None:
     """Formats error messages to console."""
     click.echo(click.style(f"❌ Error: {str(exc)}", fg="red", bold=True), err=True)
     click.echo(
-        f"💡 For more details, please check the log file at: {PatcherLog.LOG_FILE}",
+        f"💡 For more details, please check the log file at: '{PatcherLog.LOG_FILE}'",
         err=True,
     )
 
@@ -388,9 +388,15 @@ async def export(
     help="Provide path to alternate excel report. Latest exported excel report is used by default.",
 )
 @click.option(
+    "--all-time",
+    "-a",
+    is_flag=True,
+    help="Analyze trends across all cached data instead of a single dataset.",
+)
+@click.option(
     "--criteria",
     "-c",
-    metavar="<filter_criteria>",
+    metavar="<filter_or_trend_criteria>",
     required=True,
     help="Filter criteria (e.g., 'most-installed').",
 )
@@ -422,6 +428,7 @@ async def analyze(
     top_n: int = None,
     summary: bool = False,
     output_dir: Union[str, Path] = None,
+    all_time: bool = False,
 ) -> None:
     """
     Analyzes an Excel file with patch management data and outputs analyzed results.
@@ -442,6 +449,8 @@ async def analyze(
     :type summary: :py:class:`bool`
     :param output_dir: Directory to save generated summary, only if `--summary` flag passed.
     :type output_dir: :py:obj:`~typing.Union` of :py:class:`str` | :py:obj:`~pathlib.Path`
+    :param all_time: Flag to analyze trends across all cached data.
+    :type all_time: :py:class:`bool`
     """
     if summary and not output_dir:
         click.echo(
@@ -461,53 +470,91 @@ async def analyze(
         analyzer = Analyzer(
             excel_path=excel_file if excel_file else None, data_manager=data_manager
         )
-        filter_criteria = FilterCriteria.from_cli(criteria)
-        filtered_titles = analyzer.filter_titles(filter_criteria, threshold, top_n)
-        if len(filtered_titles) == 0:
-            await animation.stop()
-            click.echo(
-                click.style(
-                    f"⚠️ No PatchTitle objects meet criteria {criteria}", fg="yellow", bold=True
-                ),
-                err=False,
-            )
-            ctx.exit(0)
 
-        table_data = [
-            [
-                t.title,
-                t.released,
-                t.hosts_patched,
-                t.missing_patch,
-                t.latest_version,
-                t.completion_percent,
-                t.total_hosts,
+        if all_time:  # Analyze trends
+            trend_criteria = TrendCriteria.from_cli(criteria)
+
+            trend_df = analyzer.timelapse(trend_criteria)
+
+            if trend_df.empty:
+                await animation.stop()
+                click.echo(
+                    click.style(
+                        f"⚠️ No trend data available for criteria '{criteria}'.",
+                        fg="yellow",
+                        bold=True,
+                    )
+                )
+                ctx.exit(0)
+
+            formatted_table = analyzer.format_table(
+                trend_df.values.tolist(), headers=trend_df.columns.tolist()
+            )
+            click.echo(formatted_table)
+
+            if summary:
+                try:
+                    output_file = output_dir / f"trend-analysis-{criteria}.html"
+                    trend_df.to_html(output_file, index=False)
+                    click.echo(
+                        click.style(
+                            f"✅ Trend analysis HTML saved to {output_file}.", fg="green", bold=True
+                        )
+                    )
+                except (OSError, PermissionError, FileNotFoundError) as e:
+                    raise PatcherError(
+                        "Unable to save trend analysis report as expected.",
+                        dir=output_dir,
+                        error_msg=str(e),
+                    )
+        else:  # Filter analysis
+            filter_criteria = FilterCriteria.from_cli(criteria)
+            filtered_titles = analyzer.filter_titles(filter_criteria, threshold, top_n)
+            if len(filtered_titles) == 0:
+                await animation.stop()
+                click.echo(
+                    click.style(
+                        f"⚠️ No PatchTitle objects meet criteria {criteria}", fg="yellow", bold=True
+                    ),
+                    err=False,
+                )
+                ctx.exit(0)
+
+            table_data = [
+                [
+                    t.title,
+                    t.released,
+                    t.hosts_patched,
+                    t.missing_patch,
+                    t.latest_version,
+                    t.completion_percent,
+                    t.total_hosts,
+                ]
+                for t in filtered_titles
             ]
-            for t in filtered_titles
-        ]
-        headers = [
-            "Title",
-            "Released",
-            "Hosts Patched",
-            "Missing Patch",
-            "Latest Version",
-            "Completion %",
-            "Total Hosts",
-        ]
-        formatted_table = analyzer.format_table(table_data, headers)
+            headers = [
+                "Title",
+                "Released",
+                "Hosts Patched",
+                "Missing Patch",
+                "Latest Version",
+                "Completion %",
+                "Total Hosts",
+            ]
+            formatted_table = analyzer.format_table(table_data, headers)
 
-    click.echo(formatted_table)
+        click.echo(formatted_table)
 
-    if summary:
-        try:
-            data_manager.export_to_html(
-                filtered_titles, output_dir, title=ui_config.config.get("HEADER_TEXT")
-            )
-        except (OSError, PermissionError, FileNotFoundError) as exc:
-            raise PatcherError(
-                "Unable to save summary report as expected.", dir=output_dir, error_msg=str(exc)
-            )
-        click.echo(click.style(f"✅ HTML summary saved to {output_dir}", fg="green", bold=True))
+        if summary:
+            try:
+                exported = data_manager.export_to_html(
+                    filtered_titles, output_dir, title=ui_config.config.get("HEADER_TEXT")
+                )
+            except (OSError, PermissionError, FileNotFoundError) as exc:
+                raise PatcherError(
+                    "Unable to save summary report as expected.", path=exported, error_msg=str(exc)
+                )
+            click.echo(click.style(f"✅ HTML summary saved to {exported}", fg="green", bold=True))
 
 
 if __name__ == "__main__":

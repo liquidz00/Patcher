@@ -84,25 +84,25 @@ The example below schedules the task to run on the first day of each month at 9:
 Place the modified ``.plist`` file in the ``~/Library/LaunchAgents/`` directory: 
 
 ```{code-block} bash
-cp com.liquidzoo.patcher-export.plist ~/Library/LaunchAgents/
+$ cp com.liquidzoo.patcher-export.plist ~/Library/LaunchAgents/
 ```
 
 Ensure the LaunchAgent has the proper permissions: 
 
 ```{code-block} bash
-chmod 644 ~/Library/LaunchAgents/com.liquidzoo.patcher-export.plist
+$ chmod 644 ~/Library/LaunchAgents/com.liquidzoo.patcher-export.plist
 ```
 
 Load the LaunchAgent:
 
 ```{code-block} bash
-launchctl load ~/Library/LaunchAgents/com.liquidzoo.patcher-export.plist
+$ launchctl load ~/Library/LaunchAgents/com.liquidzoo.patcher-export.plist
 ```
 
 To verify the LaunchAgent is active:
 
 ```{code-block} bash
-launchctl list | grep com.liquidzoo.patcher-export
+$ launchctl list | grep com.liquidzoo.patcher-export
 ```
 
 ### Testing the Configuration 
@@ -123,6 +123,6 @@ If the LaunchAgent does not work as expected:
 - Review the logs for detailed error messages: 
 
 ```{code-block} bash
-tail -f ~/Library/Application\ Support/Patcher/logs/patcher-agent.err.log
+$ tail -f ~/Library/Application\ Support/Patcher/logs/patcher-agent.err.log
 ```
 

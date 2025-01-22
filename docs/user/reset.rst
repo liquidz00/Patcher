@@ -1,5 +1,3 @@
-:html_theme.sidebar_secondary.remove: True
-
 .. _resetting_patcher:
 
 .. _reset:
@@ -87,3 +85,5 @@ Usage
         .. code-block:: console
 
             $ patcherctl reset cache
+
+        Removes all cache files from cache directory. See :ref:`data caching <caching>` for more.

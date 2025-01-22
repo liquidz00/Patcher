@@ -1,3 +1,4 @@
+import pickle
 from enum import Enum
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
@@ -10,7 +11,31 @@ from ..utils.exceptions import FetchError, PatcherError
 from ..utils.logger import LogMe
 
 
-class FilterCriteria(Enum):
+class BaseEnum(Enum):
+    """Base class for Enum extensions with reusable CLI parsing."""
+
+    @classmethod
+    def from_cli(cls, value: str) -> "BaseEnum":
+        """
+        Maps CLI-friendly inputs (e.g., '--most-installed', '--release-frequency') to Enum values.
+
+        :param value: CLI-friendly string.
+        :type value: :py:class:`str`
+        :return: Corresponding Enum value
+        :rtype: :class:`~patcher.client.analyze.FilterCriteria` | :class:`~patcher.client.analyze.TrendCriteria`
+        :raises PatcherError: If the input is invalid
+        """
+        formatted_value = value.replace("-", "_")
+        try:
+            return cls(formatted_value)
+        except ValueError:
+            valid_values = ", ".join(c.value.replace("_", "-") for c in cls)
+            raise PatcherError(
+                "Invalid criteria provided.", received=value, supported_values=valid_values
+            )
+
+
+class FilterCriteria(BaseEnum):
     """Enumeration for filtering criteria used in patch data analysis."""
 
     MOST_INSTALLED = "most_installed"
@@ -22,25 +47,14 @@ class FilterCriteria(Enum):
     ZERO_COMPLETION = "zero_completion"
     TOP_PERFORMERS = "top_performers"
 
-    @classmethod
-    def from_cli(cls, value: str) -> "FilterCriteria":
-        """
-        Maps CLI-friendly inputs (e.g., '--most-installed') to Enum values.
 
-        :param value: CLI-friendly string.
-        :type value: :py:class:`str`
-        :return: Corresponding Enum value
-        :rtype: :class:`~patcher.client.analyze.FilterCriteria`
-        :raises PatcherError: If the input is invalid
-        """
-        formatted_value = value.replace("-", "_")
-        try:
-            return cls(formatted_value)
-        except ValueError:
-            raise PatcherError(
-                "Invalid FilterCriteria passed.",
-                criteria=(", ".join(c.value.replace("_", "-") for c in cls)),
-            )
+class TrendCriteria(BaseEnum):
+    """Enumeration for trend analysis criteria."""
+
+    PATCH_ADOPTION = "patch_adoption"
+    RELEASE_FREQUENCY = "release_frequency"
+    COMPLETION_TRENDS = "completion_trends"
+    # HOST_TRENDS = "host_trends"  # Adding for later
 
 
 class Analyzer:
@@ -77,6 +91,30 @@ class Analyzer:
 
         self.log.info(f"File at {file_path} validated successfully.")
         return True
+
+    def _combine_datasets(self, datasets: List[Union[pd.DataFrame, Path, str]]) -> pd.DataFrame:
+        """Combines multiple datasets into a single DataFrame."""
+        dataframes = []
+        for dataset in datasets:
+            if isinstance(dataset, pd.DataFrame):
+                dataframes.append(dataset)
+            elif isinstance(dataset, (Path, str)):
+                self.log.debug(f"Loading dataset from: {dataset}")
+                file_path = Path(dataset)
+                if file_path.suffix == ".pkl":
+                    with open(file_path, "rb") as f:
+                        df = pickle.load(f)
+                elif file_path.suffix in [".xlsx", ".xls"]:
+                    df = self.initialize_dataframe(dataset)
+
+            df.columns = [col.lower().replace(" ", "_") for col in df.columns]
+            if "released" in df.columns:
+                df["released"] = pd.to_datetime(df["released"], format="%b %d %Y")
+            dataframes.append(df)
+
+        combined_df = pd.concat(dataframes, ignore_index=True)
+        self.log.info(f"Combined {len(dataframes)} datasets into a single DataFrame.")
+        return combined_df
 
     def initialize_dataframe(self, excel_path: Union[Path, str]) -> pd.DataFrame:
         """
@@ -233,3 +271,103 @@ class Analyzer:
             f"Filtered {len(filtered_titles)} PatchTitles successfully based on {criteria}"
         )
         return filtered_titles
+
+    def timelapse(
+        self,
+        criteria: TrendCriteria,
+        datasets: Optional[List[Union[Path, str, pd.DataFrame]]] = None,
+        sort_by: Optional[str] = None,
+        ascending: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Analyzes trends across multiple datasets based on specified criteria.
+
+        :param criteria: The trend analysis criteria to use.
+        :type criteria: :class:`~patcher.client.analyze.TrendCriteria`
+        :param datasets: A list of DataFrames or file paths to analyze. If None, uses cached data.
+        :type datasets: :py:obj:`~typing.Optional` [:py:obj:`~typing.List`]
+        :param sort_by: A column to sort the results by.
+        :type sort_by: :py:obj:`~typing.Optional` [:py:class:`str`]
+        :param ascending: Sorting order (ascending if True, descending if False).
+        :type ascending: :py:class:`bool`
+        :return: A DataFrame with the trend analysis results.
+        :rtype: `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+        :raises PatcherError: If criteria is invalid or data loading fails.
+        """
+        if datasets is None:
+            datasets = self.data_manager.get_cached_files()
+
+        if len(datasets) < 2:
+            raise PatcherError(
+                "Insufficient cache data to analyze trends.", amount_found=len(datasets)
+            )
+
+        combined_df = self._combine_datasets(datasets)
+
+        trend_criteria: Dict[TrendCriteria, Callable[[], pd.DataFrame]] = {
+            TrendCriteria.PATCH_ADOPTION: lambda: combined_df.groupby("title", as_index=False)
+            .agg(
+                average_completion=("completion_percent", "mean"),
+                recent_release=("released", "max"),
+            )
+            .rename(
+                columns={
+                    "title": "Title",
+                    "average_completion": "Average Completion",
+                    "recent_release": "Most Recent Release",
+                }
+            )
+            .assign(
+                **{
+                    "Most Recent Release": lambda df: df["Most Recent Release"].dt.strftime(
+                        "%Y-%m-%d"
+                    ),
+                    "Average Completion": lambda df: df["Average Completion"].apply(
+                        lambda x: f"{x:.2f}%"
+                    ),
+                }
+            ),
+            TrendCriteria.RELEASE_FREQUENCY: lambda: combined_df.groupby("title", as_index=False)
+            .agg(release_count=("released", "nunique"))
+            .rename(columns={"title": "Title", "release_count": "Release Count"}),
+            TrendCriteria.COMPLETION_TRENDS: lambda: combined_df.groupby(
+                ["released", "title"], as_index=False
+            )
+            .agg(average_completion=("completion_percent", "mean"))
+            .rename(
+                columns={
+                    "title": "Title",
+                    "average_completion": "Average Completion",
+                    "released": "Release Date",
+                }
+            )
+            .assign(
+                **{
+                    "Release Date": lambda df: df["Release Date"].dt.strftime("%Y-%m-%d"),
+                    "Average Completion": lambda df: df["Average Completion"].apply(
+                        lambda x: f"{x:.2f}%"
+                    ),
+                }
+            ),
+        }
+
+        if criteria not in trend_criteria:
+            raise PatcherError(
+                "Invalid criteria passed.",
+                received=criteria,
+                supported_criteria=(", ".join(c.value for c in TrendCriteria)),
+            )
+
+        trend_df = trend_criteria[criteria]()
+
+        if sort_by:
+            if sort_by not in trend_df.columns:
+                raise PatcherError(
+                    "Invalid sorting provided.",
+                    received=sort_by,
+                    expected=(", ".join(trend_df.columns)),
+                )
+            trend_df = trend_df.sort_values(by=sort_by, ascending=ascending)
+
+        self.log.info(f"Performed '{criteria.value}' trend analysis successfully.")
+        return trend_df

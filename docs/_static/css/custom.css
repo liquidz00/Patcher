@@ -59,3 +59,20 @@ div.admonition.admonition-optional > .admonition-title::after {
     color: hsl(0 0% 30%);
     content: "\f08d";
 }
+
+.patcher-banner {
+    display: block;
+    margin: 20px;
+    max-width: 720px;
+    height: auto;
+    clear: both; /* Prevent text or floated elements from wrapping */
+}
+
+html[data-theme="dark"] .patcher-banner {
+    background-color: transparent;
+}
+
+.patcher-banner + * {
+    clear: both;
+    margin-top: 20px;
+}

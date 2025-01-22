@@ -126,7 +126,7 @@ class PatcherLog:
             err=True,
         )
         click.echo(
-            f"💡 For more details, please check the log file at: {PatcherLog.LOG_FILE}",
+            f"💡 For more details, please check the log file at: '{PatcherLog.LOG_FILE}'",
             err=True,
         )
         return

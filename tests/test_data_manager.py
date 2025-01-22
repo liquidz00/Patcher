@@ -172,7 +172,7 @@ def test_clean_cache_removes_expired_files(temp_output_path):
     expired_file.touch()
     valid_file.touch()
 
-    expired_time = (datetime.now() - timedelta(days=31)).timestamp()
+    expired_time = (datetime.now() - timedelta(days=91)).timestamp()
     valid_time = (datetime.now() - timedelta(days=15)).timestamp()
     os.utime(expired_file, (expired_time, expired_time))
     os.utime(valid_file, (valid_time, valid_time))
@@ -198,7 +198,7 @@ def test_clean_cache_no_permissions():
         # Simulate a file in the cache directory
         cache_file = MagicMock()
         cache_file.suffix = ".pkl"
-        cache_file.stat.return_value.st_mtime = (datetime.now() - timedelta(days=31)).timestamp()
+        cache_file.stat.return_value.st_mtime = (datetime.now() - timedelta(days=91)).timestamp()
         mock_iterdir.return_value = [cache_file]
 
         # Initialize DataManager and run the method
