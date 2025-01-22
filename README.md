@@ -1,6 +1,12 @@
-<p align="left"><img src="docs/_static/patcher-readme-banner.svg" width="480"/></p>
+<p align="left">
+    <a href="https://patcher.liquidzoo.io/">
+        <img src="docs/_static/patcher-banner-readme.svg" width="540"/>
+    </a>
+</p>
 
 ![](https://img.shields.io/pypi/l/patcherctl)&nbsp;![](https://img.shields.io/badge/Python-3.10+-3776AB.svg?style=flat&logo=python&logoColor=white)&nbsp;![](https://img.shields.io/github/v/release/liquidz00/Patcher?color=orange)&nbsp;![](https://github.com/liquidz00/patcher/actions/workflows/pytest.yml/badge.svg)&nbsp;![](https://img.shields.io/pypi/v/patcherctl?color=yellow)
+
+----
 
 # What is Patcher?
 Patcher leverages the Jamf Pro API to fetch patch management data and generate comprehensive reports in both Excel and PDF formats. It simplifies tracking and reporting on software update compliance across macOS devices managed through Jamf Pro.
@@ -21,12 +27,12 @@ pip install patcherctl
 > [!NOTE]
 > Please note that while Patcher is installed as a package, it is meant to be used as a command line tool and not as an imported library.
 
-*Why `patcherctl?` The pip package is called patcherctl because the name patcher was already taken on PyPI. Despite this, the project itself is referred to as Patcher*
+> Why `patcherctl?` The pip package is called patcherctl because the name patcher was already taken on PyPI. Despite this, the project itself is referred to as Patcher*
 
 ### Usage
-After installation, you can generate reports by running the main script. You can specify the output directory for the reports and choose to generate PDF reports alongside Excel files.
+After installation, you can generate reports by running the `export` command. You can specify the output directory for the reports and choose to generate PDF reports alongside Excel files.
 ```shell
-patcherctl --path '/path/to/output/directory' [--pdf]
+patcherctl export --path '/path/to/output/directory' [--pdf]
 ```
 
 For a list of all available command options, visit the [usage page](https://patcher.liquidzoo.io/user/usage.html) of our documentation. 
