@@ -97,7 +97,7 @@ Adding a Company Logo
 ---------------------
 
 .. admonition:: Added in version 2.0
-    :class: success
+    :class: tip
 
     Patcher now allows you to include a company logo in your exported PDF reports. This can be helpful for ensuring unified branding for reports.
 
