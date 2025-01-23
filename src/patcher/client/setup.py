@@ -1,13 +1,15 @@
 import os
 import plistlib
-from asyncio import sleep
-from typing import Optional
+from enum import Enum
+from typing import Dict, Optional, Tuple, Union
 
 import asyncclick as click
 
 from ..models.jamf_client import JamfClient
-from ..utils import exceptions, logger
+from ..models.token import AccessToken
 from ..utils.animation import Animation
+from ..utils.exceptions import APIResponseError, PatcherError, SetupError, TokenError
+from ..utils.logger import LogMe
 from . import BaseAPIClient
 from .config_manager import ConfigManager
 from .token_manager import TokenManager
@@ -19,40 +21,41 @@ WELCOME = """It looks like this is your first time using the tool. We will guide
 
 The setup assistant will prompt you to choose your setup method--Standard is the automated setup which will prompt for your Jamf URL, your Jamf Pro username and your Jamf Pro password. Patcher ONLY uses this information to create the necessary API role and client on your behalf, your credentials are not stored whatsoever. Once generated, these client credentials (and generated bearer token) can be found in your keychain. The SSO setup will prompt for a client ID and client secret of an API Client that has already been created. 
 
-You will be prompted to enter in the header and footer text for PDF reports, should you choose to generate them. These can be configured later by modifying the corresponding keys in the com.liquidzoo.patcher.plist file in Patcher's Application Support directory stored in the user library.
+You will be prompted to enter in the header and footer text for PDF reports, along with optional custom fonts and branding logo. These can be configured later by modifying the corresponding keys in the com.liquidzoo.patcher.plist file in Patcher's Application Support directory stored in the user library.
 
 """
 DOC = "For more information, visit the project documentation: https://patcher.liquidzoo.io\n"
 
 
+class SetupType(Enum):
+    STANDARD = "standard"
+    SSO = "sso"
+
+
 class Setup:
-    """
-    Handles the initial setup process for the Patcher CLI tool.
-
-    This class guides users through configuring the necessary components to integrate
-    with their Jamf environment. The setup includes creating API roles, clients, and configuring
-    user interface settings for PDF reports.
-    """
-
     def __init__(
         self,
         config: ConfigManager,
         ui_config: UIConfigManager,
     ):
         """
-        Initializes the Setup class with configuration and UI configuration managers.
+        Handles the initial setup process for the Patcher CLI tool.
+
+        This class guides users through configuring the necessary components to integrate
+        with their Jamf environment. The setup includes creating API roles, clients, and configuring
+        user interface settings for PDF reports.
 
         :param config: Manages application configuration, including credential storage.
-        :type config: ConfigManager
+        :type config: :class:`~patcher.client.config_manager.ConfigManager`
         :param ui_config: Handles UI-related configurations for the setup process.
-        :type ui_config: UIConfigManager
+        :type ui_config: :class:`~patcher.client.ui_manager.UIConfigManager`
         """
         self.config = config
         self.ui_config = ui_config
-        self.log = logger.LogMe(self.__class__.__name__)
         self.plist_path = ui_config.plist_path
-        self._completed = None
+        self.log = LogMe(self.__class__.__name__)
         self.animator = Animation()
+        self._completed = None
 
     @property
     def completed(self) -> bool:
@@ -60,256 +63,296 @@ class Setup:
         Indicates whether the setup process has been completed.
 
         :return: True if setup has been completed, False otherwise.
-        :rtype: bool
+        :rtype: :py:class:`bool`
         """
-        return self._completed if self._completed is not None else self._check_completion()
-
-    def _check_completion(self):
-        """
-        Determines if the setup has been completed by checking the presence of a plist file.
-
-        :return: True if setup has been completed, False otherwise.
-        :rtype: bool
-        :raises exceptions.PlistError: If there is an error reading the plist file.
-        """
-        self.log.debug("Checking for presence of .plist file")
-        if self.plist_path.exists():
-            try:
-                with open(self.plist_path, "rb") as fp:
-                    plist_data = plistlib.load(fp)
-                    self._completed = plist_data.get("Setup", {}).get("first_run_done", False)
-            except Exception as e:
-                self.log.error(f"Error reading plist file: {e}")
-                raise exceptions.PlistError(path=str(self.plist_path))
-        else:
-            self._completed = False
+        if self._completed is None:
+            self.log.debug("Checking setup completion status.")
+            self._completed = self._check_completion()
         return self._completed
-
-    def _set_plist(self, value: bool = False):
-        """
-        Updates the plist file to reflect the completion status of the setup.
-
-        :param value: Indicates whether the setup is complete. Default is False.
-        :type value: bool
-        :raises exceptions.PlistError: If there is an error writing to the plist file.
-        """
-        try:
-            if os.path.exists(self.plist_path):
-                with open(self.plist_path, "rb") as fp:
-                    plist_data = plistlib.load(fp)
-            else:
-                plist_data = {}
-
-            plist_data.setdefault("Setup", {})["first_run_done"] = value
-            os.makedirs(os.path.dirname(self.plist_path), exist_ok=True)
-            with open(self.plist_path, "wb") as fp:
-                plistlib.dump(plist_data, fp)
-        except Exception as e:
-            self.log.error(f"Error writing to plist file: {e}")
-            raise exceptions.PlistError(path=str(self.plist_path))
 
     @staticmethod
     def _greet():
-        """
-        Displays the greeting and welcome messages.
-        """
+        """Displays the greeting and welcome messages."""
         click.echo(click.style(GREET, fg="cyan", bold=True))
         click.echo(click.style(WELCOME), nl=False)
         click.echo(click.style(DOC, fg="bright_magenta", bold=True))
 
-    async def prompt_method(self, animator: Optional[Animation] = None):
+    def _check_completion(self) -> bool:
         """
-        Allows the user to choose between different setup methods (Standard or SSO).
-
-        This method enhances the user experience by guiding them through the appropriate setup steps based on their environment.
-
-        :param animator: Animation object to pass to methods for progress updates. Defaults to `self.animator`.
-        :type animator: Optional[Animation]
+        Determines if the setup has been completed by checking the presence of a plist file. If the
+        property list file cannot be read, an error is logged.
         """
-        if self.completed:
-            return
-        self._greet()
-        anim = animator or self.animator
+        if not os.path.exists(self.plist_path):
+            self.log.info("Setup plist file not found. Setup is incomplete.")
+            return False
 
         try:
-            choice = click.prompt(
-                "Choose setup method (1: Standard setup, 2: SSO setup)", type=int, default=1
+            with open(self.plist_path, "rb") as fp:
+                plist_data = plistlib.load(fp)
+                self.log.info("Setup completion status loaded successfully.")
+                return plist_data.get("Setup", {}).get("first_run_done", False)
+        except plistlib.InvalidFileException as e:
+            self.log.warning(f"Unable to read property list file. Details: {e}")
+            return False
+
+    def _mark_completion(self, value: bool = False):
+        """Updates the plist file to reflect the completion status of the setup."""
+        # Intentionally calling private method as functionality is needed here.
+        # noinspection PyProtectedMember
+        plist_data = self.ui_config._load_plist_file()
+        plist_data["Setup"] = {"first_run_done": value}
+
+        os.makedirs(os.path.dirname(self.plist_path), exist_ok=True)
+        try:
+            with open(self.plist_path, "wb") as fp:
+                plistlib.dump(plist_data, fp)
+            self.log.info("Setup completion status updated successfully.")
+        except Exception as e:
+            self.log.error(f"Could not write to property list ({self.plist_path}). Details: {e}")
+            raise SetupError(
+                "Error encountered trying to write to property list file.",
+                path=str(self.plist_path),
+                error_msg=str(e),
             )
-            if choice == 1:
-                await self.launch(animator=anim)
-            elif choice == 2:
-                await self.first_run()
-            else:
-                click.echo(click.style("Invalid choice, please choose 1 or 2.", fg="red"))
-                await self.prompt_method()
-        except ValueError as e:
-            self.log.error(f"Invalid input during setup method selection: {e}")
-            click.echo(click.style("Invalid input. Please enter 1 or 2.", fg="red"))
-            await self.prompt_method()
 
-    async def first_run(self):
-        """
-        Initiates the setup process for users utilizing SSO.
+    def _prompt_credentials(self, setup_type: SetupType) -> Dict:
+        """Prompt for credentials based on the credential type."""
+        self.log.info(f"Prompting user for {setup_type.value} credentials.")
+        if setup_type == SetupType.STANDARD:
+            return {
+                "URL": click.prompt("Enter your Jamf Pro URL"),
+                "USERNAME": click.prompt("Enter your Jamf Pro username"),
+                "PASSWORD": click.prompt("Enter your Jamf Pro password", hide_input=True),
+            }
+        elif setup_type == SetupType.SSO:
+            return {
+                "URL": click.prompt("Enter your Jamf Pro URL"),
+                "CLIENT_ID": click.prompt("Enter your API Client ID"),
+                "CLIENT_SECRET": click.prompt("Enter your API Client Secret"),
+            }
 
-        This method handles the necessary steps for generating and saving API client credentials
-        when the user is operating in an SSO environment.
+    def _validate_creds(
+        self, creds: Dict, required_keys: Tuple[str, ...], setup_type: SetupType
+    ) -> None:
+        """Validates all required keys are present in the credentials."""
+        self.log.info(f"Validating credentials for {setup_type.value} setup.")
+        missing_keys = [key for key in required_keys if not creds.get(key)]
+        if missing_keys:
+            self.log.error(
+                f"Missing required credential(s): {', '.join(missing_keys)} for {setup_type.value} setup."
+            )
+            raise SetupError(
+                "Missing required credentials.",
+                credential=", ".join(missing_keys),
+                setup_type=setup_type.value,
+            )
 
-        :raises SystemExit: If the user opts not to proceed with the setup.
-        :raises exceptions.TokenFetchError: If there is an error fetching the token.
-        """
-        if not self.completed:
-            self.log.info("Detected first run has not been completed. Starting setup assistant...")
-            api_url = click.prompt("Enter your Jamf Pro URL")
-            api_client_id = click.prompt("Enter your API Client ID")
-            api_client_secret = click.prompt("Enter your API Client Secret")
+    def _save_creds(self, creds: Dict) -> None:
+        """Save gathered credentials to keychain."""
+        for key, value in creds.items():
+            self.config.set_credential(key, value)
 
-            # Store credentials
-            self.config.set_credential("URL", api_url)
-            self.config.set_credential("CLIENT_ID", api_client_id)
-            self.config.set_credential("CLIENT_SECRET", api_client_secret)
-
-            # Initialize TokenManager
+    async def _token_fetching(
+        self, setup_type: SetupType = SetupType.STANDARD, creds: Optional[Dict] = None
+    ) -> Union[str, AccessToken]:
+        """Fetches a Token (basic or ``AccessToken``) depending on setup type (Standard or SSO)."""
+        if setup_type == SetupType.SSO:
             token_manager = TokenManager(self.config)
-            token = await token_manager.fetch_token()
-
-            # Wait a short time to ensure creds are saved
-            await sleep(3)
-
-            if token:
-                jamf_client = JamfClient(
-                    client_id=api_client_id,
-                    client_secret=api_client_secret,
-                    server=api_url,
-                    token=token,
-                )
-                self.config.create_client(jamf_client)
-                self.ui_config.setup_ui()
-                self._set_plist(value=True)
-                self._completed = True
-            else:
-                self.log.error("Failed to fetch a valid token!")
-                raise exceptions.TokenFetchError(reason="Token failed verification")
-
-    async def launch(self, animator: Optional[Animation] = None):
-        """
-        Launches the setup assistant for the Patcher tool.
-
-        This method prompts the user for necessary information and handles the entire setup process,
-        including API role creation, client creation, and saving credentials.
-
-        :param animator: The animation instance to update messages. Defaults to `self.animator`.
-        :type animator: Optional[Animation]
-        :raises SystemExit: If the user opts not to proceed with the setup.
-        :raises exceptions.TokenFetchError: If the API call to retrieve a token fails.
-        :raises aiohttp.ClientError: If there is an error making the HTTP request.
-        """
-        animator = animator or self.animator
-        if not self.completed:
-            self.log.debug("Detected first run has not been completed. Starting setup assistant...")
-
-            jamf_url = click.prompt("Enter your Jamf Pro URL")
-            username = click.prompt("Enter your Jamf Pro username")
-            password = click.prompt("Enter your Jamf Pro password", hide_input=True)
-
-            # Initialize BaseAPIClient and TokenManager
-            api_client = BaseAPIClient()
-            token_manager = TokenManager(self.config)
-
-            await animator.update_msg("Retrieving basic token")
-
             try:
-                basic_token = await api_client.fetch_basic_token(
-                    username=username, password=password, jamf_url=jamf_url
+                return await token_manager.fetch_token()
+            except TokenError as e:
+                raise SetupError(
+                    "Failed to obtain an AccessToken during setup. Please check your credentials and try again.",
+                    error_msg=str(e),
                 )
-                if not basic_token:
-                    use_sso = click.confirm(
-                        "Patcher was unable to retrieve a token. Are you using SSO?", default=False
-                    )
-                    if use_sso:
-                        await self.first_run()
-                        return
-                    else:
-                        basic_token = await api_client.fetch_basic_token(
-                            username=username, password=password, jamf_url=jamf_url
-                        )
-                        if not basic_token:
-                            click.echo(
-                                click.style(
-                                    text="Unfortunately Patcher was unable to retrieve a token again. Please verify your account does not use SSO.",
-                                    fg="red",
-                                ),
-                                err=True,
-                            )
-            except exceptions.TokenFetchError:
-                click.echo(
-                    click.style(
-                        text="Unfortunately we received an error trying to obtain a token. Please verify your account details and try again.",
-                        fg="red",
-                    ),
-                    err=True,
+        elif setup_type == SetupType.STANDARD:
+            api_client = BaseAPIClient()
+            try:
+                return await api_client.fetch_basic_token(
+                    username=creds.get("USERNAME"),
+                    password=creds.get("PASSWORD"),
+                    jamf_url=creds.get("URL"),
                 )
-                return
+            except (KeyError, APIResponseError) as e:
+                self.log.error(
+                    f"Unable to retrieve basic token with provided username {creds.get('USERNAME')} and password. Details: {e}"
+                )
+                raise SetupError(
+                    "Failed to obtain a Basic Token during setup. Please check your credentials and try again.",
+                    error_msg=str(e),
+                )
 
-            await animator.update_msg("Creating roles")
-            role_created = await api_client.create_roles(token=basic_token, jamf_url=jamf_url)
-            if not role_created:
-                self.log.error("Failed creating API roles. Exiting...")
-                click.echo(click.style("Failed to create API roles.", fg="red"), err=True)
+    async def _configure_integration(
+        self, basic_token: str, jamf_url: str
+    ) -> Optional[Tuple[str, str]]:
+        """Creates API Role and Client for standard setup types."""
+        api_client = BaseAPIClient()
+        if not await api_client.create_roles(token=basic_token, jamf_url=jamf_url):
+            self.log.error(
+                "Failed to create API role as expected during setup. Verify SSO is not being used in Jamf instance."
+            )
+            raise SetupError("Failed to create API Role during Setup. Check logs for more details.")
+        else:
+            try:
+                client_id, client_secret = await api_client.create_client(
+                    token=basic_token, jamf_url=jamf_url
+                )
+                return client_id, client_secret
+            except APIResponseError as e:
+                self.log.error(f"Unable to create API client as expected. Details: {e}")
+                raise SetupError(
+                    "Failed to create Patcher API Client as expected.", error_msg=str(e)
+                )
 
-            await animator.update_msg("Creating client")
-            client_id, client_secret = await api_client.create_client(
-                token=basic_token, jamf_url=jamf_url
+    async def _run_setup(self, setup_type: SetupType, animator: Optional[Animation] = None) -> None:
+        """Handles both types of setup for end-users based on passed `setup_type`."""
+        if self.completed:
+            return
+
+        # Setup animation
+        animator = animator or self.animator
+
+        # Prompt for credentials
+        creds = self._prompt_credentials(setup_type)
+
+        if setup_type == SetupType.STANDARD:
+            # `launch` method
+            self.log.debug(
+                "Detected first run has not been completed. Starting standard (non-SSO) Setup..."
             )
 
-            await animator.update_msg("Saving URL and client credentials")
-            # Create ConfigManager, save credentials
-            self.config.set_credential("URL", jamf_url)
-            self.config.set_credential("CLIENT_ID", client_id)
-            self.config.set_credential("CLIENT_SECRET", client_secret)
+            # Validate needed credentials are present
+            await animator.update_msg("Starting Standard setup...")
+            self._validate_creds(creds, ("USERNAME", "PASSWORD", "URL"), setup_type)
 
-            # Wait a short time to ensure creds are saved
-            await sleep(3)
+            # Extract jamf_url
+            jamf_url = creds.get("URL")
 
-            await animator.update_msg("Fetching bearer token")
-            # Fetch Token and save if successful
-            token = await token_manager.fetch_token()
-            if token:
-                # Create JamfClient object with all credentials
-                jamf_client = JamfClient(
+            # Retrieve basic token
+            await animator.update_msg("Retrieving basic token")
+            basic_token = await self._token_fetching(setup_type=SetupType.STANDARD, creds=creds)
+
+            # Create API Role and Client
+            await animator.update_msg("Creating API integrations")
+            client_id, client_secret = await self._configure_integration(
+                basic_token=basic_token, jamf_url=jamf_url
+            )
+
+            # Save credentials
+            client_creds = {"URL": jamf_url, "CLIENT_ID": client_id, "CLIENT_SECRET": client_secret}
+            self._save_creds(client_creds)
+
+            # Retrieve AccessToken
+            await animator.update_msg("Fetching AccessToken")
+            token = await self._token_fetching(setup_type=SetupType.SSO, creds=client_creds)
+
+            # Setup JamfClient
+            await animator.update_msg("Creating JamfClient...")
+            self.config.create_client(
+                JamfClient(
                     client_id=client_id,
                     client_secret=client_secret,
                     server=jamf_url,
-                    token=token,
-                )
-                self.config.create_client(jamf_client)
-            else:
-                self.log.error("Token failed validation. Notifying user and exiting...")
-                click.echo(
-                    click.style(
-                        text="Token retrieved failed verification and we're unable to proceed!",
-                        fg="red",
-                    ),
-                    err=True,
-                )
+                ),
+                token=token,
+            )
+        elif setup_type == SetupType.SSO:
+            # `first_run` method
+            self.log.debug("Detected first run has not been completed. Starting SSO setup...")
 
-            await animator.update_msg("Bearer token retrieved and JamfClient saved!")
-            animator.stop_event.set()
-            # Setup UI Configuration
-            self.ui_config.setup_ui()
+            # Ensure client ID and client secret are present in credentials
+            await animator.update_msg("Starting SSO setup...")
+            self._validate_creds(creds, ("CLIENT_ID", "CLIENT_SECRET", "URL"), setup_type)
 
-            # Set first run flag to True upon completion
-            self._set_plist(value=True)
-            self._completed = True
+            # Store credentials
+            await animator.update_msg("Saving credentials...")
+            self._save_creds(creds)
 
-    async def reset(self):
+            # Fetch token
+            await animator.update_msg("Fetching AccessToken...")
+            token = await self._token_fetching(setup_type=SetupType.SSO, creds=creds)
+
+            # Setup JamfClient
+            await animator.update_msg("Creating JamfClient...")
+            self.config.create_client(
+                JamfClient(
+                    client_id=creds.get("CLIENT_ID"),
+                    client_secret=creds.get("CLIENT_SECRET"),
+                    server=creds.get("URL"),
+                ),
+                token=token,
+            )
+
+        # Set stop event before prompting
+        await animator.stop()
+
+        # Setup UI components
+        self.ui_config.setup_ui()
+
+        # Mark setup as complete
+        self._mark_completion(value=True)
+
+    async def start(self, animator: Optional[Animation] = None) -> None:
         """
-        Resets the UI configuration settings by clearing the existing configuration and starting the setup process again.
+        Allows the user to choose between different setup methods (Standard or SSO).
 
-        This method is useful if the user wants to reconfigure the UI elements of PDF reports, such as header/footer text and font choices.
+        An optional :class:`~patcher.utils.animation.Animation` object can be passed to update animation
+        messages at runtime. Defaults to ``self.animator``.
+
+        **Options**:
+
+        - :attr:`~patcher.client.setup.SetupType.STANDARD` prompts for basic credentials, obtains basic token, creates API integration, saves client credentials and obtains an AccessToken.
+        - :attr:`~patcher.client.setup.SetupType.SSO` prompts for existing API credentials, obtains AccessToken and saves credentials.
+
+        .. seealso::
+            For SSO users, reference our :ref:`handling-sso` page for assistance creating an API integration.
+
+        :param animator: The animation instance to update messages. Defaults to ``self.animator``.
+        :type animator: :py:obj:`~typing.Optional` [:class:`~patcher.utils.animation.Animation`]
+        :raises SetupError: If a token could not be fetched, credentials are missing or setup could not be marked complete.
         """
-        reset_config = self.ui_config.reset_config()
-        if not reset_config:
-            self.log.error("Encountered an issue resetting elements in config.ini.")
-            raise OSError("The UI element configuration file could not be reset as expected.")
+        if self.completed:
+            return
+
+        # Greet users
+        self._greet()
+
+        animator = animator or self.animator
+
+        setup_type_map = {1: SetupType.STANDARD, 2: SetupType.SSO}
+        choice = click.prompt(
+            "Choose setup method (1: Standard setup, 2: SSO setup)", type=int, default=1
+        )
+        if choice in setup_type_map:
+            await self._run_setup(setup_type_map[choice], animator=animator)
         else:
-            self.ui_config.setup_ui()
+            click.echo(click.style("Invalid choice, please choose 1 or 2", fg="red"))
+            await self.start()
+
+    def reset_setup(self) -> bool:
+        """
+        Resets Setup configuration, removing Patcher's property list file. This effectively marks
+        Setup completion as False and will re-trigger the setup assistant.
+
+        If the file does not exist, a warning is logged but the function will return ``True``.
+
+        :return: ``True`` if the property list file was successfully removed or if it does not exist.
+        :rtype: :py:class:`bool`
+        :raises PatcherError: If the file exists but could not be removed due to an error.
+        """
+        self.log.debug("Attempting to reset setup.")
+        try:
+            os.remove(self.plist_path)
+            self._completed = None
+            self.log.info("Successfully reset setup.")
+            return True
+        except FileNotFoundError:
+            self.log.warning(f"Property list file does not exist: {self.plist_path}")
+            return True
+        except OSError as e:
+            self.log.error(f"Unable to delete property list file ({self.plist_path}). Details: {e}")
+            raise PatcherError(
+                "Unable to delete property list file as expected.",
+                path=self.plist_path,
+                error_msg=str(e),
+            )

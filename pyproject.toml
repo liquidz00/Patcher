@@ -5,12 +5,12 @@ description = "Fetch patch management data from Jamf Pro to generate comprehensi
 keywords = ["jamf", "pro", "jss", "patch", "macOS"]
 license = { file = "LICENSE.txt" }
 authors = [
-  { name = "Andrew Speciale" },
+  { name = "Andrew Lerman" },
   { name = "Chris Ball" },
   { email = "info@liquidzoo.io" },
 ]
 maintainers = [
-  { name = "Andrew Speciale" },
+  { name = "Andrew Lerman" },
   { name = "Chris Ball" },
 ]
 requires-python = ">=3.10"
@@ -48,6 +48,21 @@ Issues = "https://github.com/liquidz00/Patcher/issues/new?assignees=&labels=bug&
 patcherctl = "patcher.cli:main"
 
 [project.optional-dependencies]
+all = [
+  "black>=24.3.0",
+  "build",
+  "pytest>=8.2.2",
+  "pytest-asyncio>=0.23.5",
+  "pytest-cov>=4.0.0",
+  "ruff>=0.5.1",
+  "autodoc-pydantic",
+  "myst-parser",
+  "pydata-sphinx-theme",
+  "sphinx>=7.3.7",
+  "sphinx-design",
+  "sphinx-copybutton",
+  "sphinx-togglebutton",
+]
 dev = [
   "black>=24.3.0",
   "build",
@@ -120,5 +135,8 @@ filterwarnings = [
   "ignore::DeprecationWarning",
   "ignore::RuntimeWarning",
 ]
+
+[tool.coverage.run]
+omit = ["tests/*"]
 
 

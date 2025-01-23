@@ -18,12 +18,27 @@ Patcher needs to know whether it is being run for the first time. This is import
    - If the file does not exist, or if the key is set to ``False``, the setup assistant is triggered.
    - The key *must* be set to ``True`` to prevent the setup assistant from running.
 
-API credential creation
------------------------
+.. _setup_type:
 
-Beginning with Patcher version 1.3.4, the Setup Assistant handled in the :mod:`~patcher.client.setup` class will prompt for a Jamf Pro username and password. The admin credentials are not stored permanently--they are **only** used for initial authentication for creating the API roles and client.
+Choosing Setup type
+--------------------
 
-The setup assistant also has checks in place to account for the use of SSO. As the Jamf Pro API `does not support the use of SSO, <https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#authentication-and-authorization>`_ you may be prompted to verify your account is not configured with SSO. In the event it is, creating an :ref:`API Role and Client will have to be done manually <jamf-guide>`.
+The setup assistant will show a greeting message and then prompt you which setup method to proceed with:
+
+.. code-block:: console
+
+    Thanks for downloading Patcher!
+
+    [...]  # Rest of greeting
+
+    Choose setup method (1: Standard setup, 2: SSO setup) [1]:
+
+Which Method to Use
+^^^^^^^^^^^^^^^^^^^
+
+- **Select SSO** if you use Single Sign On (SSO) to sign into Jamf. This is due to the Jamf Pro API `not supporting the use of SSO <https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#authentication-and-authorization>`_ for authorization. Both an API role and API client will need to be created manually to pass credentials to the setup assistant. See :ref:`the Jamf Deployment Guide <api-creation>` for instructions on completing this. 
+- **Select Standard** if you'd like Patcher to automatically create an API Role & Client on your behalf. You will be prompted for your username and password during setup, but **these values are never stored permanently by Patcher**. They are *solely* used to obtain a basic token to create the API integration as expected. 
+
 
 Storing Credentials
 ^^^^^^^^^^^^^^^^^^^

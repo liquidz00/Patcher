@@ -9,18 +9,12 @@ html_theme.sidebar_secondary.remove: True
 
 base_api_client
 api_client
+analyze
 config_manager
 report_manager
 setup
 token_manager
 ui_manager
-```
-
-```{toctree}
-:caption: Report Models
-
-excel_report
-pdf_report
 ```
 
 ```{toctree}
@@ -35,9 +29,11 @@ token
 :caption: Utilities
 
 animation
+data_manager
 decorators
 exceptions
 logger
+pdf_report
 ```
 
 ```{toctree}

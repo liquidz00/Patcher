@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f7fa;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .date {
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+            margin-top: -10px;
+            margin-bottom: 20px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            cursor: pointer;
+            background-color: #6432bdff;
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        th:hover {
+            background-color: #3C1E71;
+        }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        tr:hover { background-color: #f1f1f1; }
+    </style>
+    <script>
+        function sortTable(columnIndex) {
+            const table = document.getElementById("summaryTable");
+            const rows = Array.from(table.rows).slice(1); // Exclude header row
+            let isAscending = table.dataset.sortOrder !== "asc";
+            table.dataset.sortOrder = isAscending ? "asc" : "desc";
+
+            rows.sort((a, b) => {
+                const cellA = a.cells[columnIndex].textContent.trim();
+                const cellB = b.cells[columnIndex].textContent.trim();
+                const isNumeric = !isNaN(cellA) && !isNaN(cellB);
+                return isNumeric
+                    ? (isAscending ? cellA - cellB : cellB - cellA)
+                    : (isAscending
+                        ? cellA.localeCompare(cellB)
+                        : cellB.localeCompare(cellA));
+            });
+
+            for (const row of rows) {
+                table.tBodies[0].appendChild(row);
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>${heading}</h1>
+    <p class="date">Generated on ${date}</p>
+    <table id="summaryTable" data-sort-order="desc">
+        <thead>
+            <tr>${headers}</tr>
+        </thead>
+        <tbody>
+            ${rows}
+        </tbody>
+    </table>
+</body>
+</html>

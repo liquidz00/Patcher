@@ -1,83 +1,79 @@
 .. _usage:
 
-=========
+=====
 Usage
-=========
+=====
 
-Additional options that can be passed to Patcher. These additional options enable users to customize the generation of patch reports according to their specific requirements.
+The main entry point for the Patcher CLI (patcherctl).
 
-Sorting
--------
+.. admonition:: Added in version 2.0
+    :class: tip
 
-The ``--sort`` option allows users to sort patch reports based upon a specified column. This option is designed to help users organize their reports more efficiently and improve readability.
+    Patcher has been split into three separate commands; :ref:`Analyze <analyze>`, :ref:`Export <export>`, and :ref:`Reset <reset>`
 
-To use the ``--sort`` option, add ``--sort`` or ``-s`` followed by the column nameyou want to sort the report by. Patcher will automatically handle column name conversion to match column titles in the data frame.
 
-.. code-block:: console
+Viewing Help
+------------
 
-    $ patcherctl --path '/path/to/save' --sort "Column Name"
-
-Ensure that the column name provided is valid and exists in the report. Invalid column names will result in an error and the script will abort.
-
-Omit
-----
-
-The ``--omit`` option enables users to omit software titles from the report that have had patches released in the last 48 hours. This can be particularly useful for focusing on older, potentially unaddressed vulnerabilities. Additionally, this will allow for a more accurate total patch percentage if submitting reports to security or compliance departments.
-
-No additional arguments are required for the omit option. It is simply a flag that can be passed to Patcher:
+Patcher accepts both ``--help`` and ``-h`` parameters to view the help menu. Additionally, help is available for each subcommand and can be viewed by executing ``patcherctl <command> --help``.
 
 .. code-block:: console
 
-    $ patcherctl --path '/path/to/save' --omit
+    $ patcherctl --help
 
-.. _date-format:
+.. container:: sd-table
 
-Date Format
------------
+    .. list-table::
+       :header-rows: 1
+       :widths: auto
 
-Specify the format of the date used in the header of exported PDF reports. This feature enables user to tailor the date presentation to their preferences or requirements, enhancing the reports' readability and context understanding.
+       * - Option
+         - Description
+       * - ``--version``
+         - Show the version and exit.
+       * - ``-x``, ``--debug``
+         - Enable debug logging (verbose mode).
+       * - ``-h``, ``--help``
+         - Show this message and exit.
 
-To use the ``--date-format`` option, add ``-d`` or ``--date-format`` followed by one of the predefined format names.
+.. _exit-codes:
+
+Exit Codes
+----------
+
+Patcher leverages specific exit codes depending on what type of error occurred at runtime:
+
+.. container:: sd-table
+
+   .. list-table::
+      :header-rows: 1
+      :widths: auto
+
+      * - Exit Code
+        - Description
+      * - 0
+        - Success
+      * - 1
+        - Handled exception (e.g., PatcherError or user-facing issue)
+      * - 2
+        - Unhandled exception
+      * - 4
+        - API error (e.g., unauthorized, invalid response)
+      * - 130
+        - KeyboardInterrupt (Ctrl+C)
+
+.. _debug:
+
+Debug Mode (verbose)
+--------------------
+
+Patcher accepts a global ``--debug`` (or ``-x``) flag to show debug log level messages and higher to standard out. This overrides the built in :class:`~patcher.utils.animation.Animation` from showing so no message conflicts occur. This flag is handled at the root CLI level and thus can be passed to any command.
 
 .. code-block:: console
 
-    $ patcherctl --path '/path/to/save' --date-format "Month-Year"
+    $ patcherctl export --path '/path/to/save' --pdf --debug
 
-Options:
-^^^^^^^^
-
-- **Month-Year**: Displays the date as the full month name followed by the year (e.g., January 2024)
-- **Month-Day-Year** (default): Displays the date with the full month name, day and year (e.g., January 31 2024)
-- **Year-Month-Day**: Displays the date with the year followed by the full month name and day (e.g., 2024 April 21)
-- **Day-Month-Year**: Displays the date with the day followed by the full month name and year (16 April 2024)
-- **Full**: Displays the full weekday name, followed by the full month name, day and year (Thursday September 26 2013)
-
-Ensure to select a format name exactly as listed to avoid errors. Invalid format names will result in an error, and the script will abort.
-
-.. _ios:
-
-iOS
----
-
-The ``--ios`` or ``-m`` flags will append the amount of enrolled mobile devices on the latest version of iOS to the end of the data set. This option utilizes `SOFA <https://sofa.macadmins.io>`_, which reports on iOS versions 16 & 17. This means mobile devices on versions lower than iOS 16 will not be included in the report.
-
-Similar to the ``--omit`` option, the ``--ios`` option is a flag. To include iOS data information in your report, simply pass the ``--ios`` or ``-m`` arguments to Patcher.
-
-.. code-block:: console
-
-    $ patcherctl --path '/path/to/save' --ios
-
-Debug
------
-
-Passing ``--debug`` or ``-x`` to Patcher will output debug logs to standard out instead of showing the default animation message. This is meant to assist in troubleshooting issues by providing insight into what is going on behind the scenes.
-
-Usage & Sample output
-^^^^^^^^^^^^^^^^^^^^^
-
-.. code-block:: console
-
-    $ patcherctl --path '/path/to/save' --debug
+Would result in a similar output as:
 
 .. code-block:: text
 
@@ -99,47 +95,87 @@ Usage & Sample output
     DEBUG: Patcher finished as expected. Additional logs can be found at '~/Library/Application Support/Patcher/logs'.
     DEBUG: 41 patch reports saved successfully to /path/to/save/Patch-Reports.
 
+Command Dependencies
+--------------------
 
-.. _concurrency:
+The :ref:`analyze <analyze>` command is tightly integrated with the :ref:`export <export>` command. It is important to understand this dependency for using Patcher effectively. 
 
-Concurrency
------------
+Key Points
+^^^^^^^^^^
 
-.. warning::
-    Use caution when using this option. Higher concurrency settings can cause your Jamf server to become overloaded and fail to perform other basic functions. For more information, reference `Jamf Developer documentation <https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices#rate-limiting>`_ on rate limiting.
+- **Export Command Requirement**: The ``export`` command caches patch report data for later use by the ``analyze`` command, ensuring the data is available for analysis without having to run multiple export commands. 
+- **Alternative Input**: The ``analyze`` command can accept patch reports via the ``--excel-file`` option, but these files *must* adhere to the schema of an exported patch report to prevent errors. Refer to the exported report structure for details.
 
-The ``--concurrency`` option sets the *maximum* number of concurrent API requests. By default, this is set to 5. Passing in a different integer to this option will modify this setting.
+Example Workflow
+~~~~~~~~~~~~~~~~
 
 .. code-block:: console
+    :caption: Export patch reports.
 
-    $ patcherctl --path '/path/to/save' --concurrency 10
+    $ patcherctl export --path /path/to/save --pdf
 
-.. _resetting_patcher:
+.. code-block:: console
+    :caption: Analyze command with cached reports
 
-Reset
------
+    $ patcherctl analyze --criteria most-installed --threshold 75
+
+.. code-block:: console
+    :caption: Analyze command with compatible patch report file
+
+    $ patcherctl analyze --excel-file /path/to/patch-report.xlsx --criteria least-installed
 
 .. note::
-    Using this option eliminates the need for the --path argument.
 
-To streamline the customization process, you can use the ``--reset`` flag with Patcher. This option will clear the existing header and footer text from the PDF configuration and initiate the UI setup process again. This allows you to specify a custom font and modify the header and footer text options.
+    If no objects meet the specified criteria during analysis, a warning will be displayed:
+
+    .. code-block:: console
+
+        $ patcherctl analyze --criteria below-threshold
+        ⚠️ No PatchTitle objects meet criteria FilterCriteria.BELOW_THRESHOLD
+
+Avoiding Errors
+~~~~~~~~~~~~~~~
+
+- Verify that exported patch reports are up-to-date before running the ``analyze`` command. 
+- Double-check that manually provided files conform to the patch report schema to avoid processing errors. 
+
+.. _caching:
+
+Data Caching
+------------
+
+Starting with version 2.0, Patcher now leverages data caching to improve performance and provide efficient handling of patch data. The cached data is stored in the user library cache directory (``~/Library/Caches/Patcher``).
+
+Caching Behavior
+^^^^^^^^^^^^^^^^
+
+- **Enabled by Default**: Cached data is stored as `pickle files <https://docs.python.org/3.12/library/pickle.html>`_ (``*.pkl``) for quick reuse.
+- **Automatic Cleaning**: Cache files older than *90 days* are automatically removed to save disk space.
+- **Disabling Caching**: Caching can be disabled at any time by passing the ``--disable-cache`` flag with any command at runtime.
+
+Managing Cached Data
+~~~~~~~~~~~~~~~~~~~~
+
+The following commands are available to assist in managing cache data:
 
 .. code-block:: console
+    :caption: Manually navigate to the cache directory to inspect cache data.
 
-    $ patcherctl --reset
-
-
-Custom CA File
---------------
-
-.. admonition:: Removed in version 1.4.1
-    :class: danger
-
-    The ``--custom-ca-file`` flag has been removed entirely. CA file handling is now automatic via ``curl``.
-
-Pass a path to a ``.pem`` certificate to use as the default `SSL context <https://docs.python.org/3/library/ssl.html#context-creation>`_. Can be useful if running into SSL Validation Errors when using Patcher.
+    $ open ~/Library/Caches/Patcher
 
 .. code-block:: console
+    :caption: Remove cache directory contents with the ``reset`` command.
 
-    $ patcherctl --custom-ca-file '/path/to/.pem/file'
+    $ patcherctl reset cache
+    ✅ Reset finished successfully.
 
+.. code-block:: console
+    :caption: Add the ``--disable-cache`` flag to any command to temporarily disable caching.
+
+    $ patcherctl export --path /path/to/save --disable-cache
+
+
+Automatic Cache Cleaning
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Cache files older than 90 days are automatically cleaned each time data is cached or retrieved. This is designed to ensure efficient use of disk space while providing an ample time range for trend analysis.

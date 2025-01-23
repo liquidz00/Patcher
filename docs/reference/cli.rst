@@ -2,54 +2,83 @@
 
 .. _cli:
 
-======================
-Command Line Interface
-======================
+============================
+Command Line Interface (CLI)
+============================
 
-.. note::
+Entry Point
+-----------
 
-    The CLI entry point collaborates with the :mod:`~patcher.client.report_manager` module. Most of the operations are managed by the Report Manager class, where debug logs are also generated, rather than within the CLI entry point.
+.. function:: cli(ctx: click.Context, debug: bool) -> None
 
-The main entry point for the Patcher CLI (patcherctl).
+    Main entry point for the CLI.
 
-Parameters
-----------
+    :param ctx: The Click context object.
+    :type ctx: click.Context
+    :param debug: Enable debug logging if `True`.
+    :type debug: :py:class:`bool`
 
-- **ctx** (*click.Context*):
-  Click context object. Used to ensure either the ``--path`` argument OR the ``--reset`` argument is supplied at runtime.
+    **Options**:
+      - ``--debug``, ``-x``: Enable verbose logging.
 
-- **path** (*AnyStr*):
-  The path to save the report(s).
+Subcommands
+-----------
 
-- **pdf** (*bool*):
-  If passed, Patcher will generate a PDF report along with the Excel spreadsheet using the :mod:`~patcher.models.reports.pdf_report` model.
+.. admonition:: Added in version 2.0
+    :class: success
 
-- **sort** (*Optional[AnyStr]*):
-  Sort patch reports by a specified column.
+    Patcher has been split into three separate commands; ``analyze``, ``reset`` and ``export``. For usage and examples, see our `Usage <usage>` page.
 
-  .. note::
-      Patcher handles the automatic conversion of the column name on your behalf. For example, if sorting by completion percent, simply pass "Completion Percent" at runtime.
+Reset Command
+^^^^^^^^^^^^^
 
-- **omit** (*bool*):
-  If passed, software titles with patches released in the last 48 hours will be omitted from the exported report(s).
+.. function:: reset(ctx: click.Context, kind: str, credential: Optional[str]) -> None
 
-- **date_format** (*AnyStr*):
-  Specify the date format for the PDF header from predefined choices. See :ref:`date format <date-format>` for more information.
+    Resets configurations based on the specified kind.
 
-- **ios** (*bool*):
-  Include the amount of enrolled mobile devices on the latest version of their respective OS. This flag uses `SOFA <https://sofa.macadmins.io>`_ to pull latest iOS versioning data.
+    **Arguments**:
+      - ``ctx``: The Click context object.
+      - ``kind``: The type of reset to perform. Options include:
 
-- **concurrency** (*int*):
-  Set the maximum concurrency level for API calls.
+        - ``full``: Resets all configurations.
+        - ``UI``: Resets only the UI configurations.
+        - ``creds``: Resets credentials.
 
-  .. danger::
-      Before using this argument, **please see** the :ref:`concurrency <concurrency>` documentation first.
+    **Options**:
+      - ``--credential``, ``-c``: Specify which credential to reset.
 
-- **debug** (*bool*):
-  Enable debug logging to see detailed debug messages. Providing this option replaces the animation usually shown to ``stdout``.
 
-- **reset** (*bool*):
-  Resets the ``config.ini`` file used for customizable elements in exported PDF reports, then triggers :func:`~patcher.client.setup._setup_ui` method. See :ref:`Customizing Reports <customize_reports>` for more information.
+Export Command
+^^^^^^^^^^^^^^
 
-- **custom_ca_file** (*Optional[AnyStr]*):
-  Pass a path to a custom Certificate Authority (CA) file for SSL verification. If provided, this file will be used in place of the default CA paths. See :ref:`ssl-verify`.
+.. function:: export(ctx: click.Context, path: str, pdf: bool, sort: Optional[str], omit: bool, date_format: str, ios: bool, concurrency: int) -> None
+
+    Exports patch management data in Excel and/or PDF formats.
+
+    **Arguments**:
+      - ``ctx``: The Click context object.
+      - ``path``: File path to save the generated reports.
+      - ``pdf``: Generate a PDF report if `True`.
+      - ``sort``: Column to sort by.
+      - ``omit``: Omit software titles released in the last 48 hours.
+      - ``date_format``: Format of the date in the PDF header.
+      - ``ios``: Include mobile device data if `True`.
+      - ``concurrency``: Maximum number of API requests sent concurrently.
+
+
+Analyze Command
+^^^^^^^^^^^^^^^
+
+.. function:: analyze(ctx: click.Context, excel_file: str, criteria: str, threshold: float, top_n: int, summary: bool, output_dir: Union[str, Path]) -> None
+
+    Analyzes exported patch management data.
+
+    **Arguments**:
+      - ``ctx``: The Click context object.
+      - ``excel_file``: Path to the Excel file to analyze.
+      - ``criteria``: Criteria for filtering results.
+      - ``threshold``: Threshold percentage for filtering.
+      - ``top_n``: Limit the number of results displayed.
+      - ``summary``: Generate a summary file if `True`.
+      - ``output_dir``: Directory to save the summary.
+

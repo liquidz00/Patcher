@@ -96,8 +96,8 @@ To change the font, update the ``FONT_NAME``, ``FONT_REGULAR_PATH`` and ``FONT_B
 Adding a Company Logo
 ---------------------
 
-.. admonition:: Added in version 1.4.2
-    :class: success
+.. admonition:: Added in version 2.0
+    :class: tip
 
     Patcher now allows you to include a company logo in your exported PDF reports. This can be helpful for ensuring unified branding for reports.
 
@@ -105,29 +105,59 @@ Supported Logo Requirements
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - **File Formats**: The logo must be a valid image file in PNG, JPEG, or other `Pillow-supported formats <https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#fully-supported-formats>`_
-- **File Validation**: Patcher will validate the logo to ensure it is a valid image file before being added to the report.
+- **File Validation**: Patcher will validate the logo to ensure it is a valid image file before being added to the report. 
 
 .. seealso::
-    Need to make your own logo file? The `macOS-icon-generator <https://github.com/SAP/macOS-icon-generator>`_ by SAP is a great (and free) resource for creating standardized app icons in PNG format.
+    Need to make your own logo file? The `macOS-icon-generator <https://github.com/SAP/macOS-icon-generator>`_ by SAP is a great (and free) resource for creating standardized app icons in PNG format.  
 
 Configuring a Logo
 ^^^^^^^^^^^^^^^^^^
 
-To configure a branding logo for PDF reports *after setup has completed*, modify the property list by passing the logo file to the ``LOGO_PATH`` key.
+There are two primary methods to configure a logo for your PDF reports: 
 
-Open the property list file in Xcode or use ``PlistBuddy`` to modify the property list file. (See :ref:`Modifying the Property List File <modify_plist>` above). For demonstration purposes, ``PlistBuddy`` will be used.
+1. Resetting existing UI configuration via the :ref:`reset <reset>` command. 
+2. Modifying the property list by passing the logo file to the corresponding key.
+
+Via ``reset``:
+~~~~~~~~~~~~~~
+
+1. Execute the ``reset`` command:
+
+.. code-block:: console
+    
+    $ patcherctl reset ui
+
+2. After providing values for header/footer text and custom font, you will be prompted to use a custom logo with the question ``Would you like to use a logo in your exported PDFs?``
+3. Enter the file path to your desired logo image when prompted: 
+
+.. code-block:: console
+    
+    $ Enter the path to the logo file: /path/to/logo.png
+
+4. Patcher will validate the image file. If valid, it will copy the logo to the ``Application Support`` directory: ``$HOME/Library/Application Support/Patcher/logo.png``
+5. The logo path is then saved to the ``com.liquidzoo.patcher.plist`` file under the ``UI`` dictionary:
+
+.. code-block:: xml
+    
+    <key>LOGO_PATH</key>
+    <string>/Users/jappleseed/Library/Application Support/Patcher/logo.png</string>
+
+Via the property list:
+~~~~~~~~~~~~~~~~~~~~~~
+
+Open the property list file in Xcode or use ``PlistBuddy`` to modify the property list file. (See :ref:`Modifying the Property List File <modify_plist>` above). For demonstration purposes, ``PlistBuddy`` will be used. 
 
 .. tip::
     Absolute paths can be copied easily in macOS: Hold down the Option (⌥) symbol on the keyboard, right-click the logo file and select **Copy <filename> as Pathname**
 
-1. Copy the path to your desired logo.
-2. Execute the following command to add the logo file to the property list (replace ``'/path/to/logo.png'`` with the absolute path copied from step 1):
+1. Copy the path to your desired logo. 
+2. Execute the following command to add the logo file to the property list: 
 
 .. code-block:: console
-
+    
     $ /usr/libexec/PlistBuddy -c "Set :UI:LOGO_PATH '/path/to/logo.png'" ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 
-3. While it is not **required** to copy the logo file to Patcher's Application Support directory, it ensures the proper permissions are enabled to read the logo file.
+3. While it is not **required** to copy the logo file to Patcher's Application Support directory, it ensures the proper permissions are enabled to read the logo file. 
 
 Full Example Configuration
 ==========================

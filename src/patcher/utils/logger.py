@@ -1,158 +1,168 @@
 import logging
 import os
+import sys
 import traceback
-from logging import handlers
-from typing import Optional
+from logging.handlers import RotatingFileHandler
+from types import TracebackType
+from typing import Optional, Type
 
 import asyncclick as click
 
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger_name = "Patcher"
-default_log_level = logging.INFO
-log_roll_size = 1048576 * 100
-log_backupCount = 10
 
+class PatcherLog:
+    LOGGER_NAME = "Patcher"
+    LOG_DIR = os.path.expanduser("~/Library/Application Support/Patcher/logs")
+    LOG_FILE = os.path.join(LOG_DIR, "patcher.log")
+    LOG_LEVEL = logging.INFO
+    MAX_BYTES = 1048576 * 100  # 100 MB
+    BACKUP_COUNT = 10
 
-def setup_logger(
-    log_name: Optional[str] = logger_name,
-    log_filename: Optional[str] = f"{logger_name}.log",
-    log_level: Optional[int] = default_log_level,
-) -> logging.Logger:
-    """
-    Set up the main logger with rotating file handler.
+    @staticmethod
+    def setup_logger(
+        name: Optional[str] = None,
+        level: Optional[int] = LOG_LEVEL,
+        debug: bool = False,
+    ) -> logging.Logger:
+        """
+        Configures and returns a logger. If the logger is already configured, it ensures no duplicate handlers.
 
-    :param log_name: The name of the logger, defaults to 'patcher'.
-    :type log_name: Optional[str]
-    :param log_filename: The log file name, defaults to ``{log_name}.log``.
-    :type log_filename: Optional[str]
-    :param log_level: The logging level, defaults to logging.INFO.
-    :type log_level: Optional[int]
-    :return: The configured logger.
-    :rtype: logging.Logger
-    """
-    log_path = os.path.abspath(
-        os.path.join(os.path.expanduser("~/Library/Application Support/Patcher"), "logs")
-    )
-    if not os.path.isdir(log_path):
-        os.makedirs(log_path)
-    log_file = os.path.join(log_path, log_filename)
-    handler = handlers.RotatingFileHandler(
-        log_file, maxBytes=log_roll_size, backupCount=log_backupCount
-    )
-    handler.setFormatter(formatter)
-    logger = logging.getLogger(log_name)
-    if logger.hasHandlers():
-        logger.handlers.clear()
-    logger.addHandler(handler)
-    logger.setLevel(log_level)
-    return logger
+        :param name: Name of the logger, defaults to "Patcher".
+        :type name: :py:obj:`~typing.Optional` [:py:class:`str`]
+        :param level: Logging level, defaults to INFO if not specified.
+        :type level: :py:obj:`~typing.Optional` [:py:class:`int`]
+        :param debug: Whether to enable debug logging for console, defaults to False.
+        :type debug: :py:class:`bool`
+        :return: The configured logger.
+        :rtype: :py:obj:`~logging.Logger`
+        """
+        logger_name = name if name else PatcherLog.LOGGER_NAME
+        os.makedirs(PatcherLog.LOG_DIR, exist_ok=True)
+        logger = logging.getLogger(logger_name)
 
+        if not logger.hasHandlers():
+            file_handler = RotatingFileHandler(
+                PatcherLog.LOG_FILE,
+                maxBytes=PatcherLog.MAX_BYTES,
+                backupCount=PatcherLog.BACKUP_COUNT,
+            )
+            file_handler.setFormatter(
+                logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+            )
+            file_handler.setLevel(level or PatcherLog.LOG_LEVEL)
+            logger.addHandler(file_handler)
 
-def setup_child_logger(
-    name_of_child: str,
-    name_of_logger: Optional[str] = logger_name,
-    debug: Optional[bool] = False,
-) -> logging.Logger:
-    """
-    Setup a child logger for a specified context.
+            # Console handler for user-facing messages if debug is True
+            if debug:
+                console_handler = logging.StreamHandler(sys.stdout)
+                console_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+                console_handler.setLevel(logging.DEBUG)
+                logger.addHandler(console_handler)
 
-    :param name_of_child: The name of the child logger.
-    :type name_of_child: str
-    :param name_of_logger: The name of the parent logger, defaults to 'patcher'
-    :type name_of_logger: str
-    :param debug: Whether to set the child logger level to DEBUG, defaults to False.
-    :type debug: Optional[bool]
-    :return: The configured child logger.
-    :rtype: logging.Logger
-    """
-    child_logger = logging.getLogger(name_of_logger).getChild(name_of_child)
-    if debug:
-        child_logger.setLevel(logging.DEBUG)
-    else:
-        child_logger.setLevel(logging.INFO)
-    return child_logger
+            logger.setLevel(logging.DEBUG)  # Capture all messages, delegate to handlers
 
+        return logger
 
-logthis = setup_logger(logger_name, f"{logger_name}.log")
+    @staticmethod
+    def setup_child_logger(childName: str, loggerName: Optional[str] = None) -> logging.Logger:
+        """
+        Setup a child logger for a specified context.
 
+        .. admonition:: Removed in version 2.0
+            :class: danger
 
-def handle_traceback(exception: Exception):
-    """
-    Write tracebacks to logs instead of to console for readability purposes.
+            The ``debug`` parameter is now handled at CLI entry point. Child loggers with an explicitly set logging level will not respect configuration changes to the root logger.
 
-    :param exception: The exception instance to log.
-    :type exception: Exception
-    """
-    full_traceback = traceback.format_exc()
-    logthis.error(f"Exception occurred: {str(exception)}\nTraceback:\n{full_traceback}")
+        :param childName: The name of the child logger.
+        :type childName: :py:class:`str`
+        :param loggerName: The name of the parent logger, defaults to "Patcher".
+        :type loggerName: :py:class:`str`
+        :return: The configured child logger.
+        :rtype: :py:obj:`~logging.Logger`
+        """
+        name = loggerName if loggerName else PatcherLog.LOGGER_NAME
+        return logging.getLogger(name).getChild(childName)
+
+    @staticmethod
+    def custom_excepthook(
+        exc_type: Type[BaseException],
+        exc_value: BaseException,
+        exc_traceback: Optional[TracebackType],
+    ) -> None:
+        """
+        A custom exception handler for unhandled exceptions.
+
+        This method is intended to be assigned to ``sys.excepthook`` to handle any uncaught exceptions in the application.
+
+        :param exc_type: The class of the exception raised.
+        :type exc_type: :py:obj:`~typing.Type` of :py:class:`BaseException`
+        :param exc_value: The instance of the exception raised.
+        :type exc_value: :py:class:`BaseException`
+        :param exc_traceback: The traceback object associated with the exception.
+        :type exc_traceback: :py:obj:`~typing.Optional` of :py:obj:`~types.TracebackType`
+        """
+        parent_logger = logging.getLogger(PatcherLog.LOGGER_NAME)
+        child_logger = parent_logger.getChild("UnhandledException")
+        child_logger.setLevel(parent_logger.level)
+
+        if exc_type.__name__ == "KeyboardInterrupt":
+            # Exit gracefully on keyboard interrupt
+            child_logger.info("User interrupted the process.")
+            sys.exit(130)  # SIGINT
+
+        # format traceback
+        formatted_traceback = "".join(
+            traceback.format_exception(exc_type, exc_value, exc_traceback)
+        )
+
+        child_logger.error(
+            f"Unhandled exception: {exc_type.__name__}: {exc_value}\n{formatted_traceback}"
+        )
+
+        # Show user-friendly message in console
+        console_message = f"❌ {exc_type.__name__}: {exc_value}"
+
+        click.echo(
+            click.style(console_message, fg="red", bold=True),
+            err=True,
+        )
+        click.echo(
+            f"💡 For more details, please check the log file at: '{PatcherLog.LOG_FILE}'",
+            err=True,
+        )
+        return
 
 
 class LogMe:
-    """
-    A wrapper class for logging with additional output to console using click.
-
-    :param class_name: The name of the class for which the logger is being set up.
-    :type class_name: str
-    :param debug: Whether to set the child logger level to DEBUG, defaults to False.
-    :type debug: Optional[bool]
-    """
-
-    def __init__(self, class_name: str, debug: Optional[bool] = False):
-        self.logger = setup_child_logger(class_name, logger_name, debug)
-
-    def is_debug_enabled(self) -> bool:
+    def __init__(self, class_name: str):
         """
-        Check if debug logging is enabled.
+        A wrapper class for logging with optional output to console using click.
 
-        :return: True if debug logging is enabled, False otherwise.
-        :rtype: bool
+        :param class_name: The name of the class for which the logger is being set up.
+        :type class_name: :py:class:`str`
         """
-        return self.logger.isEnabledFor(logging.DEBUG)
+        self.logger = PatcherLog.setup_child_logger(class_name)
+
+    @property
+    def is_debug(self) -> bool:
+        """Check if any logger handlers are set to debug level."""
+        return any(h.level == logging.DEBUG for h in self.logger.handlers)
 
     def debug(self, msg: str):
-        """
-        Log a debug message and output to console if debug is enabled.
-
-        :param msg: The debug message to log.
-        :type msg: str
-        """
         self.logger.debug(msg)
-        if self.is_debug_enabled():
-            debug_out = click.style(text=f"DEBUG: {msg.strip()}", fg="magenta", bold=False)
-            click.echo(message=debug_out, err=False)
+        if self.is_debug:
+            click.echo(click.style(f"\rDEBUG: {msg.strip()}", fg="magenta"))
 
     def info(self, msg: str):
-        """
-        Log an info message and output to console.
-
-        :param msg: The info message to log.
-        :type msg: str
-        """
         self.logger.info(msg)
-        if self.is_debug_enabled():
-            std_output = click.style(text=f"\rINFO: {msg.strip()}", fg="blue", bold=False)
-            click.echo(message=std_output, err=False)
+        if self.is_debug:
+            click.echo(click.style(f"\rINFO: {msg.strip()}", fg="blue"))
 
     def warning(self, msg: str):
-        """
-        Log a warning message and output to console.
-
-        :param msg: The warning message to log.
-        :type msg: str
-        """
         self.logger.warning(msg)
-        if self.is_debug_enabled():
-            warn_out = click.style(text=f"\rWARNING: {msg.strip()}", fg="yellow", bold=True)
-            click.echo(message=warn_out, err=False)
+        if self.is_debug:
+            click.echo(click.style(f"\rWARNING: {msg.strip()}", fg="yellow", bold=True))
 
     def error(self, msg: str):
-        """
-        Log an error message and output to console.
-
-        :param msg: The error message to log.
-        :type msg: str
-        """
+        # Error message formatting is handled by CLI, bypassing need to format error messages
+        # at the class level
         self.logger.error(msg)
-        if self.is_debug_enabled():
-            err_out = click.style(text=f"\rERROR: {msg.strip()}", fg="red", bold=True)
-            click.echo(message=err_out, err=False)

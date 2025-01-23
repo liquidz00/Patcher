@@ -1,33 +1,25 @@
 import asyncio
-import inspect
 from contextlib import asynccontextmanager
 
 import asyncclick as click
 
-from . import exceptions
-from .logger import LogMe
-
 
 class Animation:
-    """
-    Handles displaying an animated spinner with a message during long-running operations.
-
-    The ``Animation`` class provides a simple way to display a rotating spinner along with
-    a customizable message in the terminal, which can be useful for indicating progress
-    in asynchronous tasks.
-    """
-
     def __init__(self, message_template: str = "Processing", enable_animation: bool = True):
         """
-        Initialize the Animation object.
+        Handles displaying an animated spinner with a message during long-running operations.
 
-        Sets up the necessary attributes for controlling the animation, including the
-        message template, the spinner characters, and the color scheme.
+        The ``Animation`` class provides a simple way to display a rotating spinner along with
+        a customizable message in the terminal, which can be useful for indicating progress
+        in asynchronous tasks.
+
+        Necessary attributes for controlling the Animation are set up during initialization
+        of Animation objects (e.g., the message template, spinner characters, and color scheme).
 
         :param message_template: The base message to display alongside the spinner.
-        :type message_template: str
+        :type message_template: :py:class:`str`
         :param enable_animation: Flag to enable or disable the spinner animation.
-        :type enable_animation: bool
+        :type enable_animation: :py:class:`bool`
         """
         self.stop_event = asyncio.Event()
         self.message_template = message_template
@@ -40,10 +32,8 @@ class Animation:
 
     async def start(self):
         """
-        Start the animation as an asyncio task.
-
-        This method initiates the spinner animation in an asynchronous task. If
-        animation is disabled, this method does nothing.
+        Start the animation as an asyncio task. If animation is disabled, this
+        method does nothing.
         """
         if not self.enable_animation:
             return
@@ -52,9 +42,7 @@ class Animation:
 
     async def stop(self):
         """
-        Stop the animation and wait for the task to finish.
-
-        This method stops the spinner animation by setting the stop event and
+        Stops the spinner animation by setting the stop event and
         waiting for the animation task to complete.
         """
         if self.task:
@@ -63,13 +51,11 @@ class Animation:
 
     async def update_msg(self, new_message_template: str):
         """
-        Update the message template.
-
         This method updates the message displayed alongside the spinner, clearing the
         previous message before displaying the new one.
 
         :param new_message_template: The new message to display alongside the spinner.
-        :type new_message_template: str
+        :type new_message_template: :py:class:`str`
         """
         async with self.lock:
             clear_message = "\r" + " " * self.last_message_length + "\r"
@@ -78,9 +64,7 @@ class Animation:
 
     async def _animate(self):
         """
-        Animate a rotating spinner in the message template.
-
-        This private method handles the actual animation of the spinner, cycling through
+        Private method to handle the actual animation of the spinner, cycling through
         a set of characters and colors while the stop event is not set. It runs in an
         asynchronous loop, updating the spinner and message at regular intervals.
         """
@@ -104,28 +88,18 @@ class Animation:
         click.echo("\r" + " " * max_length + "\r", nl=False)
 
     @asynccontextmanager
-    async def error_handling(self, log: LogMe):
+    async def error_handling(self):
         """
         Context manager for error handling with animation.
 
         This context manager starts the spinner animation when entering the context,
-        and stops it when exiting. If an exception occurs within the context, it is
-        logged and then re-raised.
-
-        :param log: The logger object used to log any errors that occur within the context.
-        :type log: LogMe
+        and stops it when exiting. If an exception occurs within the context, it stops
+        the animation and re-raises the exception.
         """
-        default_exceptions = tuple(
-            cls
-            for _, cls in inspect.getmembers(exceptions, inspect.isclass)
-            if issubclass(cls, Exception)
-        )
-
         await self.start()
         try:
             yield
-        except default_exceptions as e:
-            log.error(f"{e}")
+        except Exception:
             raise  # Raise exception that was caught
         finally:
             await self.stop()
