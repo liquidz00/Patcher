@@ -149,6 +149,7 @@ class ReportManager:
             output_path = self._validate_directory(path)
 
             self.log.debug("Attempting to retrieve policy IDs.")
+            await animation.update_msg("Retrieving policy IDs from Jamf...")
             try:
                 patch_ids = await self.api_client.get_policies()
                 self.log.info(f"Retrieved policy IDs for {len(patch_ids)} policies.")
@@ -159,6 +160,7 @@ class ReportManager:
                 )
 
             self.log.debug("Attempting to retrieve patch summaries.")
+            await animation.update_msg("Retrieving patch summaries from Jamf...")
             try:
                 patch_reports = await self.api_client.get_summaries(patch_ids)
                 self.log.info(f"Received policy summaries for {len(patch_reports)} policies.")
@@ -170,22 +172,27 @@ class ReportManager:
 
             # (option) Sort
             if sort:
+                await animation.update_msg("Sorting reports...")
                 patch_reports = await self._sort(patch_reports, sort)
 
             # (option) Omit
             if omit:
+                await animation.update_msg("Omitting recent releases...")
                 patch_reports = await self._omit(patch_reports)
 
             # (option) iOS
             if ios:
+                await animation.update_msg("Including iOS info...")
                 patch_reports = await self._ios(patch_reports)
 
             # Generate reports
+            await animation.update_msg("Generating Excel file...")
             excel_file = await self._generate_excel(
                 patch_reports=patch_reports, reports_dir=output_path
             )
 
             if pdf:
+                await animation.update_msg("Generating PDF report...")
                 await self._generate_pdf(excel_file=excel_file, date_format=date_format)
 
         # Manually stop animation to show success message cleanly
