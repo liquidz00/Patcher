@@ -1,6 +1,6 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 
 from . import Model
 from .label import Label
@@ -12,6 +12,8 @@ class PatchTitle(Model):
 
     :ivar title: The name of the patch title.
     :type title: :py:class:`str`
+    :ivar title_id: The ``softwareTitleId`` of the patch title from Jamf API response.
+    :type title_id: :py:class:`str`
     :ivar released: The release date of the patch title.
     :type released: :py:class:`str`
     :ivar hosts_patched: The number of hosts that have applied the patch.
@@ -28,6 +30,7 @@ class PatchTitle(Model):
     """
 
     title: str
+    title_id: str
     released: str
     hosts_patched: int
     missing_patch: int
@@ -35,6 +38,19 @@ class PatchTitle(Model):
     completion_percent: float = 0.0
     total_hosts: int = 0
     install_label: Optional[List[Label]] = None  # account for variants (e.g., zulujdk8, zulujdk9)
+
+    @classmethod
+    @field_validator("title_id")
+    def cast_as_string(cls, value: Union[int, str]) -> str:
+        """
+        Ensures the ``title_id`` property is always a string, regardless of type in API response payload.
+
+        :param value: The value of the ``title_id`` field.
+        :type value: :py:obj:`~typing.Union` [:py:class:`int` | :py:class:`str`]
+        :return: The value cast as a string.
+        :rtype: :py:class:`str`
+        """
+        return str(value)
 
     # Calculate completion percent via model validator
     @model_validator(mode="after")

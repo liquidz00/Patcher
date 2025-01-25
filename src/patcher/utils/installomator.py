@@ -136,7 +136,6 @@ class Installomator:
 
         # Create label directory
         if not await self._create_label_dir(fragments):
-            self.log.error("Failed to create label directory as expected.")
             raise PatcherError(
                 "Encountered error during Installomator setup trying to create label directory.",
                 path=self.label_path,
