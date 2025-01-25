@@ -45,7 +45,7 @@ Repository = "https://github.com/liquidz00/Patcher"
 Issues = "https://github.com/liquidz00/Patcher/issues/new?assignees=&labels=bug&projects=&template=issue.md&title=%5BISSUE%5D+Your+Issue+Title"
 
 [project.scripts]
-patcherctl = "patcher.cli:main"
+patcherctl = "patcher.cli:cli"
 
 [project.optional-dependencies]
 all = [
