@@ -116,6 +116,11 @@ html_theme_options = {
             "url": "https://pypi.org/project/patcherctl/",
             "icon": "fab fa-python",
         },
+        {
+            "name": "MacAdmins Slack",
+            "url": "https://macadmins.slack.com/archives/C07EH1R7LB0",
+            "icon": "fab fa-slack",
+        },
     ],
     "logo": {
         "text": "Patcher",

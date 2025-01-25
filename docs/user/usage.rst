@@ -95,8 +95,8 @@ Would result in a similar output as:
     DEBUG: Patcher finished as expected. Additional logs can be found at '~/Library/Application Support/Patcher/logs'.
     DEBUG: 41 patch reports saved successfully to /path/to/save/Patch-Reports.
 
-Workflow Dependency: Export and Analyze
----------------------------------------
+Command Dependencies
+--------------------
 
 The :ref:`analyze <analyze>` command is tightly integrated with the :ref:`export <export>` command. It is important to understand this dependency for using Patcher effectively. 
 
@@ -107,27 +107,34 @@ Key Points
 - **Alternative Input**: The ``analyze`` command can accept patch reports via the ``--excel-file`` option, but these files *must* adhere to the schema of an exported patch report to prevent errors. Refer to the exported report structure for details.
 
 Example Workflow
-^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~
 
-1. Export patch reports: 
-
-  .. code-block:: console
+.. code-block:: console
+    :caption: Export patch reports.
 
     $ patcherctl export --path /path/to/save --pdf
 
-2. Analyze exported or cached reports: 
-
-  .. code-block:: console
+.. code-block:: console
+    :caption: Analyze command with cached reports
 
     $ patcherctl analyze --criteria most-installed --threshold 75
-  
-  Alternatively, specify a compatible patch report file: 
 
-  .. code-block:: console
+.. code-block:: console
+    :caption: Analyze command with compatible patch report file
 
     $ patcherctl analyze --excel-file /path/to/patch-report.xlsx --criteria least-installed
 
-**Avoiding Errors**
+.. note::
+
+    If no objects meet the specified criteria during analysis, a warning will be displayed:
+
+    .. code-block:: console
+
+        $ patcherctl analyze --criteria below-threshold
+        ⚠️ No PatchTitle objects meet criteria FilterCriteria.BELOW_THRESHOLD
+
+Avoiding Errors
+~~~~~~~~~~~~~~~
 
 - Verify that exported patch reports are up-to-date before running the ``analyze`` command. 
 - Double-check that manually provided files conform to the patch report schema to avoid processing errors. 
@@ -147,46 +154,28 @@ Caching Behavior
 - **Disabling Caching**: Caching can be disabled at any time by passing the ``--disable-cache`` flag with any command at runtime.
 
 Managing Cached Data
-^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~
 
 The following commands are available to assist in managing cache data:
 
-1. **View Cached Files**:
+.. code-block:: console
+    :caption: Manually navigate to the cache directory to inspect cache data.
 
-    To inspect cached data, you can manually navigate to the cache directory:
+    $ open ~/Library/Caches/Patcher
 
-    .. code-block:: console
+.. code-block:: console
+    :caption: Remove cache directory contents with the ``reset`` command.
 
-        $ open ~/Library/Caches/Patcher
+    $ patcherctl reset cache
+    ✅ Reset finished successfully.
 
-2. **Reset Cache**:
+.. code-block:: console
+    :caption: Add the ``--disable-cache`` flag to any command to temporarily disable caching.
 
-    The contents of the cache directory can be removed with the ``reset`` command:
+    $ patcherctl export --path /path/to/save --disable-cache
 
-    .. code-block:: console
-
-        $ patcherctl reset cache
-        ✅ Reset finished successfully.
-
-3. **Disabling Cache**:
-
-    Add the ``--disable-cache`` flag to any command to temporarily disable caching:
-
-    .. code-block:: console
-
-        $ patcherctl export --path /path/to/save --disable-cache
-
-4. **Load Cached Data** (for Analysis):
-
-    If cached data exists, the :ref:`analyze <analyze>` command will automatically use it unless you provide an alternate file via the ``--excel-file`` option:
-
-    .. code-block:: console
-
-        $ patcherctl analyze --criteria most-installed --threshold 75
-
-    If no objects meet the criteria, a warning will be displayed to ``stdout``.
 
 Automatic Cache Cleaning
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-As mentioned previously, cache files older than 90 days are automatically cleaned each time data is cached or retrieved. This is designed to ensure efficient use of disk space while providing an ample time range for analysis. 
+Cache files older than 90 days are automatically cleaned each time data is cached or retrieved. This is designed to ensure efficient use of disk space while providing an ample time range for trend analysis.
