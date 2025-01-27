@@ -7,10 +7,14 @@ from . import Model
 
 
 class Label(Model):
+    """
+    # TODO
+    """
+
     name: str
     type: str
-    expected_team_id: str
-    installomator_label: str
+    expectedTeamID: str
+    installomatorLabel: str  # fragmentName - ".sh"
     downloadURL: str
     curlOptions: Optional[List[str]] = None
 
@@ -51,9 +55,16 @@ class Label(Model):
     @classmethod
     def from_dict(cls, data: Dict[str, Any], **kwargs) -> "Label":
         """
-        Creates a Label instance from a dictionary. Only includes keys that
-        match the fields defined in the Label model.
+        Creates a ``Label`` instance from passed dictionary.
+
+        Only includes keys that match the fields defined in the model.
+
+        :param data: API response payload to parse for object creation.
+        :type data: :py:obj:`~typing.Dict`
+        :return: The configured ``Label`` object.
+        :rtype: :class:`~patcher.models.label.Label`
         """
+        # noinspection PyUnresolvedReferences
         field_names = cls.model_fields.keys()
         filtered_data = {k: v for k, v in data.items() if k in field_names}
         return cls(**filtered_data, **kwargs)
