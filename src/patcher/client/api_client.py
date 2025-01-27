@@ -151,6 +151,42 @@ class ApiClient(BaseAPIClient):
         ]
         return devices
 
+    @check_token
+    async def get_app_names(self, patch_titles: List[PatchTitle]) -> List[Dict[str, str]]:
+        """
+        Fetches app names for each ``PatchTitle`` object provided.
+
+        :param patch_titles: List of ``PatchTitle`` objects.
+        :type patch_titles: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
+        :return: List of dictionaries containing the ``PatchTitle`` title and corresponding ``appName``
+        :rtype: :py:obj:`~typing.List` [:py:obj:`~typing.Dict`]
+        """
+        title_ids = [patch.title_id for patch in patch_titles if patch.title_id != "iOS"]
+        urls = [
+            f"{self.jamf_url}/api/v2/patch-software-title-configurations/{title_id}/definitions"
+            for title_id in title_ids
+        ]
+        query_params = {"page-size": 1, "sort": "absoluteOrderId:asc"}
+        headers = await self._headers()
+        batch_responses = await self.fetch_batch(urls, headers=headers, query_params=query_params)
+
+        app_names = []
+        for patch_title, response in zip(patch_titles, batch_responses):
+            results = response.get("results")
+            app_name = None
+            if results:
+                kill_apps = results[0].get("killApps")
+                app_name = kill_apps[0].get("appName") if kill_apps else None
+
+            app_names.append(
+                {
+                    "Patch": patch_title.title,
+                    "App Name": app_name,
+                }
+            )
+
+        return app_names
+
     async def get_sofa_feed(self) -> List[Dict[str, str]]:
         """
         Fetches iOS Data feeds from SOFA and extracts latest OS version information.
