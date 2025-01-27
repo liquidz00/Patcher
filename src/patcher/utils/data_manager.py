@@ -154,7 +154,7 @@ class DataManager:
         skipped_rows = 0
         patch_titles = []
 
-        for index, row in df.iterrows():
+        for _, row in df.iterrows():
             try:
                 patch = PatchTitle(
                     **{key.lower().replace(" ", "_"): value for key, value in row.items()}
@@ -163,7 +163,7 @@ class DataManager:
             except (KeyError, ValueError, TypeError, ValidationError) as e:
                 exception_name = type(e).__name__
                 self.log.warning(
-                    f"Error processing row at {index} due to {exception_name}. Skipping this row. Details: {e}."
+                    f"Encountered {exception_name} during PatchTitle creation. Skipping row. Details: {e}."
                 )
                 skipped_rows += 1
 
