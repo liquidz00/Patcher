@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -20,11 +20,17 @@ mock_df = pd.DataFrame(mock_data)
 
 
 @pytest.fixture
-def analyzer(tmp_path, mock_data_manager):
+def mock_iom():
+    mock_installomator = MagicMock()
+    return mock_installomator
+
+
+@pytest.fixture
+def analyzer(tmp_path, mock_data_manager, mock_iom):
     """Fixture to initialize Analyzer with a temporary file."""
     test_excel_path = tmp_path / "test.xlsx"
     mock_df.to_excel(test_excel_path, index=False)
-    return Analyzer(excel_path=test_excel_path, data_manager=mock_data_manager)
+    return Analyzer(excel_path=test_excel_path, data_manager=mock_data_manager, iom=mock_iom)
 
 
 def test_patch_title_calculation():
@@ -54,7 +60,7 @@ def test_patch_title_calculation():
 
 
 @patch("pandas.read_excel")
-def test_initialize_dataframe(mock_read_excel, tmp_path, mock_data_manager):
+def test_initialize_dataframe(mock_read_excel, tmp_path, mock_data_manager, mock_iom):
     """Test DataFrame initialization from an Excel file."""
     # Mock the return value of read_excel
     mock_read_excel.return_value = mock_df
@@ -64,7 +70,7 @@ def test_initialize_dataframe(mock_read_excel, tmp_path, mock_data_manager):
     mock_df.to_excel(test_excel_path, index=False)
 
     # Initialize Analyzer
-    analyzer = Analyzer(excel_path=test_excel_path, data_manager=mock_data_manager)
+    analyzer = Analyzer(excel_path=test_excel_path, data_manager=mock_data_manager, iom=mock_iom)
 
     # Assert DataFrame loaded correctly
     assert not analyzer.df.empty
