@@ -26,7 +26,7 @@ class Animation:
         self.enable_animation = enable_animation
         self.task = None
         self.lock = asyncio.Lock()
-        self.spinner_chars = ["\u25E4", "\u25E5", "\u25E2", "\u25E3"]
+        self.spinner_chars = ["\u25e4", "\u25e5", "\u25e2", "\u25e3"]
         self.colors = ["cyan", "magenta", "bright_cyan", "bright_magenta"]
         self.last_message_length = 0
 
