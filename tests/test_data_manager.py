@@ -24,6 +24,7 @@ def test_export_to_excel_success(sample_patch_reports, temp_output_dir):
         assert not df.empty
         assert list(df.columns) == [
             "Title",
+            # "Title Id",
             "Released",
             "Hosts Patched",
             "Missing Patch",
@@ -88,6 +89,7 @@ def test_titles_property_setter_valid():
     patch_titles = [
         PatchTitle(
             title="Patch A",
+            title_id="0",
             released="2022-01-01",
             hosts_patched=50,
             missing_patch=10,
@@ -95,6 +97,7 @@ def test_titles_property_setter_valid():
         ),
         PatchTitle(
             title="Patch B",
+            title_id="1",
             released="2023-01-01",
             hosts_patched=30,
             missing_patch=20,
@@ -130,6 +133,7 @@ def test_export_to_excel_permission_error(temp_output_path):
     mock_patches = [
         PatchTitle(
             title="Patch A",
+            title_id="0",
             released="2022-01-01",
             hosts_patched=50,
             missing_patch=10,
@@ -139,6 +143,7 @@ def test_export_to_excel_permission_error(temp_output_path):
         ),
         PatchTitle(
             title="Patch B",
+            title_id="1",
             released="2023-01-01",
             hosts_patched=30,
             missing_patch=20,
@@ -148,6 +153,7 @@ def test_export_to_excel_permission_error(temp_output_path):
         ),
         PatchTitle(
             title="Patch C",
+            title_id="2",
             released="2023-12-01",
             hosts_patched=20,
             missing_patch=5,
