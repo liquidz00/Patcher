@@ -76,13 +76,13 @@ def test_config_load_existing(ui_manager):
 
 def test_config_load_default(ui_manager):
     with (
-        patch.object(Path, "exists", side_effect=lambda: False),
-        patch.object(ui_manager, "_download_font", MagicMock()),
         patch("plistlib.load", return_value={}),
+        patch.object(Path, "exists", return_value=False),
+        patch.object(ui_manager, "create_default_config") as mock_create_default,
     ):
         config = ui_manager.config
-        assert config["FONT_REGULAR_PATH"].endswith("Assistant-Regular.ttf")
-        assert config["FONT_BOLD_PATH"].endswith("Assistant-Bold.ttf")
+        mock_create_default.assert_called_once()
+        assert config == {}
 
 
 def test_download_font_success(ui_manager):
