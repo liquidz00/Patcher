@@ -37,7 +37,10 @@ class PatchTitle(Model):
     latest_version: str
     completion_percent: float = 0.0
     total_hosts: int = 0
-    install_label: Optional[List[Label]] = None  # account for variants (e.g., zulujdk8, zulujdk9)
+    install_label: Optional[List[Label]] = []  # account for variants (e.g., zulujdk8, zulujdk9)
+
+    def __str__(self):
+        return f"{self.title} ({self.latest_version})"
 
     @classmethod
     @field_validator("title_id")
