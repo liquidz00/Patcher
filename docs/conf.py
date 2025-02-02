@@ -90,6 +90,7 @@ html_css_files = ["css/custom.css"]
 
 html_theme_options = {
     "external_links": [
+        {"url": "https://github.com/liquidz00/Patcher/blob/main/CHANGELOG.md", "name": "Changelog"},
         {"url": "https://www.macadmins.org", "name": "MacAdmins Foundation"},
         {"url": "https://community.jamf.com", "name": "JamfNation"},
         {
