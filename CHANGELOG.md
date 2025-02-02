@@ -7,7 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [v2.0.0] - 2025-01-23
+## [v2.0.2] - 2025-02-02
+### Added
+- Support for tracking `softwareTitleId` from Jamf API Response
+- macOS badge to README.md
+
+### Changed
+- Ignored columns are formatted properly before being dropped from export
+- `title_id` attribute  is set to `"iOS"` when calculating amount of devices on latest version
+
+### Fixed
+- HTML template path references (#25)
+
+## [v2.0.1] - 2025-01-24
+### Fixed
+- Resolved an issue where the entry point in `pyproject.toml` was not updated, preventing proper execution
+- All changes from v2.0.0 are included in this release
+
+## [v2.0.0] - 2025-01-23 [YANKED]
+> **This release was yanked from PyPi due to an incorrect entry point configuration in the projects TOML file. This issue was fixed in v2.0.1.**
+
 ### Added
 - Generated analyze summary file is now exported as an HTML report instead of a `.txt` file
 - Title, header, and date format are dynamically set in HTML reports
@@ -58,6 +77,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Custom CA file path functionality to `UIConfigManager` class
 - SSL verification checks that allow users to append a certificate path to the default CA file
 - `pathlib.Path` objects for cross-platform functionality
+- Latest version column added to datasets for exporting (#21)
+- Support for logo file to be passed to use on generated PDF reports (#22)
 
 ### Changed
 - Completion percent calculation is handled by `PatchTitle` class
