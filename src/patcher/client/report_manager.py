@@ -81,6 +81,7 @@ class ReportManager:
             mapped = [
                 PatchTitle(
                     title=f"iOS {latest_versions_dict[version]['ProductVersion']}",
+                    title_id="iOS",
                     released=latest_versions_dict[version]["ReleaseDate"],
                     hosts_patched=counts["count"],
                     missing_patch=counts["total"] - counts["count"],

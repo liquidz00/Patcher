@@ -8,6 +8,7 @@ from src.patcher.models.patch import PatchTitle
 # Mock DataFrame for testing
 mock_data = {
     "Title": ["Patch A", "Patch B", "Patch C"],
+    "Title Id": ["0", "1", "2"],
     "Released": ["2022-01-01", "2023-01-01", "2023-12-01"],
     "Hosts Patched": [50, 30, 20],
     "Missing Patch": [10, 20, 5],
@@ -30,6 +31,7 @@ def test_patch_title_calculation():
     """Test the PatchTitle model's completion percentage calculation."""
     patch_title = PatchTitle(
         title="Patch A",
+        title_id="0",
         released="2022-01-01",
         hosts_patched=50,
         missing_patch=10,
@@ -41,6 +43,7 @@ def test_patch_title_calculation():
     # Test with zero total hosts
     patch_title_zero = PatchTitle(
         title="Patch B",
+        title_id="1",
         released="2023-01-01",
         hosts_patched=0,
         missing_patch=0,
@@ -86,6 +89,7 @@ def test_filter_titles(analyzer, mock_data_manager):
     patch_titles = [
         PatchTitle(
             title="Patch A",
+            title_id="0",
             released="2022-01-01",
             hosts_patched=50,
             missing_patch=10,
@@ -95,6 +99,7 @@ def test_filter_titles(analyzer, mock_data_manager):
         ),
         PatchTitle(
             title="Patch B",
+            title_id="1",
             released="2023-01-01",
             hosts_patched=30,
             missing_patch=20,
@@ -104,6 +109,7 @@ def test_filter_titles(analyzer, mock_data_manager):
         ),
         PatchTitle(
             title="Patch C",
+            title_id="2",
             released="2023-12-01",
             hosts_patched=20,
             missing_patch=5,
@@ -147,6 +153,7 @@ def test_filter_titles_parametrized(analyzer, criteria, expected_count, mock_dat
     mock_data_manager.titles = [
         PatchTitle(
             title="Patch A",
+            title_id="0",
             released="2022-01-01",
             hosts_patched=50,
             missing_patch=10,
@@ -154,6 +161,7 @@ def test_filter_titles_parametrized(analyzer, criteria, expected_count, mock_dat
         ),
         PatchTitle(
             title="Patch B",
+            title_id="1",
             released="2023-01-01",
             hosts_patched=30,
             missing_patch=20,
@@ -161,6 +169,7 @@ def test_filter_titles_parametrized(analyzer, criteria, expected_count, mock_dat
         ),
         PatchTitle(
             title="Patch C",
+            title_id="2",
             released="2023-12-01",
             hosts_patched=20,
             missing_patch=5,

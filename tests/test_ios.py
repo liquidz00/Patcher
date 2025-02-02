@@ -93,6 +93,7 @@ async def test_calculate_ios_on_latest_success(patcher_instance):
     expected_result = [
         PatchTitle(
             title="iOS 17.5.1",
+            title_id="iOS",
             released="2024-05-20T00:00:00Z",
             hosts_patched=2,
             missing_patch=0,
@@ -102,6 +103,7 @@ async def test_calculate_ios_on_latest_success(patcher_instance):
         ),
         PatchTitle(
             title="iOS 16.7.8",
+            title_id="iOS",
             released="2024-05-13T00:00:00Z",
             hosts_patched=1,
             missing_patch=0,
@@ -138,6 +140,7 @@ async def test_calculate_ios_on_latest_no_devices_on_latest(patcher_instance):
     expected_result = [
         PatchTitle(
             title="iOS 17.5.1",
+            title_id="iOS",
             released="2024-05-20T00:00:00Z",
             hosts_patched=0,
             missing_patch=1,
@@ -147,6 +150,7 @@ async def test_calculate_ios_on_latest_no_devices_on_latest(patcher_instance):
         ),
         PatchTitle(
             title="iOS 16.7.8",
+            title_id="iOS",
             released="2024-05-13T00:00:00Z",
             hosts_patched=0,
             missing_patch=1,
@@ -179,6 +183,7 @@ async def test_calculate_ios_on_latest_all_devices_on_latest(patcher_instance):
     expected_result = [
         PatchTitle(
             title="iOS 17.5.1",
+            title_id="iOS",
             released="2024-05-20T00:00:00Z",
             hosts_patched=2,
             missing_patch=0,
@@ -211,6 +216,7 @@ async def test_calculate_ios_on_latest_some_devices_on_latest(patcher_instance):
     expected_result = [
         PatchTitle(
             title="iOS 17.5.1",
+            title_id="iOS",
             released="2024-05-20T00:00:00Z",
             hosts_patched=1,
             missing_patch=1,

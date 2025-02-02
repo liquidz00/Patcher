@@ -4,7 +4,8 @@
     </a>
 </p>
 
-![](https://img.shields.io/pypi/l/patcherctl)&nbsp;![](https://img.shields.io/badge/Python-3.10+-3776AB.svg?style=flat&logo=python&logoColor=white)&nbsp;![](https://img.shields.io/github/v/release/liquidz00/Patcher?color=orange)&nbsp;![](https://github.com/liquidz00/patcher/actions/workflows/pytest.yml/badge.svg)&nbsp;![](https://img.shields.io/pypi/v/patcherctl?color=yellow)
+![](https://img.shields.io/pypi/l/patcherctl)&nbsp;![](https://img.shields.io/badge/Python-3.10+-3776AB.svg?style=flat&logo=python&logoColor=white)&nbsp;![](https://img.shields.io/github/v/release/liquidz00/Patcher?color=orange)&nbsp;![](https://github.com/liquidz00/patcher/actions/workflows/pytest.yml/badge.svg)&nbsp;![](https://img.shields.io/pypi/v/patcherctl?color=yellow)&nbsp;![](https://img.shields.io/badge/macOS-10.13%2B-blueviolet?logo=apple&logoSize=auto)
+
 
 ----
 

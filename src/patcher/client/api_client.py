@@ -96,6 +96,7 @@ class ApiClient(BaseAPIClient):
         patch_titles = [
             PatchTitle(
                 title=summary.get("title"),
+                title_id=summary.get("softwareTitleId"),
                 released=self._convert_tz(summary.get("releaseDate")),
                 hosts_patched=summary.get("upToDate"),
                 missing_patch=summary.get("outOfDate"),

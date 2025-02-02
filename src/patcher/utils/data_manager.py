@@ -15,7 +15,7 @@ from .logger import LogMe
 
 class DataManager:
 
-    _IGNORED = ["install_label"]
+    _IGNORED = ["install_label", "title_id"]
 
     def __init__(self, disable_cache: bool = False):
         """
@@ -139,7 +139,6 @@ class DataManager:
         self.log.debug("Attempting to create DataFrame from PatchTitle objects.")
         try:
             df = pd.DataFrame([patch.model_dump() for patch in patch_titles])
-            df = df.drop(columns=DataManager._IGNORED, errors="ignore")  # Drop excluded columns
             df.columns = [column.replace("_", " ").title() for column in df.columns]
             self.log.info(
                 f"Created DataFrame from {len(patch_titles)} PatchTitle objects successfully."
@@ -154,7 +153,7 @@ class DataManager:
         skipped_rows = 0
         patch_titles = []
 
-        for index, row in df.iterrows():
+        for _, row in df.iterrows():
             try:
                 patch = PatchTitle(
                     **{key.lower().replace(" ", "_"): value for key, value in row.items()}
@@ -163,7 +162,7 @@ class DataManager:
             except (KeyError, ValueError, TypeError, ValidationError) as e:
                 exception_name = type(e).__name__
                 self.log.warning(
-                    f"Error processing row at {index} due to {exception_name}. Skipping this row. Details: {e}."
+                    f"Encountered {exception_name} during PatchTitle creation. Skipping row. Details: {e}."
                 )
                 skipped_rows += 1
 
@@ -191,6 +190,9 @@ class DataManager:
 
         current_date = datetime.now().strftime("%m-%d-%y")
         df = self._create_dataframe(patch_titles)
+        df = df.drop(
+            columns=[col.replace("_", " ").title() for col in DataManager._IGNORED], errors="ignore"
+        )  # Drop excluded columns
 
         self.log.debug("Attempting to export patch reports to Excel.")
         try:
@@ -242,7 +244,11 @@ class DataManager:
         file_path = export_dir / f"patch-analysis-{current_date}.html"
 
         filtered_data = [
-            {key: value for key, value in patch.model_dump().items() if key not in self._IGNORED}
+            {
+                key: value
+                for key, value in patch.model_dump().items()
+                if key not in DataManager._IGNORED
+            }
             for patch in titles
         ]
 

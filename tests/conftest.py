@@ -121,6 +121,7 @@ def mock_patch_title_response():
     yield [
         PatchTitle(
             title="Google Chrome",
+            title_id="3",
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=3)),
             hosts_patched=23,
             missing_patch=163,
@@ -128,6 +129,7 @@ def mock_patch_title_response():
         ),
         PatchTitle(
             title="Jamf Connect",
+            title_id="4",
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(hours=24)),
             hosts_patched=185,
             missing_patch=19,
@@ -135,6 +137,7 @@ def mock_patch_title_response():
         ),
         PatchTitle(
             title="Apple macOS Ventura",
+            title_id="5",
             released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=7)),
             hosts_patched=6,
             missing_patch=5,
@@ -376,6 +379,7 @@ def sample_patch_reports():
     return [
         PatchTitle(
             title="Example Software",
+            title_id="0",
             released="2024-01-01",
             hosts_patched=10,
             missing_patch=2,
