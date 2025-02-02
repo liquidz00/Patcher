@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `title_id` attribute  is set to `"iOS"` when calculating amount of devices on latest version
 
 ### Fixed
-- HTML template path references (#25)
+- HTML template path references [#25](https://github.com/liquidz00/Patcher/issues/25)
 
 ## [v2.0.1] - 2025-01-24
 ### Fixed
@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `ExcelReport` class refactored into `DataManager` class to support automatic caching
 - `excel_file` parameter is no longer *required*, `DataManager` objects will default to latest cached dataset available
-- **Logging Improvements**: `INFO`, `DEBUG`, and `WARNING` log level messages now have consistent format
+- `INFO`, `DEBUG`, and `WARNING` log level messages now have consistent format
 
 ### Deprecated
 - `AccessToken` management has been refactored into `TokenManager`, deprecating `headers` property
@@ -75,8 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Custom CA file path functionality to `UIConfigManager` class
 - SSL verification checks that allow users to append a certificate path to the default CA file
 - `pathlib.Path` objects for cross-platform functionality
-- Latest version column added to datasets for exporting (#21)
-- Support for logo file to be passed to use on generated PDF reports (#22)
+- Latest version column added to datasets for exporting [#21](https://github.com/liquidz00/Patcher/issues/21)
+- Support for logo file to be passed to use on generated PDF reports [#22](https://github.com/liquidz00/Patcher/issues/22)
 
 ### Changed
 - Completion percent calculation is handled by `PatchTitle` class
@@ -164,7 +164,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `check_token_lifetime` function defaults to `client_id` in `.env`
 
 ### Deprecated
-- `datetime.utcnow()` deprecated as of Python 3.12 (Gabriel Sroka (@gabrielsroka))
+- `datetime.utcnow()` deprecated as of Python 3.12 (Gabriel Sroka [@gabrielsroka](https://github.com/gabrielsroka))
 
 ### Fixed
 - Issue with iOS device export
@@ -173,8 +173,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Properly await token lifetime checks
 
 ### Security
-- Patched `urllib3` per CVE-2024-37891
-- Patched `requests` per CVE-2024-35195
+- Patched `urllib3` per [CVE-2024-37891](https://github.com/advisories/GHSA-34jh-p97f-mpxf)
+- Patched `requests` per [CVE-2024-35195](https://github.com/advisories/GHSA-9wx4-h78v-vm56)
 
 ## [v1.2.1] - 2024-05-11
 ### Added
@@ -192,7 +192,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `installer.sh` location
 
 ### Security
-- Patched `idna` per CVE-2024-3651
+- Patched `idna` per [CVE-2024-3651](https://github.com/advisories/GHSA-jjg7-2v4v-x38h)
 
 ## [v1.1.0] - 2024-04-04
 ### Added
@@ -202,7 +202,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--user` flag to requirements installation
 
 ### Changed
-- Date header now includes day by default, additional date formats can be passed with `--date-format` option (#7)
+- Date header now includes day by default, additional date formats can be passed with `--date-format` option [#7](https://github.com/liquidz00/Patcher/issues/7)
 - Project directory is no longer hidden by default
 - Custom fonts are copied into project directory instead of referencing
 - Logs are written to log file instead of nested `data` directory
