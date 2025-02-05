@@ -190,6 +190,7 @@ class DataManager:
 
         current_date = datetime.now().strftime("%m-%d-%y")
         df = self._create_dataframe(patch_titles)
+        self._cache_data(df)
         df = df.drop(
             columns=[col.replace("_", " ").title() for col in DataManager._IGNORED], errors="ignore"
         )  # Drop excluded columns
@@ -199,7 +200,6 @@ class DataManager:
             excel_path = os.path.join(output_dir, f"patch-report-{current_date}.xlsx")
             df.to_excel(excel_path, index=False)
             self.log.info(f"Excel report created successfully to {excel_path}.")
-            self._cache_data(df)
             self.latest_excel_file = excel_path
             return excel_path
         except (OSError, PermissionError) as e:
