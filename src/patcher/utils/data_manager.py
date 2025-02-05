@@ -139,7 +139,6 @@ class DataManager:
         self.log.debug("Attempting to create DataFrame from PatchTitle objects.")
         try:
             df = pd.DataFrame([patch.model_dump() for patch in patch_titles])
-            df = df.drop(columns=DataManager._IGNORED, errors="ignore")  # Drop excluded columns
             df.columns = [column.replace("_", " ").title() for column in df.columns]
             self.log.info(
                 f"Created DataFrame from {len(patch_titles)} PatchTitle objects successfully."
@@ -191,13 +190,16 @@ class DataManager:
 
         current_date = datetime.now().strftime("%m-%d-%y")
         df = self._create_dataframe(patch_titles)
+        self._cache_data(df)
+        df = df.drop(
+            columns=[col.replace("_", " ").title() for col in DataManager._IGNORED], errors="ignore"
+        )  # Drop excluded columns
 
         self.log.debug("Attempting to export patch reports to Excel.")
         try:
             excel_path = os.path.join(output_dir, f"patch-report-{current_date}.xlsx")
             df.to_excel(excel_path, index=False)
             self.log.info(f"Excel report created successfully to {excel_path}.")
-            self._cache_data(df)
             self.latest_excel_file = excel_path
             return excel_path
         except (OSError, PermissionError) as e:
@@ -242,7 +244,11 @@ class DataManager:
         file_path = export_dir / f"patch-analysis-{current_date}.html"
 
         filtered_data = [
-            {key: value for key, value in patch.model_dump().items() if key not in self._IGNORED}
+            {
+                key: value
+                for key, value in patch.model_dump().items()
+                if key not in DataManager._IGNORED
+            }
             for patch in titles
         ]
 
