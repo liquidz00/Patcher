@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from ..models.patch import PatchTitle
 from ..utils.decorators import check_token
@@ -152,9 +152,9 @@ class ApiClient(BaseAPIClient):
         return devices
 
     @check_token
-    async def get_app_names(self, patch_titles: List[PatchTitle]) -> List[Dict[str, str]]:
+    async def get_app_names(self, patch_titles: List[PatchTitle]) -> List[Dict[str, Any]]:
         """
-        Fetches app names for each ``PatchTitle`` object provided.
+        Fetches all possible app names for each ``PatchTitle`` object provided.
 
         :param patch_titles: List of ``PatchTitle`` objects.
         :type patch_titles: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
@@ -173,15 +173,18 @@ class ApiClient(BaseAPIClient):
         app_names = []
         for patch_title, response in zip(patch_titles, batch_responses):
             results = response.get("results")
-            app_name = None
+            extracted_app_names = []
+
             if results:
                 kill_apps = results[0].get("killApps")
-                app_name = kill_apps[0].get("appName") if kill_apps else None
+                extracted_app_names = [
+                    app.get("appName") for app in kill_apps if app.get("appName")
+                ]
 
             app_names.append(
                 {
                     "Patch": patch_title.title,
-                    "App Name": app_name,
+                    "App Names": extracted_app_names,
                 }
             )
 
