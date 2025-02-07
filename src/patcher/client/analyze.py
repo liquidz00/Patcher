@@ -8,7 +8,6 @@ import pandas as pd
 from ..models.patch import PatchTitle
 from ..utils.data_manager import DataManager
 from ..utils.exceptions import FetchError, PatcherError
-from ..utils.installomator import Installomator
 from ..utils.logger import LogMe
 
 
@@ -62,7 +61,6 @@ class Analyzer:
     def __init__(
         self,
         data_manager: DataManager,
-        iom: Installomator,
         excel_path: Optional[Union[Path, str]] = None,
     ):
         """
@@ -72,14 +70,11 @@ class Analyzer:
 
         :param data_manager: The ``DataManager`` instance for retrieving and managing patch data.
         :type data_manager: :class:`~patcher.utils.data_manager.DataManager`
-        :param iom: The ``Installomator`` instance for identifying titles with Installomator support.
-        :type iom: :class:`~patcher.utils.installomator.Installomator`
         :param excel_path: Path to the Excel file.
         :type excel_path: :py:obj:`~typing.Union` [:py:obj:`~pathlib.Path` | :py:class:`str`]
         """
         self.log = LogMe(self.__class__.__name__)
         self.data_manager = data_manager
-        self.iom = iom
         if excel_path:
             self.df = self.initialize_dataframe(excel_path)
         else:
