@@ -1,9 +1,12 @@
 import asyncio
+import fnmatch
+import json
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pydantic import ValidationError
+from rapidfuzz import fuzz, process
 
 from ..client.api_client import ApiClient
 from ..client.config_manager import ConfigManager
@@ -15,18 +18,22 @@ from .logger import LogMe
 
 
 class Installomator:
-    def __init__(self, max_concurrency: Optional[int] = 5):
+    def __init__(self, max_concurrency: Optional[int] = 5, threshold: Optional[int] = 85):
         """
         # TODO
 
         :param max_concurrency:
-        :type max_concurrency:
+        :type max_concurrency: :py:obj:`~typing.Optional` [:py:class:`int`]
+        :param threshold:
+        :type threshold: :py:obj:`~typing.Optional` [:py:class:`int`]
         """
         self.log = LogMe(self.__class__.__name__)
         self.label_path = Path.home() / "Library/Application Support/Patcher/.labels"
         self.config = ConfigManager()
         self.api = ApiClient(config=self.config, concurrency=max_concurrency)
         self.data_manager = DataManager()
+        self.threshold = threshold
+        self.review_file = Path.home() / "Library/Application Support/Patcher/unmatched_apps.json"
 
         self._labels: Optional[List[Label]] = None
         self._fragments: Optional[List[Fragment]] = None
@@ -160,6 +167,79 @@ class Installomator:
 
         return labels
 
+    @staticmethod
+    def _normalize(app_name: str) -> str:
+        """Normalizes app names to better match Installomator labels (e.g. nodejs)."""
+        return app_name.lower().replace(" ", "").replace(".", "")
+
+    def _match_directly(self, app_names: List[str], label_lookup: Dict[str, Label]) -> List[Label]:
+        """Attempts direct and normalized name matching."""
+        matched_labels = []
+        for app_name in app_names:
+            normalized_name = self._normalize(app_name)
+            if app_name.lower() in label_lookup:
+                matched_labels.append(label_lookup[app_name.lower()])
+            if normalized_name in label_lookup:
+                matched_labels.append(label_lookup[normalized_name])
+        return matched_labels
+
+    def _match_fuzzy(self, app_names: List[str], label_lookup: Dict[str, Label]) -> List[Label]:
+        """Attempts fuzzy matching if no direct match is found."""
+        matched_labels = []
+        for app_name in app_names:
+            result = process.extractOne(app_name.lower(), list(label_lookup.keys()), scorer=fuzz.ratio)  # type: ignore
+            if result:
+                best_match, score, _ = result
+                if best_match and score >= self.threshold:
+                    matched_labels.append(label_lookup[best_match])
+        return matched_labels
+
+    def _second_pass(
+        self, unmatched_apps: List[Dict[str, Any]], label_lookup: Dict[str, Label]
+    ) -> int:
+        """Attempts to match previously unmatched apps by normalized ``PatchTitle.title`` and fuzzy search."""
+        matched_count = 0
+        still_unmatched = []
+
+        for entry in unmatched_apps:
+            patch_name = entry["Patch"]
+            normalized_patch = self._normalize(patch_name)
+            patch_title = next(
+                (pt for pt in self.data_manager.titles if pt.title == patch_name), None
+            )
+
+            if normalized_patch in label_lookup:
+                if patch_title:
+                    patch_title.install_label.append(label_lookup[normalized_patch])
+                    self.log.debug(
+                        f"Second-pass normalized match for {patch_name} → {normalized_patch}"
+                    )
+                    matched_count += 1
+                continue
+
+            result = process.extractOne(normalized_patch, list(label_lookup.keys()), scorer=fuzz.ratio)  # type: ignore
+            if result:
+                best_match, score, _ = result
+                if best_match and score >= self.threshold:
+                    if patch_title:
+                        patch_title.install_label.append(label_lookup[best_match])
+                        self.log.debug(
+                            f"Second-pass fuzzy match for {patch_name} → {best_match} (Score: {score})"
+                        )
+                        matched_count += 1
+                    continue
+
+            still_unmatched.append(entry)
+
+        unmatched_apps[:] = still_unmatched
+        return matched_count
+
+    def _save_unmatched_apps(self, unmatched_apps: List[Dict[str, Any]]) -> None:
+        """Saves unmatched apps to a JSON file for later review."""
+        self.review_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.review_file, "w") as file:
+            json.dump(unmatched_apps, file, indent=4)  # type: ignore
+
     async def get_labels(self) -> List[Label]:
         """
         Builds ``Label`` objects after collecting ``Fragment`` objects from GitHub API.
@@ -173,44 +253,65 @@ class Installomator:
             self._labels = await self._build_labels()
         return self._labels
 
-    async def match(self):
+    async def match(self) -> None:
         """
-        # TODO
-        #   - Identify if API client should return list of Dicts for get_app_names or single Dict
-        #   - Match method logic will need to change depending on that
-        #   - Currently `get_app_names` returns single Dict, `match` will fail as its configured to work with a list
+        Matches Installomator labels to ``PatchTitle`` objects using direct mapping and fuzzy matching.
 
-        :return:
-        :rtype:
+        - Uses multiple app names from :meth:`~patcher.client.api_client.ApiClient.get_app_names`
+        - Matches labels directly by name by default
+        - Applies fuzzy matching as a fallback if direct matching fails
+        - Updates :attr:`~patcher.models.patch.PatchTitle.install_label` with matched labels
         """
         self.log.debug("Starting label-patch title matching process.")
 
-        # Retrieve patch title / app name dict from api
+        IGNORED_TITLES = [  # noqa: N806
+            "Apple macOS *",
+            "Oracle Java SE *",
+            "Eclipse Temurin *",
+            "Apple Safari",
+            "Apple Xcode",
+            "Microsoft Visual Studio",  # Support deprecated
+        ]
+
         software_titles = await self.api.get_app_names(patch_titles=self.data_manager.titles)
-
-        # Parse label objects for app name
         labels = self._labels or await self.get_labels()
-
         label_lookup = {label.name.lower(): label for label in labels}
-        matched_count = 0  # Track number of PatchTitle objects with matched labels
+
+        matched_count = 0
+        unmatched_apps = []
 
         for patch_title in self.data_manager.titles:
-            app_name = software_titles.get("App Name").lower().strip()
-
-            if not app_name:
-                self.log.warning(f"Skipping {patch_title.title} - No app name found.")
+            if any(fnmatch.fnmatch(patch_title.title, pattern) for pattern in IGNORED_TITLES):
+                self.log.info(f"Ignoring {patch_title.title}")
                 continue
 
-            # Handle multiple matches
-            matched_labels = [
-                label for label_name, label in label_lookup.items() if app_name in label_name
-            ]
+            app_name_entry = next(
+                (entry for entry in software_titles if entry["Patch"] == patch_title.title), None
+            )
+            app_names = app_name_entry["App Names"] if app_name_entry else []
 
-            # Add Label to PatchTitle.install_label list if match found
+            if not app_names:
+                self.log.warning(f"Skipping {patch_title.title} - No app names found.")
+                unmatched_apps.append({"Patch": patch_title.title, "App Names": []})
+                continue
+
+            matched_labels = self._match_directly(app_names, label_lookup) or self._match_fuzzy(
+                app_names, label_lookup
+            )
+
             if matched_labels:
                 patch_title.install_label.extend(matched_labels)
                 matched_count += 1
+            else:
+                unmatched_apps.append({"Patch": patch_title.title, "App Names": app_names})
+
+        matched_count += self._second_pass(unmatched_apps, label_lookup)
+
+        self._save_unmatched_apps(unmatched_apps)
 
         self.log.info(
             f"Matching process finished. {matched_count} PatchTitle objects were updated."
+        )
+        self.log.warning(
+            f"{len(unmatched_apps)} PatchTitle objects had no matches. Review: {self.review_file}"
         )
