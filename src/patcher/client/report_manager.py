@@ -10,6 +10,7 @@ from ..models.patch import PatchTitle
 from ..utils.animation import Animation
 from ..utils.data_manager import DataManager
 from ..utils.exceptions import APIResponseError, PatcherError
+from ..utils.installomator import Installomator
 from ..utils.logger import LogMe
 from ..utils.pdf_report import PDFReport
 from .api_client import ApiClient
@@ -40,6 +41,7 @@ class ReportManager:
         self.pdf_report = pdf_report
         self.debug = debug
         self.log = LogMe(self.__class__.__name__)
+        self.iom = Installomator()
 
     def calculate_ios_on_latest(
         self,
@@ -185,6 +187,10 @@ class ReportManager:
             if ios:
                 await animation.update_msg("Including iOS info...")
                 patch_reports = await self._ios(patch_reports)
+
+            # Match titles with labels via Installomator
+            await animation.update_msg("Identifying Installomator support for titles...")
+            await self.iom.match(patch_reports)
 
             # Generate reports
             await animation.update_msg("Generating Excel file...")
