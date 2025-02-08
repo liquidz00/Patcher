@@ -21,7 +21,7 @@ class ApiClient(BaseAPIClient):
 
         :param config: Instance of ``ConfigManager`` for loading and storing credentials.
         :type config: :class:`~patcher.client.config_manager.ConfigManager`
-        :param concurrency: Maximum number of concurrent API requests. See :class:`~patcher.client.__init__.BaseAPIClient.concurrency`.
+        :param concurrency: Maximum number of concurrent API requests. See :ref:`concurrency <concurrency>` in Usage docs.
         :type concurrency: :py:class:`int`
         """
         self.log = LogMe(self.__class__.__name__)
