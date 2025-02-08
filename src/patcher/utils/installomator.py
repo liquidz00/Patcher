@@ -12,27 +12,28 @@ from ..client.api_client import ApiClient
 from ..client.config_manager import ConfigManager
 from ..models.fragment import Fragment
 from ..models.label import Label
+from ..models.patch import PatchTitle
 from .data_manager import DataManager
 from .exceptions import APIResponseError, PatcherError, ShellCommandError
 from .logger import LogMe
 
 
 class Installomator:
-    def __init__(self, max_concurrency: Optional[int] = 5, threshold: Optional[int] = 85):
+    def __init__(self, concurrency: Optional[int] = 5):
         """
-        # TODO
+        The Installomator class interacts with `Installomator <https://github.com/Installomator/Installomator>`_, a script used for automated software installations on macOS.
 
-        :param max_concurrency:
-        :type max_concurrency: :py:obj:`~typing.Optional` [:py:class:`int`]
-        :param threshold:
-        :type threshold: :py:obj:`~typing.Optional` [:py:class:`int`]
+        This class provides methods for fetching, parsing, and matching Installomator labels to ``PatchTitle`` objects using direct or fuzzy matching.
+
+        :param concurrency: Number of concurrent requests allowed for API operations. See :ref:`concurrency <concurrency>` in Usage docs.
+        :type concurrency: :py:obj:`~typing.Optional` [:py:class:`int`]
         """
         self.log = LogMe(self.__class__.__name__)
         self.label_path = Path.home() / "Library/Application Support/Patcher/.labels"
         self.config = ConfigManager()
-        self.api = ApiClient(config=self.config, concurrency=max_concurrency)
+        self.api = ApiClient(config=self.config, concurrency=concurrency)
         self.data_manager = DataManager()
-        self.threshold = threshold
+        self.threshold = 85
         self.review_file = Path.home() / "Library/Application Support/Patcher/unmatched_apps.json"
 
         self._labels: Optional[List[Label]] = None
@@ -253,7 +254,7 @@ class Installomator:
             self._labels = await self._build_labels()
         return self._labels
 
-    async def match(self) -> None:
+    async def match(self, patch_titles: List[PatchTitle]) -> None:
         """
         Matches Installomator labels to ``PatchTitle`` objects using direct mapping and fuzzy matching.
 
@@ -261,6 +262,9 @@ class Installomator:
         - Matches labels directly by name by default
         - Applies fuzzy matching as a fallback if direct matching fails
         - Updates :attr:`~patcher.models.patch.PatchTitle.install_label` with matched labels
+
+        :param patch_titles: The list of ``PatchTitle`` objects to match with ``Label`` objects.
+        :type patch_titles: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
         """
         self.log.debug("Starting label-patch title matching process.")
 
@@ -273,14 +277,14 @@ class Installomator:
             "Microsoft Visual Studio",  # Support deprecated
         ]
 
-        software_titles = await self.api.get_app_names(patch_titles=self.data_manager.titles)
+        software_titles = await self.api.get_app_names(patch_titles=patch_titles)
         labels = self._labels or await self.get_labels()
         label_lookup = {label.name.lower(): label for label in labels}
 
         matched_count = 0
         unmatched_apps = []
 
-        for patch_title in self.data_manager.titles:
+        for patch_title in patch_titles:
             if any(fnmatch.fnmatch(patch_title.title, pattern) for pattern in IGNORED_TITLES):
                 self.log.info(f"Ignoring {patch_title.title}")
                 continue
