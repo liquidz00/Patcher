@@ -16,7 +16,6 @@ from .client.ui_manager import UIConfigManager
 from .utils.animation import Animation
 from .utils.data_manager import DataManager
 from .utils.exceptions import APIResponseError, PatcherError
-from .utils.installomator import Installomator
 from .utils.logger import LogMe, PatcherLog
 from .utils.pdf_report import PDFReport
 
