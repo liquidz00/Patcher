@@ -80,6 +80,8 @@ Filter Criteria Options
           - Lists software titles with completion percentage above 90%.
         * - ``high-missing``
           - Filters software titles where missing patches are greater than 50% of total hosts.
+        * - ``installomator``
+          - Returns ``PatchTitles`` that have `Installomator <https://github.com/Installomator/Installomator>`_ labels. Helpful to identify which software titles support automated patching.
 
 Trend Criteria Options
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -161,6 +163,12 @@ Filter Criteria
     .. code-block:: console
 
         $ patcherctl analyze [/path/to/excel.xlsx] --criteria top-performers
+
+.. card:: Installomator
+
+    .. code-block:: console
+
+        $ patcherctl analyze [/path/to/excel.xlsx] --criteria installomator
 
 Trend Criteria
 ^^^^^^^^^^^^^^
