@@ -39,6 +39,9 @@ class Label(Model):
     #   installerTool: Optional[str] = None
     #   curlOptions: Optional[List[str]] = None
 
+    def __str__(self):
+        return f"Name: {self.name} Type: {self.type} Label: {self.installomatorLabel}"
+
     @classmethod
     @field_validator("type", mode="before")
     def validate_type(cls, v):
