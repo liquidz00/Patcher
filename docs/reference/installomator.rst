@@ -4,5 +4,9 @@
 Installomator
 =============
 
+.. seealso::
+
+    :ref:`Installomator Usage Docs <installomator>`
+
 .. autoclass:: patcher.utils.installomator.Installomator
     :members:
