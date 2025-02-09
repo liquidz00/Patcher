@@ -11,6 +11,7 @@ from src.patcher.__about__ import __version__
 
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("../src"))
+sys.path.insert(0, os.path.abspath("./ext"))
 sys.path.append(str(Path(".").resolve()))
 
 # -- Project information -----------------------------------------------------
@@ -38,7 +39,16 @@ extensions = [
     "sphinx_copybutton",
     "myst_parser",
     "sphinx_togglebutton",
+    "ghwiki",
 ]
+
+# ghwiki
+github_wiki_repos = {
+    "Installomator": "https://github.com/Installomator/Installomator",
+    "AutoPkg": "https://github.com/autopkg/autopkg",
+}
+
+github_wiki_default = "Installomator"
 
 # Intersphinx mapping
 intersphinx_mapping = {
