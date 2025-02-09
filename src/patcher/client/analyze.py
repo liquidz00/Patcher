@@ -46,6 +46,7 @@ class FilterCriteria(BaseEnum):
     RECENT_RELEASE = "recent_release"
     ZERO_COMPLETION = "zero_completion"
     TOP_PERFORMERS = "top_performers"
+    INSTALLOMATOR = "installomator"
 
 
 class TrendCriteria(BaseEnum):
@@ -206,6 +207,7 @@ class Analyzer:
                 - 'high_missing': Titles where missing patches are greater than 50% of total hosts.
                 - 'zero_completion': Titles with zero completion percentage.
                 - 'top_performers': Titles with completion percentage greater than 90%.
+                - 'installomator': Titles that have Installomator labels. See :ref:`Installomator <installomator>`
 
         :type criteria: :class:`~patcher.client.analyze.FilterCriteria`
         :param threshold: The threshold for filtering completion percentages, default is 70.0.
@@ -251,6 +253,7 @@ class Analyzer:
                 key=lambda pt: pt.completion_percent,
                 reverse=True,
             ),
+            FilterCriteria.INSTALLOMATOR: lambda: [pt for pt in titles if pt.install_label != []],
         }
 
         # Check for valid criteria

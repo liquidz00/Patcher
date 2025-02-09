@@ -529,6 +529,7 @@ async def analyze(
                     t.latest_version,
                     t.completion_percent,
                     t.total_hosts,
+                    "Y" if t.install_label else "N",
                 ]
                 for t in filtered_titles
             ]
@@ -540,6 +541,7 @@ async def analyze(
                 "Latest Version",
                 "Completion %",
                 "Total Hosts",
+                "Label Available (Y/N)",
             ]
             formatted_table = analyzer.format_table(table_data, headers)
 
