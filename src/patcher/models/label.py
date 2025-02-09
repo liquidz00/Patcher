@@ -8,9 +8,34 @@ from . import Model
 
 class Label(Model):
     """
-    # TODO
-    """
+    Represents an Installomator label.
 
+    Installomator labels define metadata required for software installation using the Installomator tool. This includes information such as the download URL, expected Team ID, and type of installation package.
+
+    For detailed reference on Installomator Labels, see :ref:`Installomator <installomator>` in the project docs, or visit the :ghwiki:`Labels reference <Installomator:Label Variables Reference>` in the Installomator wiki.
+
+    :param name: The name of the Application the label is tied to (e.g., 'Google Chrome')
+    :type name: :py:class:`str`
+    :param type: The type of installation package.
+
+            Allowed values:
+
+            - ``dmg``
+            - ``pkg``
+            - ``zip``
+            - ``tbz``
+            - ``pkgInDmg``
+            - ``pkgInZip``
+            - ``appInDmgInZip``
+
+    :type type: :py:class:`str`
+    :param expectedTeamID: The expected Team ID of the software publisher (must be a 10-character string).
+    :type expectedTeamID: :py:class:`str`
+    :param installomatorLabel: The label name of the software title (e.g., 'googlechromepkg')
+    :type installomatorLabel: :py:class:`str`
+    :param downloadURL: The URL from which the package can be downloaded.
+    :type downloadURL: :py:class:`str`
+    """
     name: str
     type: str
     expectedTeamID: str
