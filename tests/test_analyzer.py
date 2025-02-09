@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -17,6 +17,12 @@ mock_data = {
 }
 
 mock_df = pd.DataFrame(mock_data)
+
+
+@pytest.fixture
+def mock_iom():
+    mock_installomator = MagicMock()
+    return mock_installomator
 
 
 @pytest.fixture

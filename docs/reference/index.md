@@ -32,6 +32,7 @@ animation
 data_manager
 decorators
 exceptions
+installomator
 logger
 pdf_report
 ```

@@ -22,6 +22,12 @@ Parameters
 - ``criteria`` (:py:class:`str`):
     Specifies the criteria for filtering patches. See :class:`~patcher.client.analyze.FilterCriteria`.
 
+    Additional criteria can be passed when using the ``--all-time`` flag. See :class:`~patcher.client.analyze.TrendCriteria`. Trend criteria options are: 
+
+    - ``patch_adoption``: Calculates completion rates over time for different software titles.
+    - ``release_frequency``: Analyzes the release frequency of updates for software titles. 
+    - ``completion_trends``: Evaluates the correlation between release dates and completion percentages.
+
 - ``top_n`` (:py:class:`int`):
     Number of top entries to display based on the criteria. Default is ``None``, meaning all results will be returned.
 

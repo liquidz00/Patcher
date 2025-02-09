@@ -331,7 +331,9 @@ def stop_event_fixture():
 
 
 @pytest.fixture
-def patcher_instance(mock_policy_response, mock_patch_title_response):
+def patcher_instance(
+    mock_policy_response, mock_patch_title_response, config_manager, mock_installomator
+):
     api_client = AsyncMock()
 
     api_client.get_policies.return_value = mock_policy_response
@@ -345,7 +347,15 @@ def patcher_instance(mock_policy_response, mock_patch_title_response):
         data_manager=data_manager,
         pdf_report=pdf_report,
         debug=True,
+        installomator=mock_installomator,
     )
+
+
+@pytest.fixture
+def mock_installomator():
+    mock = AsyncMock()
+    mock.match.return_value = None
+    return mock
 
 
 @pytest.fixture

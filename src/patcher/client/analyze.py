@@ -58,7 +58,11 @@ class TrendCriteria(BaseEnum):
 
 
 class Analyzer:
-    def __init__(self, data_manager: DataManager, excel_path: Optional[Union[Path, str]] = None):
+    def __init__(
+        self,
+        data_manager: DataManager,
+        excel_path: Optional[Union[Path, str]] = None,
+    ):
         """
         Performs analysis on patch data retrieved via :class:`~patcher.utils.data_manager.DataManager`.
 

@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from ..models.patch import PatchTitle
 from ..utils.decorators import check_token
@@ -21,7 +21,7 @@ class ApiClient(BaseAPIClient):
 
         :param config: Instance of ``ConfigManager`` for loading and storing credentials.
         :type config: :class:`~patcher.client.config_manager.ConfigManager`
-        :param concurrency: Maximum number of concurrent API requests. See :class:`~patcher.client.__init__.BaseAPIClient.concurrency`.
+        :param concurrency: Maximum number of concurrent API requests. See :ref:`concurrency <concurrency>` in Usage docs.
         :type concurrency: :py:class:`int`
         """
         self.log = LogMe(self.__class__.__name__)
@@ -150,6 +150,45 @@ class ApiClient(BaseAPIClient):
             if subset
         ]
         return devices
+
+    @check_token
+    async def get_app_names(self, patch_titles: List[PatchTitle]) -> List[Dict[str, Any]]:
+        """
+        Fetches all possible app names for each ``PatchTitle`` object provided.
+
+        :param patch_titles: List of ``PatchTitle`` objects.
+        :type patch_titles: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
+        :return: List of dictionaries containing the ``PatchTitle`` title and corresponding ``appName``
+        :rtype: :py:obj:`~typing.List` [:py:obj:`~typing.Dict`]
+        """
+        title_ids = [patch.title_id for patch in patch_titles if patch.title_id != "iOS"]
+        urls = [
+            f"{self.jamf_url}/api/v2/patch-software-title-configurations/{title_id}/definitions"
+            for title_id in title_ids
+        ]
+        query_params = {"page-size": 1, "sort": "absoluteOrderId:asc"}
+        headers = await self._headers()
+        batch_responses = await self.fetch_batch(urls, headers=headers, query_params=query_params)
+
+        app_names = []
+        for patch_title, response in zip(patch_titles, batch_responses):
+            results = response.get("results")
+            extracted_app_names = []
+
+            if results:
+                kill_apps = results[0].get("killApps")
+                extracted_app_names = [
+                    app.get("appName") for app in kill_apps if app.get("appName")
+                ]
+
+            app_names.append(
+                {
+                    "Patch": patch_title.title,
+                    "App Names": extracted_app_names,
+                }
+            )
+
+        return app_names
 
     async def get_sofa_feed(self) -> List[Dict[str, str]]:
         """

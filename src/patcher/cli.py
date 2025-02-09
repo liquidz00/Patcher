@@ -501,11 +501,11 @@ async def analyze(
                             f"✅ Trend analysis HTML saved to {output_file}.", fg="green", bold=True
                         )
                     )
-                except (OSError, PermissionError, FileNotFoundError) as e:
+                except (OSError, PermissionError, FileNotFoundError) as exc:
                     raise PatcherError(
                         "Unable to save trend analysis report as expected.",
                         dir=output_dir,
-                        error_msg=str(e),
+                        error_msg=str(exc),
                     )
         else:  # Filter analysis
             filter_criteria = FilterCriteria.from_cli(criteria)

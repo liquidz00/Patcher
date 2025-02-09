@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from pydantic import field_validator
 
@@ -7,31 +7,37 @@ from . import Model
 
 
 class Label(Model):
+    """
+    # TODO
+    """
+
     name: str
     type: str
-    expected_team_id: str
-    installomator_label: str
+    expectedTeamID: str
+    installomatorLabel: str  # fragmentName - ".sh"
     downloadURL: str
-    curlOptions: Optional[List[str]] = None
 
     # NOTE: Planning on implementing these properties at a later time, commenting out for now.
 
     # Strongly recommended variables
-    # appNewVersion: Optional[str] = None
-    # versionKey: Optional[str] = None
-    # packageID: Optional[str] = None
-    # archiveName: Optional[str] = None
-    # appName: Optional[str] = None
-    # appCustomVersion: Optional[str] = None
-    # targetDir: Optional[str] = "/Applications"
-    # blockingProcesses: Optional[list[str]] = None
-    # pkgName: Optional[str] = None
-    # updateTool: Optional[str] = None
-    # updateToolArguments: Optional[list[str]] = None
-    # updateToolRunAsCurrentUser: Optional[bool] = False
-    # CLIInstaller: Optional[str] = None
-    # CLIArguments: Optional[list[str]] = None
-    # installerTool: Optional[str] = None
+    #   appNewVersion: Optional[str] = None
+    #   versionKey: Optional[str] = None
+    #   packageID: Optional[str] = None
+
+    # Optional variables
+    #   archiveName: Optional[str] = None
+    #   appName: Optional[str] = None
+    #   appCustomVersion: Optional[str] = None
+    #   targetDir: Optional[str] = "/Applications"
+    #   blockingProcesses: Optional[list[str]] = None
+    #   pkgName: Optional[str] = None
+    #   updateTool: Optional[str] = None
+    #   updateToolArguments: Optional[list[str]] = None
+    #   updateToolRunAsCurrentUser: Optional[bool] = False
+    #   CLIInstaller: Optional[str] = None
+    #   CLIArguments: Optional[list[str]] = None
+    #   installerTool: Optional[str] = None
+    #   curlOptions: Optional[List[str]] = None
 
     @classmethod
     @field_validator("type", mode="before")
@@ -51,9 +57,16 @@ class Label(Model):
     @classmethod
     def from_dict(cls, data: Dict[str, Any], **kwargs) -> "Label":
         """
-        Creates a Label instance from a dictionary. Only includes keys that
-        match the fields defined in the Label model.
+        Creates a ``Label`` instance from passed dictionary.
+
+        Only includes keys that match the fields defined in the model.
+
+        :param data: API response payload to parse for object creation.
+        :type data: :py:obj:`~typing.Dict`
+        :return: The configured ``Label`` object.
+        :rtype: :class:`~patcher.models.label.Label`
         """
+        # noinspection PyUnresolvedReferences
         field_names = cls.model_fields.keys()
         filtered_data = {k: v for k, v in data.items() if k in field_names}
         return cls(**filtered_data, **kwargs)

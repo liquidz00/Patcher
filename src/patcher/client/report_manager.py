@@ -10,6 +10,7 @@ from ..models.patch import PatchTitle
 from ..utils.animation import Animation
 from ..utils.data_manager import DataManager
 from ..utils.exceptions import APIResponseError, PatcherError
+from ..utils.installomator import Installomator
 from ..utils.logger import LogMe
 from ..utils.pdf_report import PDFReport
 from .api_client import ApiClient
@@ -22,6 +23,7 @@ class ReportManager:
         data_manager: DataManager,
         pdf_report: PDFReport,
         debug=False,
+        installomator: Optional[Installomator] = None,
     ):
         """
         Handles the generation and management of patch reports.
@@ -34,12 +36,15 @@ class ReportManager:
         :type pdf_report: :class:`~patcher.utils.pdf_report.PDFReport`
         :param debug: Overrides animation of `~patcher.client.report_manager.ReportManager.process_reports` method if True.
         :type debug: :py:class:`bool`
+        :param installomator: An optional :class:`~patcher.utils.installomator.Installomator` object for matching. Defaults to creating a new object during init.
+        :type installomator: :class:`~patcher.utils.installomator.Installomator`
         """
         self.api_client = api_client
         self.data_manager = data_manager
         self.pdf_report = pdf_report
         self.debug = debug
         self.log = LogMe(self.__class__.__name__)
+        self.iom = installomator or Installomator()
 
     def calculate_ios_on_latest(
         self,
@@ -185,6 +190,10 @@ class ReportManager:
             if ios:
                 await animation.update_msg("Including iOS info...")
                 patch_reports = await self._ios(patch_reports)
+
+            # Match titles with labels via Installomator
+            await animation.update_msg("Identifying Installomator support for titles...")
+            await self.iom.match(patch_reports)
 
             # Generate reports
             await animation.update_msg("Generating Excel file...")

@@ -42,6 +42,7 @@ class PatchTitle(Model):
     def __str__(self):
         return f"{self.title} ({self.latest_version})"
 
+    @classmethod
     @field_validator("title_id")
     def cast_as_string(cls, value: Union[int, str]) -> str:
         """
