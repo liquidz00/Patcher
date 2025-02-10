@@ -36,6 +36,7 @@ class Label(Model):
     :param downloadURL: The URL from which the package can be downloaded.
     :type downloadURL: :py:class:`str`
     """
+
     name: str
     type: str
     expectedTeamID: str
