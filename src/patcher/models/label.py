@@ -1,9 +1,17 @@
-from typing import Any, Dict
+from enum import Enum
+from typing import Any, Dict, Optional
 
 from pydantic import field_validator
 
 from ..utils.exceptions import PatcherError
 from . import Model
+
+
+class CreationType(Enum):
+    """Differentiate between a manually created label (user) or an official label (repo)."""
+
+    USER = "user"
+    REPO = "repo"
 
 
 class Label(Model):
@@ -35,35 +43,24 @@ class Label(Model):
     :type installomatorLabel: :py:class:`str`
     :param downloadURL: The URL from which the package can be downloaded.
     :type downloadURL: :py:class:`str`
+    :param creationType: Specifies manually created label or fetched from repo. Defaults to ``CreationType.REPO``.
+    :type creationType: :py:obj:`~typing.Optional` [:class:`~patcher.models.label.CreationType`]
     """
+
+    # Instead of downloading packages using Installomator methods to a local directory,
+    #   Jamf Pro should be leveraged to create policies on behalf of admins. ApiRole
+    #   privileges will need to be updated to account for this and should be documented.
+    #   Additionally, the Setup class could benefit from Installomator or AutoPkg questions.
+    #
+    # For now, we should differentiate between a manually created label (user) or an official
+    #   label (repo).
 
     name: str
     type: str
     expectedTeamID: str
     installomatorLabel: str  # fragmentName - ".sh"
     downloadURL: str
-
-    # NOTE: Planning on implementing these properties at a later time, commenting out for now.
-
-    # Strongly recommended variables
-    #   appNewVersion: Optional[str] = None
-    #   versionKey: Optional[str] = None
-    #   packageID: Optional[str] = None
-
-    # Optional variables
-    #   archiveName: Optional[str] = None
-    #   appName: Optional[str] = None
-    #   appCustomVersion: Optional[str] = None
-    #   targetDir: Optional[str] = "/Applications"
-    #   blockingProcesses: Optional[list[str]] = None
-    #   pkgName: Optional[str] = None
-    #   updateTool: Optional[str] = None
-    #   updateToolArguments: Optional[list[str]] = None
-    #   updateToolRunAsCurrentUser: Optional[bool] = False
-    #   CLIInstaller: Optional[str] = None
-    #   CLIArguments: Optional[list[str]] = None
-    #   installerTool: Optional[str] = None
-    #   curlOptions: Optional[List[str]] = None
+    creationType: Optional[CreationType] = CreationType.REPO
 
     def __str__(self):
         return f"Name: {self.name} Type: {self.type} Label: {self.installomatorLabel}"
