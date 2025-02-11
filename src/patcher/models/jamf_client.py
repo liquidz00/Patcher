@@ -124,6 +124,8 @@ class ApiRoleModel(Model):
             "Read API Roles",
             "Update API Integrations",
             "Update API Roles",
+            "Create Policies",
+            "Create Smart Computer Groups",
         ]
     )
 
