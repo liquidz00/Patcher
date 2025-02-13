@@ -5,6 +5,7 @@ from io import BytesIO
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
+import pandas as pd
 import pytest
 import pytz
 from src.patcher.client import BaseAPIClient
@@ -340,7 +341,6 @@ def patcher_instance(
     api_client.get_summaries.return_value = mock_patch_title_response
 
     data_manager = MagicMock()
-    pdf_report = MagicMock()
 
     return ReportManager(
         api_client=api_client,
@@ -371,8 +371,24 @@ def base_api_client():
 
 @pytest.fixture
 def mock_data_manager():
-    d = DataManager(disable_cache=True)
-    return MagicMock(return_value=d)
+    data_manager = DataManager()
+
+    mock_dataset_path = Path("/mocked/path/test.xlsx")
+    mock_df = pd.DataFrame(
+        {
+            "Title": ["Patch A", "Patch B"],
+            "Released": ["2022-01-01", "2023-01-01"],
+            "Hosts Patched": [50, 30],
+            "Missing Patch": [10, 20],
+            "Latest Version": ["1.0.0", "2.0.0"],
+            "Completion Percent": [83.3, 60.0],
+            "Total Hosts": [60, 50],
+        }
+    )
+    data_manager.get_latest_dataset = lambda: mock_dataset_path
+    data_manager._validate_data = lambda: mock_df
+
+    return data_manager
 
 
 @pytest.fixture

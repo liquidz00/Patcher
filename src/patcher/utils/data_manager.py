@@ -333,9 +333,8 @@ class DataManager:
                 error_msg=str(e),
             )
 
-        self.log.info(
-            f"Exported {len(exported_files)} reports as expected: {'\n'.join(list(exported_files.values()))}"
-        )
+        output_paths = "\n".join(list(exported_files.values()))
+        self.log.info(f"Exported {len(exported_files)} reports as expected: {output_paths}")
         return exported_files
 
     def reset_cache(self) -> bool:
