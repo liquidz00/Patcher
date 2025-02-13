@@ -1,9 +1,9 @@
-import os
+import asyncio
 import pickle
 from datetime import datetime, timedelta
 from pathlib import Path
 from string import Template
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import pandas as pd
 from pydantic import ValidationError
@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from ..models.patch import PatchTitle
 from .exceptions import FetchError, PatcherError
 from .logger import LogMe
+from .pdf_report import PDFReport
 
 
 class DataManager:
@@ -156,7 +157,7 @@ class DataManager:
         for _, row in df.iterrows():
             try:
                 patch = PatchTitle(
-                    **{key.lower().replace(" ", "_"): value for key, value in row.items()}
+                    **{str(key).lower().replace(" ", "_"): value for key, value in row.items()}
                 )
                 patch_titles.append(patch)
             except (KeyError, ValueError, TypeError, ValidationError) as e:
@@ -172,116 +173,156 @@ class DataManager:
 
         return patch_titles
 
-    def export_to_excel(self, patch_titles: List[PatchTitle], output_dir: Union[str, Path]) -> str:
-        """
-        This method converts a list of :class:`~patcher.models.patch.PatchTitle` instances into a DataFrame and
-        writes it to an Excel file. The file is saved with a timestamp in the filename.
-
-        :param patch_titles: List of ``PatchTitle`` instances containing patch report data.
-        :type patch_titles: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
-        :param output_dir: Directory where the Excel spreadsheet will be saved.
-        :type output_dir: :py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]
-        :return: Path to the created Excel spreadsheet.
-        :rtype: :py:class:`str`
-        :raises PatcherError: If the dataframe is unable to be created or the excel file unable to be saved.
-        """
-        if isinstance(output_dir, Path):
-            output_dir = str(output_dir)
-
+    @staticmethod
+    def _generate_filename(
+        output_dir: Union[str, Path], extension: str, analysis: bool = False
+    ) -> Path:
+        """Formats naming of exported HTML reports based upon context (analyze/export)."""
+        output_dir = Path(output_dir)
         current_date = datetime.now().strftime("%m-%d-%y")
-        df = self._create_dataframe(patch_titles)
-        self._cache_data(df)
-        df = df.drop(
-            columns=[col.replace("_", " ").title() for col in DataManager._IGNORED], errors="ignore"
-        )  # Drop excluded columns
+        if analysis:
+            export_dir = output_dir / "Patch-Analysis-Reports"
+            filename = f"patch-analysis-{current_date}.{extension}"
+        else:
+            export_dir = output_dir
+            filename = f"patch-report-{current_date}.{extension}"
 
-        self.log.debug("Attempting to export patch reports to Excel.")
+        export_dir.mkdir(parents=True, exist_ok=True)
+        return export_dir / filename
+
+    async def _export_pdf(self, df: pd.DataFrame, pdf_path: Path, date_format: str):
+        """Generates a PDF Report from a given DataFrame."""
+        pdf = PDFReport(date_format=date_format)
+        pdf.table_headers = df.columns.tolist()
+        pdf.column_widths = pdf.calculate_column_widths(df)
+
+        pdf.add_page()
+        pdf.add_table_header()
+        pdf.set_font(pdf.ui_config.get("FONT_NAME"), "", 9)
+
+        # Data rows
+        for _, row in df.iterrows():
+            for data, width in zip(row.astype(str), pdf.column_widths):
+                pdf.cell(width, 10, str(data), border=1, align="C")
+            pdf.ln(10)
+            if pdf.get_y() > pdf.h - 20:
+                pdf.add_page()
+                pdf.add_table_header()
+
+        # Save PDF to a file
         try:
-            excel_path = os.path.join(output_dir, f"patch-report-{current_date}.xlsx")
-            df.to_excel(excel_path, index=False)
-            self.log.info(f"Excel report created successfully to {excel_path}.")
-            self.latest_excel_file = excel_path
-            return excel_path
+            await asyncio.to_thread(lambda: pdf.output(str(pdf_path)))
+            self.log.info(f"PDF report created as expected: {pdf_path}")
         except (OSError, PermissionError) as e:
             raise PatcherError(
-                "Encountered error saving DataFrame.",
-                file_path=str(output_dir),
+                "Unable to export PDF report.",
+                file_path=pdf_path,
                 error_msg=str(e),
             )
 
-    def export_to_html(
-        self,
-        patch_titles: Optional[List[PatchTitle]],
-        output_dir: Union[str, Path],
-        title: str,
-        date_format: str = "%B %d %Y",
-    ) -> str:
-        """
-        Exports patch analysis data to an HTML file.
-
-        The HTML report includes functionality to sort each column in ascending or descending order.
-
-        :param patch_titles: A list of ``PatchTitle`` objects to include in the report. Defaults to ``self.titles`` if not provided.
-        :type patch_titles: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
-        :param output_dir: The directory in which to save the generated HTML file.
-        :type output_dir: :py:obj:`~typing.Union` [:py:class:`str` | :py:obj:`~pathlib.Path`]
-        :param title: The title to use for the HTML report. Defaults to ``HEADER_TEXT`` key in ``com.liquidzoo.patcher.plist`` file.
-        :type title: :py:class:`str`
-        :param date_format: Format string for the current date. Defaults is "%B %d %Y" (Month Day Year) to align with PDF formats
-        :type date_format: :py:class:`str`
-        :return: The full file path of the generated HTML file as a string.
-        :rtype: :py:class:`str`
-        :raises PatcherError: If an error occurs while saving the HTML file to the specified directory.
-        """
-        if isinstance(output_dir, str):
-            output_dir = Path(output_dir)
-
-        export_dir = output_dir / "Patch-Analysis-Reports"
-        export_dir.mkdir(parents=True, exist_ok=True)
-
-        titles = patch_titles or self.titles
-        current_date = datetime.now().strftime(date_format)
-        file_path = export_dir / f"patch-analysis-{current_date}.html"
-
-        filtered_data = [
-            {
-                key: value
-                for key, value in patch.model_dump().items()
-                if key not in DataManager._IGNORED
-            }
-            for patch in titles
-        ]
-
-        template = Template((Path(__file__).parent / "../templates/analysis.html").read_text())
+    async def _export_html(
+        self, df: pd.DataFrame, html_path: Path, report_title: str, date_format: str
+    ):
+        """Generates an HTML report from a given DataFrame."""
         headers = "".join(
             f'<th onclick="sortTable({i})">{field.replace("_", " ").title()}</th>'
-            for i, field in enumerate(filtered_data[0].keys())
+            for i, field in enumerate(df.columns)
         )
         rows = "".join(
-            f"<tr>{''.join(f'<td>{cell}</td>' for cell in patch.values())}</tr>"
-            for patch in filtered_data
+            f"<tr>{''.join(f'<td>{cell}</td>' for cell in row)}</tr>" for row in df.values
         )
 
+        template = Template((Path(__file__).parent / "../templates/analysis.html").read_text())
         rendered_html = template.substitute(
-            title=title,
-            heading=title,
-            date=current_date,
+            title=report_title,
+            heading=report_title,
+            date=date_format,
             headers=headers,
             rows=rows,
         )
 
         try:
-            with open(file_path, "w") as f:
-                f.write(rendered_html)
+            await asyncio.to_thread(lambda: html_path.write_text(rendered_html, encoding="utf-8"))
+            self.log.info(f"HTML report exported successfully to {html_path}")
         except OSError as e:
             raise PatcherError(
-                "Error saving HTML file.", file_path=str(file_path), error_msg=str(e)
+                "Error saving HTML file.", file_path=str(html_path), error_msg=str(e)
             )
 
-        if not file_path.exists():
-            print("HTML file was not created as expected.")
+    async def export(
+        self,
+        patch_titles: List[PatchTitle],
+        output_dir: Union[str, Path],
+        report_title: str,
+        analysis: bool = False,
+        date_format: str = "%B %d %Y",
+        formats: Optional[set[str]] = None,
+    ) -> Dict[str, str]:
+        """
+        Exports patch data to the specified formats.
 
-        return str(file_path)
+        :param patch_titles: A list of ``PatchTitle`` objects to include in the report. Defaults to ``self.titles`` if not provided
+        :type patch_titles: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
+        :param output_dir: The directory in which to save the exported report(s).
+        :type output_dir: :py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]
+        :param report_title: The title to use for the header in exported report(s). Defaults to ``HEADER_TEXT`` key in ``com.liquidzoo.patcher.plist`` file.
+        :type report_title: :py:class:`str`
+        :param analysis: Denotes whether this is analysis report (affects HTML output path).
+        :type analysis: :py:class:`bool`
+        :param date_format: The date format for PDF/HTML headers. Defaults to "%B %d %Y" (Month Day Year).
+        :type date_format: :py:class:`str`
+        :param formats: A set of formats to export. Defaults to all ({"excel", "html", "pdf"}).
+        :type formats: :py:obj:`~typing.Optional` [:py:class:`set`]
+        :return: A dictionary containing paths to generated reports.
+        :rtype: :py:obj:`~typing.Dict` [:py:class:`str`, :py:class:`str`]
+        """
+        if formats is None:
+            formats = {"excel", "html", "pdf"}
+
+        exported_files = {}
+
+        patch_titles = patch_titles or self.titles
+        df = await asyncio.to_thread(self._create_dataframe, patch_titles)
+        await asyncio.to_thread(self._cache_data, df)
+
+        df = df.drop(
+            columns=[col.replace("_", " ").title() for col in DataManager._IGNORED], errors="ignore"
+        )
+
+        # Verification of directory existence runs synchronously
+        output_dir = Path(output_dir)
+
+        # Excel
+        if "excel" in formats:
+            excel_path = self._generate_filename(output_dir, "xlsx", analysis)
+            try:
+                await asyncio.to_thread(df.to_excel, excel_path, index=False)
+                self.latest_excel_file = excel_path
+                exported_files["excel"] = str(excel_path)
+                self.log.info(f"Excel report created successfully to {excel_path}.")
+            except (OSError, PermissionError) as e:
+                raise PatcherError(
+                    "Encountered error saving DataFrame.",
+                    file_path=str(output_dir),
+                    error_msg=str(e),
+                )
+
+        # PDF
+        if "pdf" in formats:
+            pdf_path = self._generate_filename(output_dir, "pdf", analysis)
+            await self._export_pdf(df, pdf_path, date_format)
+            exported_files["pdf"] = str(pdf_path)
+
+        # HTML
+        if "html" in formats:
+            html_path = self._generate_filename(output_dir, "html", analysis)
+            await self._export_html(df, html_path, report_title, date_format)
+            exported_files["html"] = str(html_path)
+
+        self.log.info(
+            f"Exported {len(exported_files)} reports as expected: {'\n'.join(list(exported_files.values()))}"
+        )
+        return exported_files
 
     def reset_cache(self) -> bool:
         """

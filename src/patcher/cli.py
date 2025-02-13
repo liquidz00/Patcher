@@ -2,7 +2,7 @@ import asyncio
 import inspect
 import sys
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 
 import asyncclick as click
 
@@ -17,7 +17,6 @@ from .utils.animation import Animation
 from .utils.data_manager import DataManager
 from .utils.exceptions import APIResponseError, PatcherError
 from .utils.logger import LogMe, PatcherLog
-from .utils.pdf_report import PDFReport
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -278,10 +277,13 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
     help="File path to save the generated report(s).",
 )
 @click.option(
-    "--pdf",
+    "--format",
     "-f",
-    is_flag=True,
-    help="Generate a PDF report along with Excel spreadsheet.",
+    "formats",
+    multiple=True,
+    metavar="<format>",
+    type=click.Choice(["excel", "html", "pdf"], case_sensitive=False),
+    help="Specify report formats (default: all). Use multiple times for multiple formats.",
 )
 @click.option(
     "--sort",
@@ -322,7 +324,7 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
 async def export(
     ctx: click.Context,
     path: str,
-    pdf: bool,
+    formats: Tuple[str, ...],
     sort: Optional[str],
     omit: bool,
     date_format: str,
@@ -344,8 +346,8 @@ async def export(
     :type ctx: click.Context
     :param path: The path to save the generated report(s).
     :type path: :py:class:`str`
-    :param pdf: Specifies whether or not to generate a PDF document in addition to Excel spreadsheet.
-    :type pdf: :py:class:`bool`
+    :param formats: If specified, will export only to the format(s) provided. Default is all formats (Excel, HTML, PDF).
+    :type formats: :py:obj:`~typing.Optional` [:py:class:`str`]
     :param sort: Sort the patch reports by specifying a column.
     :type sort: :py:obj:`~typing.Optional` of :py:class:`str`
     :param omit: Omit software titles with patches released in last 48 hours.
@@ -361,19 +363,28 @@ async def export(
     ctx.obj["data_manager"] = data_manager  # Store in context for analyze
 
     api_client = ApiClient(config=ctx.obj.get("config"), concurrency=concurrency)
-    pdf_report = PDFReport()
 
     patcher = ReportManager(
         api_client=api_client,
         data_manager=data_manager,
-        pdf_report=pdf_report,
         debug=ctx.obj.get("debug"),
     )
 
+    selected_formats = set(formats) if formats else {"excel", "html", "pdf"}
     actual_format = DATE_FORMATS[date_format]
+    ui_config = ctx.obj.get("ui_config")
+    report_title = ui_config.config.get("HEADER_TEXT")
 
     # Not wrapping in animation error_handling in favor of existence on process_reports method
-    await patcher.process_reports(path, pdf, sort, omit, ios, actual_format)
+    await patcher.process_reports(
+        path=path,
+        formats=selected_formats,
+        sort=sort,
+        omit=omit,
+        ios=ios,
+        date_format=actual_format,
+        report_title=report_title,
+    )
 
 
 # Analyze
@@ -549,8 +560,8 @@ async def analyze(
 
         if summary:
             try:
-                exported = data_manager.export_to_html(
-                    filtered_titles, output_dir, title=ui_config.config.get("HEADER_TEXT")
+                exported = data_manager.export_html(
+                    filtered_titles, output_dir, report_title=ui_config.config.get("HEADER_TEXT")
                 )
             except (OSError, PermissionError, FileNotFoundError) as exc:
                 raise PatcherError(
