@@ -294,8 +294,8 @@ class DataManager:
 
         # Excel
         if "excel" in formats:
-            excel_path = self._generate_filename(output_dir, "xlsx", analysis)
             try:
+                excel_path = self._generate_filename(output_dir, "xlsx", analysis)
                 await asyncio.to_thread(df.to_excel, excel_path, index=False)
                 self.latest_excel_file = excel_path
                 exported_files["excel"] = str(excel_path)
@@ -307,17 +307,31 @@ class DataManager:
                     error_msg=str(e),
                 )
 
-        # PDF
-        if "pdf" in formats:
-            pdf_path = self._generate_filename(output_dir, "pdf", analysis)
-            await self._export_pdf(df, pdf_path, date_format)
-            exported_files["pdf"] = str(pdf_path)
+        try:
+            # PDF
+            if "pdf" in formats:
+                pdf_path = self._generate_filename(output_dir, "pdf", analysis)
+                await self._export_pdf(df, pdf_path, date_format)
+                exported_files["pdf"] = str(pdf_path)
+        except (OSError, PermissionError) as e:
+            raise PatcherError(
+                "Encountered an error saving PDF report.",
+                file_path=str(output_dir),
+                error_msg=str(e),
+            )
 
-        # HTML
-        if "html" in formats:
-            html_path = self._generate_filename(output_dir, "html", analysis)
-            await self._export_html(df, html_path, report_title, date_format)
-            exported_files["html"] = str(html_path)
+        try:
+            # HTML
+            if "html" in formats:
+                html_path = self._generate_filename(output_dir, "html", analysis)
+                await self._export_html(df, html_path, report_title, date_format)
+                exported_files["html"] = str(html_path)
+        except (OSError, PermissionError) as e:
+            raise PatcherError(
+                "Encountered an error saving HTML report.",
+                file_path=str(output_dir),
+                error_msg=str(e),
+            )
 
         self.log.info(
             f"Exported {len(exported_files)} reports as expected: {'\n'.join(list(exported_files.values()))}"
