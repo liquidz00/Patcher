@@ -167,7 +167,7 @@ Upcoming Features
 
 Installomator features are currently in beta (``v2.0.4b1``) as we build onto this base functionality. We are actively working on implementing:
 
-- Allowing users to specify a directory to store software downloads (``.pkg``, ``.dmg``, etc.) and downloading files to that directory automatically
+- Policy creation in Jamf for supported titles with available :ghwiki:`script options <Installomator:Configuration and Variables>`
 - An option to completely disable Installomator support should it not align with your organizations security standards or preferences
 - Integration with `AutoPkg <https://github.com/autopkg/autopkg>`_ to expand package deployment capabilities
 
