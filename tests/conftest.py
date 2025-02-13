@@ -345,7 +345,6 @@ def patcher_instance(
     return ReportManager(
         api_client=api_client,
         data_manager=data_manager,
-        pdf_report=pdf_report,
         debug=True,
         installomator=mock_installomator,
     )
