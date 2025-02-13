@@ -1,16 +1,13 @@
 import os
 from datetime import datetime
-from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import List, Union
+from typing import List
 
 import pandas as pd
 from fpdf import FPDF
-from pandas.errors import EmptyDataError, ParserError
 from PIL import Image
 
 from ..client.ui_manager import UIConfigManager
-from ..utils.exceptions import PatcherError
 from ..utils.logger import LogMe
 
 
@@ -206,61 +203,3 @@ class PDFReport(FPDF):
                         break
 
         return proportional_widths
-
-    def export_excel_to_pdf(
-        self, excel_file: Union[str, Path], date_format: str = "%B %d %Y"
-    ) -> None:
-        """
-        Creates a PDF report from an Excel file containing patch data.
-
-        This method reads an Excel file, extracts the data, and populates it into a PDF
-        report using the defined headers and column widths. The PDF is then saved to
-        the same directory as the Excel file.
-
-        :param excel_file: Path to the Excel file to convert to PDF.
-        :type excel_file: :py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]
-        :param date_format: The date format string for the PDF report header.
-        :type date_format: :py:class:`str`
-        :raises PatcherError: If the data could not be parsed or is empty.
-        :raises PatcherError: If the PDF could not be exported due to permissions or OS issues.
-        """
-        # Read excel file
-        try:
-            df = pd.read_excel(excel_file)
-        except (ParserError, EmptyDataError) as e:
-            raise PatcherError(
-                "Failed to parse the excel file",
-                file=excel_file,
-                error_msg=str(e),
-            )
-
-        # Create instance of FPDF
-        pdf = PDFReport(date_format=date_format)
-
-        # Set headers and calculate column widths
-        pdf.table_headers = df.columns.tolist()
-        pdf.column_widths = pdf.calculate_column_widths(df)
-
-        pdf.add_page()
-        pdf.add_table_header()
-
-        # Data rows
-        pdf.set_font(self.ui_config.get("FONT_NAME"), "", 9)
-        for _, row in df.iterrows():
-            for data, width in zip(row.astype(str), pdf.column_widths):
-                pdf.cell(width, 10, str(data), border=1, align="C")
-            pdf.ln(10)
-            if pdf.get_y() > pdf.h - 20:
-                pdf.add_page()
-                pdf.add_table_header()
-
-        # Save PDF to a file
-        pdf_filename = os.path.splitext(excel_file)[0] + ".pdf"
-        try:
-            pdf.output(pdf_filename)
-        except (OSError, PermissionError) as e:
-            raise PatcherError(
-                "Unable to export PDF report.",
-                file_path=pdf_filename,
-                error_msg=str(e),
-            )
