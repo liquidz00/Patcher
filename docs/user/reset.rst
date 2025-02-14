@@ -6,23 +6,40 @@
 Reset
 ======
 
-Allows for resetting of configurations based upon specified kind:
-
-- ``full``: Resets credentials, UI elements, and property list file. Subsequently triggers :class:`~patcher.client.setup.Setup` to start setup.
-- ``UI``: Resets UI elements of PDF reports (header & footer text, custom font and optional logo).
-- ``creds``: Resets credentials stored in Keychain. Useful for testing Patcher in a non-production environment first. Allows specifying which credential to reset using the ``--credential`` option.
-- ``cache``: Removes all cached data from the cache directory stored in ``~/Library/Caches/Patcher``
-
-.. note::
-    Options are not case-sensitive and are converted to lowercase automatically at runtime
-
+The ``reset`` command restores specific configurations in Patcher, allowing users to reset **credentials, UI settings, or cached data**. By default, a **full reset** clears all configurations and triggers the setup process. Users can reset individual components without affecting other settings.
+ 
 Parameters
 ----------
 
-- ``kind`` (:py:class:`str`) (**Required**):
-    Specifies the type of reset to perform.
+.. param:: kind
+    :type: str
+    :required:
 
-- ``credential`` (:py:obj:`~typing.Optional` [:py:class:`str`]):
+    Specifies the type of reset to perform:
+
+    .. container:: sd-table
+
+        .. list-table::
+            :header-rows: 1
+            :widths: auto
+
+            * - Option
+              - Description
+            * - ``full``
+              - Resets credentials, UI elements, and property list file. Subsequently triggers :class:`~patcher.client.setup.Setup` to start setup
+            * - ``UI``
+              - Resets UI elements of PDF reports (header & footer text, custom font and optional logo)
+            * - ``creds``
+              - Resets credentials stored in Keychain. Useful for testing Patcher in a non-production environment first. Allows specifying which credential to reset using the ``--credential`` option
+            * - ``cache``
+              - Removes all cached data from the cache directory stored in ``~/Library/Caches/Patcher``
+    
+    .. note::
+        Options are not case-sensitive and are converted to lowercase automatically at runtime
+
+.. param:: credential
+    :type: Optional[str]
+
     The specific credential to reset when performing credentials reset. Defaults to all credentials if none specified.
 
 Usage
