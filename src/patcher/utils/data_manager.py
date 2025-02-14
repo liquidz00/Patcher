@@ -105,7 +105,7 @@ class DataManager:
         if self.cache_off:
             return  # Only cache if enabled
 
-        timestamp = datetime.now().strftime("%Y%m%d")
+        timestamp = datetime.now().strftime("%Y%m%d%I%M")
         cache_file = self.cache_dir / f"patch_data_{timestamp}.pkl"
         self.log.debug(f"Attempting to cache data to {cache_file}.")
         try:

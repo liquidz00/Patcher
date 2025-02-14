@@ -138,9 +138,10 @@ async def test_export_to_excel_invalid_directory(mock_data_manager, mock_formats
     """Ensure export_excel raises an error for invalid output directory."""
     invalid_dir = "/invalid/path/to/output"
 
-    with patch.object(Path, "mkdir", side_effect=OSError("Test Invalid Directory Error")):
-        with pytest.raises(PatcherError, match="Encountered error saving DataFrame"):
-            await mock_data_manager.export([], invalid_dir, "Test Report", formats=mock_formats)
+    with patch.object(mock_data_manager, "_cache_data", return_value=None):
+        with patch.object(Path, "mkdir", side_effect=OSError("Test Invalid Directory Error")):
+            with pytest.raises(PatcherError, match="Encountered error saving DataFrame"):
+                await mock_data_manager.export([], invalid_dir, "Test Report", formats=mock_formats)
 
 
 @pytest.mark.asyncio
@@ -148,9 +149,10 @@ async def test_export_to_excel_permission_error(mock_data_manager, temp_output_p
     """Simulate a permission error when writing to an output directory."""
     temp_file = temp_output_path / "patch-report.xlsx"
 
-    with patch.object(Path, "mkdir", side_effect=PermissionError("Test Permission Error")):
-        with pytest.raises(PatcherError, match="Encountered error saving DataFrame"):
-            await mock_data_manager.export([], temp_file, "Test Report", formats=mock_formats)
+    with patch.object(mock_data_manager, "_cache_data", return_value=None):
+        with patch.object(Path, "mkdir", side_effect=PermissionError("Test Permission Error")):
+            with pytest.raises(PatcherError, match="Encountered error saving DataFrame"):
+                await mock_data_manager.export([], temp_file, "Test Report", formats=mock_formats)
 
 
 def test_clean_cache_removes_expired_files(temp_output_path):
