@@ -112,7 +112,7 @@ Example Workflow
 .. code-block:: console
     :caption: Export patch reports.
 
-    $ patcherctl export --path /path/to/save --pdf
+    $ patcherctl export --path /path/to/save
 
 .. code-block:: console
     :caption: Analyze command with cached reports
