@@ -340,7 +340,7 @@ def patcher_instance(
     api_client.get_policies.return_value = mock_policy_response
     api_client.get_summaries.return_value = mock_patch_title_response
 
-    data_manager = MagicMock()
+    data_manager = AsyncMock()
 
     return ReportManager(
         api_client=api_client,
