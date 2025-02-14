@@ -236,7 +236,7 @@ class DataManager:
         rendered_html = template.substitute(
             title=report_title,
             heading=report_title,
-            date=date_format,
+            date=datetime.now().strftime(date_format),
             headers=headers,
             rows=rows,
         )
