@@ -302,8 +302,7 @@ class ReportManager:
 
             # Generate reports
             await animation.update_msg("Generating reports...")
-            await asyncio.to_thread(
-                self.data_manager.export,
+            await self.data_manager.export(
                 patch_titles=patch_reports,
                 output_dir=output_path,
                 report_title=report_title,
