@@ -14,6 +14,9 @@
 
     /* If buttons have a secondary hover color */
     --pst-color-button-secondary-hover-bg: #3C1E71; /* Darker Grape for secondary button hover */
+
+    --patcher-text-color: #222832;
+    --patcher-text-color-muted: #9ca4af;
 }
 
 html[data-theme="light"] {
@@ -75,4 +78,72 @@ html[data-theme="dark"] .patcher-banner {
 .patcher-banner + * {
     clear: both;
     margin-top: 20px;
+}
+
+.patcher-parameter {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+    margin-bottom: 12px;
+}
+
+.patcher-param-header {
+    display: flex;
+    align-items: center !important;
+    gap: 4px;
+    color: var(--patcher-text-color);
+    
+    background: rgba(0, 0, 0, 0.05);
+    padding: 8px 10px !important;
+
+    border-left: 4px solid var(--pst-color-primary);
+    border-radius: 4px;
+}
+
+html[data-theme="dark"] .patcher-param-header {
+    background: rgba(255, 255, 255, 0.1);
+    border-left: 4px solid var(--pst-color-secondary)
+}
+
+.patcher-param-name {
+    font-family: var(--pst-font-family-monospace);
+    font-weight: bold;
+    font-size: 17px;
+    color: var(--pst-color-secondary);
+
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+}
+
+html[data-theme="dark"] .patcher-param-name {
+    color: var(--pst-color-primary);
+}
+
+.patcher-param-type {
+    font-style: italic;
+    font-size: 14px;
+    color: #666;
+}
+
+html[data-theme="dark"] .patcher-param-type {
+    color: var(--patcher-text-color-muted);
+}
+
+.patcher-param-required {
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 13px;
+    color: var(--pst-color-link-hover);
+}
+
+html[data-theme="dark"] .patcher-param-required {
+    color: var(--pst-color-secondary);
+}
+
+.patcher-param-desc {
+    margin-left: 25px !important;
+    padding-top: 6px !important;
+    font-size: 1rem !important;
+    line-height: 1.5 !important;
 }

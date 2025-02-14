@@ -40,6 +40,7 @@ extensions = [
     "myst_parser",
     "sphinx_togglebutton",
     "ghwiki",
+    "styled_params",
 ]
 
 # ghwiki
