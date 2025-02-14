@@ -180,6 +180,10 @@ class DataManager:
         """Formats naming of exported HTML reports based upon context (analyze/export)."""
         output_dir = Path(output_dir)
         current_date = datetime.now().strftime("%m-%d-%y")
+
+        if analysis and extension != "html":
+            raise PatcherError("Only HTML format is supported for analysis.", received=extension)
+
         if analysis:
             export_dir = output_dir / "Patch-Analysis-Reports"
             filename = f"patch-analysis-{current_date}.{extension}"
