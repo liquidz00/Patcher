@@ -560,14 +560,21 @@ async def analyze(
 
         if summary:
             try:
-                exported = data_manager.export_html(
-                    filtered_titles, output_dir, report_title=ui_config.config.get("HEADER_TEXT")
+                exported = await data_manager.export(
+                    filtered_titles,
+                    output_dir,
+                    report_title=ui_config.config.get("HEADER_TEXT"),
+                    analysis=True,
+                    formats={"html"},
                 )
             except (OSError, PermissionError, FileNotFoundError) as exc:
                 raise PatcherError(
                     "Unable to save summary report as expected.", path=exported, error_msg=str(exc)
                 )
-            click.echo(click.style(f"✅ HTML summary saved to {exported}", fg="green", bold=True))
+            output_paths = "\n".join(list(exported.values()))
+            click.echo(
+                click.style(f"✅ HTML summary saved to {output_paths}", fg="green", bold=True)
+            )
 
 
 if __name__ == "__main__":
