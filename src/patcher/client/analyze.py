@@ -17,7 +17,7 @@ class BaseEnum(Enum):
     @classmethod
     def from_cli(cls, value: str) -> "BaseEnum":
         """
-        Maps CLI-friendly inputs (e.g., '--most-installed', '--release-frequency') to Enum values.
+        Maps CLI-friendly inputs (e.g., ``'--most-installed'``, ``'--release-frequency'``) to Enum values.
 
         :param value: CLI-friendly string.
         :type value: :py:class:`str`
