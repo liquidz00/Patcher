@@ -2,8 +2,11 @@
 #
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
+import inspect
 import os
+import patcher
 import sys
+import warnings
 from pathlib import Path
 
 from sphinx.locale import _
@@ -11,6 +14,7 @@ from src.patcher.__about__ import __version__
 
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("../src"))
+sys.path.insert(0, os.path.abspath("./ext"))
 sys.path.append(str(Path(".").resolve()))
 
 # -- Project information -----------------------------------------------------
@@ -33,12 +37,22 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.githubpages",
     "sphinx.ext.intersphinx",
-    "sphinx.ext.viewcode",
+    "sphinx.ext.linkcode",
     "sphinxcontrib.autodoc_pydantic",
     "sphinx_copybutton",
     "myst_parser",
     "sphinx_togglebutton",
+    "ghwiki",
+    "styled_params",
 ]
+
+# ghwiki
+github_wiki_repos = {
+    "Installomator": "https://github.com/Installomator/Installomator",
+    "AutoPkg": "https://github.com/autopkg/autopkg",
+}
+
+github_wiki_default = "Installomator"
 
 # Intersphinx mapping
 intersphinx_mapping = {
@@ -56,6 +70,8 @@ autodoc_typehints = "both"
 autodoc_member_order = "bysource"
 autosectionlabel_prefix_document = True
 
+toc_object_entries_show_parents = "hide"
+
 # Pydantic options
 autodoc_pydantic_model_show_json = False
 autodoc_pydantic_model_show_field_summary = False
@@ -66,6 +82,57 @@ autoclass_content = "both"
 # MyST Options
 myst_enable_extensions = ["colon_fence", "substitution", "attrs_block", "attrs_inline"]
 myst_heading_anchors = 4
+
+# -- Link Code  --------------------------------------------------------------
+# based on pandas doc/source/conf.py
+def linkcode_resolve(domain, info):
+    """Generate external links to source code on GitHub."""
+    if domain != "py":
+        return None
+    
+    modname = info.get("module")
+    fullname = info.get("fullname")
+
+    submod = sys.modules.get(modname)
+    if submod is None:
+        return None
+    
+    obj = submod
+    for part in fullname.split("."):
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", FutureWarning)
+                obj = getattr(obj, part)
+        except AttributeError:
+            return None
+    
+    try:
+        fn = inspect.getsourcefile(inspect.unwrap(obj))
+    except TypeError:
+        try:  # property
+            fn = inspect.getsourcefile(inspect.unwrap(obj.fget))
+        except (AttributeError, TypeError):
+            fn = None
+    if not fn:
+        return None
+    
+    try:
+        source, lineno = inspect.getsourcelines(obj)
+    except (TypeError, OSError):
+        try:
+            source, lineno = inspect.getsourcelines(obj.fget)  # property
+        except (AttributeError, TypeError):
+            lineno = None
+    
+    linespec = f"#L{lineno}-L{lineno + len(source) - 1}" if lineno else ""
+
+    # Convert to relative path for GHlinks
+    fn = os.path.relpath(fn, start=os.path.dirname(patcher.__file__))
+
+    # If development version, link to `develop`
+    branch_or_tag = "develop" if "b" in __version__ else release
+
+    return f"https://github.com/liquidz00/Patcher/blob/{branch_or_tag}/src/patcher/{fn}{linespec}"
 
 # -- Options for copy button  ------------------------------------------------
 # https://sphinx-copybutton.readthedocs.io/en/latest/use.html

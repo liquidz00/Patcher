@@ -2,6 +2,7 @@ import asyncio
 import json
 import subprocess
 from typing import Dict, List, Optional, Tuple, Union
+from urllib.parse import urlencode
 
 from ..models.jamf_client import ApiClientModel, ApiRoleModel
 from ..utils.exceptions import APIResponseError, PatcherError, ShellCommandError
@@ -209,6 +210,7 @@ class BaseAPIClient:
         headers: Optional[Dict[str, str]] = None,
         method: str = "GET",
         data: Optional[Dict[str, str]] = None,
+        query_params: Optional[Dict[str, str]] = None,
     ) -> Dict:
         """
         Asynchronously fetches JSON data from the specified URL using the specified HTTP method.
@@ -221,11 +223,18 @@ class BaseAPIClient:
         :type method: :py:class:`str`
         :param data: Optional form data to include for POST request.
         :type data: :py:obj:`~typing.Optional` [:py:obj:`~typing.Dict`]
+        :param query_params: Additional query parameters to append to the URL. Defaults to None.
+        :type query_params: :py:obj:`~typing.Optional` [:py:obj:`~typing.Dict`]
         :return: The fetched JSON data as a dictionary.
         :rtype: :py:obj:`~typing.Dict`
         :raises APIResponseError: If the response payload is not valid JSON, or if command execution fails.
         """
         self.log.debug("Attempting to fetch JSON.")
+
+        if query_params:
+            query_string = urlencode(query_params)
+            url = f"{url}?{query_string}"
+
         final_headers = headers if headers else self.default_headers
         header_string = self._format_headers(final_headers)
 
@@ -276,7 +285,10 @@ class BaseAPIClient:
         return self._handle_status_code(status_code, response_json)
 
     async def fetch_batch(
-        self, urls: List[str], headers: Optional[Dict[str, str]] = None
+        self,
+        urls: List[str],
+        headers: Optional[Dict[str, str]] = None,
+        query_params: Optional[Dict[str, str]] = None,
     ) -> List[Dict]:
         """
         Fetches JSON data in batches to respect the concurrency limit.
@@ -287,10 +299,17 @@ class BaseAPIClient:
         :type urls: :py:obj:`~typing.List` [:py:class:`str`]
         :param headers: Optional headers to include in the request. Defaults to ``self.headers`` via the :meth:`~patcher.client.__init__.fetch_json` method.
         :type headers: :py:obj:`~typing.Optional` [:py:obj:`~typing.Dict`]
+        :param query_params: Additional query parameters to append to the URL. Defaults to None.
+        :type query_params: :py:obj:`~typing.Optional` [:py:obj:`~typing.Dict`]
         :return: A list of JSON dictionaries.
         :rtype: :py:obj:`~typing.List` [:py:obj:`~typing.Dict`]
         """
         self.log.debug(f"Attempting to fetch batch of {len(urls)} URLs")
+
+        if query_params:
+            query_string = urlencode(query_params)
+            urls = [f"{url}?{query_string}" for url in urls]
+
         results = []
         for i in range(0, len(urls), self.max_concurrency):
             batch = urls[i : i + self.max_concurrency]

@@ -88,6 +88,7 @@ analyze
 export
 reset
 customize_reports
+installomator_support
 ```
 
 +++

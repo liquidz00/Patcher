@@ -12,14 +12,24 @@ from src.patcher.utils.data_manager import DataManager
 from src.patcher.utils.exceptions import FetchError, PatcherError
 
 
-def test_export_to_excel_success(sample_patch_reports, temp_output_dir):
+@pytest.fixture
+def mock_formats():
+    return {"excel"}
+
+
+@pytest.mark.asyncio
+async def test_export_to_excel_success(sample_patch_reports, temp_output_dir, mock_formats):
     data_manager = DataManager()
 
     with patch.object(data_manager, "_cache_data", return_value=None) as mock_cache_data:
-        excel_path = data_manager.export_to_excel(sample_patch_reports, temp_output_dir)
+        exported_files = await data_manager.export(
+            sample_patch_reports, temp_output_dir, "Test Report", formats=mock_formats
+        )
 
+        excel_path = exported_files.get("excel")  # type: ignore
         assert excel_path is not None
         assert os.path.exists(excel_path)
+
         df = pd.read_excel(excel_path)
         assert not df.empty
         assert list(df.columns) == [
@@ -42,11 +52,13 @@ def test_export_to_excel_success(sample_patch_reports, temp_output_dir):
         assert_frame_equal(df[common_columns], cached_df[common_columns], check_like=True)
 
 
-def test_export_to_excel_dataframe_creation_error(temp_output_dir):
-    data_manager = DataManager(disable_cache=True)
+@pytest.mark.asyncio
+async def test_export_to_excel_dataframe_creation_error(
+    mock_data_manager, temp_output_dir, mock_formats
+):
     with patch.object(pd, "DataFrame", side_effect=ValueError("Test Error")):
         with pytest.raises(PatcherError, match="Encountered error creating DataFrame."):
-            data_manager.export_to_excel([], temp_output_dir)
+            await mock_data_manager.export([], temp_output_dir, "Test Report", formats=mock_formats)
 
 
 def test_cache_property():
@@ -111,62 +123,36 @@ def test_titles_property_setter_valid():
 
 
 # Edge case tests
-def test_export_to_excel_empty_patch_reports(temp_output_dir):
-    """Ensure export_to_excel handles empty patch_reports gracefully."""
-    data_manager = DataManager()
+@pytest.mark.asyncio
+async def test_export_to_excel_empty_patch_reports(
+    mock_data_manager, temp_output_dir, mock_formats
+):
+    """Ensure export_excel handles empty patch_reports gracefully."""
     with patch.object(pd, "DataFrame", side_effect=pd.errors.EmptyDataError):
-        with pytest.raises(PatcherError, match="Encountered error creating DataFrame."):
-            data_manager.export_to_excel([], temp_output_dir)
+        with pytest.raises(PatcherError, match="Encountered error creating DataFrame"):
+            await mock_data_manager.export([], temp_output_dir, "Test Report", formats=mock_formats)
 
 
-def test_export_to_excel_invalid_directory():
-    """Ensure export_to_excel raises an error for invalid output directory."""
-    data_manager = DataManager()
+@pytest.mark.asyncio
+async def test_export_to_excel_invalid_directory(mock_data_manager, mock_formats):
+    """Ensure export_excel raises an error for invalid output directory."""
     invalid_dir = "/invalid/path/to/output"
-    with pytest.raises(PatcherError, match="Encountered error saving DataFrame"):
-        data_manager.export_to_excel([], invalid_dir)
+
+    with patch.object(mock_data_manager, "_cache_data", return_value=None):
+        with patch.object(Path, "mkdir", side_effect=OSError("Test Invalid Directory Error")):
+            with pytest.raises(PatcherError, match="Encountered error saving DataFrame"):
+                await mock_data_manager.export([], invalid_dir, "Test Report", formats=mock_formats)
 
 
-def test_export_to_excel_permission_error(temp_output_path):
+@pytest.mark.asyncio
+async def test_export_to_excel_permission_error(mock_data_manager, temp_output_path, mock_formats):
     """Simulate a permission error when writing to an output directory."""
-    data_manager = DataManager()
     temp_file = temp_output_path / "patch-report.xlsx"
 
-    mock_patches = [
-        PatchTitle(
-            title="Patch A",
-            title_id="0",
-            released="2022-01-01",
-            hosts_patched=50,
-            missing_patch=10,
-            latest_version="1.0.0",
-            completion_percent=(50 / (50 + 10)) * 100,
-            total_hosts=50 + 10,
-        ),
-        PatchTitle(
-            title="Patch B",
-            title_id="1",
-            released="2023-01-01",
-            hosts_patched=30,
-            missing_patch=20,
-            latest_version="2.0.0",
-            completion_percent=(30 / (30 + 20)) * 100,
-            total_hosts=30 + 20,
-        ),
-        PatchTitle(
-            title="Patch C",
-            title_id="2",
-            released="2023-12-01",
-            hosts_patched=20,
-            missing_patch=5,
-            latest_version="3.0.0",
-            completion_percent=(20 / (20 + 5)) * 100,
-            total_hosts=20 + 5,
-        ),
-    ]
-    with patch("os.makedirs", side_effect=PermissionError("Test Permission Error")):
-        with pytest.raises(PatcherError, match="Encountered error saving DataFrame"):
-            data_manager.export_to_excel(mock_patches, temp_file)
+    with patch.object(mock_data_manager, "_cache_data", return_value=None):
+        with patch.object(Path, "mkdir", side_effect=PermissionError("Test Permission Error")):
+            with pytest.raises(PatcherError, match="Encountered error saving DataFrame"):
+                await mock_data_manager.export([], temp_file, "Test Report", formats=mock_formats)
 
 
 def test_clean_cache_removes_expired_files(temp_output_path):
@@ -224,16 +210,16 @@ def test_get_latest_dataset_no_files():
         assert data_manager.get_latest_dataset() is None
 
 
-def test_load_cached_data_with_corrupted_files(mock_data_manager):
+@pytest.mark.asyncio
+async def test_load_cached_data_with_corrupted_files(mock_data_manager):
     """Ensure load_cached_data skips corrupted files."""
     corrupted_file = MagicMock(spec=Path)
     corrupted_file.name = "corrupted_cache.pkl"
     corrupted_file.__str__.return_value = "/mocked/path/corrupted_cache.pkl"
 
-    mock_data_manager.get_cached_files.return_value = [corrupted_file]
-
-    with patch("pickle.load", side_effect=pickle.UnpicklingError("Test Unpickling error")):
-        loaded_data = mock_data_manager.load_cached_data()
+    with patch.object(mock_data_manager, "get_cached_files", return_value=[corrupted_file]):
+        with patch("pickle.load", side_effect=pickle.UnpicklingError("Test Unpickling error")):
+            loaded_data = mock_data_manager.load_cached_data()
 
     # Assert that no valid data was loaded
     assert len(loaded_data) == 0

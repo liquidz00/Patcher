@@ -17,7 +17,7 @@ class BaseEnum(Enum):
     @classmethod
     def from_cli(cls, value: str) -> "BaseEnum":
         """
-        Maps CLI-friendly inputs (e.g., '--most-installed', '--release-frequency') to Enum values.
+        Maps CLI-friendly inputs (e.g., ``'--most-installed'``, ``'--release-frequency'``) to Enum values.
 
         :param value: CLI-friendly string.
         :type value: :py:class:`str`
@@ -46,6 +46,7 @@ class FilterCriteria(BaseEnum):
     RECENT_RELEASE = "recent_release"
     ZERO_COMPLETION = "zero_completion"
     TOP_PERFORMERS = "top_performers"
+    INSTALLOMATOR = "installomator"
 
 
 class TrendCriteria(BaseEnum):
@@ -58,7 +59,11 @@ class TrendCriteria(BaseEnum):
 
 
 class Analyzer:
-    def __init__(self, data_manager: DataManager, excel_path: Optional[Union[Path, str]] = None):
+    def __init__(
+        self,
+        data_manager: DataManager,
+        excel_path: Optional[Union[Path, str]] = None,
+    ):
         """
         Performs analysis on patch data retrieved via :class:`~patcher.utils.data_manager.DataManager`.
 
@@ -202,6 +207,7 @@ class Analyzer:
                 - 'high_missing': Titles where missing patches are greater than 50% of total hosts.
                 - 'zero_completion': Titles with zero completion percentage.
                 - 'top_performers': Titles with completion percentage greater than 90%.
+                - 'installomator': Titles that have Installomator labels. See :ref:`Installomator <installomator>`
 
         :type criteria: :class:`~patcher.client.analyze.FilterCriteria`
         :param threshold: The threshold for filtering completion percentages, default is 70.0.
@@ -247,6 +253,7 @@ class Analyzer:
                 key=lambda pt: pt.completion_percent,
                 reverse=True,
             ),
+            FilterCriteria.INSTALLOMATOR: lambda: [pt for pt in titles if pt.install_label != []],
         }
 
         # Check for valid criteria

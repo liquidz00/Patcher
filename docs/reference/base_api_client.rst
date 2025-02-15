@@ -6,5 +6,5 @@
 Base API Client
 ===============
 
-.. autoclass:: patcher.client.__init__.BaseAPIClient
+.. autoclass:: patcher.client.BaseAPIClient
     :members:

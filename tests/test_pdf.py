@@ -2,7 +2,6 @@ from unittest.mock import ANY, MagicMock, patch
 
 import pandas as pd
 import pytest
-from src.patcher.utils.exceptions import PatcherError
 from src.patcher.utils.pdf_report import PDFReport
 
 
@@ -160,38 +159,3 @@ def test_calculate_column_widths():
     pdf.table_headers = ["Col1", "Col2"]
     widths = pdf.calculate_column_widths(data)
     assert sum(widths) <= pdf.w - 20  # Fit within page width
-
-
-def test_export_excel_to_pdf_success():
-    mock_data = pd.DataFrame({"Col1": ["A", "B"], "Col2": ["C", "D"]})
-
-    with (
-        patch("pandas.read_excel", return_value=mock_data),
-        patch("os.path.exists", return_value=True),
-        patch("fpdf.FPDF.output") as mock_output,
-        patch("src.patcher.utils.pdf_report.UIConfigManager") as mock_ui_manager,
-        patch("fpdf.FPDF.add_font"),  # Prevent font loading
-    ):
-        # Mock UIConfigManager behavior
-        mock_ui = mock_ui_manager.return_value
-        mock_ui.config = {
-            "FONT_NAME": "Helvetica",
-            "FONT_REGULAR_PATH": "path/to/regular/font.ttf",
-            "FONT_BOLD_PATH": "path/to/bold/font.ttf",
-            "HEADER_TEXT": "Header",
-            "FOOTER_TEXT": "Footer",
-        }
-        mock_ui.get_logo_path.return_value = None
-
-        pdf = PDFReport()
-        pdf.export_excel_to_pdf("mock/path/file.xlsx")
-
-        # Assert PDF generation
-        mock_output.assert_called_once()
-
-
-def test_export_excel_to_pdf_empty():
-    pdf = PDFReport()
-    with patch("pandas.read_excel", side_effect=pd.errors.EmptyDataError):
-        with pytest.raises(PatcherError):
-            pdf.export_excel_to_pdf("mock/path/file.xlsx")

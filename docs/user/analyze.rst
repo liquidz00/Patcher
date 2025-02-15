@@ -10,29 +10,49 @@ Analyzes an exported patch report in Excel format and outputs analyzed results. 
 Parameters
 ----------
 
-- ``excel_file`` (:py:class:`str`):
-    *(Optional)* Path to the Excel file containing patch management data.
+.. param:: excel_file
+    :type: str
+  
+    Path to the Excel file containing patch management data.
 
-- ``all_time`` (:py:class:`bool`):
+.. param:: all_time
+    :type: bool
+
     Allows for analyzation of patch report trends across all cached data instead of a single dataset. See :class:`~patcher.client.analyze.TrendCriteria`.
 
-- ``threshold`` (:py:class:`float`):
+.. param:: threshold
+    :type: float
+
     Filters software titles that are below the specified completion percentage.
 
-- ``criteria`` (:py:class:`str`):
+.. param:: criteria
+    :type: str
+
     Specifies the criteria for filtering patches. See :class:`~patcher.client.analyze.FilterCriteria`.
 
-- ``top_n`` (:py:class:`int`):
+    Additional criteria can be passed when using the ``--all-time`` flag. See :class:`~patcher.client.analyze.TrendCriteria`. Trend criteria options are: 
+
+    - ``patch_adoption``: Calculates completion rates over time for different software titles.
+    - ``release_frequency``: Analyzes the release frequency of updates for software titles. 
+    - ``completion_trends``: Evaluates the correlation between release dates and completion percentages.
+
+.. param:: top_n
+    :type: int
+
     Number of top entries to display based on the criteria. Default is ``None``, meaning all results will be returned.
 
-- ``summary`` (:py:class:`bool`):
+.. param:: summary
+    :type: bool
+
     If passed, will generate a summary file in ``.html`` format in addition to showing results in stdout.
 
     .. note::
 
         The ``--summary`` option requires an output directory specified via ``--output-dir``. Ensure the directory exists and has write permissions before running the command. Otherwise, the summary file will not be generated.
 
-- ``output_dir`` (:py:obj:`~typing.Union` [:py:class:`str` | :py:obj:`~pathlib.Path`]):
+.. param:: output_dir
+    :type: Union[str | Path]
+
     Directory to save generated summary if ``--summary`` flag is passed. HTML report will follow a similar naming scheme to exported reports (i.e., ``patch-analysis-<current-date>.html``).
 
 Criteria
@@ -74,6 +94,8 @@ Filter Criteria Options
           - Lists software titles with completion percentage above 90%.
         * - ``high-missing``
           - Filters software titles where missing patches are greater than 50% of total hosts.
+        * - ``installomator``
+          - Returns ``PatchTitles`` that have `Installomator <https://github.com/Installomator/Installomator>`_ labels. Helpful to identify which software titles support automated patching.
 
 Trend Criteria Options
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -155,6 +177,12 @@ Filter Criteria
     .. code-block:: console
 
         $ patcherctl analyze [/path/to/excel.xlsx] --criteria top-performers
+
+.. card:: Installomator
+
+    .. code-block:: console
+
+        $ patcherctl analyze [/path/to/excel.xlsx] --criteria installomator
 
 Trend Criteria
 ^^^^^^^^^^^^^^
