@@ -67,6 +67,8 @@ autodoc_typehints = "both"
 autodoc_member_order = "bysource"
 autosectionlabel_prefix_document = True
 
+toc_object_entries_show_parents = "hide"
+
 # Pydantic options
 autodoc_pydantic_model_show_json = False
 autodoc_pydantic_model_show_field_summary = False
