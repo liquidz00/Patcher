@@ -36,10 +36,3 @@ installomator
 logger
 pdf_report
 ```
-
-```{toctree}
-:maxdepth: 2
-:caption: Command Line Interface (CLI)
-
-cli
-```
