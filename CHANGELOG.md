@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.1.0] - 2025-02-15
+### Added
+- Export command defaults to exporting to all file formats (Excel, PDF, and HTML), with the `--format` option allowing for export of specific formats if desired
+- [Installomator](https://github.com/Installomator/Installomator) matching. `PatchTitle` objects are matched with Installomator labels upon export
+- Installomator `FilterCriteria` to show which labels are supported by Installomator
+
+### Changed
+- Added hour and minute information to cached data timestamp, allowing for caching of multiple reports in same day
+
+### Fixed
+- An issue where `date_format` was not being properly formatted as a datetime object in exported HTML reports
+- `OSError` and `PermissionError` types are properly handled when trying to create directories
+- `app_names` key returns a list of `appName` strings instead of first entry only
+- An issue where `ReportManager` objects were not properly awaiting async functions
+
 ## [v2.0.3] - 2025-02-05
 ### Fixed
 - Data sets are cached before dropping ignored columns so that analysis can complete as expected
