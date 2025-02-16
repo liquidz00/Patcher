@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: docs
+.PHONY: docs switcher
 
 install:
 	python3 -m pip install --upgrade --force-reinstall --editable '.[all]'
@@ -33,6 +33,9 @@ format:
 build:
 	python3 -m build --sdist --wheel
 
-docs:
+switcher:
+	python3 docs/generate_switcher.py
+
+docs: switcher
 	sphinx-build -b html docs/ docs/_build/
 
