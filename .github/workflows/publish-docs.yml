@@ -61,6 +61,8 @@ jobs:
           make docs
           mkdir -p docs/_build/${{ env.DOCS_VERSION }}
           rsync -av --exclude=_build docs/_build/ docs/_build/${{ env.DOCS_VERSION }}/
+          mkdir -p docs/_build/latest/_static
+          cp docs/_build/${{ env.DOCS_VERSION }}/_static/switcher.json docs/_build/latest/_static/switcher.json || true
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
