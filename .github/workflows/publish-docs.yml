@@ -60,7 +60,7 @@ jobs:
         run: |
           make docs
           mkdir -p docs/_build/${{ env.DOCS_VERSION }}
-          cp -r docs/_build/* docs/_build/${{ env.DOCS_VERSION }}/
+          rsync -av --exclude=_build docs/_build/ docs/_build/${{ env.DOCS_VERSION }}/
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
