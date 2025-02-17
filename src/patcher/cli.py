@@ -10,6 +10,7 @@ from .__about__ import __version__
 from .client.analyze import Analyzer, FilterCriteria, TrendCriteria
 from .client.api_client import ApiClient
 from .client.config_manager import ConfigManager
+from .client.plist_manager import PropertyListManager
 from .client.report_manager import ReportManager
 from .client.setup import Setup
 from .client.ui_manager import UIConfigManager
@@ -126,11 +127,12 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool) -> None:
         "disable_cache": disable_cache,
         "animation": Animation(enable_animation=not debug),
         "log": LogMe(__name__),
+        "plist_manager": PropertyListManager(),
         "config": ConfigManager(),
         "ui_config": UIConfigManager(),
     }
 
-    setup = Setup(ctx.obj.get("config"), ctx.obj.get("ui_config"))
+    setup = Setup(ctx.obj.get("config"), ctx.obj.get("ui_config"), ctx.obj.get("plist_manager"))
     ctx.obj["setup"] = setup
 
     # Check Setup completion
@@ -142,8 +144,7 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool) -> None:
                 "Patcher is now ready for use. You can use the --help flag to view available options."
             )
             click.echo("For more information, visit the project docs: https://patcher.liquidzoo.io")
-            # Exit to avoid running a command
-            ctx.exit(0)
+            ctx.exit(0)  # Exit to avoid running a command
 
 
 # Reset
@@ -367,13 +368,14 @@ async def export(
     patcher = ReportManager(
         api_client=api_client,
         data_manager=data_manager,
-        debug=ctx.obj.get("debug"),
     )
 
     selected_formats = set(formats) if formats else {"excel", "html", "pdf"}
     actual_format = DATE_FORMATS[date_format]
     ui_config = ctx.obj.get("ui_config")
     report_title = ui_config.config.get("HEADER_TEXT")
+    plist_manager = ctx.obj.get("plist_manager")
+    enable_iom = plist_manager.get("Installomator", "enabled")
 
     # Not wrapping in animation error_handling in favor of existence on process_reports method
     await patcher.process_reports(
@@ -384,6 +386,7 @@ async def export(
         ios=ios,
         date_format=actual_format,
         report_title=report_title,
+        enable_iom=enable_iom,
     )
 
 
