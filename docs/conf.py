@@ -130,7 +130,7 @@ def linkcode_resolve(domain, info):
     fn = os.path.relpath(fn, start=os.path.dirname(patcher.__file__))
 
     # If development version, link to `develop`
-    branch_or_tag = "develop" if "b" in __version__ else release
+    branch_or_tag = "develop" if "dev" in __version__ else release
 
     return f"https://github.com/liquidz00/Patcher/blob/{branch_or_tag}/src/patcher/{fn}{linespec}"
 
