@@ -67,7 +67,7 @@ class Setup:
         """
         if self._completed is None:
             self.log.debug("Checking setup completion status.")
-            self._completed = self.plist_manager.get_value("Setup", "first_run_done") or False
+            self._completed = self.plist_manager.get("Setup", "first_run_done") or False
         return self._completed
 
     @staticmethod
@@ -79,7 +79,8 @@ class Setup:
 
     def _mark_completion(self, value: bool = False):
         """Updates the plist file to reflect the completion status of the setup."""
-        self.plist_manager.set_value("Setup", "first_run_done", value)
+        self.plist_manager.set("Setup", "first_run_done", value)
+        self._completed = value
 
     def _prompt_credentials(self, setup_type: SetupType) -> Optional[Dict]:
         """Prompt for credentials based on the credential type."""
@@ -123,7 +124,7 @@ class Setup:
         use_installomator = click.confirm(
             "Would you like to enable Installomator support?", default=True
         )
-        self.plist_manager.set_value("Installomator", "enabled", use_installomator)
+        self.plist_manager.set("Installomator", "enabled", use_installomator)
 
     async def _token_fetching(
         self, setup_type: SetupType = SetupType.STANDARD, creds: Optional[Dict] = None
@@ -315,6 +316,8 @@ class Setup:
         """
         self.log.debug("Attempting to reset setup.")
         self._completed = None
-        setup_success = self.plist_manager.reset("Setup")
-        self.log.info("Successfully reset setup.")
-        return setup_success
+        success = self.plist_manager.reset("Setup")
+        if success:
+            self._completed = None
+            self.log.info("Successfully reset setup.")
+        return success

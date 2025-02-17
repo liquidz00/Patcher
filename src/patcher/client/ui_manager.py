@@ -82,7 +82,7 @@ class UIConfigManager:
 
         self._config.update(value)
         self.log.debug(f"Updated configuration: {self._config}")
-        self.plist_manager.set_section("UI", self._config)
+        self.plist_manager.set("UI", self._config)
 
     @cached_property
     def fonts_present(self) -> bool:
@@ -116,7 +116,7 @@ class UIConfigManager:
 
     def _load_ui_config(self) -> None:
         """Loads UI configuration from plist or creates default config if missing."""
-        self._config = self.plist_manager.get_section("UI")
+        self._config = self.plist_manager.get("UI") or {}
         if not self._config:
             self.log.info("No UI configuration found. Creating default UI settings.")
             self.create_default_config()
@@ -183,7 +183,7 @@ class UIConfigManager:
         }
 
         # Leverage setter
-        self.plist_manager.set_section("UI", default_config)
+        self.plist_manager.set("UI", default_config)
 
     def reset_config(self) -> bool:
         """
