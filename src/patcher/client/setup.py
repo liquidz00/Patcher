@@ -1,5 +1,3 @@
-import os
-import plistlib
 from enum import Enum
 from typing import Dict, Optional, Tuple, Union
 
@@ -8,10 +6,11 @@ import asyncclick as click
 from ..models.jamf_client import JamfClient
 from ..models.token import AccessToken
 from ..utils.animation import Animation
-from ..utils.exceptions import APIResponseError, PatcherError, SetupError, TokenError
+from ..utils.exceptions import APIResponseError, SetupError, TokenError
 from ..utils.logger import LogMe
 from . import BaseAPIClient
 from .config_manager import ConfigManager
+from .plist_manager import PropertyListManager
 from .token_manager import TokenManager
 from .ui_manager import UIConfigManager
 
@@ -37,6 +36,7 @@ class Setup:
         self,
         config: ConfigManager,
         ui_config: UIConfigManager,
+        plist_manager: PropertyListManager,
     ):
         """
         Handles the initial setup process for the Patcher CLI tool.
@@ -52,7 +52,7 @@ class Setup:
         """
         self.config = config
         self.ui_config = ui_config
-        self.plist_path = ui_config.plist_path
+        self.plist_manager = plist_manager
         self.log = LogMe(self.__class__.__name__)
         self.animator = Animation()
         self._completed = None
@@ -67,7 +67,7 @@ class Setup:
         """
         if self._completed is None:
             self.log.debug("Checking setup completion status.")
-            self._completed = self._check_completion()
+            self._completed = self.plist_manager.get_value("Setup", "first_run_done") or False
         return self._completed
 
     @staticmethod
@@ -77,45 +77,11 @@ class Setup:
         click.echo(click.style(WELCOME), nl=False)
         click.echo(click.style(DOC, fg="bright_magenta", bold=True))
 
-    def _check_completion(self) -> bool:
-        """
-        Determines if the setup has been completed by checking the presence of a plist file. If the
-        property list file cannot be read, an error is logged.
-        """
-        if not os.path.exists(self.plist_path):
-            self.log.info("Setup plist file not found. Setup is incomplete.")
-            return False
-
-        try:
-            with open(self.plist_path, "rb") as fp:
-                plist_data = plistlib.load(fp)
-                self.log.info("Setup completion status loaded successfully.")
-                return plist_data.get("Setup", {}).get("first_run_done", False)
-        except plistlib.InvalidFileException as e:
-            self.log.warning(f"Unable to read property list file. Details: {e}")
-            return False
-
     def _mark_completion(self, value: bool = False):
         """Updates the plist file to reflect the completion status of the setup."""
-        # Intentionally calling private method as functionality is needed here.
-        # noinspection PyProtectedMember
-        plist_data = self.ui_config._load_plist_file()
-        plist_data["Setup"] = {"first_run_done": value}
+        self.plist_manager.set_value("Setup", "first_run_done", value)
 
-        os.makedirs(os.path.dirname(self.plist_path), exist_ok=True)
-        try:
-            with open(self.plist_path, "wb") as fp:
-                plistlib.dump(plist_data, fp)
-            self.log.info("Setup completion status updated successfully.")
-        except Exception as e:
-            self.log.error(f"Could not write to property list ({self.plist_path}). Details: {e}")
-            raise SetupError(
-                "Error encountered trying to write to property list file.",
-                path=str(self.plist_path),
-                error_msg=str(e),
-            )
-
-    def _prompt_credentials(self, setup_type: SetupType) -> Dict:
+    def _prompt_credentials(self, setup_type: SetupType) -> Optional[Dict]:
         """Prompt for credentials based on the credential type."""
         self.log.info(f"Prompting user for {setup_type.value} credentials.")
         if setup_type == SetupType.STANDARD:
@@ -152,9 +118,16 @@ class Setup:
         for key, value in creds.items():
             self.config.set_credential(key, value)
 
+    def _prompt_installomator(self):
+        """Prompts user to enable or disable Installomator support."""
+        use_installomator = click.confirm(
+            "Would you like to enable Installomator support?", default=True
+        )
+        self.plist_manager.set_value("Installomator", "enabled", use_installomator)
+
     async def _token_fetching(
         self, setup_type: SetupType = SetupType.STANDARD, creds: Optional[Dict] = None
-    ) -> Union[str, AccessToken]:
+    ) -> Optional[Union[str, AccessToken]]:
         """Fetches a Token (basic or ``AccessToken``) depending on setup type (Standard or SSO)."""
         if setup_type == SetupType.SSO:
             token_manager = TokenManager(self.config)
@@ -214,6 +187,9 @@ class Setup:
 
         # Prompt for credentials
         creds = self._prompt_credentials(setup_type)
+
+        # Prompt for installomator
+        self._prompt_installomator()
 
         if setup_type == SetupType.STANDARD:
             # `launch` method
@@ -334,25 +310,11 @@ class Setup:
         Resets Setup configuration, removing Patcher's property list file. This effectively marks
         Setup completion as False and will re-trigger the setup assistant.
 
-        If the file does not exist, a warning is logged but the function will return ``True``.
-
-        :return: ``True`` if the property list file was successfully removed or if it does not exist.
+        :return: ``True`` if the Setup section in the property list file was removed.
         :rtype: :py:class:`bool`
-        :raises PatcherError: If the file exists but could not be removed due to an error.
         """
         self.log.debug("Attempting to reset setup.")
-        try:
-            os.remove(self.plist_path)
-            self._completed = None
-            self.log.info("Successfully reset setup.")
-            return True
-        except FileNotFoundError:
-            self.log.warning(f"Property list file does not exist: {self.plist_path}")
-            return True
-        except OSError as e:
-            self.log.error(f"Unable to delete property list file ({self.plist_path}). Details: {e}")
-            raise PatcherError(
-                "Unable to delete property list file as expected.",
-                path=self.plist_path,
-                error_msg=str(e),
-            )
+        self._completed = None
+        setup_success = self.plist_manager.reset("Setup")
+        self.log.info("Successfully reset setup.")
+        return setup_success
