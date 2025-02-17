@@ -37,9 +37,6 @@ Before creating an API client, you must establish an API role with the necessary
    - Read API Roles
    - Read Patch Management Settings
    - Update API Integrations
-   - Update API Roles
-   - Create Policies
-   - Create Smart Computer Groups
 7. Click **Save** to create the role.
 
 ### API Client

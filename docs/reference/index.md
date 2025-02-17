@@ -6,6 +6,7 @@ html_theme.sidebar_secondary.remove: True
 
 ```{toctree}
 :caption: Client Modules
+:maxdepth: 3
 
 base_api_client
 api_client
@@ -19,6 +20,7 @@ ui_manager
 
 ```{toctree}
 :caption: Data Models
+:maxdepth: 2
 
 jamf_client
 patch
@@ -27,6 +29,7 @@ token
 
 ```{toctree}
 :caption: Utilities
+:maxdepth: 2
 
 animation
 data_manager
@@ -35,11 +38,4 @@ exceptions
 installomator
 logger
 pdf_report
-```
-
-```{toctree}
-:maxdepth: 2
-:caption: Command Line Interface (CLI)
-
-cli
 ```
