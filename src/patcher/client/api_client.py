@@ -73,7 +73,10 @@ class ApiClient(BaseAPIClient):
         """
         headers = await self._headers()
         url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
-        response = await self.fetch_json(url=url, headers=headers)
+        try:
+            response = await self.fetch_json(url=url, headers=headers)
+        except APIResponseError:
+            raise
         return [title.get("id") for title in response]
 
     @check_token
@@ -91,7 +94,10 @@ class ApiClient(BaseAPIClient):
             for policy in policy_ids
         ]
         headers = await self._headers()
-        summaries = await self.fetch_batch(urls, headers=headers)
+        try:
+            summaries = await self.fetch_batch(urls, headers=headers)
+        except APIResponseError:
+            raise
 
         patch_titles = [
             PatchTitle(
@@ -120,7 +126,10 @@ class ApiClient(BaseAPIClient):
         """
         url = f"{self.jamf_url}/api/v2/mobile-devices"
         headers = await self._headers()
-        response = await self.fetch_json(url=url, headers=headers)
+        try:
+            response = await self.fetch_json(url=url, headers=headers)
+        except APIResponseError:
+            raise
         devices = response.get("results")
         return [device.get("id") for device in devices if device]
 
@@ -139,7 +148,10 @@ class ApiClient(BaseAPIClient):
         """
         urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
         headers = await self._headers()
-        subsets = await self.fetch_batch(urls, headers=headers)
+        try:
+            subsets = await self.fetch_batch(urls, headers=headers)
+        except APIResponseError:
+            raise
 
         devices = [
             {
@@ -168,7 +180,12 @@ class ApiClient(BaseAPIClient):
         ]
         query_params = {"page-size": 1, "sort": "absoluteOrderId:asc"}
         headers = await self._headers()
-        batch_responses = await self.fetch_batch(urls, headers=headers, query_params=query_params)
+        try:
+            batch_responses = await self.fetch_batch(
+                urls, headers=headers, query_params=query_params
+            )
+        except APIResponseError:
+            raise
 
         app_names = []
         for patch_title, response in zip(patch_titles, batch_responses):
