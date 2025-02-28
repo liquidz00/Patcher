@@ -134,10 +134,6 @@ def linkcode_resolve(domain, info):
 
     return f"https://github.com/liquidz00/Patcher/blob/{branch_or_tag}/src/patcher/{fn}{linespec}"
 
-# -- Version switcher  -------------------------------------------------------
-version_match = os.environ.get("DOCS_VERSION", "latest")
-json_url = f"https://patcher.liquidzoo.io/{version_match}/_static/switcher.json"
-
 # -- Options for copy button  ------------------------------------------------
 # https://sphinx-copybutton.readthedocs.io/en/latest/use.html
 copybutton_prompt_text = r">>> |\.\.\. |\$ "
@@ -174,11 +170,7 @@ html_theme_options = {
     "navbar_align": "left",
     "announcement": "https://raw.githubusercontent.com/liquidz00/Patcher/main/docs/_templates/custom-template.html",
     "show_prev_next": False,
-    "navbar_start": ["navbar-logo", "version-switcher"],
-    "switcher": {
-        "json_url": json_url,
-        "version_match": version_match,
-    },
+    "navbar_start": ["navbar-logo"],
     "navbar_center": ["navbar-nav"],
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "icon_links": [
