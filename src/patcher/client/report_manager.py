@@ -20,6 +20,7 @@ class ReportManager:
         self,
         api_client: ApiClient,
         data_manager: DataManager,
+        debug: bool = False,
         installomator: Optional[Installomator] = None,
     ):
         """
@@ -29,11 +30,14 @@ class ReportManager:
         :type api_client: :class:`~patcher.client.api_client.ApiClient`
         :param data_manager: Generates Excel reports from collected patch data.
         :type data_manager: :class:`~patcher.utils.data_manager.DataManager`
+        :param debug: Overrides animation of `~patcher.client.report_manager.ReportManager.process_reports` method if True.
+        :type debug: :py:obj:`~typing.Optional` [:py:class:`bool`]
         :param installomator: An optional :class:`~patcher.utils.installomator.Installomator` object for matching. Defaults to creating a new object during init.
         :type installomator: :class:`~patcher.utils.installomator.Installomator`
         """
         self.api_client = api_client
         self.data_manager = data_manager
+        self.debug = debug
         self.log = LogMe(self.__class__.__name__)
         self.iom = installomator or Installomator()
 
@@ -252,7 +256,7 @@ class ReportManager:
         :param enable_iom: If False, disables Installomator matching. Defaults to True.
         :type enable_iom: :py:class:`bool`
         """
-        animation = Animation()
+        animation = Animation(enable_animation=not self.debug)
 
         async with animation.error_handling():
             self.log.debug("Starting report generation process.")
