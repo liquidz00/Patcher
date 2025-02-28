@@ -4,9 +4,9 @@ on:
   push:
     branches:
       - 'main'
-      - 'develop'
-    tags:
-      - "v*.*.*"
+    paths:
+      - 'docs/**'
+      - 'src/**'
   workflow_dispatch:
 
 permissions:
@@ -37,36 +37,10 @@ jobs:
       - name: Install dependencies
         run: make install-docs
 
-      - name: Determine Version
-        id: get_version
-        run: |
-          echo "🔍 DEBUG: github.ref is '${{ github.ref }}'"
-          
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "DOCS_VERSION=latest" >> $GITHUB_ENV
-            echo "🔍 Setting DOCS_VERSION=latest"
-          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
-            echo "DOCS_VERSION=develop" >> $GITHUB_ENV
-            echo "🔍 Setting DOCS_VERSION=develop"
-          else
-            TAG_VERSION=$(echo "${{ github.ref }}" | sed 's/refs\/tags\///')
-            echo "DOCS_VERSION=$TAG_VERSION" >> $GITHUB_ENV
-            echo "🔍 Setting DOCS_VERSION=$TAG_VERSION"
-          fi
-
       - name: Build Sphinx Docs
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: |
-          make docs
-          mkdir -p docs/_build/latest/_static/
-          mkdir -p docs/_build/develop/_static/
-      
-          cp docs/latest/_static/switcher.json docs/_build/latest/_static/switcher.json
-          cp docs/latest/_static/switcher.json docs/_build/develop/_static/switcher.json
-      
-          rsync -av --exclude=_build docs/_build/ docs/_build/latest/
-          rsync -av --exclude=_build docs/_build/ docs/_build/develop/
+        run: make docs
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
