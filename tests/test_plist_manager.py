@@ -1,5 +1,3 @@
-
-
 def test_get_existing_section(mock_plist_manager):
     mock_plist_manager.get.return_value = {"HEADER_TEXT": "Header"}
     assert mock_plist_manager.get("UI") == {"HEADER_TEXT": "Header"}
