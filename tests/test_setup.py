@@ -1,9 +1,5 @@
-import os
-import tempfile
 from datetime import datetime, timezone
-from pathlib import Path
-from plistlib import InvalidFileException
-from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from src.patcher.client.setup import Setup, SetupType
@@ -12,57 +8,36 @@ from src.patcher.utils.exceptions import SetupError
 
 
 @pytest.fixture
-def setup_instance(
-    config_manager, ui_config, mock_jamf_client, api_client, token_manager, request, base_api_client
-):
-    # Create temp file path
-    temp_plist = tempfile.NamedTemporaryFile(suffix=".plist", delete=False)
-    temp_plist_path = Path(temp_plist.name)
-    temp_plist.close()
-
-    # Mock plist_path to use temp file
-    with patch.object(ui_config, "plist_path", new=temp_plist_path):
-        instance = Setup(
-            config=config_manager,
-            ui_config=ui_config,
-        )
-        instance.config.set_credential = MagicMock()
-        instance.config.create_client = MagicMock()
-        instance.animator.stop_event.set = AsyncMock()
-
-        # Clean up after test
-        def cleanup():
-            if temp_plist_path.exists():
-                os.remove(temp_plist_path)
-
-        request.addfinalizer(cleanup)
-
-        yield instance
+def setup_instance(config_manager, ui_config, mock_plist_manager):
+    instance = Setup(
+        config=config_manager,
+        ui_config=ui_config,
+        plist_manager=mock_plist_manager,
+    )
+    instance.config.set_credential = MagicMock()
+    instance.config.create_client = MagicMock()
+    return instance
 
 
 @pytest.mark.asyncio
 async def test_init(setup_instance, config_manager, ui_config):
     assert setup_instance.config == config_manager
     assert setup_instance.ui_config == ui_config
-    assert setup_instance.ui_config.plist_path.exists()
     assert setup_instance._completed is None
 
 
-def test_is_complete(setup_instance):
-    with (
-        patch.object(Path, "exists", return_value=True),
-        patch("plistlib.load", return_value={"Setup": {"first_run_done": True}}),
-        patch("builtins.open", mock_open(read_data=b"")),
-    ):
-        result = setup_instance._check_completion()
-        assert result is True
+def test_is_complete(setup_instance, mock_plist_manager):
+    mock_plist_manager.get.return_value = True
+    assert setup_instance.completed is True
+    mock_plist_manager.get.assert_called_once_with("Setup", "first_run_done")
 
 
-def test_is_complete_error(setup_instance):
-    with patch.object(Path, "exists", return_value=True):
-        with patch("plistlib.load", side_effect=InvalidFileException("plist read error")):
-            result = setup_instance._check_completion()
-            assert result is False
+def test_is_complete_error(setup_instance, mock_plist_manager):
+    mock_plist_manager.get.side_effect = Exception("plist read error")
+
+    with pytest.raises(Exception, match="plist read error"):
+        # noinspection PyStatementEffect
+        setup_instance.completed
 
 
 def test_setup_type_enum():
@@ -112,15 +87,15 @@ def test_save_creds(setup_instance):
     setup_instance.config.set_credential.assert_any_call("PASSWORD", "pass")
 
 
-def test_mark_completion(setup_instance):
-    with (
-        patch("os.makedirs", MagicMock()),
-        patch("builtins.open", mock_open()) as mock_file,
-        patch("plistlib.dump") as mock_dump,
-    ):
-        setup_instance._mark_completion(value=True)
-        mock_file.assert_called_once_with(setup_instance.plist_path, "wb")
-        mock_dump.assert_called_once()
+def test_mark_completion(setup_instance, mock_plist_manager):
+    setup_instance._mark_completion(value=True)
+    mock_plist_manager.set.assert_called_once_with("Setup", "first_run_done", True)
+
+
+def test_reset_setup(setup_instance, mock_plist_manager):
+    mock_plist_manager.reset.return_value = True
+    assert setup_instance.reset_setup() is True
+    mock_plist_manager.reset.assert_called_once_with("Setup")
 
 
 @pytest.mark.asyncio
@@ -128,6 +103,7 @@ async def test_run_setup_standard(setup_instance):
     mock_token = AccessToken(token="mock_token", expires=datetime(2028, 1, 1, tzinfo=timezone.utc))
     with (
         patch("asyncclick.prompt", side_effect=["https://example.com", "user", "pass"]),
+        patch("asyncclick.confirm", return_value=False),
         patch.object(setup_instance, "_token_fetching", return_value=mock_token),
         patch.object(
             setup_instance, "_configure_integration", return_value=("client_id", "client_secret")
@@ -149,6 +125,7 @@ async def test_run_setup_sso(setup_instance):
         patch(
             "asyncclick.prompt", side_effect=["https://example.com", "client_id", "client_secret"]
         ),
+        patch("asyncclick.confirm", return_value=False),
         patch.object(setup_instance, "_token_fetching", return_value=mock_token),
         patch.object(setup_instance, "_save_creds"),
         patch.object(setup_instance, "_mark_completion"),
