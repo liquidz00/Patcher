@@ -1,10 +1,12 @@
 import shutil
+from enum import Enum
 from functools import cached_property
 from pathlib import Path
-from typing import Dict, Optional, Set, Tuple, Union
+from typing import Dict, Union
 
 import asyncclick as click
 from PIL import Image
+from pydantic import BaseModel, Field
 
 from ..utils.exceptions import PatcherError, SetupError, ShellCommandError
 from ..utils.logger import LogMe
@@ -12,22 +14,31 @@ from . import BaseAPIClient
 from .plist_manager import PropertyListManager
 
 
-class UIConfigManager:
-    _REGULAR_FONT_URL = (
-        "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Regular.ttf"
-    )
-    _BOLD_FONT_URL = (
-        "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Bold.ttf"
-    )
+class UIConfigKeys(str, Enum):
+    HEADER = "header"
+    FOOTER = "footer"
+    FONT_NAME = "font_name"
+    REG_FONT_PATH = "reg_font_path"
+    BOLD_FONT_PATH = "bold_font_path"
+    LOGO_PATH = "logo_path"
 
-    # Config schema
-    _CONFIG_SCHEMA: Set[str] = {
-        "HEADER_TEXT",
-        "FOOTER_TEXT",
-        "FONT_NAME",
-        "FONT_REGULAR_PATH",
-        "FONT_BOLD_PATH",
-        "LOGO_PATH",
+
+class UIDefaults(BaseModel):
+    header: str = Field(default="Default header text", min_length=1)
+    footer: str = Field(default="Default footer text", min_length=1)
+    font_name: str = Field(default="Assistant", min_length=1)
+    reg_font_path: str = Field(default="", min_length=1)
+    bold_font_path: str = Field(default="", min_length=1)
+    logo_path: str = ""
+
+    class Config:
+        validate_assignment = True
+
+
+class UIConfigManager:
+    _FONT_URLS = {
+        "regular": "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Regular.ttf",
+        "bold": "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Bold.ttf",
     }
 
     def __init__(self):
@@ -41,12 +52,8 @@ class UIConfigManager:
         self.log = LogMe(self.__class__.__name__)
         self.plist_manager = PropertyListManager()
         self.api = BaseAPIClient()
-
         self.font_dir = self.plist_manager.plist_path.parent / "fonts"
-        self._fonts_saved = None
         self._config = None  # Lazy-loaded
-
-        self._load_ui_config()
 
     @property
     def config(self) -> Dict:
@@ -57,29 +64,26 @@ class UIConfigManager:
         :rtype: :py:obj:`~typing.Dict`
         """
         if self._config is None:
-            self._load_ui_config()
+            saved_config = self.plist_manager.get("UI")
+            if not saved_config:
+                self.log.info("No UI configuration was found. Saving defaults.")
+                self.create_default_config()
+            else:
+                self._config = saved_config
         return self._config
 
     @config.setter
-    def config(self, value: Dict = None, **kwargs):
+    def config(self, value: Dict):
         """
         Set specific UI configuration values with validation.
 
-        :param value: Optional dictionary containing configuration values to set.
-        :type value: :py:obj:`~typing.Dict` | None
-        :param kwargs: Key-values to add to ``self._config``
-        :type kwargs: :py:obj:`~typing.Dict` [:py:class:`str`, :py:obj:`~typing.Any`]
+        :param value: Dictionary containing configuration values to set.
+        :type value: :py:obj:`~typing.Dict`
         :raises PatcherError: If any passed keyword arguments are not in the schema.
         """
-        value = value or kwargs
-
-        invalid_keys = set(value.keys()) - self._CONFIG_SCHEMA
+        invalid_keys = value.keys() - {key.value for key in UIConfigKeys}
         if invalid_keys:
-            raise PatcherError(
-                "Invalid configuration keys passed to Configuration setter.",
-                keys=(", ".join(invalid_keys)),
-            )
-
+            raise PatcherError("Invalid configuration keys detected.", keys=", ".join(invalid_keys))
         self._config.update(value)
         self.log.debug(f"Updated configuration: {self._config}")
         self.plist_manager.set("UI", self._config)
@@ -93,8 +97,14 @@ class UIConfigManager:
         :return: ``True`` if the fonts are present.
         :rtype: :py:class:`bool`
         """
-        regular, bold = self._get_default_font_paths()
-        return regular.exists() and bold.exists()
+        return all(font.exists() for font in self._get_font_paths().values())
+
+    def _get_font_paths(self) -> Dict[str, Path]:
+        """Returns default font paths as a tuple."""
+        return {
+            "regular": self.font_dir / "Assistant-Regular.ttf",
+            "bold": self.font_dir / "Assistant-Bold.ttf",
+        }
 
     def _ensure_directory(self, path: Path) -> None:
         """Ensures the given directory exists and creates it if it does not."""
@@ -114,27 +124,24 @@ class UIConfigManager:
                     error_msg=str(e),
                 )
 
-    def _load_ui_config(self) -> None:
-        """Loads UI configuration from plist or creates default config if missing."""
-        self._config = self.plist_manager.get("UI") or {}
-        if not self._config:
-            self.log.info("No UI configuration found. Creating default UI settings.")
-            self.create_default_config()
+    def _download_fonts(self):
+        """Downloads the Assistant font family to Patcher's font directory."""
+        if self.fonts_present:
+            return
 
-    def _download_font(self, url: str, dest_path: Path):
-        """Downloads the Assistant font family from the specified URL to the given destination path."""
-        command = ["/usr/bin/curl", "-sL", url, "-o", str(dest_path)]
-        self.log.debug(f"Attempting to download default font family from {url} to {str(dest_path)}")
-        try:
-            self.api.execute_sync(command)
-            self.log.info(f"Default fonts saved successfully to {dest_path}")
-        except ShellCommandError as e:
-            self.log.error(f"Unable to download font from {url}: {e}")
-            raise PatcherError(
-                "Failed to download default font family.",
-                url=url,
-                error_msg=str(e),
-            )
+        self._ensure_directory(self.font_dir)
+        for font_type, url in self._FONT_URLS.items():
+            dest = self._get_font_paths()[font_type]
+            try:
+                self.api.execute_sync(["/usr/bin/curl", "-sL", url, "-o", str(dest)])
+                self.log.info(f"Font saved: {dest}")
+            except ShellCommandError as e:
+                self.log.error(f"Unable to download font from {url}: {e}")
+                raise PatcherError(
+                    "Failed to download default font family.",
+                    url=url,
+                    error_msg=str(e),
+                )
 
     def _copy_file(self, src: Path, dest: Path):
         """Safely copy a file, handling exceptions."""
@@ -149,41 +156,23 @@ class UIConfigManager:
                 error_msg=str(e),
             )
 
-    def _get_default_font_paths(self) -> Tuple[Path, Path]:
-        """Returns default font paths as a tuple."""
-        return (
-            self.font_dir / "Assistant-Regular.ttf",
-            self.font_dir / "Assistant-Bold.ttf",
-        )
-
     def create_default_config(self):
         """
         This method writes default values for header text, footer text, font paths
         and optional branding logo into the property list file. It also ensures that the
         necessary fonts are downloaded if they are not already present.
         """
-        self.log.debug("Attempting to create default configuration settings.")
-        self._ensure_directory(self.font_dir)
+        defaults = UIDefaults()
+        self._download_fonts()
 
-        # Download fonts if not already present
-        if not self.fonts_present:
-            try:
-                self._download_font(self._REGULAR_FONT_URL, self.font_dir / "Assistant-Regular.ttf")
-                self._download_font(self._BOLD_FONT_URL, self.font_dir / "Assistant-Bold.ttf")
-            except (PatcherError, ShellCommandError):
-                raise  # Avoid chaining exception in this instance
-
-        default_config = {
-            "HEADER_TEXT": "Default header text",
-            "FOOTER_TEXT": "Default footer text",
-            "FONT_NAME": "Assistant",
-            "FONT_REGULAR_PATH": str(self.font_dir / "Assistant-Regular.ttf"),
-            "FONT_BOLD_PATH": str(self.font_dir / "Assistant-Bold.ttf"),
-            "LOGO_PATH": "",
+        self.config = {
+            UIConfigKeys.HEADER.value: defaults.header,
+            UIConfigKeys.FOOTER.value: defaults.footer,
+            UIConfigKeys.FONT_NAME.value: defaults.font_name,
+            UIConfigKeys.REG_FONT_PATH.value: str(self._get_font_paths()["regular"]),
+            UIConfigKeys.BOLD_FONT_PATH.value: str(self._get_font_paths()["bold"]),
+            UIConfigKeys.LOGO_PATH.value: defaults.logo_path,
         }
-
-        # Leverage setter
-        self.plist_manager.set("UI", default_config)
 
     def reset_config(self) -> bool:
         """
@@ -197,7 +186,7 @@ class UIConfigManager:
         :return: ``True`` if the reset was successful.
         :rtype: :py:class:`bool`
         """
-        self.log.debug("Attempting to reset configuration settings.")
+        self.log.debug("Resetting UI-configuration settings.")
         return self.plist_manager.reset("UI")
 
     def setup_ui(self):
@@ -210,53 +199,59 @@ class UIConfigManager:
 
         """
         self.log.debug("Prompting user for UI setup.")
-        header_text = click.prompt("Enter the Header Text to use on PDF reports")
-        footer_text = click.prompt("Enter the Footer Text to use on PDF reports")
-        use_custom_font = click.confirm("Would you like to use a custom font?", default=False)
-        use_logo = click.confirm(
-            "Would you like to use a logo in your exported PDFs?", default=False
-        )
-        self.font_dir.mkdir(parents=True, exist_ok=True)
+        defaults = UIDefaults()
+        self._download_fonts()
 
-        font_name, font_regular_path, font_bold_path = self.configure_font(use_custom_font)
-        logo_path = self.configure_logo(use_logo)
+        settings = {
+            UIConfigKeys.HEADER.value: click.prompt(
+                "Enter Header Text for PDF reports",
+                default=self.config.get(UIConfigKeys.HEADER.value, defaults.header),
+                show_default=True,
+            ),
+            UIConfigKeys.FOOTER.value: click.prompt(
+                "Enter Footer Text for PDF reports",
+                default=self.config.get(UIConfigKeys.FOOTER.value, defaults.footer),
+                show_default=True,
+            ),
+            UIConfigKeys.FONT_NAME.value: "Assistant",
+            UIConfigKeys.REG_FONT_PATH.value: str(self._get_font_paths()["regular"]),
+            UIConfigKeys.BOLD_FONT_PATH.value: str(self._get_font_paths()["bold"]),
+            UIConfigKeys.LOGO_PATH.value: "",
+        }
 
-        self.log.info("Gathered UI settings from user successfully.")
-        self.save_ui_config(
-            header_text, footer_text, font_name, font_regular_path, font_bold_path, logo_path
-        )
+        if click.confirm("Would you like to use a custom font?", default=False):
+            settings.update(self.configure_font())
 
-    def configure_font(self, use_custom_font: bool) -> Tuple[str, Path, Path]:
+        if click.confirm(
+            "Would you like to use a custom logo in your exported PDF reports?", default=False
+        ):
+            settings[UIConfigKeys.LOGO_PATH.value] = self.configure_logo()
+
+        self.config = settings
+
+    def configure_font(self) -> Dict[str, str]:
         """
         Allows the user to specify a custom font or use the default provided by the application.
         The chosen fonts are copied to the appropriate directory for use in PDF report generation.
 
-        .. note::
-            This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
-
-        :param use_custom_font: Indicates whether to use a custom font.
-        :type use_custom_font: :py:class:`bool`
-        :return: A tuple containing the font name, regular font path, and bold font path.
-        :rtype: :py:obj:`~typing.Tuple` [:py:class:`str`, :py:class:`~pathlib.Path`, :py:class:`~pathlib.Path`]
+        :return: A dictionary containing the font name, regular font path, and bold font path.
+        :rtype: :py:obj:`~typing.Dict` [:py:class:`str`, :py:class:`str`]
         """
-        font_name = "Assistant"
-        regular_font, bold_font = self._get_default_font_paths()
+        font_name = click.prompt("Enter custom font name", default="CustomFont")
+        regular_src = Path(click.prompt("Enter the path to the regular font file"))
+        bold_src = Path(click.prompt("Enter the path to the bold font file"))
 
-        if use_custom_font:
-            self.log.debug("User chose to use custom font for PDF reports.")
-            font_name = click.prompt("Enter the custom font name", default="CustomFont")
-            regular_src = Path(click.prompt("Enter the path to the regular font file"))
-            bold_src = Path(click.prompt("Enter the path to the bold font file"))
-            regular_font = self.font_dir / regular_src.name
-            bold_font = self.font_dir / bold_src.name
+        regular_dest, bold_dest = self._get_font_paths()["regular"], self._get_font_paths()["bold"]
+        self._copy_file(regular_src, regular_dest)
+        self._copy_file(bold_src, bold_dest)
 
-            self._copy_file(regular_src, regular_font)
-            self._copy_file(bold_src, bold_font)
+        return {
+            UIConfigKeys.FONT_NAME.value: font_name,
+            UIConfigKeys.REG_FONT_PATH.value: str(regular_dest),
+            UIConfigKeys.BOLD_FONT_PATH.value: str(bold_dest),
+        }
 
-        self.log.info(f"Font information saved to {self.font_dir} successfully.")
-        return font_name, regular_font, bold_font
-
-    def configure_logo(self, use_logo: bool) -> Optional[str]:
+    def configure_logo(self) -> str:
         """
         Configures the logo file for PDF reports based on user input.
 
@@ -264,22 +259,14 @@ class UIConfigManager:
         Similar to :meth:`~patcher.client.ui_manager.UIConfigManager.configure_font` this method is
         solely used in conjunction with the :class:`~patcher.client.setup.Setup` class.
 
-        :param use_logo: Indicates whether or not to use a custom logo.
-        :type use_logo: :py:class:`bool`
         :return: The path to the saved logo file, or None if no logo is configured.
         :rtype: :py:obj:`~typing.Optional` [:py:class:`str`]
         :raises SetupError: If the provided logo path does not exist.
         :raises PatcherError: If the provided logo fails pillow validation.
         :raises PatcherError: If the logo file could not be copied to the destination path.
         """
-        if not use_logo:
-            self.log.info("Skipping logo configuration...")
-            return None
-
-        self.log.debug("Attempting to configure optional branding logo.")
         logo_src = Path(click.prompt("Enter the path to the logo file"))
         if not logo_src.exists():
-            self.log.error(f"Logo path does not exist: {logo_src}")
             raise SetupError(
                 "The specified logo path does not exist, please check the path and try again.",
                 path=logo_src,
@@ -298,51 +285,9 @@ class UIConfigManager:
                 error_msg=str(e),
             )
 
-        # Copy file
         logo_dest = self.plist_manager.plist_path.parent / "logo.png"
         self._copy_file(logo_src, logo_dest)
-        self.config["LOGO_PATH"] = str(logo_dest)
         return str(logo_dest)
-
-    def save_ui_config(
-        self,
-        header_text: str,
-        footer_text: str,
-        font_name: str,
-        font_regular_path: Union[str, Path],
-        font_bold_path: Union[str, Path],
-        logo_path: Optional[Union[str, Path]] = None,
-    ):
-        """
-        Saves the UI configuration settings to the configuration file.
-
-        .. note::
-            This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
-
-        :param header_text: The header text for PDF reports.
-        :type header_text: :py:class:`str`
-        :param footer_text: The footer text for PDF reports.
-        :type footer_text: :py:class:`str`
-        :param font_name: The name of the font to use.
-        :type font_name: :py:class:`str`
-        :param font_regular_path: The path to the regular font file.
-        :type font_regular_path: :py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]
-        :param font_bold_path: The path to the bold font file.
-        :type font_bold_path: :py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]
-        :param logo_path: The path to company/branding logo file. Defaults to None.
-        :type logo_path: :py:obj:`~typing.Optional` [:py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]]
-        """
-        self.log.debug("Attempting to save UI configuration settings.")
-        plist_data = {
-            "HEADER_TEXT": header_text,
-            "FOOTER_TEXT": footer_text,
-            "FONT_NAME": font_name,
-            "FONT_REGULAR_PATH": str(font_regular_path),
-            "FONT_BOLD_PATH": str(font_bold_path),
-            "LOGO_PATH": str(logo_path) if logo_path else "",
-        }
-        self.config = plist_data
-        self.log.info("Saved UI configuration settings successfully.")
 
     def get_logo_path(self) -> Union[str, None]:
         """
@@ -351,4 +296,4 @@ class UIConfigManager:
         :return: The logo path as a string if it exists, else None.
         :rtype: :py:obj:`~typing.Union` :py:class:`str` | None]
         """
-        return self.config.get("LOGO_PATH", "")
+        return self.config.get(UIConfigKeys.LOGO_PATH.value, "")
