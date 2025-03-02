@@ -191,7 +191,11 @@ class UIConfigManager:
         :rtype: :py:class:`bool`
         """
         self.log.debug("Resetting UI-configuration settings.")
-        return self.plist_manager.reset("UI")
+        try:
+            return self.plist_manager.reset("UI")
+        except Exception as e:  # intentional
+            self.log.error(f"Failed resetting UI-config settings. Details: {e}")
+            return False
 
     def setup_ui(self):
         """
