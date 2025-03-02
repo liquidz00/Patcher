@@ -84,6 +84,10 @@ class UIConfigManager:
         invalid_keys = value.keys() - {key.value for key in UIConfigKeys}
         if invalid_keys:
             raise PatcherError("Invalid configuration keys detected.", keys=", ".join(invalid_keys))
+        
+        if self._config is None:  # Ensure _config is initialized properly
+            self._config = {}
+        
         self._config.update(value)
         self.log.debug(f"Updated configuration: {self._config}")
         self.plist_manager.set("UI", self._config)
