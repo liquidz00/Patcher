@@ -358,7 +358,6 @@ def mock_plist_manager(mocker, tmp_path):
     mock_plist.set.return_value = None
     mock_plist.remove.return_value = None
     mock_plist.reset.return_value = True
-
     mock_plist.plist_path = tmp_path / "mock_plist.plist"
 
     return mock_plist

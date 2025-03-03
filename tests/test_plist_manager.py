@@ -1,3 +1,38 @@
+import plistlib
+from pathlib import Path
+from unittest.mock import MagicMock, mock_open
+
+import pytest
+from src.patcher.client.plist_manager import PropertyListManager
+from src.patcher.utils.exceptions import PatcherError
+
+
+@pytest.fixture
+def mock_plist(tmp_path):
+    mock_font_paths = {
+        "regular": tmp_path / "Assistant-Regular.ttf",
+        "bold": tmp_path / "Assistant-Bold.ttf",
+    }
+    mock_get_fonts = MagicMock()
+    mock_get_fonts.return_value = mock_font_paths
+
+    defaults = {
+        "Setup": {
+            "first_run_done": True,
+        },
+        "UI": {
+            "header": "Default header text",
+            "footer": "Default footer text",
+            "font_name": "Assistant",
+            "reg_font_path": str(mock_font_paths["regular"]),
+            "bold_font_path": str(mock_font_paths["bold"]),
+            "logo_path": "",
+        },
+    }
+
+    return defaults
+
+
 def test_get_existing_section(mock_plist_manager):
     mock_plist_manager.get.return_value = {"HEADER_TEXT": "Header"}
     assert mock_plist_manager.get("UI") == {"HEADER_TEXT": "Header"}
@@ -28,3 +63,44 @@ def test_reset_specific_section(mock_plist_manager):
 def test_reset_full_plist(mock_plist_manager):
     mock_plist_manager.reset.return_value = True
     assert mock_plist_manager.reset() is True
+
+
+def test_load_plist_file_valid(mock_plist_manager, mocker, mock_plist):
+    mocker.patch.object(mock_plist_manager, "_load_plist_file", return_value=mock_plist)
+    assert mock_plist_manager._load_plist_file() == mock_plist
+
+
+def test_load_plist_file_missing(mocker, tmp_path):
+    plist_manager = PropertyListManager()
+    plist_manager.plist_path = tmp_path / "mock_plist.plist"
+    mocker.patch.object(Path, "exists", return_value=False)
+    assert plist_manager._load_plist_file() == {}
+
+
+def test_load_plist_file_corrupted(mocker, tmp_path):
+    plist_manager = PropertyListManager()
+    plist_manager.plist_path = tmp_path / "mock_plist.plist"
+    mocker.patch("plistlib.load", side_effect=plistlib.InvalidFileException)
+    assert plist_manager._load_plist_file() == {}
+
+
+def test_write_plist_file_success(mocker, tmp_path, mock_plist):
+    plist_manager = PropertyListManager()
+    plist_manager.plist_path = tmp_path / "mock_plist.plist"
+    mock_open_instance = mock_open()
+    mocker.patch.object(Path, "open", mock_open_instance)
+
+    mock_plistlib_dump = mocker.patch("plistlib.dump")
+    plist_manager._write_plist_file(mock_plist)
+
+    mock_open_instance.assert_called_once_with("wb")
+    mock_plistlib_dump.assert_called_once_with(mock_plist, mock_open_instance())
+
+
+def test_write_plist_file_error(mocker, tmp_path, mock_plist):
+    plist_manager = PropertyListManager()
+    plist_manager.plist_path = tmp_path / "mock_plist.plist"
+
+    mocker.patch.object(Path, "open", side_effect=PermissionError("Write access denied"))
+    with pytest.raises(PatcherError, match="Could not write to plist file."):
+        plist_manager._write_plist_file(mock_plist)
