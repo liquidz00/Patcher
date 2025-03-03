@@ -15,21 +15,21 @@ from .plist_manager import PropertyListManager
 
 
 class UIConfigKeys(str, Enum):
-    HEADER = "header"
-    FOOTER = "footer"
-    FONT_NAME = "font_name"
-    REG_FONT_PATH = "reg_font_path"
-    BOLD_FONT_PATH = "bold_font_path"
-    LOGO_PATH = "logo_path"
+    HEADER = "HEADER_TEXT"
+    FOOTER = "FOOTER_TEXT"
+    FONT_NAME = "FONT_NAME"
+    REG_FONT_PATH = "REG_FONT_PATH"
+    BOLD_FONT_PATH = "BOLD_FONT_PATH"
+    LOGO_PATH = "LOGO_PATH"
 
 
 class UIDefaults(BaseModel):
-    header: str = Field(default="Default header text", min_length=1)
-    footer: str = Field(default="Default footer text", min_length=1)
-    font_name: str = Field(default="Assistant", min_length=1)
-    reg_font_path: str = Field(default="", min_length=1)
-    bold_font_path: str = Field(default="", min_length=1)
-    logo_path: str = ""
+    HEADER_TEXT: str = Field(default="Default header text", min_length=1)
+    FOOTER_TEXT: str = Field(default="Default footer text", min_length=1)
+    FONT_NAME: str = Field(default="Assistant", min_length=1)
+    REG_FONT_PATH: str = Field(default="", min_length=1)
+    BOLD_FONT_PATH: str = Field(default="", min_length=1)
+    LOGO_PATH: str = ""
 
     class Config:
         validate_assignment = True
@@ -170,12 +170,12 @@ class UIConfigManager:
         self._download_fonts()
 
         self.config = {
-            UIConfigKeys.HEADER.value: defaults.header,
-            UIConfigKeys.FOOTER.value: defaults.footer,
-            UIConfigKeys.FONT_NAME.value: defaults.font_name,
+            UIConfigKeys.HEADER.value: defaults.HEADER_TEXT,
+            UIConfigKeys.FOOTER.value: defaults.FOOTER_TEXT,
+            UIConfigKeys.FONT_NAME.value: defaults.FONT_NAME,
             UIConfigKeys.REG_FONT_PATH.value: str(self._get_font_paths()["regular"]),
             UIConfigKeys.BOLD_FONT_PATH.value: str(self._get_font_paths()["bold"]),
-            UIConfigKeys.LOGO_PATH.value: defaults.logo_path,
+            UIConfigKeys.LOGO_PATH.value: defaults.LOGO_PATH,
         }
 
     def reset_config(self) -> bool:
@@ -213,12 +213,12 @@ class UIConfigManager:
         settings = {
             UIConfigKeys.HEADER.value: click.prompt(
                 "Enter Header Text for PDF reports",
-                default=self.config.get(UIConfigKeys.HEADER.value, defaults.header),
+                default=self.config.get(UIConfigKeys.HEADER.value, defaults.HEADER_TEXT),
                 show_default=True,
             ),
             UIConfigKeys.FOOTER.value: click.prompt(
                 "Enter Footer Text for PDF reports",
-                default=self.config.get(UIConfigKeys.FOOTER.value, defaults.footer),
+                default=self.config.get(UIConfigKeys.FOOTER.value, defaults.FOOTER_TEXT),
                 show_default=True,
             ),
             UIConfigKeys.FONT_NAME.value: "Assistant",
