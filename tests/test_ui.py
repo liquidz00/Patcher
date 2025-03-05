@@ -56,8 +56,8 @@ def test_config_load_default(ui_manager, mock_plist_manager, tmp_path):
             UIConfigKeys.HEADER.value: "Default header text",
             UIConfigKeys.FOOTER.value: "Default footer text",
             UIConfigKeys.FONT_NAME.value: "Assistant",
-            UIConfigKeys.REG_FONT_PATH.value: str(mock_font_paths["regular"]),
-            UIConfigKeys.BOLD_FONT_PATH.value: str(mock_font_paths["bold"]),
+            UIConfigKeys.FONT_REGULAR_PATH.value: str(mock_font_paths["regular"]),
+            UIConfigKeys.FONT_BOLD_PATH.value: str(mock_font_paths["bold"]),
             UIConfigKeys.LOGO_PATH.value: "",
         }
 

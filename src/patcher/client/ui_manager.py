@@ -18,8 +18,8 @@ class UIConfigKeys(str, Enum):
     HEADER = "HEADER_TEXT"
     FOOTER = "FOOTER_TEXT"
     FONT_NAME = "FONT_NAME"
-    REG_FONT_PATH = "REG_FONT_PATH"
-    BOLD_FONT_PATH = "BOLD_FONT_PATH"
+    FONT_REGULAR_PATH = "FONT_REGULAR_PATH"
+    FONT_BOLD_PATH = "FONT_BOLD_PATH"
     LOGO_PATH = "LOGO_PATH"
 
 
@@ -27,8 +27,8 @@ class UIDefaults(BaseModel):
     HEADER_TEXT: str = Field(default="Default header text", min_length=1)
     FOOTER_TEXT: str = Field(default="Default footer text", min_length=1)
     FONT_NAME: str = Field(default="Assistant", min_length=1)
-    REG_FONT_PATH: str = Field(default="", min_length=1)
-    BOLD_FONT_PATH: str = Field(default="", min_length=1)
+    FONT_REGULAR_PATH: str = Field(default="", min_length=1)
+    FONT_BOLD_PATH: str = Field(default="", min_length=1)
     LOGO_PATH: str = ""
 
     class Config:
@@ -173,8 +173,8 @@ class UIConfigManager:
             UIConfigKeys.HEADER.value: defaults.HEADER_TEXT,
             UIConfigKeys.FOOTER.value: defaults.FOOTER_TEXT,
             UIConfigKeys.FONT_NAME.value: defaults.FONT_NAME,
-            UIConfigKeys.REG_FONT_PATH.value: str(self._get_font_paths()["regular"]),
-            UIConfigKeys.BOLD_FONT_PATH.value: str(self._get_font_paths()["bold"]),
+            UIConfigKeys.FONT_REGULAR_PATH.value: str(self._get_font_paths()["regular"]),
+            UIConfigKeys.FONT_BOLD_PATH.value: str(self._get_font_paths()["bold"]),
             UIConfigKeys.LOGO_PATH.value: defaults.LOGO_PATH,
         }
 
@@ -222,8 +222,8 @@ class UIConfigManager:
                 show_default=True,
             ),
             UIConfigKeys.FONT_NAME.value: "Assistant",
-            UIConfigKeys.REG_FONT_PATH.value: str(self._get_font_paths()["regular"]),
-            UIConfigKeys.BOLD_FONT_PATH.value: str(self._get_font_paths()["bold"]),
+            UIConfigKeys.FONT_REGULAR_PATH.value: str(self._get_font_paths()["regular"]),
+            UIConfigKeys.FONT_BOLD_PATH.value: str(self._get_font_paths()["bold"]),
             UIConfigKeys.LOGO_PATH.value: "",
         }
 
@@ -255,8 +255,8 @@ class UIConfigManager:
 
         return {
             UIConfigKeys.FONT_NAME.value: font_name,
-            UIConfigKeys.REG_FONT_PATH.value: str(regular_dest),
-            UIConfigKeys.BOLD_FONT_PATH.value: str(bold_dest),
+            UIConfigKeys.FONT_REGULAR_PATH.value: str(regular_dest),
+            UIConfigKeys.FONT_BOLD_PATH.value: str(bold_dest),
         }
 
     def configure_logo(self) -> str:

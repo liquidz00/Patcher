@@ -377,12 +377,12 @@ def mock_plist(tmp_path):
             "first_run_done": True,
         },
         "UI": {
-            "header": "Default header text",
-            "footer": "Default footer text",
-            "font_name": "Assistant",
-            "reg_font_path": str(mock_font_paths["regular"]),
-            "bold_font_path": str(mock_font_paths["bold"]),
-            "logo_path": "",
+            "HEADER_TEXT": "Default header text",
+            "FOOTER_TEXT": "Default footer text",
+            "FONT_NAME": "Assistant",
+            "FONT_REGULAR_PATH": str(mock_font_paths["regular"]),
+            "FONT_BOLD_PATH": str(mock_font_paths["bold"]),
+            "LOGO_PATH": "",
         },
     }
 
