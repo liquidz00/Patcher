@@ -1,36 +1,10 @@
 import plistlib
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open
+from unittest.mock import mock_open
 
 import pytest
 from src.patcher.client.plist_manager import PropertyListManager
 from src.patcher.utils.exceptions import PatcherError
-
-
-@pytest.fixture
-def mock_plist(tmp_path):
-    mock_font_paths = {
-        "regular": tmp_path / "Assistant-Regular.ttf",
-        "bold": tmp_path / "Assistant-Bold.ttf",
-    }
-    mock_get_fonts = MagicMock()
-    mock_get_fonts.return_value = mock_font_paths
-
-    defaults = {
-        "Setup": {
-            "first_run_done": True,
-        },
-        "UI": {
-            "header": "Default header text",
-            "footer": "Default footer text",
-            "font_name": "Assistant",
-            "reg_font_path": str(mock_font_paths["regular"]),
-            "bold_font_path": str(mock_font_paths["bold"]),
-            "logo_path": "",
-        },
-    }
-
-    return defaults
 
 
 def test_get_existing_section(mock_plist_manager):

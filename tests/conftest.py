@@ -364,6 +364,32 @@ def mock_plist_manager(mocker, tmp_path):
 
 
 @pytest.fixture
+def mock_plist(tmp_path):
+    mock_font_paths = {
+        "regular": tmp_path / "Assistant-Regular.ttf",
+        "bold": tmp_path / "Assistant-Bold.ttf",
+    }
+    mock_get_fonts = MagicMock()
+    mock_get_fonts.return_value = mock_font_paths
+
+    defaults = {
+        "Setup": {
+            "first_run_done": True,
+        },
+        "UI": {
+            "header": "Default header text",
+            "footer": "Default footer text",
+            "font_name": "Assistant",
+            "reg_font_path": str(mock_font_paths["regular"]),
+            "bold_font_path": str(mock_font_paths["bold"]),
+            "logo_path": "",
+        },
+    }
+
+    return defaults
+
+
+@pytest.fixture
 def api_client(config_manager):
     return ApiClient(
         config=config_manager,
