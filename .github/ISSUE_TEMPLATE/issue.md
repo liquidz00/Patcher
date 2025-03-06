@@ -21,6 +21,6 @@ A clear and concise description of what you expected to happen.
 
 **Additional details**
 Please include the following:
-- macOS version:
-- Copy/paste the same command with the `--debug` output
+- Patcher version (`patcherctl --version | pbcopy` and paste here):
 - Log entries (found in `~/Library/Application Support/Patcher/logs`) relative to when the issue is occuring
+- macOS version:
