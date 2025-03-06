@@ -1,15 +1,14 @@
-import plistlib
 import threading
 from datetime import datetime, timedelta, timezone
-from io import BytesIO
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
 import pytest
 import pytz
 from src.patcher.client import BaseAPIClient
 from src.patcher.client.api_client import ApiClient
+from src.patcher.client.plist_manager import PropertyListManager
 from src.patcher.client.report_manager import ReportManager
 from src.patcher.client.token_manager import TokenManager
 from src.patcher.models.jamf_client import JamfClient
@@ -145,46 +144,6 @@ def mock_patch_title_response():
             latest_version="13.7.1",
         ),
     ]
-
-
-@pytest.fixture
-def mock_api_integration_response():
-    return {
-        "totalCount": 3,
-        "results": [
-            {
-                "authorizationScopes": ["Read Computers", "Read Computer Groups"],
-                "displayName": "captain-falcon",
-                "enabled": True,
-                "accessTokenLifetimeSeconds": 15780000,
-                "id": 3,
-                "appType": "CLIENT_CREDENTIALS",
-                "clientId": "a1234567-abcd-1234-efgh-123456789abc",
-            },
-            {
-                "authorizationScopes": ["Read Computers"],
-                "displayName": "enrollmentCheck",
-                "enabled": True,
-                "accessTokenLifetimeSeconds": 15780000,
-                "id": 5,
-                "appType": "CLIENT_CREDENTIALS",
-                "clientId": "b2345678-bcde-2345-fghi-23456789abcd",
-            },
-            {
-                "authorizationScopes": [
-                    "Read FileVault Recovery Key",
-                    "Read Computers",
-                    "Read Computer Groups",
-                ],
-                "displayName": "api-test",
-                "enabled": True,
-                "accessTokenLifetimeSeconds": 1800,
-                "id": 6,
-                "appType": "CLIENT_CREDENTIALS",
-                "clientId": "c3456789-cdef-3456-ghij-3456789abcde",
-            },
-        ],
-    }
 
 
 @pytest.fixture
@@ -392,6 +351,45 @@ def mock_data_manager():
 
 
 @pytest.fixture
+def mock_plist_manager(mocker, tmp_path):
+    mock_plist = mocker.create_autospec(PropertyListManager, instance=True)
+
+    mock_plist.get.return_value = None
+    mock_plist.set.return_value = None
+    mock_plist.remove.return_value = None
+    mock_plist.reset.return_value = True
+    mock_plist.plist_path = tmp_path / "mock_plist.plist"
+
+    return mock_plist
+
+
+@pytest.fixture
+def mock_plist(tmp_path):
+    mock_font_paths = {
+        "regular": tmp_path / "Assistant-Regular.ttf",
+        "bold": tmp_path / "Assistant-Bold.ttf",
+    }
+    mock_get_fonts = MagicMock()
+    mock_get_fonts.return_value = mock_font_paths
+
+    defaults = {
+        "Setup": {
+            "first_run_done": True,
+        },
+        "UI": {
+            "HEADER_TEXT": "Default header text",
+            "FOOTER_TEXT": "Default footer text",
+            "FONT_NAME": "Assistant",
+            "FONT_REGULAR_PATH": str(mock_font_paths["regular"]),
+            "FONT_BOLD_PATH": str(mock_font_paths["bold"]),
+            "LOGO_PATH": "",
+        },
+    }
+
+    return defaults
+
+
+@pytest.fixture
 def api_client(config_manager):
     return ApiClient(
         config=config_manager,
@@ -426,45 +424,5 @@ def temp_output_path(tmpdir):
 
 
 @pytest.fixture
-def mock_plist():
-    with patch("plistlib.load"), patch("plistlib.dump"):
-        yield
-
-
-@pytest.fixture
-def mock_os_path():
-    with patch("os.path.exists"), patch("os.makedirs"):
-        yield
-
-
-@pytest.fixture
-def mock_open_file():
-    with patch("builtins.open", mock_open()):
-        yield
-
-
-@pytest.fixture
-def mock_click():
-    with patch("click.prompt"), patch("click.confirm"):
-        yield
-
-
-@pytest.fixture
 def ui_config():
     return MagicMock()
-
-
-@pytest.fixture
-def mock_plist_file(request):
-    first_run_done_value = request.param
-    plist_data = {"first_run_done": first_run_done_value}
-    plist_bytes = plistlib.dumps(plist_data, fmt=plistlib.FMT_XML)
-
-    mock_file = BytesIO(plist_bytes)
-
-    with (
-        patch("builtins.open", return_value=mock_file),
-        patch("os.path.exists", return_value=True),
-        patch("os.path.expanduser", return_value="/mock/path/to/plist"),
-    ):
-        yield first_run_done_value
