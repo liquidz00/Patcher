@@ -1,38 +1,16 @@
 import shutil
-from enum import Enum
 from functools import cached_property
 from pathlib import Path
 from typing import Dict, Union
 
 import asyncclick as click
 from PIL import Image
-from pydantic import BaseModel, Field
 
+from ..models.ui import UIConfigKeys, UIDefaults
 from ..utils.exceptions import PatcherError, SetupError, ShellCommandError
 from ..utils.logger import LogMe
 from . import BaseAPIClient
 from .plist_manager import PropertyListManager
-
-
-class UIConfigKeys(str, Enum):
-    HEADER = "HEADER_TEXT"
-    FOOTER = "FOOTER_TEXT"
-    FONT_NAME = "FONT_NAME"
-    FONT_REGULAR_PATH = "FONT_REGULAR_PATH"
-    FONT_BOLD_PATH = "FONT_BOLD_PATH"
-    LOGO_PATH = "LOGO_PATH"
-
-
-class UIDefaults(BaseModel):
-    HEADER_TEXT: str = Field(default="Default header text", min_length=1)
-    FOOTER_TEXT: str = Field(default="Default footer text", min_length=1)
-    FONT_NAME: str = Field(default="Assistant", min_length=1)
-    FONT_REGULAR_PATH: str = Field(default="", min_length=1)
-    FONT_BOLD_PATH: str = Field(default="", min_length=1)
-    LOGO_PATH: str = ""
-
-    class Config:
-        validate_assignment = True
 
 
 class UIConfigManager:
@@ -170,12 +148,12 @@ class UIConfigManager:
         self._download_fonts()
 
         self.config = {
-            UIConfigKeys.HEADER.value: defaults.HEADER_TEXT,
-            UIConfigKeys.FOOTER.value: defaults.FOOTER_TEXT,
-            UIConfigKeys.FONT_NAME.value: defaults.FONT_NAME,
-            UIConfigKeys.FONT_REGULAR_PATH.value: str(self._get_font_paths()["regular"]),
-            UIConfigKeys.FONT_BOLD_PATH.value: str(self._get_font_paths()["bold"]),
-            UIConfigKeys.LOGO_PATH.value: defaults.LOGO_PATH,
+            UIConfigKeys.HEADER.value: defaults.header_text,
+            UIConfigKeys.FOOTER.value: defaults.footer_text,
+            UIConfigKeys.FONT_NAME.value: defaults.font_name,
+            UIConfigKeys.REG_FONT_PATH.value: str(self._get_font_paths()["regular"]),
+            UIConfigKeys.BOLD_FONT_PATH.value: str(self._get_font_paths()["bold"]),
+            UIConfigKeys.LOGO_PATH.value: defaults.logo_path,
         }
 
     def reset_config(self) -> bool:
@@ -213,17 +191,17 @@ class UIConfigManager:
         settings = {
             UIConfigKeys.HEADER.value: click.prompt(
                 "Enter Header Text for PDF reports",
-                default=self.config.get(UIConfigKeys.HEADER.value, defaults.HEADER_TEXT),
+                default=self.config.get(UIConfigKeys.HEADER.value, defaults.header_text),
                 show_default=True,
             ),
             UIConfigKeys.FOOTER.value: click.prompt(
                 "Enter Footer Text for PDF reports",
-                default=self.config.get(UIConfigKeys.FOOTER.value, defaults.FOOTER_TEXT),
+                default=self.config.get(UIConfigKeys.FOOTER.value, defaults.footer_text),
                 show_default=True,
             ),
             UIConfigKeys.FONT_NAME.value: "Assistant",
-            UIConfigKeys.FONT_REGULAR_PATH.value: str(self._get_font_paths()["regular"]),
-            UIConfigKeys.FONT_BOLD_PATH.value: str(self._get_font_paths()["bold"]),
+            UIConfigKeys.REG_FONT_PATH.value: str(self._get_font_paths()["regular"]),
+            UIConfigKeys.BOLD_FONT_PATH.value: str(self._get_font_paths()["bold"]),
             UIConfigKeys.LOGO_PATH.value: "",
         }
 
@@ -255,8 +233,8 @@ class UIConfigManager:
 
         return {
             UIConfigKeys.FONT_NAME.value: font_name,
-            UIConfigKeys.FONT_REGULAR_PATH.value: str(regular_dest),
-            UIConfigKeys.FONT_BOLD_PATH.value: str(bold_dest),
+            UIConfigKeys.REG_FONT_PATH.value: str(regular_dest),
+            UIConfigKeys.BOLD_FONT_PATH.value: str(bold_dest),
         }
 
     def configure_logo(self) -> str:
