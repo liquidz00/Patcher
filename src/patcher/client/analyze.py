@@ -7,7 +7,7 @@ import pandas as pd
 
 from ..models.patch import PatchTitle
 from ..utils.data_manager import DataManager
-from ..utils.exceptions import FetchError, PatcherError
+from ..utils.exceptions import PatcherError
 from ..utils.logger import LogMe
 
 
@@ -130,7 +130,7 @@ class Analyzer:
         :return: A pandas DataFrame loaded from the Excel file.
         :rtype: `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
         :raises PatcherError: If the passed ``excel_file`` could not be validated (does not exist, or is not a file).
-        :raises FetchError: If the excel file could not be read, if the file is empty, or if the file could not be parsed properly.
+        :raises PatcherError: If the excel file could not be read, if the file is empty, or if the file could not be parsed properly.
         """
         self.log.debug(f"Attempting to initialize DataFrame from {excel_path}")
         if not self._validate_path(excel_path):
@@ -142,21 +142,21 @@ class Analyzer:
             return df
         except PermissionError as e:
             self.log.error(f"Permission denied when trying to read {excel_path}. Details: {e}")
-            raise FetchError(
+            raise PatcherError(
                 "Unable to read CSV file due to permissions issues.",
                 path=excel_path,
                 error_msg=str(e),
             )
         except pd.errors.EmptyDataError as e:
             self.log.error(f"The file at {excel_path} is empty. Details: {e}")
-            raise FetchError(
+            raise PatcherError(
                 "The Excel file provided is empty.",
                 path=excel_path,
                 error_msg=str(e),
             )
         except pd.errors.ParserError as e:
             self.log.error(f"Failed to parse the Excel file at {excel_path}. Details: {e}")
-            raise FetchError(
+            raise PatcherError(
                 "Unable to parse the Excel file properly.",
                 path=excel_path,
                 error_msg=str(e),
