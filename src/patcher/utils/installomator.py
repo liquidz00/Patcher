@@ -277,7 +277,13 @@ class Installomator:
             "Microsoft Visual Studio",  # Support deprecated
         ]
 
-        software_titles = await self.api.get_app_names(patch_titles=patch_titles)
+        try:
+            software_titles = await self.api.get_app_names(patch_titles=patch_titles)
+        except APIResponseError as e:
+            if getattr(e, "not_found", False):
+                return  # Exit early, do not stop process
+            raise  # Non 404 errors get re-raised
+
         labels = self._labels or await self.get_labels()
         label_lookup = {label.name.lower(): label for label in labels}
 

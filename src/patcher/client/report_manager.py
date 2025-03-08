@@ -302,7 +302,13 @@ class ReportManager:
             # Match titles with labels via Installomator if enabled
             if enable_iom:
                 await animation.update_msg("Identifying Installomator support for titles...")
-                await self.iom.match(patch_reports)
+                try:
+                    await self.iom.match(patch_reports)
+                except APIResponseError as e:
+                    if getattr(e, "not_found", False):
+                        self.log.warning(f"One or more patch titles were not found: {e}")
+                    else:
+                        self.log.error(f"An API error occurred while matching patch titles: {e}")
 
             # Generate reports
             await animation.update_msg("Generating reports...")

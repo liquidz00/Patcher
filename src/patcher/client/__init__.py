@@ -79,7 +79,14 @@ class BaseAPIClient:
         error_message = (
             response_json.get("errors", "Unknown error") if response_json else "No details"
         )
-        if 400 <= status_code < 500:
+        if status_code == 404:
+            raise APIResponseError(
+                "Requested resource was not found.",
+                status_code=status_code,
+                error=error_message,
+                not_found=True,  # distinguish 404 errors
+            )
+        elif 400 <= status_code < 500:
             raise APIResponseError(
                 "Client error received.", status_code=status_code, error=error_message
             )

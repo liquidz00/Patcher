@@ -184,7 +184,9 @@ class ApiClient(BaseAPIClient):
             batch_responses = await self.fetch_batch(
                 urls, headers=headers, query_params=query_params
             )
-        except APIResponseError:
+        except APIResponseError as e:
+            if getattr(e, "not_found", False):
+                return []
             raise
 
         app_names = []
