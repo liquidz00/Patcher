@@ -18,6 +18,7 @@ class PDFReport(FPDF):
         unit="mm",
         format="A4",
         date_format="%B %d %Y",
+        ui_config: UIConfigManager = None,
     ):
         """
         The ``PDFReport`` class extends FPDF to create a PDF report from an Excel file containing patch data.
@@ -32,19 +33,25 @@ class PDFReport(FPDF):
         :type format: :py:class:`str`
         :param date_format: Date format string for the PDF report header, default is "%B %d %Y".
         :type date_format: :py:class:`str`
+        :param ui_config: Optional UIConfigManager object to pass, defaults to initializing new object.
+        :type ui_config: :class:`~patcher.client.ui_manager.UIConfigManager`
         """
         self.log = LogMe(self.__class__.__name__)
         super().__init__(orientation=orientation, unit=unit, format=format)  # type: ignore
         self.date_format = date_format
-        self.ui = UIConfigManager()
+        self.ui = ui_config or UIConfigManager()
         self.ui_config = self.ui.config
-        self.logo_path = self.ui.get_logo_path()
-
-        self.add_font(self.ui_config.get("FONT_NAME"), "", self.ui_config.get("FONT_REGULAR_PATH"))
-        self.add_font(self.ui_config.get("FONT_NAME"), "B", self.ui_config.get("FONT_BOLD_PATH"))
 
         self.table_headers = []
         self.column_widths = []
+
+        self._initialize_fonts()
+
+    def _initialize_fonts(self) -> None:
+        """Initialize fonts for later usage."""
+        font_name = self.ui_config.get("font_name")
+        self.add_font(font_name, "", self.ui_config.get("reg_font_path"))
+        self.add_font(font_name, "", self.ui_config.get("bold_font_path"))
 
     @staticmethod
     def get_image_ratio(image_path: str) -> float:
@@ -99,13 +106,14 @@ class PDFReport(FPDF):
         text_block_center_y = top_margin + (total_text_height / 2)
 
         # Handle optional logo
-        if self.logo_path:
-            if not os.path.exists(self.logo_path):
-                self.log.warning(f"Logo file not found: {self.logo_path}")
+        logo_path = self.ui_config.get("logo_path", "")
+        if logo_path:
+            if not os.path.exists(logo_path):
+                self.log.warning(f"Logo file not found: {logo_path}")
             else:
                 try:
                     # Trim the logo and use the trimmed version
-                    trimmed_logo_path = self.trim_transparency(self.logo_path)
+                    trimmed_logo_path = self.trim_transparency(logo_path)
                 except (FileNotFoundError, OSError) as e:
                     self.log.warning(f"Failed to process logo image. Details: {e}")
                     trimmed_logo_path = None
@@ -129,12 +137,12 @@ class PDFReport(FPDF):
 
         # Align header text
         self.set_xy(text_x_offset, top_margin)
-        self.set_font(self.ui_config.get("FONT_NAME"), "B", header_font_size)
-        self.cell(0, header_text_height, self.ui_config.get("HEADER_TEXT"), align="L", ln=True)
+        self.set_font(self.ui_config.get("font_name"), "B", header_font_size)
+        self.cell(0, header_text_height, self.ui_config.get("header_text"), align="L", ln=True)
 
         # Align date below header text
         self.set_x(text_x_offset)
-        self.set_font(self.ui_config.get("FONT_NAME"), "", date_font_size)
+        self.set_font(self.ui_config.get("font_name"), "", date_font_size)
         self.cell(
             0, date_text_height, datetime.now().strftime(self.date_format), align="L", ln=True
         )
@@ -152,7 +160,7 @@ class PDFReport(FPDF):
         by ``self.table_headers`` and ``self.column_widths``.
         """
         self.set_y(30)
-        self.set_font(self.ui_config.get("FONT_NAME"), "B", 11)
+        self.set_font(self.ui_config.get("font_name"), "B", 11)
         for header, width in zip(self.table_headers, self.column_widths):
             self.cell(width, 10, header, border=1, align="C")
         self.ln(10)
@@ -165,9 +173,9 @@ class PDFReport(FPDF):
         The footer text is styled with a smaller font and a light gray color.
         """
         self.set_y(-15)
-        self.set_font(self.ui_config.get("FONT_NAME"), "", 6)
+        self.set_font(self.ui_config.get("font_name"), "", 6)
         self.set_text_color(175, 175, 175)
-        footer_text = f"{self.ui_config.get('FOOTER_TEXT')} | Page " + str(self.page_no())
+        footer_text = f"{self.ui_config.get('footer_text')} | Page " + str(self.page_no())
         self.cell(0, 10, footer_text, 0, 0, "R")
 
     def calculate_column_widths(self, data: pd.DataFrame) -> List[float]:
