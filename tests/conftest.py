@@ -6,15 +6,18 @@ from unittest.mock import AsyncMock, MagicMock
 import pandas as pd
 import pytest
 import pytz
+from fpdf import FPDF
 from src.patcher.client import BaseAPIClient
 from src.patcher.client.api_client import ApiClient
 from src.patcher.client.plist_manager import PropertyListManager
 from src.patcher.client.report_manager import ReportManager
 from src.patcher.client.token_manager import TokenManager
+from src.patcher.client.ui_manager import UIConfigManager
 from src.patcher.models.jamf_client import JamfClient
 from src.patcher.models.patch import PatchTitle
 from src.patcher.models.token import AccessToken
 from src.patcher.utils.data_manager import DataManager
+from src.patcher.utils.pdf_report import PDFReport
 
 
 @pytest.fixture
@@ -354,6 +357,8 @@ def mock_data_manager():
 def mock_plist_manager(mocker, tmp_path):
     mock_plist = mocker.create_autospec(PropertyListManager, instance=True)
 
+    mocker.patch.object(PropertyListManager, "_ensure_directory", return_value=None)
+
     mock_plist.get.return_value = None
     mock_plist.set.return_value = None
     mock_plist.remove.return_value = None
@@ -364,11 +369,15 @@ def mock_plist_manager(mocker, tmp_path):
 
 
 @pytest.fixture
-def mock_plist(tmp_path):
-    mock_font_paths = {
+def mock_font_paths(tmp_path):
+    return {
         "regular": tmp_path / "Assistant-Regular.ttf",
         "bold": tmp_path / "Assistant-Bold.ttf",
     }
+
+
+@pytest.fixture
+def mock_plist(mock_font_paths):
     mock_get_fonts = MagicMock()
     mock_get_fonts.return_value = mock_font_paths
 
@@ -387,6 +396,27 @@ def mock_plist(tmp_path):
     }
 
     return defaults
+
+
+@pytest.fixture
+def mock_ui_config_manager():
+    mock_ui = MagicMock(spec=UIConfigManager)
+    mock_ui.config = {
+        "header_text": "Default header text",
+        "footer_text": "Default footer text",
+        "font_name": "Helvetica",
+        "reg_font_path": "",
+        "bold_font_path": "",
+        "logo_path": "",
+    }
+    return mock_ui
+
+
+@pytest.fixture
+def mock_pdf_report(mock_ui_config_manager, monkeypatch):
+    with monkeypatch.context() as m:
+        m.setattr(FPDF, "add_font", lambda *args, **kwargs: None)
+        return PDFReport(ui_config=mock_ui_config_manager)
 
 
 @pytest.fixture

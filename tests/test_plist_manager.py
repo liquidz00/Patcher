@@ -45,13 +45,16 @@ def test_load_plist_file_valid(mock_plist_manager, mocker, mock_plist):
 
 
 def test_load_plist_file_missing(mocker, tmp_path):
+    mocker.patch.object(PropertyListManager, "_ensure_directory", return_value=None)
     plist_manager = PropertyListManager()
     plist_manager.plist_path = tmp_path / "mock_plist.plist"
+
     mocker.patch.object(Path, "exists", return_value=False)
     assert plist_manager._load_plist_file() == {}
 
 
 def test_load_plist_file_corrupted(mocker, tmp_path):
+    mocker.patch.object(PropertyListManager, "_ensure_directory", return_value=None)
     plist_manager = PropertyListManager()
     plist_manager.plist_path = tmp_path / "mock_plist.plist"
     mocker.patch("plistlib.load", side_effect=plistlib.InvalidFileException)
@@ -59,6 +62,7 @@ def test_load_plist_file_corrupted(mocker, tmp_path):
 
 
 def test_write_plist_file_success(mocker, tmp_path, mock_plist):
+    mocker.patch.object(PropertyListManager, "_ensure_directory", return_value=None)
     plist_manager = PropertyListManager()
     plist_manager.plist_path = tmp_path / "mock_plist.plist"
     mock_open_instance = mock_open()
@@ -72,6 +76,7 @@ def test_write_plist_file_success(mocker, tmp_path, mock_plist):
 
 
 def test_write_plist_file_error(mocker, tmp_path, mock_plist):
+    mocker.patch.object(PropertyListManager, "_ensure_directory", return_value=None)
     plist_manager = PropertyListManager()
     plist_manager.plist_path = tmp_path / "mock_plist.plist"
 
