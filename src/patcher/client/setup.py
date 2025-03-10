@@ -67,7 +67,7 @@ class Setup:
         """
         if self._completed is None:
             self.log.debug("Checking setup completion status.")
-            self._completed = self.plist_manager.get("Setup", "first_run_done") or False
+            self._completed = self.plist_manager.get("setup_completed") or False
         return self._completed
 
     @staticmethod
@@ -79,7 +79,7 @@ class Setup:
 
     def _mark_completion(self, value: bool = False):
         """Updates the plist file to reflect the completion status of the setup."""
-        self.plist_manager.set("Setup", "first_run_done", value)
+        self.plist_manager.set("setup_completed", value)
         self._completed = value
 
     def _prompt_credentials(self, setup_type: SetupType) -> Optional[Dict]:
@@ -124,7 +124,7 @@ class Setup:
         use_installomator = click.confirm(
             "Would you like to enable Installomator support?", default=True
         )
-        self.plist_manager.set("Installomator", "enabled", use_installomator)
+        self.plist_manager.set("enable_installomator", use_installomator)
 
     async def _token_fetching(
         self, setup_type: SetupType = SetupType.STANDARD, creds: Optional[Dict] = None
@@ -308,15 +308,15 @@ class Setup:
 
     def reset_setup(self) -> bool:
         """
-        Resets Setup configuration, removing Patcher's property list file. This effectively marks
-        Setup completion as False and will re-trigger the setup assistant.
+        Resets setup completion flag (), removing the ``setup_completed`` key/value from the property list.
+
+        This effectively marks Setup completion as False and will re-trigger the setup assistant.
 
         :return: ``True`` if the Setup section in the property list file was removed.
         :rtype: :py:class:`bool`
         """
         self.log.debug("Attempting to reset setup.")
-        self._completed = None
-        success = self.plist_manager.reset("Setup")
+        success = self.plist_manager.remove("setup_completed")
         if success:
             self._completed = None
             self.log.info("Successfully reset setup.")

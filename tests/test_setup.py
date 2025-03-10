@@ -16,6 +16,7 @@ def setup_instance(config_manager, ui_config, mock_plist_manager):
     )
     instance.config.set_credential = MagicMock()
     instance.config.create_client = MagicMock()
+    instance.plist_manager.remove = MagicMock()
     return instance
 
 
@@ -29,7 +30,7 @@ async def test_init(setup_instance, config_manager, ui_config):
 def test_is_complete(setup_instance, mock_plist_manager):
     mock_plist_manager.get.return_value = True
     assert setup_instance.completed is True
-    mock_plist_manager.get.assert_called_once_with("Setup", "first_run_done")
+    mock_plist_manager.get.assert_called_once_with("setup_completed")
 
 
 def test_is_complete_error(setup_instance, mock_plist_manager):
@@ -89,13 +90,13 @@ def test_save_creds(setup_instance):
 
 def test_mark_completion(setup_instance, mock_plist_manager):
     setup_instance._mark_completion(value=True)
-    mock_plist_manager.set.assert_called_once_with("Setup", "first_run_done", True)
+    mock_plist_manager.set.assert_called_once_with("setup_completed", True)
 
 
 def test_reset_setup(setup_instance, mock_plist_manager):
-    mock_plist_manager.reset.return_value = True
+    mock_plist_manager.remove.return_value = True
     assert setup_instance.reset_setup() is True
-    mock_plist_manager.reset.assert_called_once_with("Setup")
+    mock_plist_manager.remove.assert_called_once_with("setup_completed")
 
 
 @pytest.mark.asyncio
