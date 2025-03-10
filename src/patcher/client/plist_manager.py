@@ -1,9 +1,7 @@
 import plistlib
-import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-from ..models.ui import UIConfigKeys
 from ..utils.exceptions import PatcherError
 from ..utils.logger import LogMe
 
@@ -64,6 +62,11 @@ class PropertyListManager:
         if not isinstance(plist_data, dict):
             raise PatcherError("Invalid data type for property list. Expected dictionary.")
 
+        current_data = self._load_plist_file()
+        if current_data == plist_data:
+            self.log.debug("No changes detected in plist data. Skipping write operation.")
+            return  # avoids unneccessary writes
+
         self._ensure_directory(self.plist_path.parent)
         try:
             with self.plist_path.open("wb") as plistfile:
@@ -74,40 +77,6 @@ class PropertyListManager:
             raise PatcherError(
                 "Could not write to plist file.", path=self.plist_path, error_msg=str(e)
             )
-
-    def migrate_plist(self) -> Dict[str, Any]:
-        """
-        #TODO
-
-        :return: _description_
-        :rtype: Dict[str, Any]
-        """
-        data = self._load_plist_file()
-        if "Setup" in data or "UI" in data or "Installomator" in data:
-            self.log.info("Old property list format detected. Migrating...")
-            ui_dict = data.get("UI")
-            new_data = {
-                "setup_completed": data.get("Setup", {}).get("first_run_done", False),
-                "enable_installomator": data.get("Installomator", {}).get("enabled", True),
-                "enable_caching": True,
-                "UserInterfaceSettings": {
-                    UIConfigKeys.HEADER.value: ui_dict.get("HEADER_TEXT"),
-                    UIConfigKeys.FOOTER.value: ui_dict.get("FOOTER_TEXT"),
-                    UIConfigKeys.FONT_NAME.value: ui_dict.get("FONT_NAME"),
-                    UIConfigKeys.REG_FONT_PATH.value: ui_dict.get("FONT_REGULAR_PATH"),
-                    UIConfigKeys.BOLD_FONT_PATH.value: ui_dict.get("FONT_BOLD_PATH"),
-                    UIConfigKeys.LOGO_PATH.value: ui_dict.get("LOGO_PATH"),
-                },
-            }
-
-            backup_path = self.plist_path.with_suffix(".bak")
-            shutil.copy(self.plist_path, backup_path)  # Save backup
-            self.log.info(f"Backup property list file created: {backup_path}")
-
-            self._write_plist_file(new_data)
-            self.log.info("Property list migration completed.")
-
-            return new_data
 
     def get(self, section: str, key: Optional[str] = None) -> Optional[Union[Dict[str, Any], Any]]:
         """
@@ -127,73 +96,105 @@ class PropertyListManager:
             return None
         return data[section].get(key) if key else data[section]
 
-    def set(
-        self, section: str, key: Union[str, Dict[str, Any]], value: Optional[Any] = None
-    ) -> None:
+    def set(self, key: str, value: Any, migration: bool = False) -> None:
         """
         Sets a key-value pair or replaces a section in the property list file.
 
-        :param section: The section in the property list to modify.
-        :type section: :py:class:`str`
-        :param key: If a dictionary, replaces the section. If a single value, updates a specific key.
-        :type key: :py:obj:`~typing.Union` [:py:class:`str` | :py:obj:`~typing.Dict`]
-        :param value: The value to assign if setting a single key.
-        :type value: :py:obj:`~typing.Optional` [:py:obj:`~typing.Any`]
+        - If ``value`` is a dictionary and the existing key is also a dictionary, it merges them.
+        - If ``value`` is a dictionary and the existing key is a primitive, it raises an error (unless ``migration=True``).
+        - If ``value`` is a primitive and the existing key is a dictionary, it raises an error (unless ``migration=True``).
+        - Otherwise, it stores the value as a top-level key.
+
+        :param key: The section or top-level key in the property list.
+        :type key: :py:class:`str`
+        :param value: The value to assign. Can be a dictionary or a single value.
+        :type value: :py:obj:`~typing.Any`
+        :param migration: If True, allows type changes (dict → primitive or primitive → dict).
+        :type migration: :py:class:`bool`
         """
         data = self._load_plist_file()
 
-        if isinstance(key, dict):
-            data[section] = key
-        elif value is not None:
-            data.setdefault(section, {})
-            data[section][key] = value
+        if isinstance(value, dict):
+            if key in data:
+                if isinstance(data[key], dict):
+                    data[key] = {**data.get(key, {}), **value}
+                elif not migration:
+                    raise PatcherError(
+                        "Cannot overwrite non-dictionary key with a dictionary.",
+                        key=key,
+                        type=type(key),
+                    )
+                else:
+                    data[key] = value  # migration mode enabled, overwrite
+            else:
+                data[key] = value
         else:
-            raise PatcherError(
-                "If key is a string, a value must be provided.", key_type=type(key), received=value
-            )
+            if key in data:
+                if isinstance(data[key], dict) and not migration:
+                    raise PatcherError(
+                        "Cannot overwrite dictionary key with a non-dictionary value.",
+                        key=key,
+                        type=type(key),
+                    )
+            data[key] = value
 
         self._write_plist_file(data)
 
-    def remove(self, section: str, key: Optional[str] = None) -> None:
+    def remove(self, key: str, value: Optional[str] = None) -> bool:
         """
-        Removes a section or a specific key from the property list file.
+        Removes a key or a specific value from a key in the property list.
 
-        :param section: The section that contains the key to remove.
-        :type section: :py:class:`str`
-        :param key: The key to remove. If None, removes the entire section.
+        - If ``value`` is None, the entire key (section) is removed.
+        - If ``value`` is provided, only that specific value is removed from within the dictionary.
+
+        :param key: The key (or section) to remove from the property list.
         :type key: :py:class:`str`
-        """
-        data = self._load_plist_file()
-        if section in data:
-            if key:
-                data[section].pop(key, None)
-            else:
-                del data[section]
-            self._write_plist_file(data)
-
-    def reset(self, section: Optional[str] = None) -> bool:
-        """
-        Resets a specific section, or the entire property list file.
-
-        :param section: The specific section to reset ("Setup", "UI", etc.). If none, resets everything.
-        :type section: :py:obj:`~typing.Optional` [:py:class:`str`]
-        :return: True if the reset was successful, False otherwise.
+        :param value: The specific value to remove within the key. If None, removes the entire key.
+        :type key: :py:obj:`~typing.Optional` [:py:class:`str`]
+        :return: True if removal was successful, False otherwise.
         :rtype: :py:class:`bool`
         """
-        if section:
-            data = self._load_plist_file()
-            if section in data:
-                del data[section]
-                self.log.info(f"Reset section '{section}' in plist.")
+        data = self._load_plist_file()
+        if key in data:
+            if value:
+                if isinstance(data[key], dict) and value in data[key]:
+                    del data[key][value]
+                    self.log.info(f"Removed value '{value}' from key '{key}'.")
+                    self._write_plist_file(data)
+                    return True
+                else:
+                    self.log.warning(
+                        f"Value '{value}' not found in key '{key}'. No changes were made."
+                    )
+                    return True  # Treat as success
+            else:
+                del data[key]  # Remove key
+                self.log.info(f"Removed key '{key}'.")
                 self._write_plist_file(data)
                 return True
-            else:
-                self.log.warning(
-                    f"Section '{section}' is not present in property list. Nothing to reset."
-                )
-                return True
         else:
-            # Reset everything
-            self.log.info("Resetting entire plist to default state.")
-            self._write_plist_file({})
+            self.log.warning(f"Key '{key}' not found. No changes were made.")
+            return True  # Treat as success
+
+    def reset(self) -> bool:
+        """
+        Completely resets the property list by deleting the property list file.
+
+        If the plist file exists, it is removed from disk. A new, empty plist will be created when values are next set.
+
+        :return: True if reset was successful, False otherwise.
+        :rtype: :py:class:`bool`
+        """
+        if self.plist_path.exists():
+            try:
+                self.plist_path.unlink()
+                self.log.info(f"Property list file '{self.plist_path}' has been removed.")
+                return True
+            except Exception as e:  # using intentionally
+                self.log.error(f"Failed to delete plist file. Details: {e}")
+                return False
+        else:
+            self.log.warning(
+                f"Property list file '{self.plist_path}' does not exist. Nothing to reset."
+            )
             return True
