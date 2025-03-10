@@ -9,7 +9,7 @@ from src.patcher.utils.exceptions import PatcherError
 
 def test_get_existing_section(mock_plist_manager):
     mock_plist_manager.get.return_value = {"header_text": "Header"}
-    assert mock_plist_manager.get("UI") == {"header_text": "Header"}
+    assert mock_plist_manager.get("UserInterfaceSettings") == {"header_text": "Header"}
 
 
 def test_get_missing_section(mock_plist_manager):
@@ -19,14 +19,14 @@ def test_get_missing_section(mock_plist_manager):
 
 def test_set_new_section(mock_plist_manager):
     mock_plist_manager.set.return_value = None
-    mock_plist_manager.set("UI", {"header_text": "Header"})
-    mock_plist_manager.set.assert_called_with("UI", {"header_text": "Header"})
+    mock_plist_manager.set("UserInterfaceSettings", {"header_text": "Header"})
+    mock_plist_manager.set.assert_called_with("UserInterfaceSettings", {"header_text": "Header"})
 
 
 def test_remove_key_from_section(mock_plist_manager):
     mock_plist_manager.remove.return_value = None
-    mock_plist_manager.remove("UI", "header_text")
-    mock_plist_manager.remove.assert_called_with("UI", "header_text")
+    mock_plist_manager.remove("UserInterfaceSettings", "header_text")
+    mock_plist_manager.remove.assert_called_with("UserInterfaceSettings", "header_text")
 
 
 def test_reset_full_plist(mock_plist_manager):

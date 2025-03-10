@@ -145,6 +145,15 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool) -> None:
             )
             click.echo("For more information, visit the project docs: https://patcher.liquidzoo.io")
             ctx.exit(0)  # Exit to avoid running a command
+        elif ctx.obj.get("plist_manager").needs_migration():
+            click.echo(
+                click.style(
+                    "⚠️  We've detected an old property list format and will automatically migrate it for you now",
+                    bold=True,
+                )
+            )
+            ctx.obj.get("plist_manager").migrate_plist()
+            click.echo(click.style("\n✅ Migration finished successfully.", fg="green", bold=True))
 
 
 # Reset
@@ -372,10 +381,8 @@ async def export(
 
     selected_formats = set(formats) if formats else {"excel", "html", "pdf"}
     actual_format = DATE_FORMATS[date_format]
-    ui_config = ctx.obj.get("ui_config")
-    report_title = ui_config.config.get("HEADER_TEXT")
-    plist_manager = ctx.obj.get("plist_manager")
-    enable_iom = plist_manager.get("Installomator", "enabled")
+
+    ui_config, plist_manager = ctx.obj.get("ui_config"), ctx.obj.get("plist_manager")
 
     # Not wrapping in animation error_handling in favor of existence on process_reports method
     await patcher.process_reports(
@@ -385,8 +392,8 @@ async def export(
         omit=omit,
         ios=ios,
         date_format=actual_format,
-        report_title=report_title,
-        enable_iom=enable_iom,
+        report_title=ui_config.config.get("HEADER_TEXT"),
+        enable_iom=plist_manager.get("enable_installomator"),
     )
 
 

@@ -1,7 +1,9 @@
 import plistlib
+import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+from ..models.ui import UIConfigKeys
 from ..utils.exceptions import PatcherError
 from ..utils.logger import LogMe
 
@@ -77,6 +79,52 @@ class PropertyListManager:
             raise PatcherError(
                 "Could not write to plist file.", path=self.plist_path, error_msg=str(e)
             )
+
+    def needs_migration(self) -> bool:
+        """
+        Determines whether the plist file needs to be migrated.
+
+        :return: True if old format is detected, False otherwise.
+        :rtype: :py:class:`bool`
+        """
+        data = self._load_plist_file()
+        return any(key in data for key in ["Setup", "UI", "Installomator"])
+
+    def migrate_plist(self) -> None:
+        """
+        Modifies existing property list files in v1 format to v2 format.
+
+        A backup file is created in the event migration fails so user settings are perserved.
+        """
+        data = self._load_plist_file()
+
+        if not self.needs_migration():
+            return
+
+        self.log.info("Old property list format detected. Migrating...")
+        backup_path = self.plist_path.with_suffix(".bak")
+        shutil.copy(self.plist_path, backup_path)  # Save backup
+        self.log.info(f"Backup property list file created: {backup_path}")
+
+        ui_dict = data.get("UI")
+        new_data = {
+            "setup_completed": data.get("Setup", {}).get("first_run_done", False),
+            "enable_installomator": data.get("Installomator", {}).get("enabled", True),
+            "enable_caching": True,
+            "UserInterfaceSettings": {
+                UIConfigKeys.HEADER.value: ui_dict.get("HEADER_TEXT"),
+                UIConfigKeys.FOOTER.value: ui_dict.get("FOOTER_TEXT"),
+                UIConfigKeys.FONT_NAME.value: ui_dict.get("FONT_NAME"),
+                UIConfigKeys.REG_FONT_PATH.value: ui_dict.get("FONT_REGULAR_PATH"),
+                UIConfigKeys.BOLD_FONT_PATH.value: ui_dict.get("FONT_BOLD_PATH"),
+                UIConfigKeys.LOGO_PATH.value: ui_dict.get("LOGO_PATH"),
+            },
+        }
+        try:
+            self._write_plist_file(new_data)
+            self.log.info("Property list migration completed.")
+        except PatcherError:
+            raise
 
     def get(self, section: str, key: Optional[str] = None) -> Optional[Union[Dict[str, Any], Any]]:
         """
