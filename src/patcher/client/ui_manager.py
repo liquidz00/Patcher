@@ -42,7 +42,7 @@ class UIConfigManager:
         :rtype: :py:obj:`~typing.Dict`
         """
         if self._config is None:
-            saved_config = self.plist_manager.get("UI")
+            saved_config = self.plist_manager.get("UserInterfaceSettings")
             if not saved_config:
                 self.log.info("No UI configuration was found. Saving defaults.")
                 self.create_default_config()
@@ -68,7 +68,7 @@ class UIConfigManager:
 
         self._config.update(value)
         self.log.debug(f"Updated configuration: {self._config}")
-        self.plist_manager.set("UI", self._config)
+        self.plist_manager.set("UserInterfaceSettings", self._config)
 
     @cached_property
     def fonts_present(self) -> bool:
@@ -170,7 +170,7 @@ class UIConfigManager:
         """
         self.log.debug("Resetting UI-configuration settings.")
         try:
-            return self.plist_manager.reset("UI")
+            return self.plist_manager.remove("UserInterfaceSettings")
         except Exception as e:  # intentional
             self.log.error(f"Failed resetting UI-config settings. Details: {e}")
             return False

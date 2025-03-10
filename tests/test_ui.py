@@ -126,7 +126,7 @@ def test_download_font_failure(ui_manager, monkeypatch):
 
 def test_reset_config_success(ui_manager):
     with (
-        patch.object(ui_manager.plist_manager, "reset", return_value=True),
+        patch.object(ui_manager.plist_manager, "remove", return_value=True),
         patch("plistlib.dump"),
         patch.object(Path, "open", mock_open(read_data=b"<plist>...")),
     ):
@@ -134,5 +134,7 @@ def test_reset_config_success(ui_manager):
 
 
 def test_reset_config_failure(ui_manager):
-    with patch.object(ui_manager.plist_manager, "reset", side_effect=Exception("Unexpected error")):
+    with patch.object(
+        ui_manager.plist_manager, "remove", side_effect=Exception("Unexpected error")
+    ):
         assert ui_manager.reset_config() is False
