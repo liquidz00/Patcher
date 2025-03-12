@@ -137,6 +137,8 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool) -> None:
 
     # Check Setup completion
     async with ctx.obj.get("animation").error_handling():
+        if ctx.obj.get("plist_manager").needs_migration():
+            ctx.obj.get("plist_manager").migrate_plist()
         if not setup.completed:
             await setup.start(animator=ctx.obj.get("animation"))
             click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
@@ -145,15 +147,6 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool) -> None:
             )
             click.echo("For more information, visit the project docs: https://patcher.liquidzoo.io")
             ctx.exit(0)  # Exit to avoid running a command
-        elif ctx.obj.get("plist_manager").needs_migration():
-            click.echo(
-                click.style(
-                    "⚠️  We've detected an old property list format and will automatically migrate it for you now",
-                    bold=True,
-                )
-            )
-            ctx.obj.get("plist_manager").migrate_plist()
-            click.echo(click.style("\n✅ Migration finished successfully.", fg="green", bold=True))
 
 
 # Reset
