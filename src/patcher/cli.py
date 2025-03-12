@@ -385,7 +385,7 @@ async def export(
         omit=omit,
         ios=ios,
         date_format=actual_format,
-        report_title=ui_config.config.get("HEADER_TEXT"),
+        report_title=ui_config.config.get("header_text"),
         enable_iom=plist_manager.get("enable_installomator"),
     )
 

@@ -202,7 +202,7 @@ class DataManager:
 
         pdf.add_page()
         pdf.add_table_header()
-        pdf.set_font(pdf.ui_config.get("FONT_NAME"), "", 9)
+        pdf.set_font(pdf.ui_config.get("font_name"), "", 9)
 
         # Data rows
         for _, row in df.iterrows():
