@@ -66,7 +66,6 @@ class JamfClient(Model):
         new_url = urlunparse((scheme, netloc, path.rstrip("/"), "", "", ""))
         return new_url.rstrip("/")
 
-    @classmethod
     @field_validator("client_id", "client_secret", mode="before")
     def not_empty(cls, value):
         """
@@ -83,7 +82,6 @@ class JamfClient(Model):
             raise PatcherError("Field cannot be empty", field=value)
         return value
 
-    @classmethod
     @field_validator("server", mode="before")
     def validate_url(cls, v):
         """
