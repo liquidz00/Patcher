@@ -45,13 +45,8 @@ class PDFReport(FPDF):
         self.table_headers = []
         self.column_widths = []
 
-        self._initialize_fonts()
-
-    def _initialize_fonts(self) -> None:
-        """Initialize fonts for later usage."""
-        font_name = self.ui_config.get("font_name")
-        self.add_font(font_name, "", self.ui_config.get("reg_font_path"))
-        self.add_font(font_name, "", self.ui_config.get("bold_font_path"))
+        self.add_font(self.ui_config.get("font_name"), "", self.ui_config.get("reg_font_path"))
+        self.add_font(self.ui_config.get("font_name"), "B", self.ui_config.get("bold_font_path"))
 
     @staticmethod
     def get_image_ratio(image_path: str) -> float:
