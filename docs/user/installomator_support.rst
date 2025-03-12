@@ -162,12 +162,27 @@ Retrieving Label Details
 
 Currently, Patcher only provides a **Y/N** response indicating whether an Installomator label exists for a given software title. Future updates will enhance this by allowing retrieval of full label details, including installation parameters.
 
+.. _disabling_installomator_support:
+
+Disabling Installomator
+-----------------------
+
+Installomator support can be disabled entirely if it does not meet the requirements of your environment. To disable Installomator, set the ``enable_installomator`` key to ``false`` in Patcher's :ref:`property list <property_list_file>` file: 
+
+.. code-block:: console
+
+    $ defaults write ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist enable_installomator -bool false
+
+When this key is set to ``false``, Patcher will bypass Installomator functionality entirely: 
+
+- Labels will not be downloaded or fetched
+- Software title matching will not occur
+
 Upcoming Features
 -----------------
 
-Installomator features are currently in beta (``v2.0.4b1``) as we build onto this base functionality. We are actively working on implementing:
+Installomator features are currently in beta as we build onto this base functionality. We are actively working on implementing:
 
 - Policy creation in Jamf for supported titles with available :ghwiki:`script options <Installomator:Configuration and Variables>`
-- An option to completely disable Installomator support should it not align with your organizations security standards or preferences
 - Integration with `AutoPkg <https://github.com/autopkg/autopkg>`_ to expand package deployment capabilities
 
