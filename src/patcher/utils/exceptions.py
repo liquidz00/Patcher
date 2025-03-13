@@ -20,55 +20,31 @@ class PatcherError(Exception):
         return self.formatted_message
 
 
-class ConfigError(PatcherError):
-    """Errors related to configuration or setup."""
-
-    pass
-
-
-class FetchError(PatcherError):
-    """Errors related to data fetching or retrieval."""
-
-    pass
-
-
-# Categorized Exceptions
-# ----------------------
-
-
-# Configuration Errors
-class SetupError(ConfigError):
+class SetupError(PatcherError):
     """Raised if any errors occur during automatic setup."""
 
     pass
 
 
-class CredentialError(ConfigError):
+class CredentialError(PatcherError):
     """Raised if any errors occur during saving or updating credentials."""
 
     pass
 
 
-# Fetch errors
-class APIResponseError(FetchError):
+class APIResponseError(PatcherError):
     """Raised when an API Call receives an unsuccessful status code."""
 
     pass
 
 
-class ShellCommandError(FetchError):
+class ShellCommandError(PatcherError):
     """Raised when the return code of a subprocess exec call is non-zero."""
 
     pass
 
 
-class TokenError(FetchError):
+class TokenError(PatcherError):
     """Raised when there is an error fetching, saving or retrieving a bearer token from Jamf API."""
-
-    pass
-
-
-class SofaError(FetchError):
-    """Raised when there is an error fetching SOFA feed data."""
 
     pass

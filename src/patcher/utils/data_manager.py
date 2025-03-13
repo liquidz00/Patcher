@@ -9,7 +9,7 @@ import pandas as pd
 from pydantic import ValidationError
 
 from ..models.patch import PatchTitle
-from .exceptions import FetchError, PatcherError
+from .exceptions import PatcherError
 from .logger import LogMe
 from .pdf_report import PDFReport
 
@@ -69,7 +69,7 @@ class DataManager:
         :param value: The list of PatchTitle objects to validate.
         :type value: :py:obj:`~typing.Iterable` [:class:`~patcher.models.patch.PatchTitle`]
         :raises PatcherError: If value is not an iterable object.
-        :raises FetchError: If any object in the passed iterable object is not a ``PatchTitle`` object, or if titles could not be validated.
+        :raises PatcherError: If any object in the passed iterable object is not a ``PatchTitle`` object, or if titles could not be validated.
         """
         if not isinstance(value, list):
             raise PatcherError(f"Value {value} must be an list of PatchTitle objects.")
@@ -81,7 +81,7 @@ class DataManager:
             validated_titles.append(item)
 
         if not validated_titles:  # Ensure the list is not empty
-            raise FetchError("PatchTitles cannot be set to an empty list.")
+            raise PatcherError("PatchTitles cannot be set to an empty list.")
 
         self._titles = validated_titles
 
@@ -202,7 +202,7 @@ class DataManager:
 
         pdf.add_page()
         pdf.add_table_header()
-        pdf.set_font(pdf.ui_config.get("FONT_NAME"), "", 9)
+        pdf.set_font(pdf.ui_config.get("font_name"), "", 9)
 
         # Data rows
         for _, row in df.iterrows():

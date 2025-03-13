@@ -13,7 +13,6 @@ from ..client.config_manager import ConfigManager
 from ..models.fragment import Fragment
 from ..models.label import Label
 from ..models.patch import PatchTitle
-from .data_manager import DataManager
 from .exceptions import APIResponseError, PatcherError, ShellCommandError
 from .logger import LogMe
 
@@ -32,7 +31,6 @@ class Installomator:
         self.label_path = Path.home() / "Library/Application Support/Patcher/.labels"
         self.config = ConfigManager()
         self.api = ApiClient(config=self.config, concurrency=concurrency)
-        self.data_manager = DataManager()
         self.threshold = 85
         self.review_file = Path.home() / "Library/Application Support/Patcher/unmatched_apps.json"
 
@@ -196,7 +194,10 @@ class Installomator:
         return matched_labels
 
     def _second_pass(
-        self, unmatched_apps: List[Dict[str, Any]], label_lookup: Dict[str, Label]
+        self,
+        unmatched_apps: List[Dict[str, Any]],
+        label_lookup: Dict[str, Label],
+        patch_titles: List[PatchTitle],
     ) -> int:
         """Attempts to match previously unmatched apps by normalized ``PatchTitle.title`` and fuzzy search."""
         matched_count = 0
@@ -205,9 +206,7 @@ class Installomator:
         for entry in unmatched_apps:
             patch_name = entry["Patch"]
             normalized_patch = self._normalize(patch_name)
-            patch_title = next(
-                (pt for pt in self.data_manager.titles if pt.title == patch_name), None
-            )
+            patch_title = next((pt for pt in patch_titles if pt.title == patch_name), None)
 
             if normalized_patch in label_lookup:
                 if patch_title:
@@ -277,7 +276,13 @@ class Installomator:
             "Microsoft Visual Studio",  # Support deprecated
         ]
 
-        software_titles = await self.api.get_app_names(patch_titles=patch_titles)
+        try:
+            software_titles = await self.api.get_app_names(patch_titles=patch_titles)
+        except APIResponseError as e:
+            if getattr(e, "not_found", False):
+                return  # Exit early, do not stop process
+            raise  # Non 404 errors get re-raised
+
         labels = self._labels or await self.get_labels()
         label_lookup = {label.name.lower(): label for label in labels}
 
@@ -309,7 +314,7 @@ class Installomator:
             else:
                 unmatched_apps.append({"Patch": patch_title.title, "App Names": app_names})
 
-        matched_count += self._second_pass(unmatched_apps, label_lookup)
+        matched_count += self._second_pass(unmatched_apps, label_lookup, patch_titles)
 
         self._save_unmatched_apps(unmatched_apps)
 

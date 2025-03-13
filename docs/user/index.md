@@ -59,6 +59,7 @@ Follow detailed instructions to configure Patcher.
 
 setup_assistant
 jamf_deployment
+plist
 schedulereports
 ```
 

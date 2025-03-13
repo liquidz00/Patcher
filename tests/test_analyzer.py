@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -20,13 +20,7 @@ mock_df = pd.DataFrame(mock_data)
 
 
 @pytest.fixture
-def mock_iom():
-    mock_installomator = MagicMock()
-    return mock_installomator
-
-
-@pytest.fixture
-def analyzer(tmp_path, mock_data_manager):
+def mock_analyzer(tmp_path, mock_data_manager):
     """Fixture to initialize Analyzer with a temporary file."""
     test_excel_path = tmp_path / "test.xlsx"
     mock_df.to_excel(test_excel_path, index=False)
@@ -77,20 +71,20 @@ def test_initialize_dataframe(mock_read_excel, tmp_path, mock_data_manager):
     assert len(analyzer.df) == len(mock_df)
 
 
-def test_validate_path_success(analyzer, tmp_path):
+def test_validate_path_success(mock_analyzer, tmp_path):
     """Test file path validation with a valid file."""
     valid_file = tmp_path / "valid_file.xlsx"
     valid_file.touch()
-    assert analyzer._validate_path(valid_file)
+    assert mock_analyzer._validate_path(valid_file)
 
 
-def test_validate_path_invalid_file(analyzer):
+def test_validate_path_invalid_file(mock_analyzer):
     """Test file path validation with an invalid file."""
     invalid_file = "non_existent.xlsx"
-    assert not analyzer._validate_path(invalid_file)
+    assert not mock_analyzer._validate_path(invalid_file)
 
 
-def test_filter_titles(analyzer, mock_data_manager):
+def test_filter_titles(mock_analyzer, mock_data_manager):
     """Test filtering PatchTitle objects by criteria."""
     patch_titles = [
         PatchTitle(
@@ -127,21 +121,21 @@ def test_filter_titles(analyzer, mock_data_manager):
     mock_data_manager.titles = patch_titles
 
     # Test MOST_INSTALLED filter
-    filtered = analyzer.filter_titles(FilterCriteria.MOST_INSTALLED)
+    filtered = mock_analyzer.filter_titles(FilterCriteria.MOST_INSTALLED)
     assert filtered[0].title == "Patch A"
 
     # Test LEAST_INSTALLED filter
-    filtered = analyzer.filter_titles(FilterCriteria.LEAST_INSTALLED)
+    filtered = mock_analyzer.filter_titles(FilterCriteria.LEAST_INSTALLED)
     assert filtered[0].title == "Patch C"
 
     # Test BELOW_THRESHOLD filter
-    filtered = analyzer.filter_titles(FilterCriteria.BELOW_THRESHOLD, threshold=70.0)
+    filtered = mock_analyzer.filter_titles(FilterCriteria.BELOW_THRESHOLD, threshold=70.0)
     assert len(filtered) == 1
     assert filtered[0].title == "Patch B"
 
     # Test ZERO_COMPLETION filter
     patch_titles[0].completion_percent = 0  # Manually set completion percent to zero
-    filtered = analyzer.filter_titles(FilterCriteria.ZERO_COMPLETION)
+    filtered = mock_analyzer.filter_titles(FilterCriteria.ZERO_COMPLETION)
     assert len(filtered) == 1
     assert filtered[0].title == "Patch A"
 
@@ -154,7 +148,7 @@ def test_filter_titles(analyzer, mock_data_manager):
         (FilterCriteria.ZERO_COMPLETION, 0),  # No titles with zero completion initially
     ],
 )
-def test_filter_titles_parametrized(analyzer, criteria, expected_count, mock_data_manager):
+def test_filter_titles_parametrized(mock_analyzer, criteria, expected_count, mock_data_manager):
     """Test filtering with parametrized criteria."""
     mock_data_manager.titles = [
         PatchTitle(
@@ -182,5 +176,5 @@ def test_filter_titles_parametrized(analyzer, criteria, expected_count, mock_dat
             latest_version="3.0.0",
         ),
     ]
-    filtered = analyzer.filter_titles(criteria)
+    filtered = mock_analyzer.filter_titles(criteria)
     assert len(filtered) == expected_count

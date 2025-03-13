@@ -9,7 +9,7 @@ import pytest
 from pandas.testing import assert_frame_equal
 from src.patcher.models.patch import PatchTitle
 from src.patcher.utils.data_manager import DataManager
-from src.patcher.utils.exceptions import FetchError, PatcherError
+from src.patcher.utils.exceptions import PatcherError
 
 
 @pytest.fixture
@@ -93,7 +93,7 @@ def test_titles_property_setter_invalid_type():
 def test_titles_property_setter_empty_list():
     """Test titles setter with an empty list."""
     data_manager = DataManager()
-    with pytest.raises(FetchError, match="PatchTitles cannot be set to an empty list"):
+    with pytest.raises(PatcherError, match="PatchTitles cannot be set to an empty list"):
         data_manager.titles = []
 
 

@@ -10,6 +10,7 @@ from .__about__ import __version__
 from .client.analyze import Analyzer, FilterCriteria, TrendCriteria
 from .client.api_client import ApiClient
 from .client.config_manager import ConfigManager
+from .client.plist_manager import PropertyListManager
 from .client.report_manager import ReportManager
 from .client.setup import Setup
 from .client.ui_manager import UIConfigManager
@@ -126,15 +127,18 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool) -> None:
         "disable_cache": disable_cache,
         "animation": Animation(enable_animation=not debug),
         "log": LogMe(__name__),
+        "plist_manager": PropertyListManager(),
         "config": ConfigManager(),
         "ui_config": UIConfigManager(),
     }
 
-    setup = Setup(ctx.obj.get("config"), ctx.obj.get("ui_config"))
+    setup = Setup(ctx.obj.get("config"), ctx.obj.get("ui_config"), ctx.obj.get("plist_manager"))
     ctx.obj["setup"] = setup
 
     # Check Setup completion
     async with ctx.obj.get("animation").error_handling():
+        if ctx.obj.get("plist_manager").needs_migration():
+            ctx.obj.get("plist_manager").migrate_plist()
         if not setup.completed:
             await setup.start(animator=ctx.obj.get("animation"))
             click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
@@ -142,8 +146,7 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool) -> None:
                 "Patcher is now ready for use. You can use the --help flag to view available options."
             )
             click.echo("For more information, visit the project docs: https://patcher.liquidzoo.io")
-            # Exit to avoid running a command
-            ctx.exit(0)
+            ctx.exit(0)  # Exit to avoid running a command
 
 
 # Reset
@@ -339,7 +342,7 @@ async def export(
     .. seealso::
 
         - :meth:`~patcher.client.report_manager.ReportManager.process_reports`
-        - :meth:`~patcher.client.__init__.BaseAPIClient.concurrency`
+        - :meth:`~patcher.client.BaseAPIClient.concurrency`
         - :ref: `export`
 
     :param ctx: The context object, providing access to shared state between commands.
@@ -367,13 +370,12 @@ async def export(
     patcher = ReportManager(
         api_client=api_client,
         data_manager=data_manager,
-        debug=ctx.obj.get("debug"),
     )
 
     selected_formats = set(formats) if formats else {"excel", "html", "pdf"}
     actual_format = DATE_FORMATS[date_format]
-    ui_config = ctx.obj.get("ui_config")
-    report_title = ui_config.config.get("HEADER_TEXT")
+
+    ui_config, plist_manager = ctx.obj.get("ui_config"), ctx.obj.get("plist_manager")
 
     # Not wrapping in animation error_handling in favor of existence on process_reports method
     await patcher.process_reports(
@@ -383,7 +385,8 @@ async def export(
         omit=omit,
         ios=ios,
         date_format=actual_format,
-        report_title=report_title,
+        report_title=ui_config.config.get("header_text"),
+        enable_iom=plist_manager.get("enable_installomator"),
     )
 
 

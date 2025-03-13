@@ -29,19 +29,19 @@ Patcher matches software titles to Installomator labels using multiple methods t
 - **Direct Matching**: Compares application names directly against Installomator label names.
 
 .. literalinclude:: ../../src/patcher/utils/installomator.py
-    :lines: 176-185
+    :lines: 174-183
     :language: python
 
 - **Fuzzy Matching**: Uses similarity scoring (via `rapidfuzz <https://rapidfuzz.github.io/RapidFuzz/>`_) to find the best-matching label when a direct match isn't found.
 
 .. literalinclude:: ../../src/patcher/utils/installomator.py
-    :lines: 187-196
+    :lines: 185-194
     :language: python
 
 - **Normalized Matching**: In the event a match is not found via a direct or fuzzy match, the software titles name is 'normalized' and checked against all labels (e.g., ``Node.js`` → ``nodejs``).
 
 .. literalinclude:: ../../src/patcher/utils/installomator.py
-    :lines: 198-236
+    :lines: 196-235
     :language: python
 
 Why Matching Can Be Tricky
@@ -162,12 +162,27 @@ Retrieving Label Details
 
 Currently, Patcher only provides a **Y/N** response indicating whether an Installomator label exists for a given software title. Future updates will enhance this by allowing retrieval of full label details, including installation parameters.
 
+.. _disabling_installomator_support:
+
+Disabling Installomator
+-----------------------
+
+Installomator support can be disabled entirely if it does not meet the requirements of your environment. To disable Installomator, set the ``enable_installomator`` key to ``false`` in Patcher's :ref:`property list <property_list_file>` file: 
+
+.. code-block:: console
+
+    $ defaults write ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist enable_installomator -bool false
+
+When this key is set to ``false``, Patcher will bypass Installomator functionality entirely: 
+
+- Labels will not be downloaded or fetched
+- Software title matching will not occur
+
 Upcoming Features
 -----------------
 
-Installomator features are currently in beta (``v2.0.4b1``) as we build onto this base functionality. We are actively working on implementing:
+Installomator features are currently in beta as we build onto this base functionality. We are actively working on implementing:
 
 - Policy creation in Jamf for supported titles with available :ghwiki:`script options <Installomator:Configuration and Variables>`
-- An option to completely disable Installomator support should it not align with your organizations security standards or preferences
 - Integration with `AutoPkg <https://github.com/autopkg/autopkg>`_ to expand package deployment capabilities
 

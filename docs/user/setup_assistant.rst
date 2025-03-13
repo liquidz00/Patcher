@@ -9,14 +9,37 @@ Our aim as developers of this tool is to streamline the setup and installation p
 First Run Detection
 -------------------
 
-Patcher needs to know whether it is being run for the first time. This is important so that credentials are saved and stored properly and :ref:`user-interface customizations <customize_reports>` are setup for subsequent uses. Here is how the process works:
+When you first launch Patcher, the ``com.liquidzoo.patcher.plist`` file in the Application Support directory (``$HOME/Library/Application Support/Patcher``) is created. This file serves as the main configuration storage, ensuring that Patcher retains necessary settings between runs.
 
-1. **First Run Check**: When Patcher is executed, it looks for a property list in Patcher's Application Support directory. Specifically, it checks for the presence of ``com.liquidzoo.patcher.plist`` in ``/Users/$username/Library/Application Support/Patcher``, where ``$username`` denotes the currently logged in user.
+To determine whether the setup assistant should be triggered, Patcher checks whether it is being run for the first time. This is important so that credentials are saved and stored properly and :ref:`user-interface customizations <customize_reports>` are set up for subsequent uses. Here is how the process works:
 
-2. **Key Check**: If the property list is found, Patcher will parse its contents for the ``first_run_done`` key.
+1. **First Run Check**: When Patcher is executed, it looks for the property list file. Specifically, it checks for the presence of ``com.liquidzoo.patcher.plist`` in ``/Users/$username/Library/Application Support/Patcher``, where ``$username`` denotes the currently logged in user.
+
+2. **Key Check**: If the property list is found, Patcher will parse its contents for the ``setup_completed`` key.
 
    - If the file does not exist, or if the key is set to ``False``, the setup assistant is triggered.
    - The key *must* be set to ``True`` to prevent the setup assistant from running.
+
+Configuration Persistence
+-------------------------
+
+Once setup is completed successfully, the ``setup_completed`` key will automatically be set to ``True``:
+
+.. code-block:: xml
+
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+        <key>setup_completed</key>
+        <true/>
+    </dict>
+    </plist>
+
+.. admonition:: Warning
+    :class: warning
+
+    **Do not modify** the ``setup_completed`` key directly. Altering this key may lead to unexpected behavior. If you need to reset the initial setup state, use the ``--reset`` command instead. For more information, see :ref:`resetting Patcher <resetting_patcher>`.
 
 .. _setup_type:
 
