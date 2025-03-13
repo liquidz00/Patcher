@@ -12,6 +12,7 @@ base_api_client
 api_client
 analyze
 config_manager
+plist_manager
 report_manager
 setup
 token_manager
