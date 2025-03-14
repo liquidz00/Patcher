@@ -236,7 +236,7 @@ class DataManager:
             f"<tr>{''.join(f'<td>{cell}</td>' for cell in row)}</tr>" for row in df.values
         )
 
-        template = Template((Path(__file__).parent / "../templates/analysis.html").read_text())
+        template = Template((Path(__file__).parent.parent / "templates/analysis.html").read_text())
         rendered_html = template.substitute(
             title=report_title,
             heading=report_title,
