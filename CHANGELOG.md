@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.1.1] - 2025-03-13
+### Added
+- Installomator support can be disabled should it not align with the security standards of your environment ([Docs](https://patcher.liquidzoo.io/user/installomator_support.html#disabling-installomator))
+
+### Changed
+- Property list structure has been reformatted for simplicity and efficiency. ([Docs](https://patcher.liquidzoo.io/user/plist.html))
+- All property list methods refactored into own `PropertyListManager` class for separation of concerns
+
+### Fixed
+- An issue with bold fonts not be adding properly, leading to unhandled FPDF exceptions
+- `404` status responses are properly handled during app matching process instead of raising an `APIResponseError` ([#26](https://github.com/liquidz00/Patcher/issues/26))
+- Prevent inaccurate setup runs by checking property list migration before setup completion
+
 ## [v2.1.0] - 2025-02-15
 ### Added
 - Export command defaults to exporting to all file formats (Excel, PDF, and HTML), with the `--format` option allowing for export of specific formats if desired
