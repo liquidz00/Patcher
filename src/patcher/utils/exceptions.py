@@ -48,3 +48,9 @@ class TokenError(PatcherError):
     """Raised when there is an error fetching, saving or retrieving a bearer token from Jamf API."""
 
     pass
+
+
+class InstallomatorWarning(Warning):
+    """Custom warning to indicate Installomator-related issues."""
+
+    pass
