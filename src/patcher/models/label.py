@@ -68,7 +68,6 @@ class Label(Model):
     def __str__(self):
         return f"Name: {self.name} Type: {self.type} Label: {self.installomatorLabel}"
 
-    @classmethod
     @field_validator("type", mode="before")
     def validate_type(cls, v):
         allowed_types = ["dmg", "pkg", "zip", "tbz", "pkgInDmg", "pkgInZip", "appInDmgInZip"]
@@ -76,7 +75,6 @@ class Label(Model):
             raise PatcherError(f"Type must be one of {allowed_types}", type=v)
         return v
 
-    @classmethod
     @field_validator("expectedTeamID", mode="before")
     def validate_team_id(cls, v):
         if len(v) != 10:
