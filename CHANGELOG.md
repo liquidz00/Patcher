@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.1.2] - 2025-03-14
+### Changed
+- Problematic Installomator labels are now handled gracefully instead of raising exceptions ([#28](https://github.com/liquidz00/Patcher/issues/28))
+- PDF classes have been refactored to resolve FPDF Deprecation warnings around `ln=True` usage
+
+### Fixed
+- An issue with HTML template path reference ([#27](https://github.com/liquidz00/Patcher/issues/27))
+- CLI entry point references the correct property list value for HTML report titles
+
 ## [v2.1.1] - 2025-03-13
 ### Added
 - Installomator support can be disabled should it not align with the security standards of your environment ([Docs](https://patcher.liquidzoo.io/user/installomator_support.html#disabling-installomator))
