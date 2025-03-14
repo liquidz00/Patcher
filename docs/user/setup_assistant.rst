@@ -31,11 +31,8 @@ Once setup is completed successfully, the ``setup_completed`` key will automatic
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
     <plist version="1.0">
     <dict>
-        <key>Setup</key>
-        <dict>
-            <key>first_run_done</key>
-            <true/>
-        </dict>
+        <key>setup_completed</key>
+        <true/>
     </dict>
     </plist>
 

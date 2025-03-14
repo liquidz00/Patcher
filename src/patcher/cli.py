@@ -566,7 +566,7 @@ async def analyze(
                 exported = await data_manager.export(
                     filtered_titles,
                     output_dir,
-                    report_title=ui_config.config.get("HEADER_TEXT"),
+                    report_title=ui_config.config.get("header_text"),
                     analysis=True,
                     formats={"html"},
                 )

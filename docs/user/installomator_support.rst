@@ -29,19 +29,19 @@ Patcher matches software titles to Installomator labels using multiple methods t
 - **Direct Matching**: Compares application names directly against Installomator label names.
 
 .. literalinclude:: ../../src/patcher/utils/installomator.py
-    :lines: 176-185
+    :lines: 174-183
     :language: python
 
 - **Fuzzy Matching**: Uses similarity scoring (via `rapidfuzz <https://rapidfuzz.github.io/RapidFuzz/>`_) to find the best-matching label when a direct match isn't found.
 
 .. literalinclude:: ../../src/patcher/utils/installomator.py
-    :lines: 187-196
+    :lines: 185-194
     :language: python
 
 - **Normalized Matching**: In the event a match is not found via a direct or fuzzy match, the software titles name is 'normalized' and checked against all labels (e.g., ``Node.js`` → ``nodejs``).
 
 .. literalinclude:: ../../src/patcher/utils/installomator.py
-    :lines: 198-236
+    :lines: 196-235
     :language: python
 
 Why Matching Can Be Tricky
