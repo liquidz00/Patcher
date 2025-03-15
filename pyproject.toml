@@ -22,7 +22,6 @@ dependencies = [
   "pandas>=2.2.0",
   "pyarrow>=15.0.0",
   "pydantic>=2.7.4",
-  "pytest-mock>=3.14.0",
   "rapidfuzz>=3.12.1",
 ]
 
@@ -50,21 +49,6 @@ Issues = "https://github.com/liquidz00/Patcher/issues/new?assignees=&labels=bug&
 patcherctl = "patcher.cli:cli"
 
 [project.optional-dependencies]
-all = [
-  "black>=24.3.0",
-  "build",
-  "pytest>=8.2.2",
-  "pytest-asyncio>=0.23.5",
-  "pytest-cov>=4.0.0",
-  "ruff>=0.5.1",
-  "autodoc-pydantic",
-  "myst-parser",
-  "pydata-sphinx-theme",
-  "sphinx>=7.3.7",
-  "sphinx-design",
-  "sphinx-copybutton",
-  "sphinx-togglebutton",
-]
 dev = [
   "black>=24.3.0",
   "build",
@@ -83,6 +67,7 @@ docs = [
   "sphinx-copybutton",
   "sphinx-togglebutton",
 ]
+all = ["patcherctl[dev]", "patcherctl[docs]"]
 
 [build-system]
 requires = [
@@ -93,6 +78,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.package-data]
+"patcher" = ["templates/*.html"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
