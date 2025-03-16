@@ -2,7 +2,6 @@ import asyncio
 import fnmatch
 import json
 import re
-import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -14,7 +13,7 @@ from ..client.config_manager import ConfigManager
 from ..models.fragment import Fragment
 from ..models.label import Label
 from ..models.patch import PatchTitle
-from .exceptions import APIResponseError, InstallomatorWarning, PatcherError, ShellCommandError
+from .exceptions import APIResponseError, PatcherError, ShellCommandError
 from .logger import LogMe
 
 IGNORED_TEAMS = ["Frydendal", "Media", "LL3KBL2M3A"]  # "LL3KBL2M3A" - lcadvancedvpnclient
@@ -157,10 +156,6 @@ class Installomator:
             if expected_team_id in IGNORED_TEAMS:
                 self.log.warning(
                     f"Skipping label {file_path.stem} (ignored Team ID: {expected_team_id})"
-                )
-                warnings.warn(
-                    f"⚠️  Skipping {file_path.stem} due to ignored Team ID.",
-                    InstallomatorWarning,
                 )
                 continue  # skip this label entirely
 
