@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 
 from ..utils.exceptions import PatcherError
 from . import Model
@@ -39,7 +39,7 @@ class Label(Model):
 
     name: str
     type: str
-    expectedTeamID: str
+    expectedTeamID: str = Field(..., description="Expected Team ID (must be exactly 10 characters)")
     installomatorLabel: str  # fragmentName - ".sh"
     downloadURL: str
 
@@ -68,17 +68,27 @@ class Label(Model):
     def __str__(self):
         return f"Name: {self.name} Type: {self.type} Label: {self.installomatorLabel}"
 
-    @classmethod
     @field_validator("type", mode="before")
     def validate_type(cls, v):
-        allowed_types = ["dmg", "pkg", "zip", "tbz", "pkgInDmg", "pkgInZip", "appInDmgInZip"]
+        allowed_types = [
+            "dmg",
+            "pkg",
+            "zip",
+            "tbz",
+            "pkgInDmg",
+            "pkgInZip",
+            "appInDmgInZip",
+            "appindmg",
+            "bz2",
+        ]
         if v not in allowed_types:
             raise PatcherError(f"Type must be one of {allowed_types}", type=v)
         return v
 
-    @classmethod
     @field_validator("expectedTeamID", mode="before")
     def validate_team_id(cls, v):
+        if v in "Software Update":
+            return v  # Apple software/tools
         if len(v) != 10:
             raise PatcherError("expectedTeamID must be a 10-character string", team_id=v)
         return v

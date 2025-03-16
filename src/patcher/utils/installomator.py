@@ -16,6 +16,8 @@ from ..models.patch import PatchTitle
 from .exceptions import APIResponseError, PatcherError, ShellCommandError
 from .logger import LogMe
 
+IGNORED_TEAMS = ["Frydendal", "Media", "LL3KBL2M3A"]  # "LL3KBL2M3A" - lcadvancedvpnclient
+
 
 class Installomator:
     def __init__(self, concurrency: Optional[int] = 5):
@@ -149,20 +151,24 @@ class Installomator:
         for file_path in self.label_path.glob("*.sh"):
             content = file_path.read_text()
             fragment_dict = self._parse(content)
+
+            expected_team_id = fragment_dict.get("expectedTeamID")
+            if expected_team_id in IGNORED_TEAMS:
+                self.log.warning(
+                    f"Skipping label {file_path.stem} (ignored Team ID: {expected_team_id})"
+                )
+                continue  # skip this label entirely
+
             try:
                 label = Label.from_dict(
                     fragment_dict, installomatorLabel=file_path.stem.split(".")[0]
                 )
                 labels.append(label)
-            except ValueError as e:
-                raise PatcherError(
-                    "Failed to create Label object from fragment.",
-                    fragment=file_path.name,
-                    error_msg=str(e),
+            except ValidationError as e:
+                self.log.warning(
+                    f"Skipping invalid Installomator label: {file_path.name} due to validation error: {e}"
                 )
-
-        # Cache labels
-        self._labels = labels
+                continue  # Skip problematic label but continue
 
         return labels
 

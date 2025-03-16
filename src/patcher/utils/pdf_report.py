@@ -5,6 +5,7 @@ from typing import List
 
 import pandas as pd
 from fpdf import FPDF
+from fpdf.enums import XPos, YPos
 from PIL import Image
 
 from ..client.ui_manager import UIConfigManager
@@ -133,13 +134,25 @@ class PDFReport(FPDF):
         # Align header text
         self.set_xy(text_x_offset, top_margin)
         self.set_font(self.ui_config.get("font_name"), "B", header_font_size)
-        self.cell(0, header_text_height, self.ui_config.get("header_text"), align="L", ln=True)
+        self.cell(
+            0,
+            header_text_height,
+            self.ui_config.get("header_text"),
+            align="L",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+        )
 
         # Align date below header text
         self.set_x(text_x_offset)
         self.set_font(self.ui_config.get("font_name"), "", date_font_size)
         self.cell(
-            0, date_text_height, datetime.now().strftime(self.date_format), align="L", ln=True
+            0,
+            date_text_height,
+            datetime.now().strftime(self.date_format),
+            align="L",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
         )
 
         # Add table header for pages > 1
@@ -158,7 +171,7 @@ class PDFReport(FPDF):
         self.set_font(self.ui_config.get("font_name"), "B", 11)
         for header, width in zip(self.table_headers, self.column_widths):
             self.cell(width, 10, header, border=1, align="C")
-        self.ln(10)
+        self.cell(0, 10, "", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     def footer(self):
         """

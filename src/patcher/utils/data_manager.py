@@ -6,6 +6,7 @@ from string import Template
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
+from fpdf.enums import XPos, YPos
 from pydantic import ValidationError
 
 from ..models.patch import PatchTitle
@@ -208,7 +209,7 @@ class DataManager:
         for _, row in df.iterrows():
             for data, width in zip(row.astype(str), pdf.column_widths):
                 pdf.cell(width, 10, str(data), border=1, align="C")
-            pdf.ln(10)
+            pdf.cell(0, 10, "", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             if pdf.get_y() > pdf.h - 20:
                 pdf.add_page()
                 pdf.add_table_header()
@@ -236,7 +237,7 @@ class DataManager:
             f"<tr>{''.join(f'<td>{cell}</td>' for cell in row)}</tr>" for row in df.values
         )
 
-        template = Template((Path(__file__).parent / "../templates/analysis.html").read_text())
+        template = Template((Path(__file__).parent.parent / "templates/analysis.html").read_text())
         rendered_html = template.substitute(
             title=report_title,
             heading=report_title,

@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import sys
+import warnings
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
@@ -16,7 +17,7 @@ from .client.setup import Setup
 from .client.ui_manager import UIConfigManager
 from .utils.animation import Animation
 from .utils.data_manager import DataManager
-from .utils.exceptions import APIResponseError, PatcherError
+from .utils.exceptions import APIResponseError, InstallomatorWarning, PatcherError
 from .utils.logger import LogMe, PatcherLog
 
 DATE_FORMATS = {
@@ -29,8 +30,6 @@ DATE_FORMATS = {
 
 # Context settings to enable both ``-h`` and ``--help`` for help output
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
-
-sys.excepthook = PatcherLog.custom_excepthook  # Log unhandled exceptions
 
 
 def setup_logging(debug: bool) -> None:
@@ -83,6 +82,15 @@ def initialize_cache(cache_dir: Path) -> None:
     except OSError as err:
         log.warning(f"Failed to initialize cache directory. Details: {err}")
         return
+
+
+def warning_format(message, category, filename, lineno, file=None, line=None):
+    return f"{category.__name__}: {message}\n"
+
+
+sys.excepthook = PatcherLog.custom_excepthook  # Log unhandled exceptions
+warnings.simplefilter("always", InstallomatorWarning)  # Show warnings in CLI
+warnings.formatwarning = warning_format
 
 
 # Entry
