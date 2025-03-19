@@ -14,9 +14,8 @@ from ..models.fragment import Fragment
 from ..models.label import Label
 from ..models.patch import PatchTitle
 from .exceptions import APIResponseError, PatcherError, ShellCommandError
+from .ignored import IGNORED_LABELS
 from .logger import LogMe
-
-IGNORED_TEAMS = ["Frydendal", "Media", "LL3KBL2M3A"]  # "LL3KBL2M3A" - lcadvancedvpnclient
 
 
 class Installomator:
@@ -145,6 +144,16 @@ class Installomator:
         results = await asyncio.gather(*tasks)
         return all(result is True for result in results)
 
+    async def _filter_label(label: Label) -> Optional[Label]:
+        """Returns None if passed label is unsupported or ignored."""
+        if (
+            label.type.startswith("UNSUPPORTED")
+            or label.expectedTeamID in ["IGNORED_TEAM_ID", "INVALID_TEAM_ID"]
+            or label.downloadURL == "UNKNOWN_URL"
+        ):
+            return None
+        return label
+
     async def _build_labels(self) -> List[Label]:
         """Builds list of ``Label`` objects from parsing ``self.label_path``."""
         labels = []
@@ -152,23 +161,17 @@ class Installomator:
             content = file_path.read_text()
             fragment_dict = self._parse(content)
 
-            expected_team_id = fragment_dict.get("expectedTeamID")
-            if expected_team_id in IGNORED_TEAMS:
-                self.log.warning(
-                    f"Skipping label {file_path.stem} (ignored Team ID: {expected_team_id})"
-                )
-                continue  # skip this label entirely
+            label = Label.from_dict(fragment_dict, installomatorLabel=file_path.stem.split(".")[0])
 
-            try:
-                label = Label.from_dict(
-                    fragment_dict, installomatorLabel=file_path.stem.split(".")[0]
-                )
+            if label is None:
+                continue
+
+            filtered_label = await self._filter_label(label)
+
+            if filtered_label:
                 labels.append(label)
-            except ValidationError as e:
-                self.log.warning(
-                    f"Skipping invalid Installomator label: {file_path.name} due to validation error: {e}"
-                )
-                continue  # Skip problematic label but continue
+            else:
+                self.log.warning(f"Skipping invalid label: {file_path.stem}")
 
         return labels
 
@@ -273,15 +276,6 @@ class Installomator:
         """
         self.log.debug("Starting label-patch title matching process.")
 
-        IGNORED_TITLES = [  # noqa: N806
-            "Apple macOS *",
-            "Oracle Java SE *",
-            "Eclipse Temurin *",
-            "Apple Safari",
-            "Apple Xcode",
-            "Microsoft Visual Studio",  # Support deprecated
-        ]
-
         try:
             software_titles = await self.api.get_app_names(patch_titles=patch_titles)
         except APIResponseError as e:
@@ -296,7 +290,9 @@ class Installomator:
         unmatched_apps = []
 
         for patch_title in patch_titles:
-            if any(fnmatch.fnmatch(patch_title.title, pattern) for pattern in IGNORED_TITLES):
+            if any(
+                fnmatch.fnmatch(patch_title.title, pattern) for pattern in IGNORED_LABELS["titles"]
+            ):
                 self.log.info(f"Ignoring {patch_title.title}")
                 continue
 

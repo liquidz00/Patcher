@@ -1,8 +1,8 @@
-from typing import Any, Dict
+from typing import Any, Dict, List, Union
 
 from pydantic import Field, field_validator
 
-from ..utils.exceptions import PatcherError
+from ..utils.ignored import IGNORED_LABELS
 from . import Model
 
 
@@ -27,6 +27,8 @@ class Label(Model):
             - ``pkgInDmg``
             - ``pkgInZip``
             - ``appInDmgInZip``
+            - ``appindmg``
+            - ``bz2``
 
     :type type: :py:class:`str`
     :param expectedTeamID: The expected Team ID of the software publisher (must be a 10-character string).
@@ -43,33 +45,19 @@ class Label(Model):
     installomatorLabel: str  # fragmentName - ".sh"
     downloadURL: str
 
-    # NOTE: Planning on implementing these properties at a later time, commenting out for now.
-
-    # Strongly recommended variables
-    #   appNewVersion: Optional[str] = None
-    #   versionKey: Optional[str] = None
-    #   packageID: Optional[str] = None
-
-    # Optional variables
-    #   archiveName: Optional[str] = None
-    #   appName: Optional[str] = None
-    #   appCustomVersion: Optional[str] = None
-    #   targetDir: Optional[str] = "/Applications"
-    #   blockingProcesses: Optional[list[str]] = None
-    #   pkgName: Optional[str] = None
-    #   updateTool: Optional[str] = None
-    #   updateToolArguments: Optional[list[str]] = None
-    #   updateToolRunAsCurrentUser: Optional[bool] = False
-    #   CLIInstaller: Optional[str] = None
-    #   CLIArguments: Optional[list[str]] = None
-    #   installerTool: Optional[str] = None
-    #   curlOptions: Optional[List[str]] = None
-
     def __str__(self):
         return f"Name: {self.name} Type: {self.type} Label: {self.installomatorLabel}"
 
     @field_validator("type", mode="before")
-    def validate_type(cls, v):
+    def validate_type(cls, v: str) -> str:
+        """
+        Validates the ``type`` field to ensure it is a supported Installomator package type.
+
+        :param v: The package type string
+        :type v: :py:class:`str`
+        :return: The validated package type or a fallback value if invalid.
+        :rtype: :py:class:`str`
+        """
         allowed_types = [
             "dmg",
             "pkg",
@@ -81,17 +69,40 @@ class Label(Model):
             "appindmg",
             "bz2",
         ]
-        if v not in allowed_types:
-            raise PatcherError(f"Type must be one of {allowed_types}", type=v)
-        return v
+        return v if v in allowed_types else f"UNSUPPORTED: {v}"
 
     @field_validator("expectedTeamID", mode="before")
-    def validate_team_id(cls, v):
+    def validate_team_id(cls, v: str) -> str:
+        """
+        Validates the ``expectedTeamID`` field to ensure it is a 10-character identifier or an allowed Apple software string.
+
+        :param v: The expected Team ID.
+        :type v: :py:class:`str`
+        :return: The validated Team ID or a fallback value if invalid.
+        :rtype: :py:class:`str`
+        """
         if v in "Software Update":
             return v  # Apple software/tools
-        if len(v) != 10:
-            raise PatcherError("expectedTeamID must be a 10-character string", team_id=v)
+        elif v in IGNORED_LABELS["teams"]:
+            return "IGNORED_TEAM_ID"  # ignored team IDs
+        elif len(v) != 10:
+            return "INVALID_TEAM_ID"
         return v
+
+    @field_validator("downloadURL", mode="before")
+    def cast_download_url(cls, v: Union[str, List[str]]) -> str:
+        """
+        Ensures ``downloadURL`` is always stored as a string.
+        If a list is provided, it joins the elements into a single string.
+
+        :param v: The download URL, either as a string or list of strings.
+        :type v: :py:obj:`~typing.Union` :py:class:`str` | :py:obj:`~typing.List`
+        :return: The validated download URL as a string.
+        :rtype: :py:class:`str`
+        """
+        if not v:
+            return "UNKNOWN_URL"
+        return " ".join(v) if isinstance(v, list) else str(v)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any], **kwargs) -> "Label":
@@ -99,12 +110,16 @@ class Label(Model):
         Creates a ``Label`` instance from passed dictionary.
 
         Only includes keys that match the fields defined in the model.
+        If a software title is in the ignore list, it returns ``None`` to skip processing.
 
         :param data: API response payload to parse for object creation.
         :type data: :py:obj:`~typing.Dict`
         :return: The configured ``Label`` object.
         :rtype: :class:`~patcher.models.label.Label`
         """
+        if data.get("name") in IGNORED_LABELS["titles"]:
+            return None  # Skip ignored
+
         # noinspection PyUnresolvedReferences
         field_names = cls.model_fields.keys()
         filtered_data = {k: v for k, v in data.items() if k in field_names}
