@@ -144,7 +144,7 @@ class Installomator:
         results = await asyncio.gather(*tasks)
         return all(result is True for result in results)
 
-    async def _filter_label(label: Label) -> Optional[Label]:
+    async def _filter_label(self, label: Label) -> Optional[Label]:
         """Returns None if passed label is unsupported or ignored."""
         if (
             label.type.startswith("UNSUPPORTED")
