@@ -147,22 +147,22 @@ class LogMe:
         """Check if any logger handlers are set to debug level."""
         return any(h.level == logging.DEBUG for h in self.logger.handlers)
 
-    def debug(self, msg: str):
+    def debug(self, msg: str) -> None:
         self.logger.debug(msg)
         if self.is_debug:
             click.echo(click.style(f"\rDEBUG: {msg.strip()}", fg="magenta"))
 
-    def info(self, msg: str):
+    def info(self, msg: str) -> None:
         self.logger.info(msg)
         if self.is_debug:
             click.echo(click.style(f"\rINFO: {msg.strip()}", fg="blue"))
 
-    def warning(self, msg: str):
+    def warning(self, msg: str) -> None:
         self.logger.warning(msg)
         if self.is_debug:
             click.echo(click.style(f"\rWARNING: {msg.strip()}", fg="yellow", bold=True))
 
-    def error(self, msg: str):
+    def error(self, msg: str) -> None:
         # Error message formatting is handled by CLI, bypassing need to format error messages
         # at the class level
         self.logger.error(msg)

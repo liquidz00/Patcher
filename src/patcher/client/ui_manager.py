@@ -51,7 +51,7 @@ class UIConfigManager:
         return self._config
 
     @config.setter
-    def config(self, value: Dict):
+    def config(self, value: Dict) -> None:
         """
         Set specific UI configuration values with validation.
 
@@ -106,7 +106,7 @@ class UIConfigManager:
                     error_msg=str(e),
                 )
 
-    def _download_fonts(self):
+    def _download_fonts(self) -> None:
         """Downloads the Assistant font family to Patcher's font directory."""
         if self.fonts_present:
             return
@@ -125,7 +125,7 @@ class UIConfigManager:
                     error_msg=str(e),
                 )
 
-    def _copy_file(self, src: Path, dest: Path):
+    def _copy_file(self, src: Path, dest: Path) -> None:
         """Safely copy a file, handling exceptions."""
         try:
             shutil.copy(src, dest)
@@ -138,7 +138,7 @@ class UIConfigManager:
                 error_msg=str(e),
             )
 
-    def create_default_config(self):
+    def create_default_config(self) -> None:
         """
         This method writes default values for header text, footer text, font paths
         and optional branding logo into the property list file. It also ensures that the
@@ -175,7 +175,7 @@ class UIConfigManager:
             self.log.error(f"Failed resetting UI-config settings. Details: {e}")
             return False
 
-    def setup_ui(self):
+    def setup_ui(self) -> None:
         """
         Guides the user through configuring UI settings for PDF reports, including header/footer text,
         font choices, and an optional branding logo.

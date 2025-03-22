@@ -30,7 +30,7 @@ def check_token(func: Callable) -> Any:
     """
 
     @wraps(func)
-    async def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs) -> Any:
         instance = args[0]
         token_manager = instance.token_manager
         log = instance.log

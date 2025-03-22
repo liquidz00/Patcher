@@ -101,7 +101,7 @@ class DataManager:
         except (FileNotFoundError, pd.errors.EmptyDataError, pickle.UnpicklingError) as e:
             raise PatcherError("Error encountered validating dataset.", error_msg=str(e))
 
-    def _cache_data(self, df: pd.DataFrame):
+    def _cache_data(self, df: pd.DataFrame) -> None:
         """Cache exported data for later use."""
         if self.cache_off:
             return  # Only cache if enabled
@@ -121,7 +121,7 @@ class DataManager:
             )
             return
 
-    def _clean_cache(self):
+    def _clean_cache(self) -> None:
         """Remove cache files older than expiration policy."""
         expiration_time = datetime.now() - timedelta(days=self.cache_expiration_days)
         self.log.debug(f"Attempting to remove cache files older than {expiration_time}.")
@@ -195,7 +195,7 @@ class DataManager:
         export_dir.mkdir(parents=True, exist_ok=True)
         return export_dir / filename
 
-    async def _export_pdf(self, df: pd.DataFrame, pdf_path: Path, date_format: str):
+    async def _export_pdf(self, df: pd.DataFrame, pdf_path: Path, date_format: str) -> None:
         """Generates a PDF Report from a given DataFrame."""
         pdf = PDFReport(date_format=date_format)
         pdf.table_headers = df.columns.tolist()
@@ -227,7 +227,7 @@ class DataManager:
 
     async def _export_html(
         self, df: pd.DataFrame, html_path: Path, report_title: str, date_format: str
-    ):
+    ) -> None:
         """Generates an HTML report from a given DataFrame."""
         headers = "".join(
             f'<th onclick="sortTable({i})">{field.replace("_", " ").title()}</th>'

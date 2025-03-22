@@ -3,7 +3,7 @@ class PatcherError(Exception):
 
     default_message = "An error occurred"
 
-    def __init__(self, message: str = None, **kwargs):
+    def __init__(self, message: str = None, **kwargs) -> None:
         self.message = message or self.default_message
         self.context = kwargs
         self.formatted_message = self.format_message()
@@ -16,7 +16,7 @@ class PatcherError(Exception):
         )
         return f"{self.message} ({context_details})" if context_details else self.message
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.formatted_message
 
 

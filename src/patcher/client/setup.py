@@ -71,13 +71,13 @@ class Setup:
         return self._completed
 
     @staticmethod
-    def _greet():
+    def _greet() -> None:
         """Displays the greeting and welcome messages."""
         click.echo(click.style(GREET, fg="cyan", bold=True))
         click.echo(click.style(WELCOME), nl=False)
         click.echo(click.style(DOC, fg="bright_magenta", bold=True))
 
-    def _mark_completion(self, value: bool = False):
+    def _mark_completion(self, value: bool = False) -> None:
         """Updates the plist file to reflect the completion status of the setup."""
         self.plist_manager.set("setup_completed", value)
         self._completed = value
@@ -119,7 +119,7 @@ class Setup:
         for key, value in creds.items():
             self.config.set_credential(key, value)
 
-    def _prompt_installomator(self):
+    def _prompt_installomator(self) -> None:
         """Prompts user to enable or disable Installomator support."""
         use_installomator = click.confirm(
             "Would you like to enable Installomator support?", default=True

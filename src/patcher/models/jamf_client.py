@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, List
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import Field, field_validator
@@ -32,7 +32,7 @@ class JamfClient(Model):
     server: str
 
     @property
-    def base_url(self):
+    def base_url(self) -> str:
         """
         Gets the base URL of the Jamf server.
 
@@ -67,7 +67,7 @@ class JamfClient(Model):
         return new_url.rstrip("/")
 
     @field_validator("client_id", "client_secret", mode="before")
-    def not_empty(cls, value):
+    def not_empty(cls, value) -> Any:
         """
         Ensures that the `client_id` and `client_secret` fields are not empty, raising
         a ``PatcherError`` if they are.
@@ -83,7 +83,7 @@ class JamfClient(Model):
         return value
 
     @field_validator("server", mode="before")
-    def validate_url(cls, v):
+    def validate_url(cls, v) -> str:
         """
         Validates that the `~patcher.models.jamf_client.JamfClient.server` field contains a valid and properly
         formatted URL by calling the `~patcher.models.jamf_client.JamfClient.valid_url` method.

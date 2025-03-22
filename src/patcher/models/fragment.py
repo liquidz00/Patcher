@@ -7,9 +7,6 @@ from . import Model
 
 
 class Fragment(Model):
-    """
-    # TODO
-    """
 
     name: str
     sha: str

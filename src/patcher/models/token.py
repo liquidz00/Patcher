@@ -21,7 +21,7 @@ class AccessToken(Model):
     token: str = ""
     expires: datetime = Field(default_factory=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc))
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Returns the string representation of the access token.
 

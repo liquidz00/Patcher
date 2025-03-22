@@ -32,7 +32,7 @@ class TokenManager:
         self.lock = asyncio.Lock()
 
     @property
-    def client(self):
+    def client(self) -> JamfClient:
         if not self._client:
             self.log.debug("Attempting to attach JamfClient.")
             self._client = self.attach_client()
@@ -154,7 +154,7 @@ class TokenManager:
         self.log.info("New token fetched and saved successfully")
         return access_token
 
-    def _save_token(self, token: AccessToken):
+    def _save_token(self, token: AccessToken) -> None:
         """
         This method stores the access token and its expiration date in the keyring
         for later retrieval. It also updates the ``JamfClient`` instance with the new token.

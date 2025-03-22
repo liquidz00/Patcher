@@ -39,7 +39,7 @@ class PatchTitle(Model):
     total_hosts: int = 0
     install_label: Optional[List[Label]] = []  # account for variants (e.g., zulujdk8, zulujdk9)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.title} ({self.latest_version})"
 
     @field_validator("title_id")
@@ -56,7 +56,7 @@ class PatchTitle(Model):
 
     # Calculate completion percent via model validator
     @model_validator(mode="after")
-    def calculate_completion_percent(self):
+    def calculate_completion_percent(self) -> "PatchTitle":
         """
         Calculates the completion percentage and total hosts of a :class:`~patcher.models.patch.PatchTitle` object based on hosts patched and missing patch.
 

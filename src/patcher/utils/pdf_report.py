@@ -80,7 +80,7 @@ class PDFReport(FPDF):
             trimmed.save(temp_file.name)
             return temp_file.name
 
-    def header(self):
+    def header(self) -> None:
         """
         Creates the header section for each page of the PDF report with an optional logo.
 
@@ -159,7 +159,7 @@ class PDFReport(FPDF):
         if self.page_no() > 1:
             self.add_table_header()
 
-    def add_table_header(self):
+    def add_table_header(self) -> None:
         """
         Adds the table header to the PDF report.
 
@@ -173,7 +173,7 @@ class PDFReport(FPDF):
             self.cell(width, 10, header, border=1, align="C")
         self.cell(0, 10, "", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    def footer(self):
+    def footer(self) -> None:
         """
         Creates the footer section for each page of the PDF report.
 

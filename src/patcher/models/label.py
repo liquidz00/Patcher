@@ -45,7 +45,7 @@ class Label(Model):
     installomatorLabel: str  # fragmentName - ".sh"
     downloadURL: str
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Name: {self.name} Type: {self.type} Label: {self.installomatorLabel}"
 
     @field_validator("type", mode="before")

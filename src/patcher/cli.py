@@ -84,7 +84,7 @@ def initialize_cache(cache_dir: Path) -> None:
         return
 
 
-def warning_format(message, category, filename, lineno, file=None, line=None):
+def warning_format(message, category, filename, lineno, file=None, line=None) -> str:
     return f"{category.__name__}: {message}\n"
 
 
