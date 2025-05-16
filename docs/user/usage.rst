@@ -71,7 +71,7 @@ Patcher accepts a global ``--debug`` (or ``-x``) flag to show debug log level me
 
 .. code-block:: console
 
-    $ patcherctl export --path '/path/to/save' --pdf --debug
+    $ patcherctl export --path '/path/to/save' --debug
 
 Would result in a similar output as:
 
