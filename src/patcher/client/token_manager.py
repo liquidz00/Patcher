@@ -150,11 +150,11 @@ class TokenManager:
         expiration = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
         access_token = AccessToken(token=token, expires=expiration)
 
-        self._save_token(token=access_token)
+        self.save_token(token=access_token)
         self.log.info("New token fetched and saved successfully")
         return access_token
 
-    def _save_token(self, token: AccessToken):
+    def save_token(self, token: AccessToken):
         """
         This method stores the access token and its expiration date in the keyring
         for later retrieval. It also updates the ``JamfClient`` instance with the new token.
