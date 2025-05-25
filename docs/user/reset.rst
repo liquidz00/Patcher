@@ -7,6 +7,9 @@ Reset
 ======
 
 The ``reset`` command restores specific configurations in Patcher, allowing users to reset **credentials, UI settings, or cached data**. By default, a **full reset** clears all configurations and triggers the setup process. Users can reset individual components without affecting other settings.
+
+.. seealso::
+    For more on resuming or forcing a fresh setup, see :ref:`Resumable Setup <starting_fresh>`. 
  
 Parameters
 ----------

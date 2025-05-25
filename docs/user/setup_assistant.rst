@@ -41,6 +41,52 @@ Once setup is completed successfully, the ``setup_completed`` key will automatic
 
     **Do not modify** the ``setup_completed`` key directly. Altering this key may lead to unexpected behavior. If you need to reset the initial setup state, use the ``--reset`` command instead. For more information, see :ref:`resetting Patcher <resetting_patcher>`.
 
+.. _starting_fresh:
+
+Resumable Setup
+---------------
+
+.. versionadded:: 2.2.0
+
+The setup assistant has been enhanced with **staged progress tracking**. This means that if setup fails or is interrupted (e.g., file issues, API errors, network loss), Patcher will resume where it left off the next time it is run. 
+
+This is accomplished using a hidden JSON file stored at:
+
+.. code-block:: console
+
+    ~/Library/Application Support/Patcher/.setup_stage.json.
+ 
+The file self-destructs (deletes) when setup is marked as completed and automatically managed by Patcher. It stores a stage marker that allows the tool to intelligently resume from the last successful step. 
+
+The stages are: 
+
+- ``not_started``: Initial stage
+- ``api_created``: API Role & Client has been saved to Keychain
+- ``has_token``: Bearer Token has been fetched
+- ``jamfclient_saved``: A :class:`~patcher.models.jamf_client.JamfClient` object has been created and saved to Keychain
+- ``completed``: Setup has been completed as expected. 
+
+.. note::
+
+    This workflow ensures you **don't lose your progress** if setup fails. Simply relaunch the CLI and Patcher will continue setup automatically.
+
+Forcing Setup to Start Over
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There are circumstances in which you may want to rerun the setup process *from scratch*, even if some steps were already completed. For example: 
+
+- You want to create a new API Client
+- You entered incorrect credentials and want a clean slate
+- You're testing Patcher out in a development environment
+
+You can do this by passing the ``--fresh`` flag to Patcher: 
+
+.. code-block:: console
+
+    $ patcherctl --fresh
+
+This tells Patcher to **ignore the saved setup stage** and begin from ``not_started`` again. This does not affect any cached data, it only resets the setup flow itself.
+
 .. _setup_type:
 
 Choosing Setup type
