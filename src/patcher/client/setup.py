@@ -35,6 +35,7 @@ class SetupType(str, Enum):
     - ``STANDARD``: Prompts for Jamf Pro username/password and creates an API client.
     - ``SSO``: Prompts for an existing API client ID and secret.
     """
+
     STANDARD = "standard"
     SSO = "sso"
 
@@ -45,6 +46,7 @@ class SetupStage(str, Enum):
 
     Used to track progress and allow resuming setup from the last completed step.
     """
+
     NOT_STARTED = "not_started"
     API_CREATED = "api_created"
     HAS_TOKEN = "has_token"
