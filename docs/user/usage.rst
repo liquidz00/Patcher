@@ -57,6 +57,8 @@ Patcher leverages specific exit codes depending on what type of error occurred a
         - Handled exception (e.g., PatcherError or user-facing issue)
       * - 2
         - Unhandled exception
+      * - 3
+        - Setup error
       * - 4
         - API error (e.g., unauthorized, invalid response)
       * - 130
