@@ -190,7 +190,7 @@ class Setup:
         """Retrieves all stored credentials from keychain."""
         keys = ["URL", "CLIENT_ID", "CLIENT_SECRET"]
         if include_token:
-            keys.append("TOKEN")
+            keys.extend(["TOKEN", "TOKEN_EXPIRATION"])
         return {key: self.config.get_credential(key) for key in keys}
 
     def _save_creds(self, creds: Dict) -> None:
@@ -395,13 +395,16 @@ class Setup:
         """
         await animator.update_msg("Creating JamfClient...")
         client_creds = self._get_creds(include_token=True)
+        token = AccessToken(
+            token=client_creds.get("TOKEN"), expires=client_creds.get("TOKEN_EXPIRATION")
+        )
         self.config.create_client(
             JamfClient(
                 client_id=client_creds.get("CLIENT_ID"),
                 client_secret=client_creds.get("CLIENT_SECRET"),
                 server=client_creds.get("URL"),
             ),
-            token=client_creds.get("TOKEN"),
+            token=token,
         )
         self.state_manager.save_stage(SetupStage.JAMFCLIENT_SAVED)
         self.stage = SetupStage.JAMFCLIENT_SAVED
@@ -445,19 +448,28 @@ class Setup:
         if self.completed:
             return
 
-        # Greet users
-        self._greet()
-
         animator = animator or self.animator
-
         setup_type_map = {1: SetupType.STANDARD, 2: SetupType.SSO}
+
+        if fresh:
+            self.stage = SetupStage.NOT_STARTED
+
+        current_stage = self.stage
+
+        # Prevent greeting from showing upon every invocation of setup assistant
+        # Greeting should only show after reset or on first run
+        if current_stage == SetupStage.COMPLETED:
+            self.state_manager.destroy()  # Clean up stale state
+        elif current_stage == SetupStage.NOT_STARTED:
+            self._greet()
+        elif not self.state_manager.state_path.exists():
+            self._greet()
+
         choice = click.prompt(
             "Choose setup method (1: Standard setup, 2: SSO setup)", type=int, default=1
         )
-        if choice in setup_type_map:
-            if fresh:
-                self.stage = SetupStage.NOT_STARTED
 
+        if choice in setup_type_map:
             while self.stage != SetupStage.COMPLETED:
                 handler = self.stage_map.get(self.stage)
                 if handler is None:
@@ -469,9 +481,15 @@ class Setup:
 
     def reset_setup(self) -> bool:
         """
-        Resets setup completion flag (), removing the ``setup_completed`` key/value from the property list.
+        Resets setup completion flag, removing the ``setup_completed`` key/value from the property list.
 
         This effectively marks Setup completion as False and will re-trigger the setup assistant.
+
+        .. admonition:: Warning!
+            :class: danger
+
+            The Jamf API will return a ``400`` response if API Roles/Clients exist already in the Jamf instance specified.
+            It is important to remove the API Role and Client objects before re-running the Setup assistant.
 
         :return: ``True`` if the Setup section in the property list file was removed.
         :rtype: :py:class:`bool`
