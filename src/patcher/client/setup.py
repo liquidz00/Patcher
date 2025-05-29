@@ -161,12 +161,24 @@ class Setup:
 
     @property
     def stage(self) -> SetupStage:
+        """
+        Returns the current ``SetupStage`` value used to determine setup state.
+
+        :return: The ``SetupStage`` value. 
+        :rtype: :class:`~patcher.client.setup.SetupStage`
+        """
         if self._stage is None:
             self._stage = self.state_manager.load_stage()
         return self._stage
 
     @stage.setter
     def stage(self, value: SetupStage) -> None:
+        """
+        Assigns a ``SetupStage`` value to the stage property.
+
+        :param value: The value to assign to ``self.stage``. 
+        :type value: :class:`~patcher.client.setup.SetupStage`
+        """
         self._stage = value
 
     @staticmethod
