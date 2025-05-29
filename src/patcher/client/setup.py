@@ -164,7 +164,7 @@ class Setup:
         """
         Returns the current ``SetupStage`` value used to determine setup state.
 
-        :return: The ``SetupStage`` value. 
+        :return: The ``SetupStage`` value.
         :rtype: :class:`~patcher.client.setup.SetupStage`
         """
         if self._stage is None:
@@ -176,7 +176,7 @@ class Setup:
         """
         Assigns a ``SetupStage`` value to the stage property.
 
-        :param value: The value to assign to ``self.stage``. 
+        :param value: The value to assign to ``self.stage``.
         :type value: :class:`~patcher.client.setup.SetupStage`
         """
         self._stage = value
