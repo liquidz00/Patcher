@@ -19,7 +19,7 @@ def test_token_manager_initialization(mock_token, config_manager):
 
 
 @patch.object(ConfigManager, "set_credential", new_callable=MagicMock)
-def test_save_token(mock_set_credential):
+def testsave_token(mock_set_credential):
     mock_config_manager = MagicMock()
 
     mock_config_manager.set_credential = mock_set_credential
@@ -27,7 +27,7 @@ def test_save_token(mock_set_credential):
     token_manager = TokenManager(config=mock_config_manager)
     token = AccessToken(token="new_token", expires=datetime(2031, 1, 1, tzinfo=timezone.utc))
 
-    token_manager._save_token(token)
+    token_manager.save_token(token)
 
     expected_calls = [
         call("TOKEN", "new_token"),
