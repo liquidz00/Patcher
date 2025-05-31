@@ -17,7 +17,7 @@ from .client.setup import Setup
 from .client.ui_manager import UIConfigManager
 from .utils.animation import Animation
 from .utils.data_manager import DataManager
-from .utils.exceptions import APIResponseError, InstallomatorWarning, PatcherError
+from .utils.exceptions import APIResponseError, InstallomatorWarning, PatcherError, SetupError
 from .utils.logger import LogMe, PatcherLog
 
 DATE_FORMATS = {
@@ -100,8 +100,11 @@ warnings.formatwarning = warning_format
 @click.option(
     "--disable-cache", is_flag=True, help="Disable automatic caching of patch report data."
 )
+@click.option(
+    "--fresh", is_flag=True, help="Start setup from scratch, ingoring previously saved progress."
+)
 @click.pass_context
-async def cli(ctx: click.Context, debug: bool, disable_cache: bool) -> None:
+async def cli(ctx: click.Context, debug: bool, disable_cache: bool, fresh: bool) -> None:
     """
     Main CLI entry point for Patcher.
 
@@ -112,6 +115,7 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool) -> None:
         0   Success
         1   General error (e.g., PatcherError or user-facing issue)
         2   Unhandled exception
+        3   Setup error
         4   API error (e.g., unauthorized, invalid response)
         130 KeyboardInterrupt (Ctrl+C)
     \f
@@ -122,6 +126,8 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool) -> None:
     :type debug: :py:class:`bool`
     :param disable_cache: Disables automatic caching of patch report data if ``True``. Defaults to ``False``.
     :type disable_cache: :py:class:`bool`
+    :param fresh: If ``True``, forces the setup assistant to start from scratch. Defaults to ``False``.
+    :type fresh: :py:class:`bool`
     """
     setup_logging(debug)
 
@@ -148,7 +154,7 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool) -> None:
         if ctx.obj.get("plist_manager").needs_migration():
             ctx.obj.get("plist_manager").migrate_plist()
         if not setup.completed:
-            await setup.start(animator=ctx.obj.get("animation"))
+            await setup.start(animator=ctx.obj.get("animation"), fresh=fresh)
             click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
             click.echo(
                 "Patcher is now ready for use. You can use the --help flag to view available options."
@@ -594,6 +600,9 @@ if __name__ == "__main__":
     except APIResponseError as e:
         format_err(e)
         sys.exit(4)
+    except SetupError as e:
+        format_err(e)
+        sys.exit(3)
     except PatcherError as e:
         format_err(e)
         sys.exit(1)
