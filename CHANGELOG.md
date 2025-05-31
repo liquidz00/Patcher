@@ -1,9 +1,20 @@
+<!-- markdownlint-capture -->
+<!-- markdownlint-disable -->
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [v2.2.0] - 2025-05-31
+### Added
+- Setup assistant tracks completion progress to prevent redundancy and `400` errors ([#29](https://github.com/liquidz00/Patcher/issues/29))
+- Setup can be forcibly restarted by passing the `--fresh` argument, regardless of previous completion
+
+### Changed
+- Greeting is only shown if setup is in initial state to prevent redundancy. ([Docs](https://patcher.liquidzoo.io/user/setup_assistant.html#resumable-setup:~:text=last%20successful%20step.-,The%20stages%20are%3A,-not_started%3A%20Initial%20stage))
 
 ## [v2.1.3] - 2025-03-16
 ### Changed
