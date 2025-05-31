@@ -4,17 +4,26 @@ about: Suggest an idea for this project
 title: "[FEATURE] Your feature request title"
 labels: enhancement
 assignees: ''
-
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## Current Behavior
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+> Briefly describe how the project currently behaves or what limitations exist that prompted this request.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+## Proposed Change
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+> A description of the feature or improvement you are suggesting. Focus on what you'd like to see happen.
+
+## Additional Context
+
+> Include any screenshots, references, or context that would help others understand your proposal.
+
+## Optional Components
+
+### Sample Code (if applicable)
+
+> If you have any code snippets or mockups that demonstrate the feature, please include them here.
+
+### Related Issues
+
+> If applicable, please link to any existing or previously closed issues related to this request.
