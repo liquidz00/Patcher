@@ -50,24 +50,21 @@ patcherctl = "patcher.cli:cli"
 
 [project.optional-dependencies]
 dev = [
-  "black>=24.3.0",
+  "autodoc-pydantic",
   "build",
+  "myst-parser",
+  "pre-commit>=4.3.0",
+  "pydata-sphinx-theme",
   "pytest>=8.2.2",
   "pytest-asyncio>=0.23.5",
   "pytest-cov>=4.0.0",
   "pytest-mock>=3.14.0",
   "ruff>=0.5.1",
-]
-docs = [
-  "autodoc-pydantic",
-  "myst-parser",
-  "pydata-sphinx-theme",
   "sphinx>=7.3.7",
   "sphinx-design",
   "sphinx-copybutton",
   "sphinx-togglebutton",
 ]
-all = ["patcherctl[dev]", "patcherctl[docs]"]
 
 [build-system]
 requires = [
@@ -90,13 +87,18 @@ where = ["src"]
 version = { attr = "patcher.__about__.__version__" }
 readme = { file = ["README.md"], content-type = "text/markdown" }
 
-[tool.black]
-line-length = 100
-
 [tool.ruff]
 line-length = 100
 target-version = "py310"
 src = ["src", "tests"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
 
 [tool.ruff.lint]
 select = [
@@ -130,5 +132,3 @@ filterwarnings = [
 
 [tool.coverage.run]
 omit = ["tests/*"]
-
-
