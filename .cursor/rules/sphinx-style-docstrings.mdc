@@ -1,0 +1,60 @@
+---
+description: Enforce Sphinx/reST (not Google or NumPy) style docstrings in all Python code. Use :param:, :type:, :return:, and :rtype: markup for every function and method. Apply this to all Python (*.py) files in the project.
+globs: ["**/*.py"]
+alwaysApply: true
+---
+
+# Rule: Sphinx-Style Docstring Enforcement
+
+- For every function and method, write the docstring in reStructuredText (Sphinx) style.
+- Always include `:param param_name: description` and `:type param_name: type` for *each* parameter.
+- If the function returns a value, document it using `:return: description` and `:rtype: type`.
+- If the function raises exceptions, document these using `:raises ExceptionType: description`.
+- Do NOT use Google, NumPy, or EpyText docstring formats.
+- Docstrings MUST always start and end on their own lines.
+- The opening """ MUST be on a new line immediately after the function or class definition.
+- Do not use single-line docstring formatting (`"""Docstring..."""`) even for short summaries.
+
+## Example (CORRECT)
+
+```python
+def divide(a, b):
+    """
+    Divide two numbers.
+
+    :param a: Dividend
+    :type a: float
+    :param b: Divisor
+    :type b: float
+    :return: Quotient
+    :rtype: float
+    :raises ZeroDivisionError: If b is zero.
+    """
+    if b == 0:
+        raise ZeroDivisionError("Cannot divide by zero.")
+    return a / b
+```
+
+## Example (INCORRECT - Google Style)
+
+```python
+def divide(a, b):
+    """
+    Divide two numbers.
+
+    Args:
+        a (float): Dividend
+        b (float): Divisor
+
+    Returns:
+        float: Quotient
+
+    Raises:
+        ZeroDivisionError: If b is zero.
+    """
+    if b == 0:
+        raise ZeroDivisionError("Cannot divide by zero.")
+    return a / b
+```
+
+Only use Sphinx-style as showin in the CORRECT example above.

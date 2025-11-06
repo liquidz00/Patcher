@@ -1,0 +1,79 @@
+---
+description: Python best practices and patterns for modern software development with Flask and SQLite
+globs: **/*.py
+---
+
+# Python Best Practices
+
+## Project Structure
+- Place tests in `tests/` directory parallel
+- Keep configuration in `config/` or as environment variables
+- Store requirements in `pyproject.toml`
+- Place static files in `static/` directory
+- Use `templates/` for Jinja2 templates
+
+## Code Style
+- Follow Black code formatting
+- Use isort for import sorting
+- Follow PEP 8 naming conventions:
+  - snake_case for functions and variables
+  - PascalCase for classes
+  - UPPER_CASE for constants
+- Maximum line length of 100 characters
+- Use absolute imports over relative imports
+- Use proper response formats
+
+## Type Hints
+- Use type hints for all function parameters and returns
+- Import types from `typing` module
+- Use `Optional[Type]` instead of `Type | None`
+- Use `TypeVar` for generic types
+- Define custom types in `types.py`
+- Use `Protocol` for duck typing
+
+## Testing
+- Use pytest for testing
+- Write tests for all routes
+- Use pytest-cov for coverage
+- Implement proper fixtures
+- Use proper mocking with pytest-mock
+- Test all error scenarios
+
+## Security
+- Sanitize all user inputs
+- Use proper session configuration
+- Implement proper logging
+- Follow OWASP guidelines
+
+## Error Handling
+- Create custom exception classes
+- Use proper try-except blocks
+- Implement proper logging
+- Return proper error responses
+- Handle edge cases properly
+- Use proper error messages
+
+## Documentation
+- Use reStructuredText-style docstrings
+- Document all public APIs
+- Keep README.md updated
+- Use proper inline comments
+- Generate API documentation
+- Document environment setup
+
+## Development Workflow
+- Leverage `uv` for package management
+- Use virtual environments (venv)
+- Implement pre-commit hooks
+- Use proper Git workflow
+- Follow semantic versioning
+- Use proper CI/CD practices
+- Implement proper logging
+
+## Dependencies
+- Pin dependency versions
+- Use pyproject.toml for production
+- Separate dev dependencies
+- Use proper package versions
+- Regularly update dependencies
+- Check for security vulnerabilities
