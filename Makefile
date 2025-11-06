@@ -27,6 +27,9 @@ help:
 	@echo ""
 	@echo "  Testing:"
 	@echo "    make test             - Run all tests (verbose)"
+	@echo "    make test-unit        - Run unit tests only"
+	@echo "    make test-integration - Run integration tests only"
+	@echo "    make test-fast        - Run fast tests (exclude slow)"
 	@echo "    make test-quick       - Run all tests (quiet mode)"
 	@echo "    make test-cov         - Run tests with coverage report"
 	@echo "    make test-cov-html    - Generate HTML coverage report"
@@ -90,8 +93,20 @@ upgrade:
 	$(UV) sync --extra dev
 
 test:
-	@echo "Running unit tests..."
+	@echo "Running all tests..."
 	$(UV) run pytest tests/ -v
+
+test-unit:
+	@echo "Running unit tests only..."
+	$(UV) run pytest tests/ -v -m unit
+
+test-integration:
+	@echo "Running integration tests only..."
+	$(UV) run pytest tests/ -v -m integration
+
+test-fast:
+	@echo "Running fast tests (excluding slow tests)..."
+	$(UV) run pytest tests/ -v -m "not slow"
 
 test-quick:
 	@echo "Running unit tests (quiet mode)..."
@@ -99,11 +114,11 @@ test-quick:
 
 test-cov:
 	@echo "Running unit tests with coverage..."
-	$(UV) run pytest tests/ --cov=bin --cov-report=term-missing
+	$(UV) run pytest tests/ --cov=src --cov-report=term-missing
 
 test-cov-html:
 	@echo "Generating HTML coverage report..."
-	$(UV) run pytest tests/ --cov=bin --cov-report=html
+	$(UV) run pytest tests/ --cov=src --cov-report=html
 	@echo "Coverage report generated in htmlcov/index.html"
 
 pre-commit:
