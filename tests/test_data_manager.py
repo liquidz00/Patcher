@@ -188,7 +188,6 @@ def test_clean_cache_no_permissions():
         patch("pathlib.Path.iterdir") as mock_iterdir,
         patch("pathlib.Path.unlink", side_effect=PermissionError("Test Permission Error")),
     ):
-
         # Simulate a file in the cache directory
         cache_file = MagicMock()
         cache_file.suffix = ".pkl"

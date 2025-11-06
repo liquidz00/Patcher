@@ -129,6 +129,12 @@ filterwarnings = [
   "ignore::DeprecationWarning",
   "ignore::RuntimeWarning",
 ]
+markers = [
+  "unit: Fast unit tests that test individual components in isolation",
+  "integration: Tests that involve multiple components or external dependencies",
+  "slow: Tests that take longer than 1 second to run",
+  "asyncio: Tests that use async/await functionality",
+]
 
 [tool.coverage.run]
 omit = ["tests/*"]
