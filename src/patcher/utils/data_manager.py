@@ -16,7 +16,6 @@ from .pdf_report import PDFReport
 
 
 class DataManager:
-
     _IGNORED = ["install_label", "title_id"]
 
     def __init__(self, disable_cache: bool = False):

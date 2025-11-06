@@ -192,7 +192,9 @@ class Installomator:
         """Attempts fuzzy matching if no direct match is found."""
         matched_labels = []
         for app_name in app_names:
-            result = process.extractOne(app_name.lower(), list(label_lookup.keys()), scorer=fuzz.ratio)  # type: ignore
+            result = process.extractOne(
+                app_name.lower(), list(label_lookup.keys()), scorer=fuzz.ratio
+            )  # type: ignore
             if result:
                 best_match, score, _ = result
                 if best_match and score >= self.threshold:
@@ -223,7 +225,9 @@ class Installomator:
                     matched_count += 1
                 continue
 
-            result = process.extractOne(normalized_patch, list(label_lookup.keys()), scorer=fuzz.ratio)  # type: ignore
+            result = process.extractOne(
+                normalized_patch, list(label_lookup.keys()), scorer=fuzz.ratio
+            )  # type: ignore
             if result:
                 best_match, score, _ = result
                 if best_match and score >= self.threshold:
