@@ -1,0 +1,70 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+default_language_version:
+  python: python3
+
+repos:
+  # General file fixes and checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # File hygiene
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+      # File format validation
+      - id: check-yaml
+        args: [--unsafe]  # Allow custom tags
+      - id: check-toml
+
+      # Python specific checks
+      - id: check-ast
+      - id: check-docstring-first
+      - id: debug-statements
+      - id: check-builtin-literals
+
+      # Security
+      - id: detect-private-key
+
+      # General checks
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+
+  # Python linting and formatting with ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.3
+    hooks:
+      # Run the linter
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      # Run the formatter
+      - id: ruff-format
+
+  # Validate pyproject.toml
+  - repo: https://github.com/abravalheri/validate-pyproject
+    rev: v0.24.1
+    hooks:
+      - id: validate-pyproject
+
+# Configuration to skip certain paths
+exclude: |
+  (?x)^(
+    \.git/|
+    \.venv/|
+    venv/|
+    __pycache__/|
+    \.pytest_cache/|
+    \.ruff_cache/|
+    \.mypy_cache/|
+    build/|
+    dist/|
+    .*\.egg-info/|
+    htmlcov/|
+    coverage/|
+    \.coverage
+  )$
