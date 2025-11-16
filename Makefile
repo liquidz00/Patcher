@@ -3,7 +3,7 @@ UV 				:= uv
 PYPROJECT 		:= pyproject.toml
 VENV_DIR 		:= .venv
 
-.PHONY: all clean test install pre-commit pre-commit-run pre-commit-update
+.PHONY: docs all clean test install pre-commit pre-commit-run pre-commit-update
 
 # Export Python path for script resolution
 export PYTHONPATH := $(shell pwd)
