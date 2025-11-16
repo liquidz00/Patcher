@@ -141,5 +141,5 @@ pre-commit-update:
 build:
 	$(UV) build --sdist --wheel
 
-docs: install-dev
+docs:
 	$(UV) run sphinx-build -b html docs/ docs/_build/
