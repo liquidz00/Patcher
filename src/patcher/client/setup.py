@@ -1,7 +1,6 @@
 import json
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Union, dict, tuple
 
 import asyncclick as click
 
@@ -272,8 +271,8 @@ class Setup:
         self.plist_manager.set("enable_installomator", use_installomator)
 
     async def get_token(
-        self, setup_type: SetupType = SetupType.STANDARD, creds: Optional[dict] = None
-    ) -> Union[str, AccessToken]:
+        self, setup_type: SetupType = SetupType.STANDARD, creds: dict | None = None
+    ) -> str | AccessToken:
         """
         Fetches a Token (basic or ``AccessToken``) depending on setup type (Standard or SSO).
 
@@ -436,7 +435,7 @@ class Setup:
         self.stage = SetupStage.COMPLETED
         self._mark_completion(value=True)
 
-    async def start(self, animator: Optional[Animation] = None, fresh: bool = False) -> None:
+    async def start(self, animator: Animation | None = None, fresh: bool = False) -> None:
         """
         Allows the user to choose between different setup methods (Standard or SSO).
 

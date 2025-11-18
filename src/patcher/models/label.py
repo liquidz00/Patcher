@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import Field, field_validator
 
@@ -63,7 +63,7 @@ class Label(Model):
     #   CLIInstaller: Optional[str] = None
     #   CLIArguments: Optional[list[str]] = None
     #   installerTool: Optional[str] = None
-    #   curlOptions: Optional[List[str]] = None
+    #   curlOptions: Optional[list[str]] = None
 
     def __str__(self):
         return f"Name: {self.name} Type: {self.type} Label: {self.installomatorLabel}"
@@ -94,14 +94,14 @@ class Label(Model):
         return v
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any], **kwargs) -> "Label":
+    def from_dict(cls, data: dict[str, Any], **kwargs) -> "Label":
         """
         Creates a ``Label`` instance from passed dictionary.
 
         Only includes keys that match the fields defined in the model.
 
         :param data: API response payload to parse for object creation.
-        :type data: :py:obj:`~typing.Dict`
+        :type data: :py:obj:`~typing.dict`
         :return: The configured ``Label`` object.
         :rtype: :class:`~patcher.models.label.Label`
         """

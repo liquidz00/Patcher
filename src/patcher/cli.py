@@ -3,7 +3,6 @@ import inspect
 import sys
 import warnings
 from pathlib import Path
-from typing import Optional, Union, tuple
 
 import asyncclick as click
 
@@ -179,7 +178,7 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool, fresh: bool)
     help="Specify which credential to reset: URL, Client ID, or Client Secret. Defaults to all if not provided.",
 )
 @click.pass_context
-async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> None:
+async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
     """
     Resets configurations based on the specified kind ("full", "UI", "creds").
 
@@ -342,7 +341,7 @@ async def export(
     ctx: click.Context,
     path: str,
     formats: tuple[str, ...],
-    sort: Optional[str],
+    sort: str | None,
     omit: bool,
     date_format: str,
     ios: bool,
@@ -456,7 +455,7 @@ async def analyze(
     threshold: float,
     top_n: int = None,
     summary: bool = False,
-    output_dir: Union[str, Path] = None,
+    output_dir: str | Path = None,
     all_time: bool = False,
 ) -> None:
     """

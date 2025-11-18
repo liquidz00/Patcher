@@ -2,7 +2,6 @@ import asyncio
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Union, dict, list
 
 import asyncclick as click
 
@@ -21,7 +20,7 @@ class ReportManager:
         api_client: ApiClient,
         data_manager: DataManager,
         debug: bool = False,
-        installomator: Optional[Installomator] = None,
+        installomator: Installomator | None = None,
     ):
         """
         Handles the generation and management of patch reports.
@@ -41,7 +40,7 @@ class ReportManager:
         self.log = LogMe(self.__class__.__name__)
         self.iom = installomator or Installomator()
 
-    def _validate_directory(self, path: Union[str, Path]) -> str:
+    def _validate_directory(self, path: str | Path) -> str:
         """Validates or creates the reports directory."""
         self.log.debug(f"Validating directory: {path}")
         output_path = os.path.expanduser(path)
@@ -219,9 +218,9 @@ class ReportManager:
 
     async def process_reports(
         self,
-        path: Union[str, Path],
+        path: str | Path,
         formats: set[str],
-        sort: Optional[str],
+        sort: str | None,
         omit: bool,
         ios: bool,
         report_title: str,

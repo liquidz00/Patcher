@@ -4,7 +4,7 @@ import sys
 import traceback
 from logging.handlers import RotatingFileHandler
 from types import TracebackType
-from typing import Optional, Type
+from typing import Type
 
 import asyncclick as click
 
@@ -19,8 +19,8 @@ class PatcherLog:
 
     @staticmethod
     def setup_logger(
-        name: Optional[str] = None,
-        level: Optional[int] = LOG_LEVEL,
+        name: str | None = None,
+        level: int | None = LOG_LEVEL,
         debug: bool = False,
     ) -> logging.Logger:
         """
@@ -63,7 +63,7 @@ class PatcherLog:
         return logger
 
     @staticmethod
-    def setup_child_logger(childName: str, loggerName: Optional[str] = None) -> logging.Logger:
+    def setup_child_logger(childName: str, loggerName: str | None = None) -> logging.Logger:
         """
         Setup a child logger for a specified context.
 
@@ -86,7 +86,7 @@ class PatcherLog:
     def custom_excepthook(
         exc_type: Type[BaseException],
         exc_value: BaseException,
-        exc_traceback: Optional[TracebackType],
+        exc_traceback: TracebackType | None,
     ) -> None:
         """
         A custom exception handler for unhandled exceptions.

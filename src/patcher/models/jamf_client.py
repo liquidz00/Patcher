@@ -1,4 +1,3 @@
-from typing import List
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import Field, field_validator
@@ -104,11 +103,11 @@ class ApiRoleModel(Model):
     :type display_name: :py:class:`str`
     :ivar privileges: A list of privileges assigned to the API role. These privileges
                       determine the actions that the role can perform.
-    :type privileges: :py:obj:`~typing.List` of :py:class:`str`
+    :type privileges: :py:obj:`~typing.list` of :py:class:`str`
     """
 
     display_name: str = "Patcher-Role"
-    privileges: List[str] = Field(
+    privileges: list[str] = Field(
         default_factory=lambda: [
             "Read Patch Management Software Titles",
             "Read Patch Policies",
@@ -133,7 +132,7 @@ class ApiClientModel(Model):
 
     :ivar auth_scopes: A list of authentication scopes assigned to the API client. These
                        scopes define the level of access the client has.
-    :type auth_scopes: :py:obj:`~typing.List` of :py:class:`str`
+    :type auth_scopes: :py:obj:`~typing.list` of :py:class:`str`
     :ivar display_name: The name of the API client.
     :type display_name: :py:class:`str`
     :ivar enabled: Indicates whether the API client is currently enabled or disabled.
@@ -143,7 +142,7 @@ class ApiClientModel(Model):
     :type token_lifetime: :py:class:`int`
     """
 
-    auth_scopes: List[str] = Field(default_factory=lambda: ["Patcher-Role"])
+    auth_scopes: list[str] = Field(default_factory=lambda: ["Patcher-Role"])
     display_name: str = "Patcher-Client"
     enabled: bool = True
     token_lifetime: int = 1800

@@ -1,5 +1,3 @@
-from typing import List, Optional, Union
-
 from pydantic import field_validator, model_validator
 
 from . import Model
@@ -37,13 +35,13 @@ class PatchTitle(Model):
     latest_version: str
     completion_percent: float = 0.0
     total_hosts: int = 0
-    install_label: Optional[List[Label]] = []  # account for variants (e.g., zulujdk8, zulujdk9)
+    install_label: list[Label] | None = []  # account for variants (e.g., zulujdk8, zulujdk9)
 
     def __str__(self):
         return f"{self.title} ({self.latest_version})"
 
     @field_validator("title_id")
-    def cast_as_string(cls, value: Union[int, str]) -> str:
+    def cast_as_string(cls, value: int | str) -> str:
         """
         Ensures the ``title_id`` property is always a string, regardless of type in API response payload.
 

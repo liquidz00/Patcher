@@ -1,7 +1,6 @@
 import os
 from datetime import datetime
 from tempfile import NamedTemporaryFile
-from typing import List
 
 import pandas as pd
 from fpdf import FPDF
@@ -186,7 +185,7 @@ class PDFReport(FPDF):
         footer_text = f"{self.ui_config.get('footer_text')} | Page " + str(self.page_no())
         self.cell(0, 10, footer_text, 0, 0, "R")
 
-    def calculate_column_widths(self, data: pd.DataFrame) -> List[float]:
+    def calculate_column_widths(self, data: pd.DataFrame) -> list[float]:
         """
         Calculates column widths based on the longer of the header length or the longest content in each column,
         ensuring they fit within the page width.
@@ -194,7 +193,7 @@ class PDFReport(FPDF):
         :param data: DataFrame containing dataset to be included in PDF.
         :type data: `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
         :return: A list of column widths proportional to header lengths.
-        :rtype: :py:obj:`~typing.List` [:py:class:`float`]
+        :rtype: :py:obj:`~typing.list` [:py:class:`float`]
         """
         # Assign widths based on header lengths
         page_width = self.w - 20  # Account for left/right margins
