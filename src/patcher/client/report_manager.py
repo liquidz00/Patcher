@@ -2,7 +2,7 @@ import asyncio
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union, dict, list
 
 import asyncclick as click
 
@@ -60,7 +60,7 @@ class ReportManager:
                 error_msg=str(e),
             )
 
-    async def _sort(self, patch_reports: List[PatchTitle], sort_key: str) -> List[PatchTitle]:
+    async def _sort(self, patch_reports: list[PatchTitle], sort_key: str) -> list[PatchTitle]:
         """Sorts provided patch reports by sort key."""
         self.log.debug(f"Detected sorting option '{sort_key}'")
         sort_key = sort_key.lower().replace(" ", "_")
@@ -81,7 +81,7 @@ class ReportManager:
                 error_msg=str(e),
             )
 
-    async def _omit(self, patch_reports: List[PatchTitle]) -> List[PatchTitle]:
+    async def _omit(self, patch_reports: list[PatchTitle]) -> list[PatchTitle]:
         """Omits patch policies with patches released in past 48 hours from exported reports."""
         cutoff = datetime.now() - timedelta(hours=48)
         self.log.debug(
@@ -99,7 +99,7 @@ class ReportManager:
         self.log.info(f"Omitted {omitted_count} policies with recent patches.")
         return patch_reports
 
-    async def _ios(self, patch_reports: List[PatchTitle]) -> List[PatchTitle]:
+    async def _ios(self, patch_reports: list[PatchTitle]) -> list[PatchTitle]:
         """Adds iOS information to exported reports."""
         self.log.debug("Attempting to fetch iOS device IDs.")
         try:
@@ -155,9 +155,9 @@ class ReportManager:
 
     def calculate_ios_on_latest(
         self,
-        device_versions: List[Dict[str, str]],
-        latest_versions: List[Dict[str, str]],
-    ) -> List[PatchTitle]:
+        device_versions: list[dict[str, str]],
+        latest_versions: list[dict[str, str]],
+    ) -> list[PatchTitle]:
         """
         Analyzes iOS version data to determine how many enrolled devices are on the latest version.
 
@@ -165,11 +165,11 @@ class ReportManager:
         provided by the SOFA feed, calculating how many devices are fully updated.
 
         :param device_versions: A list of dictionaries containing devices and their respective iOS versions.
-        :type device_versions: :py:obj:`~typing.List` [:py:obj:`~typing.Dict`]
+        :type device_versions: :py:obj:`~typing.list` [:py:obj:`~typing.dict`]
         :param latest_versions: A list of the most recent iOS versions available.
-        :type latest_versions: :py:obj:`~typing.List` [:py:obj:`~typing.Dict`]
+        :type latest_versions: :py:obj:`~typing.list` [:py:obj:`~typing.dict`]
         :return: A list of ``PatchTitle`` objects, each representing a summary of the patch status for an iOS version.
-        :rtype: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
+        :rtype: :py:obj:`~typing.list` [:class:`~patcher.models.patch.PatchTitle`]
         :raises PatcherError: If a KeyError or ZeroDivisionError is encountered.
         """
         self.log.debug("Attempting to calculate iOS devices on latest version.")
@@ -225,6 +225,7 @@ class ReportManager:
         omit: bool,
         ios: bool,
         report_title: str,
+        header_color: str,
         date_format: str = "%B %d %Y",
         enable_iom: bool = True,
     ) -> None:
@@ -319,6 +320,7 @@ class ReportManager:
                 analysis=False,
                 formats=formats,
                 date_format=date_format,
+                header_color=header_color,
             )
 
         # Manually stop animation to show success message cleanly

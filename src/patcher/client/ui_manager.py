@@ -1,7 +1,6 @@
 import shutil
 from functools import cached_property
 from pathlib import Path
-from typing import Dict, Union
 
 import asyncclick as click
 from PIL import Image
@@ -10,7 +9,7 @@ from ..models.ui import UIConfigKeys, UIDefaults
 from ..utils.exceptions import PatcherError, SetupError, ShellCommandError
 from ..utils.logger import LogMe
 from . import BaseAPIClient
-from .plist_manager import PropertyListManager
+from .plist_manager import PropertylistManager
 
 
 class UIConfigManager:
@@ -28,18 +27,18 @@ class UIConfigManager:
         the downloading of default fonts if they are not already present.
         """
         self.log = LogMe(self.__class__.__name__)
-        self.plist_manager = PropertyListManager()
+        self.plist_manager = PropertylistManager()
         self.api = BaseAPIClient()
         self.font_dir = self.plist_manager.plist_path.parent / "fonts"
         self._config = None  # Lazy-loaded
 
     @property
-    def config(self) -> Dict:
+    def config(self) -> dict:
         """
         Retrieves the current UI configuration from property list, or creates default configuration.
 
         :return: Retrieved UI configuration settings or default config.
-        :rtype: :py:obj:`~typing.Dict`
+        :rtype: :py:obj:`~typing.dict`
         """
         if self._config is None:
             saved_config = self.plist_manager.get("UserInterfaceSettings")
@@ -51,12 +50,12 @@ class UIConfigManager:
         return self._config
 
     @config.setter
-    def config(self, value: Dict):
+    def config(self, value: dict):
         """
         Set specific UI configuration values with validation.
 
-        :param value: Dictionary containing configuration values to set.
-        :type value: :py:obj:`~typing.Dict`
+        :param value: dictionary containing configuration values to set.
+        :type value: :py:obj:`~typing.dict`
         :raises PatcherError: If any passed keyword arguments are not in the schema.
         """
         invalid_keys = value.keys() - {key.value for key in UIConfigKeys}
@@ -81,7 +80,7 @@ class UIConfigManager:
         """
         return all(font.exists() for font in self._get_font_paths().values())
 
-    def _get_font_paths(self) -> Dict[str, Path]:
+    def _get_font_paths(self) -> dict[str, Path]:
         """Returns default font paths as a tuple."""
         return {
             "regular": self.font_dir / "Assistant-Regular.ttf",
@@ -154,6 +153,7 @@ class UIConfigManager:
             UIConfigKeys.REG_FONT_PATH.value: str(self._get_font_paths()["regular"]),
             UIConfigKeys.BOLD_FONT_PATH.value: str(self._get_font_paths()["bold"]),
             UIConfigKeys.LOGO_PATH.value: defaults.logo_path,
+            UIConfigKeys.HEADER_COLOR.value: defaults.header_color,
         }
 
     def reset_config(self) -> bool:
@@ -213,15 +213,26 @@ class UIConfigManager:
         ):
             settings[UIConfigKeys.LOGO_PATH.value] = self.configure_logo()
 
+        if click.confirm(
+            "Would you like to use a custom header color in your exported HTML reports?",
+            default=False,
+        ):
+            header_color = str(
+                click.prompt("Enter header color value (Hex format)")
+            )  # default set at model level
+            if not header_color.startswith("#"):
+                header_color = f"#{header_color}"
+            settings[UIConfigKeys.HEADER_COLOR.value] = header_color
+
         self.config = settings
 
-    def configure_font(self) -> Dict[str, str]:
+    def configure_font(self) -> dict[str, str]:
         """
         Allows the user to specify a custom font or use the default provided by the application.
         The chosen fonts are copied to the appropriate directory for use in PDF report generation.
 
         :return: A dictionary containing the font name, regular font path, and bold font path.
-        :rtype: :py:obj:`~typing.Dict` [:py:class:`str`, :py:class:`str`]
+        :rtype: :py:obj:`~typing.dict` [:py:class:`str`, :py:class:`str`]
         """
         font_name = click.prompt("Enter custom font name", default="CustomFont")
         regular_src = Path(click.prompt("Enter the path to the regular font file"))
@@ -275,11 +286,11 @@ class UIConfigManager:
         self._copy_file(logo_src, logo_dest)
         return str(logo_dest)
 
-    def get_logo_path(self) -> Union[str, None]:
+    def get_logo_path(self) -> str | None:
         """
         Retrieves the logo path from the UI configuration.
 
         :return: The logo path as a string if it exists, else None.
-        :rtype: :py:obj:`~typing.Union` :py:class:`str` | None]
+        :rtype: :py:class:`str` | None
         """
         return self.config.get(UIConfigKeys.LOGO_PATH.value, "")

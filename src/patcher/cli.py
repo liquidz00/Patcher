@@ -3,7 +3,7 @@ import inspect
 import sys
 import warnings
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Optional, Union, tuple
 
 import asyncclick as click
 
@@ -11,7 +11,7 @@ from .__about__ import __version__
 from .client.analyze import Analyzer, FilterCriteria, TrendCriteria
 from .client.api_client import ApiClient
 from .client.config_manager import ConfigManager
-from .client.plist_manager import PropertyListManager
+from .client.plist_manager import PropertylistManager
 from .client.report_manager import ReportManager
 from .client.setup import Setup
 from .client.ui_manager import UIConfigManager
@@ -141,7 +141,7 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool, fresh: bool)
         "disable_cache": disable_cache,
         "animation": Animation(enable_animation=not debug),
         "log": LogMe(__name__),
-        "plist_manager": PropertyListManager(),
+        "plist_manager": PropertylistManager(),
         "config": ConfigManager(),
         "ui_config": UIConfigManager(),
     }
@@ -341,7 +341,7 @@ async def reset(ctx: click.Context, kind: str, credential: Optional[str]) -> Non
 async def export(
     ctx: click.Context,
     path: str,
-    formats: Tuple[str, ...],
+    formats: tuple[str, ...],
     sort: Optional[str],
     omit: bool,
     date_format: str,
@@ -401,6 +401,7 @@ async def export(
         date_format=actual_format,
         report_title=ui_config.config.get("header_text"),
         enable_iom=plist_manager.get("enable_installomator"),
+        header_color=ui_config.config.get("header_color"),
     )
 
 

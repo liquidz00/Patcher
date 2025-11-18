@@ -1,14 +1,14 @@
 import plistlib
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 from ..models.ui import UIConfigKeys
 from ..utils.exceptions import PatcherError
 from ..utils.logger import LogMe
 
 
-class PropertyListManager:
+class PropertylistManager:
     def __init__(self):
         """
         Handles reading, writing, and managing configuration stored in Patcher's property list file (``self.plist_path``).
@@ -39,7 +39,7 @@ class PropertyListManager:
                     error_msg=str(e),
                 )
 
-    def _load_plist_file(self) -> Dict:
+    def _load_plist_file(self) -> dict:
         """
         Reads values from Patcher property list file after verifying it exists.
 
@@ -59,7 +59,7 @@ class PropertyListManager:
             )
             return {}
 
-    def _write_plist_file(self, plist_data: Dict[str, Any]) -> None:
+    def _write_plist_file(self, plist_data: dict[str, Any]) -> None:
         """Writes specified data to Patcher property list file."""
         if not isinstance(plist_data, dict):
             raise PatcherError("Invalid data type for property list. Expected dictionary.")
@@ -126,7 +126,7 @@ class PropertyListManager:
         except PatcherError:
             raise
 
-    def get(self, section: str, key: Optional[str] = None) -> Optional[Union[Dict[str, Any], Any]]:
+    def get(self, section: str, key: str | None = None) -> dict[[str, Any], Any] | None:
         """
         Retrieves a value from the property list file.
 
@@ -137,7 +137,7 @@ class PropertyListManager:
         :param key: The key whose value should be retrieved. If None, returns the entire section.
         :type key: :py:class:`str`
         :return: The value of the specified key, the full section, or None if not found.
-        :rtype: :py:obj:`~typing.Optional` [:py:obj:`~typing.Any`]
+        :rtype: dict[[str, Any], Any] | None
         """
         data = self._load_plist_file()
         if section not in data:
@@ -188,7 +188,7 @@ class PropertyListManager:
 
         self._write_plist_file(data)
 
-    def remove(self, key: str, value: Optional[str] = None) -> bool:
+    def remove(self, key: str, value: str | None = None) -> bool:
         """
         Removes a key or a specific value from a key in the property list.
 

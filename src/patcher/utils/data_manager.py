@@ -3,7 +3,6 @@ import pickle
 from datetime import datetime, timedelta
 from pathlib import Path
 from string import Template
-from typing import Dict, List, Optional, Union
 
 import pandas as pd
 from fpdf.enums import XPos, YPos
@@ -29,10 +28,10 @@ class DataManager:
         """
         self.cache_dir = Path.home() / "Library/Caches/Patcher"
         self.cache_expiration_days = 90  # Increase for better trend analysis
-        self.latest_excel_file: Optional[Path] = None
+        self.latest_excel_file: Path | None = None
         self.log = LogMe(self.__class__.__name__)
         self._disabled = disable_cache
-        self._titles: Optional[List[PatchTitle]] = None
+        self._titles: list[PatchTitle] | None = None
 
     @property
     def cache_off(self) -> bool:
@@ -45,14 +44,14 @@ class DataManager:
         return self._disabled
 
     @property
-    def titles(self) -> List[PatchTitle]:
+    def titles(self) -> list[PatchTitle]:
         """
         Retrieve and validate the current list of ``PatchTitle`` objects.
 
         If titles are not already loaded, they are fetched from the latest available dataset.
 
         :return: The validated list of ``PatchTitle`` objects.
-        :rtype: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
+        :rtype: :py:obj:`~typing.list` [:class:`~patcher.models.patch.PatchTitle`]
         :raises PatcherError: If validation fails.
         """
         if self._titles is None:
@@ -62,7 +61,7 @@ class DataManager:
         return self._titles
 
     @titles.setter
-    def titles(self, value: List[PatchTitle]) -> None:
+    def titles(self, value: list[PatchTitle]) -> None:
         """
         Validates and sets the PatchTitle objects. Ensures the list is non-empty.
 
@@ -135,7 +134,7 @@ class DataManager:
                         self.log.warning(f"Failed to delete cache file {file}. Details: {e}")
                         return
 
-    def _create_dataframe(self, patch_titles: List[PatchTitle]) -> pd.DataFrame:
+    def _create_dataframe(self, patch_titles: list[PatchTitle]) -> pd.DataFrame:
         """Converts list of PatchTitles into a pandas DataFrame."""
         self.log.debug("Attempting to create DataFrame from PatchTitle objects.")
         try:
@@ -148,7 +147,7 @@ class DataManager:
         except (ValueError, pd.errors.EmptyDataError) as e:
             raise PatcherError("Encountered error creating DataFrame.", error_msg=str(e))
 
-    def _create_patches(self, df: pd.DataFrame) -> List[PatchTitle]:
+    def _create_patches(self, df: pd.DataFrame) -> list[PatchTitle]:
         """Convert a pandas DataFrame into a list of PatchTitle objects."""
         self.log.debug(f"Creating PatchTitle objects from DataFrame with {len(df)} rows.")
         skipped_rows = 0
@@ -174,9 +173,7 @@ class DataManager:
         return patch_titles
 
     @staticmethod
-    def _generate_filename(
-        output_dir: Union[str, Path], extension: str, analysis: bool = False
-    ) -> Path:
+    def _generate_filename(output_dir: str | Path, extension: str, analysis: bool = False) -> Path:
         """Formats naming of exported HTML reports based upon context (analyze/export)."""
         output_dir = Path(output_dir)
         current_date = datetime.now().strftime("%m-%d-%y")
@@ -225,9 +222,16 @@ class DataManager:
             )
 
     async def _export_html(
-        self, df: pd.DataFrame, html_path: Path, report_title: str, date_format: str
+        self,
+        df: pd.DataFrame,
+        html_path: Path,
+        report_title: str,
+        date_format: str,
+        header_color: str,
     ):
         """Generates an HTML report from a given DataFrame."""
+        hover_color = self._darken_color(header_color, 0.2)  # darken hover
+
         headers = "".join(
             f'<th onclick="sortTable({i})">{field.replace("_", " ").title()}</th>'
             for i, field in enumerate(df.columns)
@@ -243,6 +247,8 @@ class DataManager:
             date=datetime.now().strftime(date_format),
             headers=headers,
             rows=rows,
+            header_color=header_color,
+            hover_color=hover_color,
         )
 
         try:
@@ -253,20 +259,39 @@ class DataManager:
                 "Error saving HTML file.", file_path=str(html_path), error_msg=str(e)
             )
 
+    def _darken_color(self, hex_color: str, factor: float = 0.2) -> str:
+        """Darkens a hex color by a given factor (0.0 to 1.0)."""
+        hex_color = hex_color.lstrip("#")
+        if len(hex_color) == 8:
+            hex_color = hex_color[:6]  # strip alpha channel
+
+        # RGB conversion
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+
+        # Darken
+        r = int(r * (1 - factor))
+        g = int(g * (1 - factor))
+        b = int(b * (1 - factor))
+
+        return f"#{r:02x}{g:02x}{b:02x}"
+
     async def export(
         self,
-        patch_titles: List[PatchTitle],
-        output_dir: Union[str, Path],
+        patch_titles: list[PatchTitle],
+        output_dir: str | Path,
         report_title: str,
         analysis: bool = False,
         date_format: str = "%B %d %Y",
-        formats: Optional[set[str]] = None,
-    ) -> Dict[str, str]:
+        formats: set[str] | None = None,
+        header_color: str | None = "#6432bdff",
+    ) -> dict[str, str]:
         """
         Exports patch data to the specified formats.
 
         :param patch_titles: A list of ``PatchTitle`` objects to include in the report. Defaults to ``self.titles`` if not provided
-        :type patch_titles: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
+        :type patch_titles: :py:obj:`~typing.list` [:class:`~patcher.models.patch.PatchTitle`]
         :param output_dir: The directory in which to save the exported report(s).
         :type output_dir: :py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]
         :param report_title: The title to use for the header in exported report(s). Defaults to ``HEADER_TEXT`` key in ``com.liquidzoo.patcher.plist`` file.
@@ -278,7 +303,7 @@ class DataManager:
         :param formats: A set of formats to export. Defaults to all ({"excel", "html", "pdf"}).
         :type formats: :py:obj:`~typing.Optional` [:py:class:`set`]
         :return: A dictionary containing paths to generated reports.
-        :rtype: :py:obj:`~typing.Dict` [:py:class:`str`, :py:class:`str`]
+        :rtype: :py:obj:`~typing.dict` [:py:class:`str`, :py:class:`str`]
         """
         if formats is None:
             formats = {"excel", "html", "pdf"}
@@ -328,7 +353,7 @@ class DataManager:
             # HTML
             if "html" in formats:
                 html_path = self._generate_filename(output_dir, "html", analysis)
-                await self._export_html(df, html_path, report_title, date_format)
+                await self._export_html(df, html_path, report_title, date_format, header_color)
                 exported_files["html"] = str(html_path)
         except (OSError, PermissionError) as e:
             raise PatcherError(
@@ -356,12 +381,12 @@ class DataManager:
             self.log.warning(f"Encountered {exception_name} during cache reset. Details: {e}")
             return False
 
-    def load_cached_data(self) -> List[pd.DataFrame]:
+    def load_cached_data(self) -> list[pd.DataFrame]:
         """
         Load all cached data files into a list of DataFrames.
 
-        :return: List of pandas DataFrame objects with cached data.
-        :rtype: :py:obj:`~typing.List` [pandas.DataFrame]
+        :return: list of pandas DataFrame objects with cached data.
+        :rtype: :py:obj:`~typing.list` [pandas.DataFrame]
         """
         dataframes = []
         cached_files = self.get_cached_files()
@@ -374,16 +399,16 @@ class DataManager:
                 self.log.warning(f"Failed to load cached file {file}. Details: {e}")
         return dataframes
 
-    def get_cached_files(self) -> List[Path]:
+    def get_cached_files(self) -> list[Path]:
         """
         Retrieves all cached file Paths.
 
         :return: A list of ``Path`` objects pointing to cached files.
-        :rtype: :py:obj:`~typing.List` [:py:obj:`~pathlib.Path`]
+        :rtype: :py:obj:`~typing.list` [:py:obj:`~pathlib.Path`]
         """
         return [file for file in self.cache_dir.iterdir() if file.suffix == ".pkl"]
 
-    def get_latest_dataset(self) -> Optional[Path]:
+    def get_latest_dataset(self) -> Path | None:
         """
         Retrieves the most recent dataset of patch reports and returns the path.
 

@@ -1,7 +1,7 @@
 import json
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
+from typing import Optional, Union, dict, tuple
 
 import asyncclick as click
 
@@ -12,7 +12,7 @@ from ..utils.exceptions import APIResponseError, SetupError, TokenError
 from ..utils.logger import LogMe
 from . import BaseAPIClient
 from .config_manager import ConfigManager
-from .plist_manager import PropertyListManager
+from .plist_manager import PropertylistManager
 from .token_manager import TokenManager
 from .ui_manager import UIConfigManager
 
@@ -20,7 +20,7 @@ from .ui_manager import UIConfigManager
 GREET = "Thanks for downloading Patcher!\n"
 WELCOME = """It looks like this is your first time using the tool. We will guide you through the initial setup to get you started.
 
-The setup assistant will prompt you to choose your setup method--Standard is the automated setup which will prompt for your Jamf URL, your Jamf Pro username and your Jamf Pro password. Patcher ONLY uses this information to create the necessary API role and client on your behalf, your credentials are not stored whatsoever. Once generated, these client credentials (and generated bearer token) can be found in your keychain. The SSO setup will prompt for a client ID and client secret of an API Client that has already been created. 
+The setup assistant will prompt you to choose your setup method--Standard is the automated setup which will prompt for your Jamf URL, your Jamf Pro username and your Jamf Pro password. Patcher ONLY uses this information to create the necessary API role and client on your behalf, your credentials are not stored whatsoever. Once generated, these client credentials (and generated bearer token) can be found in your keychain. The SSO setup will prompt for a client ID and client secret of an API Client that has already been created.
 
 You will be prompted to enter in the header and footer text for PDF reports, along with optional custom fonts and branding logo. These can be configured later by modifying the corresponding keys in the com.liquidzoo.patcher.plist file in Patcher's Application Support directory stored in the user library.
 
@@ -113,7 +113,7 @@ class Setup:
         self,
         config: ConfigManager,
         ui_config: UIConfigManager,
-        plist_manager: PropertyListManager,
+        plist_manager: PropertylistManager,
     ):
         """
         Handles the initial setup process for the Patcher CLI tool.
@@ -127,7 +127,7 @@ class Setup:
         :param ui_config: Handles UI-related configurations for the setup process.
         :type ui_config: :class:`~patcher.client.ui_manager.UIConfigManager`
         :param plist_manager: Handles read/write operations to project property list.
-        :type plist_manager: :class:`~patcher.client.plist_manager.PropertyListManager`
+        :type plist_manager: :class:`~patcher.client.plist_manager.PropertylistManager`
         """
         self.config = config
         self.ui_config = ui_config
@@ -198,26 +198,26 @@ class Setup:
         if value:
             self.state_manager.destroy()
 
-    def _get_creds(self, include_token: bool = False) -> Dict:
+    def _get_creds(self, include_token: bool = False) -> dict:
         """Retrieves all stored credentials from keychain."""
         keys = ["URL", "CLIENT_ID", "CLIENT_SECRET"]
         if include_token:
             keys.extend(["TOKEN", "TOKEN_EXPIRATION"])
         return {key: self.config.get_credential(key) for key in keys}
 
-    def _save_creds(self, creds: Dict) -> None:
+    def _save_creds(self, creds: dict) -> None:
         """Save gathered credentials to keychain."""
         for key, value in creds.items():
             self.config.set_credential(key, value)
 
-    def prompt_credentials(self, setup_type: SetupType) -> Dict:
+    def prompt_credentials(self, setup_type: SetupType) -> dict:
         """
         Prompt for credentials based on the credential type.
 
         :param setup_type: The ``SetupType`` of credentials to prompt for.
         :type setup_type: :class:`~patcher.client.setup.SetupType`
         :return: The credentials in dictionary form.
-        :rtype: :py:obj:`~typing.Dict`
+        :rtype: :py:obj:`~typing.dict`
         """
         self.log.info(f"Prompting user for {setup_type.value} credentials.")
         if setup_type == SetupType.STANDARD:
@@ -234,15 +234,15 @@ class Setup:
             }
 
     def validate_creds(
-        self, creds: Dict, required_keys: Tuple[str, ...], setup_type: SetupType
+        self, creds: dict, required_keys: tuple[str, ...], setup_type: SetupType
     ) -> None:
         """
         Validates all required keys are present in the credentials.
 
         :param creds: Credentials to validate
-        :type creds: :py:obj:`~typing.Dict`
+        :type creds: :py:obj:`~typing.dict`
         :param required_keys: Keys required to be present in passed credentials.
-        :type required_keys: :py:obj:`~typing.Tuple` [:py:class:`str`, ...]
+        :type required_keys: :py:obj:`~typing.tuple` [:py:class:`str`, ...]
         :param setup_type: The ``SetupType`` to validate credentials against.
         :type setup_type: :class:`~patcher.client.setup.SetupType`
         :raises SetupError: If any credentials are missing.
@@ -272,7 +272,7 @@ class Setup:
         self.plist_manager.set("enable_installomator", use_installomator)
 
     async def get_token(
-        self, setup_type: SetupType = SetupType.STANDARD, creds: Optional[Dict] = None
+        self, setup_type: SetupType = SetupType.STANDARD, creds: Optional[dict] = None
     ) -> Union[str, AccessToken]:
         """
         Fetches a Token (basic or ``AccessToken``) depending on setup type (Standard or SSO).
@@ -280,7 +280,7 @@ class Setup:
         :param setup_type: ``SetupType`` specified dictates which type of Token will be retrieved (basic or bearer).
         :type setup_type: :class:`~patcher.client.setup.SetupType`
         :param creds: If ``SetupType`` is "Standard", the user credentials needed to obtain a basic token.
-        :type creds: :py:obj:`~typing.Optional` [:py:obj:`~typing.Dict`]
+        :type creds: :py:obj:`~typing.Optional` [:py:obj:`~typing.dict`]
         :raises SetupError: If either type of Token could not be obtained.
         :return: For ``SetupType.STANDARD``, the basic token is returned. For ``SetupType.SSO``, the ``AccessToken`` object is returned.
         :rtype: :py:obj:`~typing.Union` [:py:class:`str`, :class:`~patcher.models.token.AccessToken`]
@@ -313,7 +313,7 @@ class Setup:
                     error_msg=str(e),
                 )
 
-    async def create_api_client(self, basic_token: str, jamf_url: str) -> Tuple[str, str]:
+    async def create_api_client(self, basic_token: str, jamf_url: str) -> tuple[str, str]:
         """
         Creates API Role and Client for standard setup types.
 
@@ -323,7 +323,7 @@ class Setup:
         :type jamf_url: :py:class:`str`
         :raises SetupError: If either the API Role or API Client could not be created.
         :return: The client ID and client secret of the created API Client and Role.
-        :rtype: :py:obj:`~typing.Tuple` [:py:class:`str`, :py:class:`str`]
+        :rtype: :py:obj:`~typing.tuple` [:py:class:`str`, :py:class:`str`]
         """
         api_client = BaseAPIClient()
         if not await api_client.create_roles(token=basic_token, jamf_url=jamf_url):
