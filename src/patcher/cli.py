@@ -346,6 +346,12 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
     default=5,
     help="Set the maximum concurrency level for API calls.",
 )
+@click.option(
+    "--device-details",
+    "-D",
+    is_flag=True,
+    help="Include per-title device detail sheets in Excel export (Excel format only).",
+)
 @click.pass_context
 async def export(
     ctx: click.Context,
@@ -356,6 +362,7 @@ async def export(
     date_format: str,
     ios: bool,
     concurrency: int,
+    device_details: bool,
 ) -> None:
     """
     Collects patch management data from Jamf API calls and exports data to Excel and optional
@@ -366,7 +373,7 @@ async def export(
 
         - :meth:`~patcher.client.report_manager.ReportManager.process_reports`
         - :meth:`~patcher.client.BaseAPIClient.concurrency`
-        - :ref: `export`
+        - :ref:`export`
 
     :param ctx: The context object, providing access to shared state between commands.
     :type ctx: click.Context
@@ -384,6 +391,8 @@ async def export(
     :type ios: bool
     :param concurrency: The maximum number of API requests that can be sent at once. Defaults to 5.
     :type concurrency: int
+    :param device_details: If True, includes per-title device detail sheets in Excel export.
+    :type device_details: bool
     """
     data_manager = DataManager(disable_cache=ctx.obj.get("disable_cache"))
     ctx.obj["data_manager"] = data_manager  # Store in context for analyze
@@ -393,6 +402,7 @@ async def export(
     patcher = ReportManager(
         api_client=api_client,
         data_manager=data_manager,
+        debug=ctx.obj.get("debug"),
     )
 
     selected_formats = set(formats) if formats else {"excel", "html", "pdf"}
@@ -411,6 +421,7 @@ async def export(
         report_title=ui_config.config.get("header_text"),
         enable_iom=plist_manager.get("enable_installomator"),
         header_color=ui_config.config.get("header_color"),
+        device_details=device_details,
     )
 
 

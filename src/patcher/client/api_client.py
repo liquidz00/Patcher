@@ -113,7 +113,6 @@ class ApiClient(BaseAPIClient):
         ]
         return patch_titles
 
-    @check_token
     async def stream_title_report(
         self, title_id: str, page_size: int = 100
     ) -> AsyncGenerator[list[PatchDevice], None]:
@@ -198,6 +197,7 @@ class ApiClient(BaseAPIClient):
             devices.extend(batch)
 
         self.log.info(f"Collected {len(devices)} total devices for title {title_id}")
+        return devices
 
     @check_token
     async def get_title_reports(
@@ -230,7 +230,7 @@ class ApiClient(BaseAPIClient):
                 results[title_id] = []
 
         total_devices = sum(len(devices) for devices in results.values())
-        self.log.info(f"Collected {total_devices} total devices across {len(title_ids)}")
+        self.log.info(f"Collected {total_devices} total devices across {len(title_ids)} titles")
 
     @check_token
     async def get_device_ids(self) -> list[int]:

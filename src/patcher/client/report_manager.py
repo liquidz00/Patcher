@@ -227,6 +227,7 @@ class ReportManager:
         header_color: str,
         date_format: str = "%B %d %Y",
         enable_iom: bool = True,
+        device_details: bool = False,
     ) -> None:
         """
         Asynchronously generates and saves patch reports, with options for customization.
@@ -257,6 +258,8 @@ class ReportManager:
         :type date_format: str
         :param enable_iom: If False, disables Installomator matching. Defaults to True.
         :type enable_iom: bool
+        :param device_details: If True, includes per-title device detail sheets in Excel export.
+        :type device_details: bool
         """
         animation = Animation(enable_animation=not self.debug)
 
@@ -312,6 +315,13 @@ class ReportManager:
                     else:
                         self.log.error(f"An API error occurred while matching patch titles: {e}")
 
+            # (option) Device Details
+            device_reports = None
+            if device_details:
+                await animation.update_msg("Fetching per-title patch reports...")
+                title_ids = [patch.title_id for patch in patch_reports]
+                device_reports = await self.api_client.get_title_reports(title_ids)
+
             # Generate reports
             await animation.update_msg("Generating reports...")
             await self.data_manager.export(
@@ -322,6 +332,7 @@ class ReportManager:
                 formats=formats,
                 date_format=date_format,
                 header_color=header_color,
+                device_reports=device_reports,
             )
 
         # Manually stop animation to show success message cleanly
