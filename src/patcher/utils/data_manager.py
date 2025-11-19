@@ -227,10 +227,18 @@ class DataManager:
         html_path: Path,
         report_title: str,
         date_format: str,
-        header_color: str,
+        header_color: str | None,
     ):
         """Generates an HTML report from a given DataFrame."""
+        if not header_color:
+            from ..models.ui import UIDefaults
+
+            header_color = UIDefaults().header_color
+
         hover_color = self._darken_color(header_color, 0.2)  # darken hover
+        # Ensure header color is properly formatted
+        if not header_color.startswith("#"):
+            header_color = f"#{header_color}"
 
         headers = "".join(
             f'<th onclick="sortTable({i})">{field.replace("_", " ").title()}</th>'
@@ -261,6 +269,9 @@ class DataManager:
 
     def _darken_color(self, hex_color: str, factor: float = 0.2) -> str:
         """Darkens a hex color by a given factor (0.0 to 1.0)."""
+        if not hex_color:
+            hex_color = "#6432bdff"
+
         hex_color = hex_color.lstrip("#")
         if len(hex_color) == 8:
             hex_color = hex_color[:6]  # strip alpha channel
