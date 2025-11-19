@@ -27,7 +27,7 @@ class Installomator:
         This class provides methods for fetching, parsing, and matching Installomator labels to ``PatchTitle`` objects using direct or fuzzy matching.
 
         :param concurrency: Number of concurrent requests allowed for API operations. See :ref:`concurrency <concurrency>` in Usage docs.
-        :type concurrency: :py:obj:`~typing.Optional` [:py:class:`int`]
+        :type concurrency: int | None
         """
         self.log = LogMe(self.__class__.__name__)
         self.label_path = Path.home() / "Library/Application Support/Patcher/.labels"

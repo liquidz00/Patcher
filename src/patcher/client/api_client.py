@@ -22,7 +22,7 @@ class ApiClient(BaseAPIClient):
         :param config: Instance of ``ConfigManager`` for loading and storing credentials.
         :type config: :class:`~patcher.client.config_manager.ConfigManager`
         :param concurrency: Maximum number of concurrent API requests. See :ref:`concurrency <concurrency>` in Usage docs.
-        :type concurrency: :py:class:`int`
+        :type concurrency: int
         """
         self.log = LogMe(self.__class__.__name__)
         self.config = config
@@ -39,9 +39,9 @@ class ApiClient(BaseAPIClient):
         Converts a UTC time string to a formatted string without timezone information.
 
         :param utc_time_str: UTC time string in ISO 8601 format (e.g., "2023-08-09T12:34:56+0000").
-        :type utc_time_str: :py:class:`str`
+        :type utc_time_str: str
         :return: Formatted date string (e.g., "Aug 09 2023") or None if the input format is invalid.
-        :rtype: :py:class:`str`
+        :rtype: str
         :raises PatcherError: If the time format provided is invalid.
         """
         try:
@@ -69,7 +69,7 @@ class ApiClient(BaseAPIClient):
         Retrieves a list of patch software title IDs from the Jamf API.
 
         :return: A list of software title IDs.
-        :rtype: :py:obj:`~typing.list` [:py:class:`str`]
+        :rtype: list[str]
         """
         headers = await self._headers()
         url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
@@ -85,9 +85,9 @@ class ApiClient(BaseAPIClient):
         Retrieves patch summaries asynchronously for the specified policy IDs from the Jamf API.
 
         :param policy_ids: list of policy IDs to retrieve summaries for.
-        :type policy_ids: :py:obj:`~typing.list` [:py:class:`str`]
+        :type policy_ids: list[str]
         :return: list of ``PatchTitle`` objects containing patch summaries.
-        :rtype: :py:obj:`~typing.list` [:class:`~patcher.models.patch.PatchTitle`]
+        :rtype: list[:class:`~patcher.models.patch.PatchTitle`]
         """
         urls = [
             f"{self.jamf_url}/api/v2/patch-software-title-configurations/{policy}/patch-summary"
@@ -122,7 +122,7 @@ class ApiClient(BaseAPIClient):
             This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
 
         :return: A list of mobile device IDs.
-        :rtype: :py:obj:`~typing.list` [:py:class:`int`]
+        :rtype: list[int]
         """
         url = f"{self.jamf_url}/api/v2/mobile-devices"
         headers = await self._headers()
@@ -142,9 +142,9 @@ class ApiClient(BaseAPIClient):
             This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
 
         :param device_ids: A list of mobile device IDs to retrieve information for.
-        :type device_ids: :py:obj:`~typing.list` [:py:class:`int`]
+        :type device_ids: list[int]
         :return: A list of dictionaries containing the serial numbers and OS versions.
-        :rtype: :py:obj:`~typing.list` [:py:obj:`~typing.dict`]
+        :rtype: list[dict[str, str]]
         """
         urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
         headers = await self._headers()
@@ -169,9 +169,9 @@ class ApiClient(BaseAPIClient):
         Fetches all possible app names for each ``PatchTitle`` object provided.
 
         :param patch_titles: list of ``PatchTitle`` objects.
-        :type patch_titles: :py:obj:`~typing.list` [:class:`~patcher.models.patch.PatchTitle`]
+        :type patch_titles: list[:class:`~patcher.models.patch.PatchTitle`]
         :return: list of dictionaries containing the ``PatchTitle`` title and corresponding ``appName``
-        :rtype: :py:obj:`~typing.list` [:py:obj:`~typing.dict`]
+        :rtype: list[dict[str, Any]]
         """
         title_ids = [patch.title_id for patch in patch_titles if patch.title_id != "iOS"]
         urls = [
@@ -219,7 +219,7 @@ class ApiClient(BaseAPIClient):
             This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
 
         :return: A list of dictionaries containing base OS versions, latest iOS versions, and release dates.
-        :rtype: :py:obj:`~typing.list` [:py:obj:`~typing.dict`]
+        :rtype: list[dict[str, str]]
         :raises APIResponseError: If return code from SOFA is non-zero.
         """
         # Call can be made directly as no additional headers or payloads need to be added

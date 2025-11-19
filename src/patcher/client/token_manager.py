@@ -138,7 +138,7 @@ class TokenManager:
         token string and token expiration.
 
         :param response: The API response payload from Jamf.
-        :type response: :py:obj:`~typing.dict`
+        :type response: dict
         :return: The extracted ``AccessToken`` object.
         :rtype: :class:`~patcher.models.token.AccessToken`
         """

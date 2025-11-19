@@ -19,7 +19,7 @@ class ConfigManager:
         namespace for storing and retrieving credentials in macOS keychain.
 
         :param service_name: Service name for storing credentials in the keyring. Defaults to 'Patcher'.
-        :type service_name: :py:class:`str`
+        :type service_name: str
         """
         self.log = LogMe(self.__class__.__name__)
         self.service_name = service_name
@@ -31,9 +31,9 @@ class ConfigManager:
         It ensures that sensitive data like passwords or API tokens are securely stored and retrieved.
 
         :param key: The key of the credential to retrieve, typically a descriptive name like 'API_KEY'.
-        :type key: :py:class:`str`
+        :type key: str
         :return: The retrieved credential value.
-        :rtype: :py:class:`str`
+        :rtype: str
         :raises CredentialError: If the specified credential could not be retrieved.
         """
         self.log.debug(f"Attempting to retrieve credential for key: '{key}'")
@@ -59,9 +59,9 @@ class ConfigManager:
         such as client ID and client secret.
 
         :param key: The key under which the credential will be stored. This acts as an identifier for the credential.
-        :type key: :py:class:`str`
+        :type key: str
         :param value: The value of the credential to store, such as a password or API token.
-        :type value: :py:class:`str`
+        :type value: str
         :raises CredentialError: If the specified credential could not be saved.
         """
         self.log.debug(f"Attempting to store credential for key: '{key}'")
@@ -81,9 +81,9 @@ class ConfigManager:
         If the specified credential could not be deleted, an error is logged.
 
         :param key: The credential to delete.
-        :type key: :py:class:`str`
+        :type key: str
         :return: True if the credential was successfully deleted, False otherwise.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         self.log.debug(f"Attempting to delete credential for key: '{key}'")
         try:
@@ -129,7 +129,7 @@ class ConfigManager:
         Resets all credentials by deleting them from the keyring.
 
         :return: True if all credentials were successfully deleted, False otherwise.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         self.log.debug("Attempting to reset all stored credentials.")
         creds = ["CLIENT_ID", "CLIENT_SECRET", "URL", "TOKEN", "TOKEN_EXPIRATION"]

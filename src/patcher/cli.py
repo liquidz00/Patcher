@@ -32,12 +32,22 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 def setup_logging(debug: bool) -> None:
-    """Configures global logging based on the debug flag."""
+    """
+    Configures global logging based on the debug flag.
+
+    :param debug: Whether to enable debug logging.
+    :type debug: bool
+    """
     PatcherLog.setup_logger(debug=debug)
 
 
 def format_err(exc: PatcherError) -> None:
-    """Formats error messages to console."""
+    """
+    Formats error messages to console.
+
+    :param exc: The PatcherError exception to format.
+    :type exc: PatcherError
+    """
     click.echo(click.style(f"❌ Error: {str(exc)}", fg="red", bold=True), err=True)
     click.echo(
         f"💡 For more details, please check the log file at: '{PatcherLog.LOG_FILE}'",
@@ -122,11 +132,11 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool, fresh: bool)
     :param ctx: The context object, providing access to shared state between commands.
     :type ctx: `click.Context <https://click.palletsprojects.com/en/stable/api/#click.Context>`_
     :param debug: Enables debug (verbose) logging if ``True``. Defaults to ``False``.
-    :type debug: :py:class:`bool`
+    :type debug: bool
     :param disable_cache: Disables automatic caching of patch report data if ``True``. Defaults to ``False``.
-    :type disable_cache: :py:class:`bool`
+    :type disable_cache: bool
     :param fresh: If ``True``, forces the setup assistant to start from scratch. Defaults to ``False``.
-    :type fresh: :py:class:`bool`
+    :type fresh: bool
     """
     setup_logging(debug)
 
@@ -193,9 +203,9 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
     :param ctx: The context object, providing access to shared state between commands.
     :type ctx: click.Context
     :param kind: Specifies the type of reset to perform.
-    :type kind: :py:class:`str`
+    :type kind: str
     :param credential: The specific credential to reset when performing credentials reset. Defaults to all credentials if none specified.
-    :type credential: :py:obj:`~typing.Optional` of :py:class:`str`
+    :type credential: str | None
     """
     log = ctx.obj.get("log")
     config = ctx.obj.get("config")
@@ -361,19 +371,19 @@ async def export(
     :param ctx: The context object, providing access to shared state between commands.
     :type ctx: click.Context
     :param path: The path to save the generated report(s).
-    :type path: :py:class:`str`
+    :type path: str
     :param formats: If specified, will export only to the format(s) provided. Default is all formats (Excel, HTML, PDF).
-    :type formats: :py:obj:`~typing.Optional` [:py:class:`str`]
+    :type formats: tuple[str, ...]
     :param sort: Sort the patch reports by specifying a column.
-    :type sort: :py:obj:`~typing.Optional` of :py:class:`str`
+    :type sort: str | None
     :param omit: Omit software titles with patches released in last 48 hours.
-    :type omit: :py:class:`bool`
+    :type omit: bool
     :param date_format: Specify the date format for the PDF header. Default is "%B %d %Y" (Month Day Year).
-    :type date_format: :py:class:`str`
+    :type date_format: str
     :param ios: If passed, includes iOS device data in exported reports.
-    :type ios: :py:class:`bool`
+    :type ios: bool
     :param concurrency: The maximum number of API requests that can be sent at once. Defaults to 5.
-    :type concurrency: :py:class:`int`
+    :type concurrency: int
     """
     data_manager = DataManager(disable_cache=ctx.obj.get("disable_cache"))
     ctx.obj["data_manager"] = data_manager  # Store in context for analyze
@@ -466,19 +476,19 @@ async def analyze(
     :param ctx: Context object for shared state across CLI commands.
     :type ctx: click.Context
     :param excel_file: Path to the Excel file containing patch management data.
-    :type excel_file: :py:class:`str`
+    :type excel_file: str
     :param threshold: Filters patches below the specified completion percentage.
-    :type threshold: :py:class:`float`
+    :type threshold: float
     :param criteria: Specifies the criteria for filtering patches.
-    :type criteria: :py:class:`str`
+    :type criteria: str
     :param top_n: Number of top entries to display based on the criteria.
-    :type top_n: :py:class:`int`
+    :type top_n: int | None
     :param summary: Flag to generate a summary file in HTML format.
-    :type summary: :py:class:`bool`
+    :type summary: bool
     :param output_dir: Directory to save generated summary, only if `--summary` flag passed.
-    :type output_dir: :py:obj:`~typing.Union` of :py:class:`str` | :py:obj:`~pathlib.Path`
+    :type output_dir: str | Path | None
     :param all_time: Flag to analyze trends across all cached data.
-    :type all_time: :py:class:`bool`
+    :type all_time: bool
     """
     if summary and not output_dir:
         click.echo(

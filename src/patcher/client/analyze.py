@@ -20,7 +20,7 @@ class BaseEnum(Enum):
         Maps CLI-friendly inputs (e.g., '--most-installed', '--release-frequency') to Enum values.
 
         :param value: CLI-friendly string.
-        :type value: :py:class:`str`
+        :type value: str
         :return: Corresponding Enum value
         :rtype: :class:`~patcher.client.analyze.FilterCriteria` | :class:`~patcher.client.analyze.TrendCriteria`
         :raises PatcherError: If the input is invalid
@@ -72,7 +72,7 @@ class Analyzer:
         :param data_manager: The ``DataManager`` instance for retrieving and managing patch data.
         :type data_manager: :class:`~patcher.utils.data_manager.DataManager`
         :param excel_path: Path to the Excel file.
-        :type excel_path: :py:obj:`~typing.Union` [:py:obj:`~pathlib.Path` | :py:class:`str`]
+        :type excel_path: Path | str | None
         """
         self.log = LogMe(self.__class__.__name__)
         self.data_manager = data_manager
@@ -125,8 +125,8 @@ class Analyzer:
         """
         Initializes a DataFrame by reading the Excel file from the provided path.
 
-        :param excel_path: The path to the Excel file, either as a string or a :py:class:`~pathlib.Path` object.
-        :type excel_path: :py:obj:`~typing.Union` [:py:obj:`~pathlib.Path` | :py:class:`str`]
+        :param excel_path: The path to the Excel file, either as a string or a Path object.
+        :type excel_path: Path | str
         :return: A pandas DataFrame loaded from the Excel file.
         :rtype: `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
         :raises PatcherError: If the passed ``excel_file`` could not be validated (does not exist, or is not a file).
@@ -168,11 +168,11 @@ class Analyzer:
         Formats the data passed into a table for CLI output.
 
         :param data: The data to display in the table.
-        :type data: :py:obj:`~typing.list` [:py:obj:`~typing.list`]
+        :type data: list[list[str]]
         :param headers: Header names for the columns of the tables.
-        :type headers: :py:obj:`~typing.Optional` [:py:obj:`~typing.list`]
+        :type headers: list[str] | None
         :return: The formatted table as a string.
-        :rtype: :py:class:`str`
+        :rtype: str
         """
         if headers:
             data = [headers] + data
@@ -211,11 +211,11 @@ class Analyzer:
 
         :type criteria: :class:`~patcher.client.analyze.FilterCriteria`
         :param threshold: The threshold for filtering completion percentages, default is 70.0.
-        :type threshold: :py:obj:`~typing.Optional` [:py:class:`float`]
+        :type threshold: float | None
         :param top_n: Number of results to return. If None (default), return all matching results.
-        :type top_n: :py:obj:`~typing.Optional` [:py:class:`int`]
+        :type top_n: int | None
         :return: Filtered and sorted list of ``PatchTitle`` objects.
-        :rtype: :py:obj:`~typing.list` [:class:`~patcher.models.patch.PatchTitle`]
+        :rtype: list[:class:`~patcher.models.patch.PatchTitle`]
         """
         self.log.debug(f"Attempting to filter titles by {criteria}.")
 
@@ -292,11 +292,11 @@ class Analyzer:
         :param criteria: The trend analysis criteria to use.
         :type criteria: :class:`~patcher.client.analyze.TrendCriteria`
         :param datasets: A list of DataFrames or file paths to analyze. If None, uses cached data.
-        :type datasets: :py:obj:`~typing.Optional` [:py:obj:`~typing.list`]
+        :type datasets: list[Path | str | pd.DataFrame] | None
         :param sort_by: A column to sort the results by.
-        :type sort_by: :py:obj:`~typing.Optional` [:py:class:`str`]
+        :type sort_by: str | None
         :param ascending: Sorting order (ascending if True, descending if False).
-        :type ascending: :py:class:`bool`
+        :type ascending: bool
         :return: A DataFrame with the trend analysis results.
         :rtype: `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
         :raises PatcherError: If criteria is invalid or data loading fails.

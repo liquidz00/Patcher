@@ -24,7 +24,7 @@ class DataManager:
         Data caching can be disabled by setting ``disable_cache`` to ``True`` at runtime.
 
         :param disable_cache: Whether caching functionality should be disabled.
-        :type disable_cache: :py:class:`bool`
+        :type disable_cache: bool
         """
         self.cache_dir = Path.home() / "Library/Caches/Patcher"
         self.cache_expiration_days = 90  # Increase for better trend analysis
@@ -39,7 +39,7 @@ class DataManager:
         Indicates whether caching is disabled.
 
         :return: True if caching is disabled, False otherwise.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         return self._disabled
 
@@ -51,7 +51,7 @@ class DataManager:
         If titles are not already loaded, they are fetched from the latest available dataset.
 
         :return: The validated list of ``PatchTitle`` objects.
-        :rtype: :py:obj:`~typing.list` [:class:`~patcher.models.patch.PatchTitle`]
+        :rtype: list[:class:`~patcher.models.patch.PatchTitle`]
         :raises PatcherError: If validation fails.
         """
         if self._titles is None:
@@ -66,7 +66,7 @@ class DataManager:
         Validates and sets the PatchTitle objects. Ensures the list is non-empty.
 
         :param value: The list of PatchTitle objects to validate.
-        :type value: :py:obj:`~typing.Iterable` [:class:`~patcher.models.patch.PatchTitle`]
+        :type value: list[PatchTitle]
         :raises PatcherError: If value is not an iterable object.
         :raises PatcherError: If any object in the passed iterable object is not a ``PatchTitle`` object, or if titles could not be validated.
         """

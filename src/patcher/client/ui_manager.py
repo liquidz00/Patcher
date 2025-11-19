@@ -38,7 +38,7 @@ class UIConfigManager:
         Retrieves the current UI configuration from property list, or creates default configuration.
 
         :return: Retrieved UI configuration settings or default config.
-        :rtype: :py:obj:`~typing.dict`
+        :rtype: dict
         """
         if self._config is None:
             saved_config = self.plist_manager.get("UserInterfaceSettings")
@@ -55,7 +55,7 @@ class UIConfigManager:
         Set specific UI configuration values with validation.
 
         :param value: dictionary containing configuration values to set.
-        :type value: :py:obj:`~typing.dict`
+        :type value: dict
         :raises PatcherError: If any passed keyword arguments are not in the schema.
         """
         invalid_keys = value.keys() - {key.value for key in UIConfigKeys}
@@ -76,7 +76,7 @@ class UIConfigManager:
         are present in the expected directory.
 
         :return: ``True`` if the fonts are present.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         return all(font.exists() for font in self._get_font_paths().values())
 
@@ -166,7 +166,7 @@ class UIConfigManager:
         See :ref:`Resetting Patcher <reset>` for more details.
 
         :return: ``True`` if the reset was successful.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         self.log.debug("Resetting UI-configuration settings.")
         try:
@@ -232,7 +232,7 @@ class UIConfigManager:
         The chosen fonts are copied to the appropriate directory for use in PDF report generation.
 
         :return: A dictionary containing the font name, regular font path, and bold font path.
-        :rtype: :py:obj:`~typing.dict` [:py:class:`str`, :py:class:`str`]
+        :rtype: dict[str, str]
         """
         font_name = click.prompt("Enter custom font name", default="CustomFont")
         regular_src = Path(click.prompt("Enter the path to the regular font file"))
@@ -257,7 +257,7 @@ class UIConfigManager:
         solely used in conjunction with the :class:`~patcher.client.setup.Setup` class.
 
         :return: The path to the saved logo file, or None if no logo is configured.
-        :rtype: :py:obj:`~typing.Optional` [:py:class:`str`]
+        :rtype: str
         :raises SetupError: If the provided logo path does not exist.
         :raises PatcherError: If the provided logo fails pillow validation.
         :raises PatcherError: If the logo file could not be copied to the destination path.
@@ -291,6 +291,6 @@ class UIConfigManager:
         Retrieves the logo path from the UI configuration.
 
         :return: The logo path as a string if it exists, else None.
-        :rtype: :py:class:`str` | None
+        :rtype: str | None
         """
         return self.config.get(UIConfigKeys.LOGO_PATH.value, "")

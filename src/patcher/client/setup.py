@@ -62,7 +62,7 @@ class SetupStateManager:
         allowing the setup process to be resumed from the last known stage.
 
         :param state_path: Filesystem path to the JSON file used to persist setup stage.
-        :type state_path: :py:obj:`~pathlib.Path`
+        :type state_path: Path
         """
         self.state_path = state_path
 
@@ -151,7 +151,7 @@ class Setup:
         Indicates whether the setup process has been completed.
 
         :return: True if setup has been completed, False otherwise.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         if self._completed is None:
             self.log.debug("Checking setup completion status.")
@@ -176,7 +176,7 @@ class Setup:
         Assigns a ``SetupStage`` value to the stage property.
 
         :param value: The value to assign to ``self.stage``.
-        :type value: :class:`~patcher.client.setup.SetupStage`
+        :type value: SetupStage
         """
         self._stage = value
 
@@ -214,9 +214,9 @@ class Setup:
         Prompt for credentials based on the credential type.
 
         :param setup_type: The ``SetupType`` of credentials to prompt for.
-        :type setup_type: :class:`~patcher.client.setup.SetupType`
+        :type setup_type: SetupType
         :return: The credentials in dictionary form.
-        :rtype: :py:obj:`~typing.dict`
+        :rtype: dict
         """
         self.log.info(f"Prompting user for {setup_type.value} credentials.")
         if setup_type == SetupType.STANDARD:
@@ -239,11 +239,11 @@ class Setup:
         Validates all required keys are present in the credentials.
 
         :param creds: Credentials to validate
-        :type creds: :py:obj:`~typing.dict`
+        :type creds: dict
         :param required_keys: Keys required to be present in passed credentials.
-        :type required_keys: :py:obj:`~typing.tuple` [:py:class:`str`, ...]
+        :type required_keys: tuple[str, ...]
         :param setup_type: The ``SetupType`` to validate credentials against.
-        :type setup_type: :class:`~patcher.client.setup.SetupType`
+        :type setup_type: SetupType
         :raises SetupError: If any credentials are missing.
         """
         self.log.info(f"Validating credentials for {setup_type.value} setup.")
@@ -277,12 +277,12 @@ class Setup:
         Fetches a Token (basic or ``AccessToken``) depending on setup type (Standard or SSO).
 
         :param setup_type: ``SetupType`` specified dictates which type of Token will be retrieved (basic or bearer).
-        :type setup_type: :class:`~patcher.client.setup.SetupType`
+        :type setup_type: SetupType
         :param creds: If ``SetupType`` is "Standard", the user credentials needed to obtain a basic token.
-        :type creds: :py:obj:`~typing.Optional` [:py:obj:`~typing.dict`]
+        :type creds: dict | None
         :raises SetupError: If either type of Token could not be obtained.
         :return: For ``SetupType.STANDARD``, the basic token is returned. For ``SetupType.SSO``, the ``AccessToken`` object is returned.
-        :rtype: :py:obj:`~typing.Union` [:py:class:`str`, :class:`~patcher.models.token.AccessToken`]
+        :rtype: str | AccessToken
         """
         if setup_type == SetupType.SSO:
             token_manager = TokenManager(self.config)
@@ -317,12 +317,12 @@ class Setup:
         Creates API Role and Client for standard setup types.
 
         :param basic_token: The basic token used for authorization in creating API Role and Client
-        :type basic_token: :py:class:`str`
+        :type basic_token: str
         :param jamf_url: The Jamf Pro instance URL to create API Role and Clients in.
-        :type jamf_url: :py:class:`str`
+        :type jamf_url: str
         :raises SetupError: If either the API Role or API Client could not be created.
         :return: The client ID and client secret of the created API Client and Role.
-        :rtype: :py:obj:`~typing.tuple` [:py:class:`str`, :py:class:`str`]
+        :rtype: tuple[str, str]
         """
         api_client = BaseAPIClient()
         if not await api_client.create_roles(token=basic_token, jamf_url=jamf_url):
@@ -451,9 +451,9 @@ class Setup:
             For SSO users, reference our :ref:`handling-sso` page for assistance creating an API integration.
 
         :param animator: The animation instance to update messages. Defaults to ``self.animator``.
-        :type animator: :py:obj:`~typing.Optional` [:class:`~patcher.utils.animation.Animation`]
+        :type animator: Animation | None
         :param fresh: If ``True``, starts setup from scratch regardless of previous stage saved.
-        :type fresh: :py:class:`bool`
+        :type fresh: bool
         :raises SetupError: If a token could not be fetched, credentials are missing or setup could not be marked complete.
         """
         if self.completed:
@@ -503,7 +503,7 @@ class Setup:
             It is important to remove the API Role and Client objects before re-running the Setup assistant.
 
         :return: ``True`` if the Setup section in the property list file was removed.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         self.log.debug("Attempting to reset setup.")
         success = self.plist_manager.remove("setup_completed")

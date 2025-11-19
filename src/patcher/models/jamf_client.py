@@ -14,11 +14,11 @@ class JamfClient(Model):
     including client credentials, server information, and :class:`~patcher.models.token.AccessToken` objects.
 
     :ivar client_id: The client ID used for authentication with the Jamf API.
-    :type client_id: :py:class:`str`
+    :type client_id: str
     :ivar client_secret: The client secret used for authentication with the Jamf API.
-    :type client_secret: :py:class:`str`
+    :type client_secret: str
     :ivar server: The server URL for the Jamf API.
-    :type server: :py:class:`str`
+    :type server: str
 
     .. admonition:: Removed in version 2.0
         :class: danger
@@ -36,7 +36,7 @@ class JamfClient(Model):
         Gets the base URL of the Jamf server.
 
         :return: The base URL of the Jamf server.
-        :rtype: :py:class:`str`
+        :rtype: str
         """
         return self.server
 
@@ -50,9 +50,9 @@ class JamfClient(Model):
         The method returns the validated and correctly formatted URL.
 
         :param url: The URL to validate and format.
-        :type url: :py:class:`str`
+        :type url: str
         :return: The validated and formatted URL.
-        :rtype: :py:class:`str`
+        :rtype: str
         """
         parsed_url = urlparse(url=url)
         scheme = "https" if not parsed_url.scheme else parsed_url.scheme
@@ -72,9 +72,9 @@ class JamfClient(Model):
         a ``PatcherError`` if they are.
 
         :param value: The value to validate.
-        :type value: :py:class:`str`
+        :type value: str
         :return: The validated value.
-        :rtype: :py:class:`str`
+        :rtype: str
         :raises PatcherError: If the value is empty.
         """
         if not value:
@@ -88,9 +88,9 @@ class JamfClient(Model):
         formatted URL by calling the `~patcher.models.jamf_client.JamfClient.valid_url` method.
 
         :param v: The server URL to validate.
-        :type v: :py:class:`str`
+        :type v: str
         :return: The validated and formatted server URL.
-        :rtype: :py:class:`str`
+        :rtype: str
         """
         return cls.valid_url(v)
 
@@ -100,10 +100,10 @@ class ApiRoleModel(Model):
     Represents an API role with specific privileges required for Patcher to operate.
 
     :ivar display_name: The name of the API role.
-    :type display_name: :py:class:`str`
+    :type display_name: str
     :ivar privileges: A list of privileges assigned to the API role. These privileges
                       determine the actions that the role can perform.
-    :type privileges: :py:obj:`~typing.list` of :py:class:`str`
+    :type privileges: list[str]
     """
 
     display_name: str = "Patcher-Role"
@@ -132,14 +132,14 @@ class ApiClientModel(Model):
 
     :ivar auth_scopes: A list of authentication scopes assigned to the API client. These
                        scopes define the level of access the client has.
-    :type auth_scopes: :py:obj:`~typing.list` of :py:class:`str`
+    :type auth_scopes: list[str]
     :ivar display_name: The name of the API client.
-    :type display_name: :py:class:`str`
+    :type display_name: str
     :ivar enabled: Indicates whether the API client is currently enabled or disabled.
-    :type enabled: :py:class:`bool`
+    :type enabled: bool
     :ivar token_lifetime: The lifetime of the access token in seconds. This value
                           determines how long the token remains valid.
-    :type token_lifetime: :py:class:`int`
+    :type token_lifetime: int
     """
 
     auth_scopes: list[str] = Field(default_factory=lambda: ["Patcher-Role"])

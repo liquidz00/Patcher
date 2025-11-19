@@ -85,7 +85,7 @@ class PropertylistManager:
         Determines whether the plist file needs to be migrated.
 
         :return: True if old format is detected, False otherwise.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         data = self._load_plist_file()
         return any(key in data for key in ["Setup", "UI", "Installomator"])
@@ -126,18 +126,18 @@ class PropertylistManager:
         except PatcherError:
             raise
 
-    def get(self, section: str, key: str | None = None) -> dict[[str, Any], Any] | None:
+    def get(self, section: str, key: str | None = None) -> dict[str, Any] | Any | None:
         """
         Retrieves a value from the property list file.
 
         If a key is provided, its value will be returned. Otherwise, the section will be returned.
 
         :param section: The section in the property list file to retrieve from.
-        :type section: :py:class:`str`
+        :type section: str
         :param key: The key whose value should be retrieved. If None, returns the entire section.
-        :type key: :py:class:`str`
+        :type key: str | None
         :return: The value of the specified key, the full section, or None if not found.
-        :rtype: dict[[str, Any], Any] | None
+        :rtype: dict[str, Any] | Any | None
         """
         data = self._load_plist_file()
         if section not in data:
@@ -154,11 +154,11 @@ class PropertylistManager:
         - Otherwise, it stores the value as a top-level key.
 
         :param key: The section or top-level key in the property list.
-        :type key: :py:class:`str`
+        :type key: str
         :param value: The value to assign. Can be a dictionary or a single value.
-        :type value: :py:obj:`~typing.Any`
+        :type value: Any
         :param migration: If True, allows type changes (dict → primitive or primitive → dict).
-        :type migration: :py:class:`bool`
+        :type migration: bool
         """
         data = self._load_plist_file()
 
@@ -196,11 +196,11 @@ class PropertylistManager:
         - If ``value`` is provided, only that specific value is removed from within the dictionary.
 
         :param key: The key (or section) to remove from the property list.
-        :type key: :py:class:`str`
+        :type key: str
         :param value: The specific value to remove within the key. If None, removes the entire key.
-        :type key: :py:obj:`~typing.Optional` [:py:class:`str`]
+        :type value: str | None
         :return: True if removal was successful, False otherwise.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         data = self._load_plist_file()
         if key in data:
@@ -231,7 +231,7 @@ class PropertylistManager:
         If the plist file exists, it is removed from disk. A new, empty plist will be created when values are next set.
 
         :return: True if reset was successful, False otherwise.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         if self.plist_path.exists():
             try:
