@@ -69,11 +69,11 @@ Patcher leverages specific exit codes depending on what type of error occurred a
 Debug Mode (verbose)
 --------------------
 
-Patcher accepts a global ``--debug`` (or ``-x``) flag to show debug log level messages and higher to standard out. This overrides the built in :class:`~patcher.utils.animation.Animation` from showing so no message conflicts occur. This flag is handled at the root CLI level and thus can be passed to any command.
+Patcher accepts a global ``--debug`` (or ``-x``) flag to show debug log level messages and higher to standard out. This overrides the built in :class:`~patcher.utils.animation.Animation` from showing so no message conflicts occur. This flag is handled at the root CLI level and thus can be passed to any command, but needs to be passed before any command:
 
 .. code-block:: console
 
-    $ patcherctl export --path '/path/to/save' --debug
+    $ patcherctl --debug export --path '/path/to/save'
 
 Would result in a similar output as:
 
@@ -100,12 +100,12 @@ Would result in a similar output as:
 Command Dependencies
 --------------------
 
-The :ref:`analyze <analyze>` command is tightly integrated with the :ref:`export <export>` command. It is important to understand this dependency for using Patcher effectively. 
+The :ref:`analyze <analyze>` command is tightly integrated with the :ref:`export <export>` command. It is important to understand this dependency for using Patcher effectively.
 
 Key Points
 ^^^^^^^^^^
 
-- **Export Command Requirement**: The ``export`` command caches patch report data for later use by the ``analyze`` command, ensuring the data is available for analysis without having to run multiple export commands. 
+- **Export Command Requirement**: The ``export`` command caches patch report data for later use by the ``analyze`` command, ensuring the data is available for analysis without having to run multiple export commands.
 - **Alternative Input**: The ``analyze`` command can accept patch reports via the ``--excel-file`` option, but these files *must* adhere to the schema of an exported patch report to prevent errors. Refer to the exported report structure for details.
 
 Example Workflow
@@ -138,8 +138,8 @@ Example Workflow
 Avoiding Errors
 ~~~~~~~~~~~~~~~
 
-- Verify that exported patch reports are up-to-date before running the ``analyze`` command. 
-- Double-check that manually provided files conform to the patch report schema to avoid processing errors. 
+- Verify that exported patch reports are up-to-date before running the ``analyze`` command.
+- Double-check that manually provided files conform to the patch report schema to avoid processing errors.
 
 .. _caching:
 
