@@ -1,8 +1,8 @@
 import json
 from datetime import datetime
-from typing import Any
+from typing import Any, AsyncGenerator
 
-from ..models.patch import PatchTitle
+from ..models.patch import PatchDevice, PatchTitle
 from ..utils.decorators import check_token
 from ..utils.exceptions import APIResponseError, PatcherError, ShellCommandError
 from ..utils.logger import LogMe
@@ -112,6 +112,125 @@ class ApiClient(BaseAPIClient):
             if summary
         ]
         return patch_titles
+
+    @check_token
+    async def stream_title_report(
+        self, title_id: str, page_size: int = 100
+    ) -> AsyncGenerator[list[PatchDevice], None]:
+        """
+        Stream patch report data for a specific software title in batches.
+
+        This method yields batches of devices as they are fetched, allowing for
+        memory-efficient processing and progress tracking. Each batch corresponds
+        to one API page response.
+
+        :param title_id: The software title ID to retrieve the patch report for.
+        :type title_id: str
+        :param page_size: Number of devices to fetch per page. Defaults to 100.
+        :type page_size: int
+        :yields: Batches of ``PatchDevice`` objects.
+        :rtype: AsyncGenerator[list[:class:`~patcher.models.patch.PatchDevice`], None]
+        """
+        headers = await self._headers()
+        base_url = (
+            f"{self.jamf_url}/api/v2/patch-software-title-configurations/{title_id}/patch-report"
+        )
+
+        page = 0
+        total_fetched = 0
+        total_count = None
+
+        while True:
+            query_params = {
+                "page": page,
+                "page-size": page_size,
+                "sort": "deviceId:asc",  # consistency for pagination
+            }
+
+            try:
+                response = await self.fetch_json(
+                    url=base_url, headers=headers, query_params=query_params
+                )
+            except APIResponseError:
+                raise
+
+            page_results = response.get("results", [])
+            if total_count is None:
+                total_count = response.get("totalCount", 0)
+                self.log.info(f"Title {title_id} installed on {total_count} total devices")
+
+            if not page_results:
+                self.log.debug(f"No more results at page {page} for title {title_id}")
+                break
+
+            page_devices = [PatchDevice(**d) for d in page_results]
+            total_fetched += len(page_devices)
+
+            self.log.debug(
+                f"Fetched page {page} ({len(page_devices)} devices) for title {title_id}"
+            )
+            yield page_devices
+
+            if total_fetched >= total_count:
+                self.log.debug(f"Reached total count for title {title_id}")
+                break
+
+            page += 1
+
+    @check_token
+    async def get_title_report(self, title_id: str, page_size: int = 100) -> list[PatchDevice]:
+        """
+        Retrieve the complete patch report for a specific software title.
+
+        This method collects all device records across all pages and returns them
+        as a single list. Best suited for Excel/PDF exports where all data is needed
+        upfront.
+
+        :param title_id: The software title ID to retrieve the patch report for.
+        :type title_id: str
+        :param page_size: Number of devices to fetch per page. Defaults to 100.
+        :type page_size: int
+        :return: List of all PatchDevice objects for the title.
+        :rtype: list[:class:`~patcher.models.patch.PatchDevice`]
+        """
+        devices = []
+        async for batch in self.stream_title_report(title_id, page_size=page_size):
+            devices.extend(batch)
+
+        self.log.info(f"Collected {len(devices)} total devices for title {title_id}")
+
+    @check_token
+    async def get_title_reports(
+        self, title_ids: list[str], page_size: int = 100
+    ) -> dict[str, list[PatchDevice]]:
+        """
+        Retrieves patch reports for multiple software titles.
+
+        Processes titles sequentially to avoid overwhelming the Jamf API. Each title's
+        pagination is handled by the underlying stream/fetch methods.
+
+        :param title_ids: List of software title IDs to retrieve reports for.
+        :type title_ids: list[str]
+        :param page_size: Number of devices to fetch per page. Defaults to 100.
+        :type page_size: int
+        :return: Dictionary mapping title IDs to lists of PatchDevice objects.
+        :rtype: dict[str, list[:class:`~patcher.models.patch.PatchDevice`]]
+        """
+        self.log.debug(f"Fetching patch reports for {len(title_ids)} titles")
+        results = {}
+
+        for title_id in title_ids:
+            self.log.info(f"Processing patch report for title {title_id}")
+
+            try:
+                title_devices = await self.get_title_report(title_id, page_size=page_size)
+                results[title_id] = title_devices
+            except APIResponseError as e:
+                self.log.error(f"Failed to fetch report for title {title_id}: {e}")
+                results[title_id] = []
+
+        total_devices = sum(len(devices) for devices in results.values())
+        self.log.info(f"Collected {total_devices} total devices across {len(title_ids)}")
 
     @check_token
     async def get_device_ids(self) -> list[int]:
