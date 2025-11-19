@@ -9,7 +9,7 @@ import pytz
 from fpdf import FPDF
 from src.patcher.client import BaseAPIClient
 from src.patcher.client.api_client import ApiClient
-from src.patcher.client.plist_manager import PropertyListManager
+from src.patcher.client.plist_manager import PropertylistManager
 from src.patcher.client.report_manager import ReportManager
 from src.patcher.client.token_manager import TokenManager
 from src.patcher.client.ui_manager import UIConfigManager
@@ -355,9 +355,9 @@ def mock_data_manager():
 
 @pytest.fixture
 def mock_plist_manager(mocker, tmp_path):
-    mock_plist = mocker.create_autospec(PropertyListManager, instance=True)
+    mock_plist = mocker.create_autospec(PropertylistManager, instance=True)
 
-    mocker.patch.object(PropertyListManager, "_ensure_directory", return_value=None)
+    mocker.patch.object(PropertylistManager, "_ensure_directory", return_value=None)
 
     mock_plist.get.return_value = None
     mock_plist.set.return_value = None

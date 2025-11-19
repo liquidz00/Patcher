@@ -17,6 +17,7 @@ async def test_process_reports_success(
             omit=False,
             ios=False,
             report_title="Test Report",
+            header_color="",
         )
 
         assert mock_export_to_excel.called
@@ -42,6 +43,7 @@ async def test_process_reports_invalid_path(
             omit=False,
             ios=False,
             report_title="Test Report",
+            header_color="",
         )
 
         mock_error.assert_called_once()
@@ -62,6 +64,7 @@ async def test_invalid_sort(
                 omit=False,
                 ios=False,
                 report_title="Test Report",
+                header_color="",
             )
 
             mock_error.assert_called_once()
