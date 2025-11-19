@@ -7,6 +7,7 @@ from string import Template
 
 import pandas as pd
 from fpdf.enums import XPos, YPos
+from openpyxl.utils import get_column_letter
 from pydantic import ValidationError
 
 from ..models.patch import PatchDevice, PatchTitle
@@ -304,43 +305,11 @@ class DataManager:
         sanitized = re.sub(r"[:\\/?*\[\]]", "", name)
         return sanitized[:31] if len(sanitized) > 31 else sanitized
 
-    def _get_title_name(self, title_id: str, df: pd.DataFrame) -> str | None:
-        """
-        Look up the application title name from a title ID in the provided DataFrame.
-
-        :param title_id: The software title ID to look up.
-        :type title_id: str
-        :param summary_df: DataFrame containing patch title summary with Title and Title Id columns.
-        :type summary_df: pd.DataFrame
-        :return: The application title name if found, None otherwise.
-        :rtype: str | None
-        """
-        title_id_col = None
-        title_col = None
-
-        for col in df.columns:
-            col_normalized = col.lower().replace(" ", "_")
-            if col_normalized == "title_id":
-                title_id_col = col
-            elif col_normalized == "title":
-                title_col = col
-
-        if not title_id_col or not title_col:
-            self.log.warning(
-                f"Missing required columns in patch DataFrame. Found columns: {df.columns.tolist()}"
-            )
-            return None
-
-        matches = df[df[title_id_col].astype(str) == str(title_id)]
-        if matches.empty:
-            return None
-
-        return str(matches.iloc[0][title_col])
-
     def _write_multisheet_workbook(
         self,
         excel_path: Path,
         patch_data_df: pd.DataFrame,
+        patch_titles: list[PatchTitle],
         device_reports: dict[str, list[PatchDevice]],
     ) -> None:
         """
@@ -357,7 +326,9 @@ class DataManager:
         :param device_reports: Dictionary mapping title IDs to lists of PatchDevice objects.
         :type device_reports: dict[str, list[:class:`~patcher.models.patch.PatchDevice`]]
         """
-        with pd.ExcelWriter(excel_path, engine="xlsxwriter") as writer:
+        title_lookup = {pt.title_id: pt.title for pt in patch_titles}
+
+        with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
             patch_data_df.to_excel(writer, sheet_name="Patch Report", index=False)
             self.log.debug("Added main Patch Report sheet to workbook")
 
@@ -366,11 +337,7 @@ class DataManager:
                     self.log.debug(f"No devices found for title {title_id}, skipping")
                     continue
 
-                title_name = self._get_title_name(title_id, patch_data_df)
-                if not title_name:
-                    self.log.warning(f"Could not find title name for ID {title_id}, using ID")
-                    title_name = f"Title_{title_id}"
-
+                title_name = title_lookup.get(title_id, f"Title_{title_id}")
                 sheet_name = self._sanitize_sheet_name(title_name)
 
                 device_rows = [
@@ -395,7 +362,8 @@ class DataManager:
                 worksheet = writer.sheets[sheet_name]
                 for idx, col in enumerate(device_df.columns):
                     max_len = max(device_df[col].astype(str).map(len).max(), len(col)) + 2
-                    worksheet.set_column(idx, idx, max_len)
+                    column_letter = get_column_letter(idx + 1)
+                    worksheet.column_dimensions[column_letter].width = max_len
 
                 self.log.debug(f"Added sheet '{sheet_name}' with {len(devices)} devices")
 
@@ -403,6 +371,7 @@ class DataManager:
         self,
         output_dir: Path,
         df: pd.DataFrame,
+        patch_titles: list[PatchTitle] | None = None,
         device_reports: dict[str, list[PatchDevice]] | None = None,
         analysis: bool = False,
     ) -> Path:
@@ -415,6 +384,8 @@ class DataManager:
         :type df: pd.DataFrame
         :param analysis: Whether this is an analysis report.
         :type analysis: bool
+        :param patch_titles:
+        :type patch_titles: list[:class:`~patcher.models.patch.PatchTitle`]
         :param device_reports: Optional dictionary mapping title IDs to device lists.
         :type device_reports: dict[str, list[:class:`~patcher.models.patch.PatchDevice`]] | None
         :return: Path to the exported Excel file.
@@ -423,9 +394,9 @@ class DataManager:
         excel_path = self._generate_filename(output_dir, "xlsx", analysis)
 
         try:
-            if device_reports:
+            if device_reports and patch_titles:
                 await asyncio.to_thread(
-                    self._write_multisheet_workbook, excel_path, df, device_reports
+                    self._write_multisheet_workbook, excel_path, df, patch_titles, device_reports
                 )
             else:
                 await asyncio.to_thread(df.to_excel, excel_path, index=False)
@@ -492,7 +463,9 @@ class DataManager:
         # Excel
         if "excel" in formats:
             try:
-                excel_path = await self._export_excel(output_dir, df, device_reports, analysis)
+                excel_path = await self._export_excel(
+                    output_dir, df, patch_titles, device_reports, analysis
+                )
                 self.latest_excel_file = excel_path
                 exported_files["excel"] = str(excel_path)
             except (OSError, PermissionError) as e:
