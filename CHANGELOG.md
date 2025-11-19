@@ -8,6 +8,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.3.0] - 2025-11-19
+### Added
+- Ability to customize the header color in exported HTML reports [(#39)(https://github.com/liquidz00/Patcher/issues/39)]
+- Export patch reporting details 'per-app' using the `--device-details` or `-D` argument [(#35)(https://github.com/liquidz00/Patcher/issues/35)]
+
+
 ## [v2.2.0] - 2025-05-31
 ### Added
 - Setup assistant tracks completion progress to prevent redundancy and `400` errors ([#29](https://github.com/liquidz00/Patcher/issues/29))
