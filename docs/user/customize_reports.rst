@@ -20,12 +20,12 @@ Tailor the user interface elements of your exported PDF reports. You have the fl
 Customizable User Interface Elements
 ------------------------------------
 
-Patcher allow syou to personalize the appearance of your reports using settings stored in the project's property list file. For full details on modifying the property list, see :ref:`Property List Configuration <property_list_file>`.
+Patcher allows you to personalize the appearance of your reports using settings stored in the project's property list file. For full details on modifying the property list, see :ref:`Property List Configuration <property_list_file>`.
 
 Editing the Header & Footer Text
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The header and footer text displayed in exported reports can be adjusted. These settings are stored in the ``com.liquidzoo.patcher.plist`` file under the ``UserInterfaceSettings`` dictionary. 
+The header and footer text displayed in exported reports can be adjusted. These settings are stored in the ``com.liquidzoo.patcher.plist`` file under the ``UserInterfaceSettings`` dictionary.
 
 .. code-block:: xml
 
@@ -70,6 +70,23 @@ You can specify a custom font to match your organization's branding. The font se
     </dict>
     </plist>
 
+Customizing HTML Report Header Color
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. admonition:: Added in version 2.3
+    :class: tip
+
+    You can customize the header color of HTML reports to match your organization's branding.
+
+The header color setting accepts hex color values and is stored in the property list under ``UserInterfaceSettings``:
+
+.. code-block:: xml
+
+    <key>header_color</key>
+    <string>#6432bdff</string>
+
+The default color is ``#6432bdff`` (a purple shade). You can specify colors in standard hex format with or without the ``#`` prefix.
+
 .. _customize_logo:
 
 Adding a Company Logo
@@ -84,17 +101,17 @@ Supported Logo Requirements
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - **File Formats**: The logo must be a valid image file in PNG, JPEG, or other `Pillow-supported formats <https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#fully-supported-formats>`_
-- **File Validation**: Patcher will validate the logo to ensure it is a valid image file before being added to the report. 
+- **File Validation**: Patcher will validate the logo to ensure it is a valid image file before being added to the report.
 
 .. seealso::
-    Need to make your own logo file? The `macOS-icon-generator <https://github.com/SAP/macOS-icon-generator>`_ by SAP is a great (and free) resource for creating standardized app icons in PNG format.  
+    Need to make your own logo file? The `macOS-icon-generator <https://github.com/SAP/macOS-icon-generator>`_ by SAP is a great (and free) resource for creating standardized app icons in PNG format.
 
 Configuring a Logo
 ^^^^^^^^^^^^^^^^^^
 
-There are two primary methods to configure a logo for your PDF reports: 
+There are two primary methods to configure a logo for your PDF reports:
 
-1. Resetting existing UI configuration via the :ref:`reset <reset>` command. 
+1. Resetting existing UI configuration via the :ref:`reset <reset>` command.
 2. Modifying the property list by passing the logo file to the corresponding key.
 
 Via ``reset``:
@@ -103,45 +120,45 @@ Via ``reset``:
 1. Execute the ``reset`` command:
 
 .. code-block:: console
-    
+
     $ patcherctl reset ui
 
 2. After providing values for header/footer text and custom font, you will be prompted to use a custom logo with the question ``Would you like to use a logo in your exported PDFs?``
-3. Enter the file path to your desired logo image when prompted: 
+3. Enter the file path to your desired logo image when prompted:
 
 .. code-block:: console
-    
+
     $ Enter the path to the logo file: /path/to/logo.png
 
 4. Patcher will validate the image file. If valid, it will copy the logo to the ``Application Support`` directory: ``$HOME/Library/Application Support/Patcher/logo.png``
 5. The logo path is then saved to the ``com.liquidzoo.patcher.plist`` file under the ``UserInterface`` dictionary:
 
 .. code-block:: xml
-    
+
     <key>logo_path</key>
     <string>/Users/jappleseed/Library/Application Support/Patcher/logo.png</string>
 
 Via the property list:
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Open the property list file in Xcode or use ``PlistBuddy`` to modify the property list file. (See :ref:`Modifying the Property List File <modify_plist>`). For demonstration purposes, ``PlistBuddy`` will be used. 
+Open the property list file in Xcode or use ``PlistBuddy`` to modify the property list file. (See :ref:`Modifying the Property List File <modify_plist>`). For demonstration purposes, ``PlistBuddy`` will be used.
 
 .. tip::
     Absolute paths can be copied easily in macOS: Hold down the Option (⌥) symbol on the keyboard, right-click the logo file and select **Copy <filename> as Pathname**
 
-1. Copy the path to your desired logo. 
-2. Execute the following command to add the logo file to the property list: 
+1. Copy the path to your desired logo.
+2. Execute the following command to add the logo file to the property list:
 
 .. code-block:: console
-    
+
     $ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:logo_path '/path/to/logo.png'" ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 
-3. While it is not **required** to copy the logo file to Patcher's Application Support directory, it ensures the proper permissions are enabled to read the logo file. 
+3. While it is not **required** to copy the logo file to Patcher's Application Support directory, it ensures the proper permissions are enabled to read the logo file.
 
 Example UI Settings Configuration
 =================================
 
-Here is an example configuration of **only** the ``UserInterfaceSettings`` dictionary with custom header, footer text, specified font, and custom logo:
+Here is an example configuration of **only** the ``UserInterfaceSettings`` dictionary with custom header, footer text, specified font, header color, and custom logo:
 
 .. code-block:: xml
 
@@ -161,6 +178,8 @@ Here is an example configuration of **only** the ``UserInterfaceSettings`` dicti
             <string>/Users/spesh/Library/Application Support/Patcher/fonts/Assistant-Regular.ttf</string>
             <key>bold_font_path</key>
             <string>/Users/spesh/Library/Application Support/Patcher/fonts/Assistant-Bold.ttf</string>
+            <key>header_color</key>
+            <string>#6432bdff</string>
             <key>logo_path</key>
             <string>/Users/spesh/Library/Application Support/Patcher/logo.png</string>
         </dict>
