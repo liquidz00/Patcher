@@ -143,7 +143,6 @@ class ApiClient(BaseAPIClient):
             query_params = {
                 "page": page,
                 "page-size": page_size,
-                "sort": "deviceId:asc",  # consistency for pagination
             }
 
             try:
@@ -231,6 +230,7 @@ class ApiClient(BaseAPIClient):
 
         total_devices = sum(len(devices) for devices in results.values())
         self.log.info(f"Collected {total_devices} total devices across {len(title_ids)} titles")
+        return results
 
     @check_token
     async def get_device_ids(self) -> list[int]:
