@@ -26,13 +26,13 @@ class PDFReport(FPDF):
         It supports custom headers, footers, font styles, and an optional branding logo based on the UI configuration.
 
         :param orientation: Orientation of the PDF, default is "L" (landscape).
-        :type orientation: :py:class:`str`
+        :type orientation: str
         :param unit: Unit of measurement, default is "mm".
-        :type unit: :py:class:`str`
+        :type unit: str
         :param format: Page format, default is "A4".
-        :type format: :py:class:`str`
+        :type format: str
         :param date_format: Date format string for the PDF report header, default is "%B %d %Y".
-        :type date_format: :py:class:`str`
+        :type date_format: str
         :param ui_config: Optional UIConfigManager object to pass, defaults to initializing new object.
         :type ui_config: :class:`~patcher.client.ui_manager.UIConfigManager`
         """
@@ -54,7 +54,7 @@ class PDFReport(FPDF):
         Gets the aspect ratio of the logo provided.
 
         :param image_path: Path to the image file
-        :type image_path: :py:class:`str`
+        :type image_path: str
         :return: The width-to-height ratio of the image.
         :rtype: :py:class:`float`
         """
@@ -68,9 +68,9 @@ class PDFReport(FPDF):
         Trims transparent padding from the logo and returns the path to a temporary file.
 
         :param image_path: Path to the input image file.
-        :type image_path: :py:class:`str`
+        :type image_path: str
         :return: Path to the trimmed image.
-        :rtype: :py:class:`str`
+        :rtype: str
         """
         with Image.open(image_path) as img:
             bbox = img.getbbox()
@@ -193,7 +193,7 @@ class PDFReport(FPDF):
         :param data: DataFrame containing dataset to be included in PDF.
         :type data: `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
         :return: A list of column widths proportional to header lengths.
-        :rtype: :py:obj:`~typing.list` [:py:class:`float`]
+        :rtype: list [:py:class:`float`]
         """
         # Assign widths based on header lengths
         page_width = self.w - 20  # Account for left/right margins

@@ -138,7 +138,7 @@ class LogMe:
         A wrapper class for logging with optional output to console using click.
 
         :param class_name: The name of the class for which the logger is being set up.
-        :type class_name: :py:class:`str`
+        :type class_name: str
         """
         self.logger = PatcherLog.setup_child_logger(class_name)
 

@@ -1,8 +1,11 @@
+import csv
+import io
 import json
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlencode
 
-from ..models.patch import PatchTitle
+from ..models.patch import PatchDevice, PatchTitle
 from ..utils.decorators import check_token
 from ..utils.exceptions import APIResponseError, PatcherError, ShellCommandError
 from ..utils.logger import LogMe
@@ -112,6 +115,108 @@ class ApiClient(BaseAPIClient):
             if summary
         ]
         return patch_titles
+
+    @check_token
+    async def get_title_report_csv(self, title_id: str) -> list[PatchDevice]:
+        """
+        Retrieve the complete patch report for a specific software title using the CSV export endpoint.
+
+        This method fetches all device data in a single CSV request, avoiding pagination entirely.
+
+        :param title_id: The software title ID to retrieve the patch report for.
+        :type title_id: str
+        :return: List of all PatchDevice objects for the title.
+        :rtype: list[:class:`~patcher.models.patch.PatchDevice`]
+        :raises APIResponseError: If the CSV export fails or returns non-200 status.
+        """
+        headers = await self._headers()
+        headers["accept"] = "text/csv"
+        base_url = (
+            f"{self.jamf_url}/api/v2/patch-software-title-configurations/{title_id}/export-report"
+        )
+
+        csv_columns = [
+            "computerName",
+            "deviceId",
+            "username",
+            "operatingSystemVersion",
+            "lastContactTime",
+            "buildingName",
+            "departmentName",
+            "siteName",
+            "version",
+        ]
+        query_params = [("columns-to-export", col) for col in csv_columns]
+        query_string = urlencode(query_params)
+        export_url = f"{base_url}?{query_string}"
+
+        header_string = self._format_headers(headers)
+        command = [
+            "/usr/bin/curl",
+            "-s",
+            "-X",
+            "GET",
+            export_url,
+            *header_string,
+            "-w",
+            "\nSTATUS:%{http_code}",
+        ]
+        try:
+            async with self.semaphore:
+                output = await self.execute(command)
+            csv_body, status_line = output.rsplit("\nSTATUS:", 1)
+            status_code = int(status_line.strip())
+            if status_code < 200 or status_code >= 300:
+                self._handle_status_code(status_code, None)
+        except (ShellCommandError, ValueError) as e:
+            self.log.error(f"Failed to fetch CSV export for title {title_id}: {e}")
+            raise APIResponseError(
+                "Failed to export patch report for title.", title_id=title_id, error_msg=str(e)
+            )
+
+        devices = []
+        csv_reader = csv.DictReader(io.StringIO(csv_body))
+
+        for row in csv_reader:
+            try:
+                device = PatchDevice(**row)
+                devices.append(device)
+            except Exception as e:  # intentional
+                self.log.warning(f"Failed to parse device row: {e}")
+                continue
+
+        self.log.info(f"Collected {len(devices)} devices from CSV export for title {title_id}")
+        return devices
+
+    @check_token
+    async def get_title_reports(self, title_ids: list[str]) -> dict[str, list[PatchDevice]]:
+        """
+        Retrieves patch reports for multiple software titles.
+
+        Processes titles sequentially to avoid overwhelming the Jamf API. Each title's
+        pagination is handled by the underlying stream/fetch methods.
+
+        :param title_ids: List of software title IDs to retrieve reports for.
+        :type title_ids: list[str]
+        :return: Dictionary mapping title IDs to lists of PatchDevice objects.
+        :rtype: dict[str, list[:class:`~patcher.models.patch.PatchDevice`]]
+        """
+        self.log.debug(f"Fetching patch reports for {len(title_ids)} titles")
+        results = {}
+
+        for title_id in title_ids:
+            self.log.info(f"Processing patch report for title {title_id}")
+
+            try:
+                title_devices = await self.get_title_report_csv(title_id)
+                results[title_id] = title_devices
+            except APIResponseError as e:
+                self.log.error(f"Failed to fetch report for title {title_id}: {e}")
+                results[title_id] = []
+
+        total_devices = sum(len(devices) for devices in results.values())
+        self.log.info(f"Collected {total_devices} total devices across {len(title_ids)} titles")
+        return results
 
     @check_token
     async def get_device_ids(self) -> list[int]:

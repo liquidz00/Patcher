@@ -18,7 +18,7 @@ Parameters
 .. param:: formats
     :type: list[str]
 
-    If provided, only the specified formats will be exported. The option *must be specified multiple times* for multiple formats. 
+    If provided, only the specified formats will be exported. The option *must be specified multiple times* for multiple formats.
 
     **Example Usage**
 
@@ -46,7 +46,7 @@ Parameters
     :type: str
 
     Specify the date format for the PDF header. Default is ``"%B %d %Y"`` (Month Day Year):
-    
+
     .. container:: sd-table
 
         .. list-table::
@@ -71,7 +71,7 @@ Parameters
             * - **Full**
               - Displays the full weekday name, followed by the full month name, day and year
               - Thursday September 26 2013
-    
+
 .. _ios:
 
 .. param:: ios
@@ -91,7 +91,20 @@ Parameters
         It is **strongly recommended** to limit API call concurrency to no more than 5 connections.
         See `Jamf Developer Guide <https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices>`_ for more information.
 
-Usage 
+.. admonition:: Added in version 2.3
+    :class: tip
+
+    Export per-title patch report data. Visit the `feature request <https://github.com/liquidz00/Patcher/issues/35>`_ for more information.
+
+.. param:: device_details
+    :type: bool
+
+    If passed, will include per-title patch report data in exported Excel document, with each application having its own sheet in the workbook.
+    **Please note**, depending on your environment (number of enrolled devices, number of configured Patch Titles, etc) this could take an extended
+    period of time.
+
+
+Usage
 -----
 
 .. card:: Export with default behavior (exports all formats)
@@ -112,27 +125,33 @@ Usage
     .. code-block:: console
 
         $ patcherctl export --path '/path/to/save' --sort "Column Name"
-    
+
 .. card:: Omit (``--omit``, ``-o``)
 
     .. code-block:: console
 
         $ patcherctl export --path '/path/to/save' --omit
-    
+
 .. card:: Date Format (``--date-format``, ``-d``)
 
     .. code-block:: console
 
         $ patcherctl export --path '/path/to/save' --date-format "Month-Year"
-    
+
 .. card:: iOS (``--ios``, ``-m``)
 
     .. code-block:: console
 
         $ patcherctl export --path '/path/to/save' --ios
-    
+
 .. card:: Concurrency (``--concurrency``)
 
     .. code-block:: console
 
         $ patcherctl export --path '/path/to/save' --concurrency 10
+
+.. card:: Device Details (``--device-details``, ``-D``)
+
+    .. code-block:: console
+
+        $ patcherctl export --path '/path/to/save' --device-details

@@ -255,7 +255,7 @@ class Installomator:
         Builds ``Label`` objects after collecting ``Fragment`` objects from GitHub API.
 
         :return: The compiled list of ``Label`` objects.
-        :rtype: :py:obj:`~typing.list` [:class:`~patcher.models.label.Label`]
+        :rtype: list [:class:`~patcher.models.label.Label`]
         """
         if self._labels is None:
             fragments = await self._fetch_fragments()
@@ -273,7 +273,7 @@ class Installomator:
         - Updates :attr:`~patcher.models.patch.PatchTitle.install_label` with matched labels
 
         :param patch_titles: The list of ``PatchTitle`` objects to match with ``Label`` objects.
-        :type patch_titles: :py:obj:`~typing.list` [:class:`~patcher.models.patch.PatchTitle`]
+        :type patch_titles: list [:class:`~patcher.models.patch.PatchTitle`]
         """
         self.log.debug("Starting label-patch title matching process.")
 

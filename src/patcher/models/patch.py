@@ -1,4 +1,6 @@
-from pydantic import field_validator, model_validator
+from datetime import datetime
+
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from . import Model
 from .label import Label
@@ -70,3 +72,71 @@ class PatchTitle(Model):
             self.completion_percent = 0.0
 
         return self
+
+
+class PatchDevice(Model):
+    """
+    Represents device information from Jamf Pro patch management data.
+
+    :ivar computer_name: The name of the computer.
+    :type computer_name: str
+    :ivar device_id: The unique device identifier from Jamf Pro.
+    :type device_id: str
+    :ivar username: The username associated with the device.
+    :type username: str
+    :ivar operating_system_version: The macOS version running on the device.
+    :type operating_system_version: str
+    :ivar last_contact_time: The last time the device contacted Jamf Pro.
+    :type last_contact_time: datetime
+    :ivar building_name: The building assignment for the device, if any.
+    :type building_name: str | None
+    :ivar department_name: The department assignment for the device, if any.
+    :type department_name: str | None
+    :ivar site_name: The site assignment for the device, if any.
+    :type site_name: str | None
+    :ivar version: The patch software version installed on the device.
+    :type version: str
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    computer_name: str = Field(..., alias="computerName")
+    device_id: str = Field(..., alias="deviceId")
+    username: str
+    operating_system_version: str = Field(..., alias="operatingSystemVersion")
+    last_contact_time: datetime = Field(..., alias="lastContactTime")
+    building_name: str | None = Field(default=None, alias="buildingName")
+    department_name: str | None = Field(default=None, alias="departmentName")
+    site_name: str | None = Field(default=None, alias="siteName")
+    version: str
+
+    def __str__(self) -> str:
+        return f"{self.computer_name} ({self.username})"
+
+    @field_validator("device_id")
+    @classmethod
+    def cast_as_string(cls, value: int | str) -> str:
+        """
+        Ensures the ``device_id`` property is always a string, regardless of type in API response payload.
+
+        :param value: The value of the ``device_id`` field.
+        :type value: int | str
+        :return: The value cast as a string.
+        :rtype: str
+        """
+        return str(value)
+
+    @field_validator("building_name", "department_name", "site_name", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, value: str) -> str | None:
+        """
+        Converts empty strings to None for optional organizational fields.
+
+        :param value: The value of the organizational field.
+        :type value: str
+        :return: None if empty string, otherwise the original value.
+        :rtype: str | None
+        """
+        if value == "":
+            return None
+        return value

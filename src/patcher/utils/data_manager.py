@@ -1,14 +1,16 @@
 import asyncio
 import pickle
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from string import Template
 
 import pandas as pd
 from fpdf.enums import XPos, YPos
+from openpyxl.utils import get_column_letter
 from pydantic import ValidationError
 
-from ..models.patch import PatchTitle
+from ..models.patch import PatchDevice, PatchTitle
 from .exceptions import PatcherError
 from .logger import LogMe
 from .pdf_report import PDFReport
@@ -288,6 +290,127 @@ class DataManager:
 
         return f"#{r:02x}{g:02x}{b:02x}"
 
+    @staticmethod
+    def _sanitize_sheet_name(name: str) -> str:
+        """
+        Sanitize a string to be a valid Excel sheet name.
+
+        Excel sheet names must be ≤31 characters and cannot contain: : \\ / ? * [ ]
+
+        :param name: The desired sheet name.
+        :type name: str
+        :return: Sanitized sheet name valid for Excel.
+        :rtype: str
+        """
+        sanitized = re.sub(r"[:\\/?*\[\]]", "", name)
+        return sanitized[:31] if len(sanitized) > 31 else sanitized
+
+    def _write_multisheet_workbook(
+        self,
+        excel_path: Path,
+        patch_data_df: pd.DataFrame,
+        patch_titles: list[PatchTitle],
+        device_reports: dict[str, list[PatchDevice]],
+    ) -> None:
+        """
+        Write Excel workbook with patch data and per-application device sheets.
+
+        Creates a workbook with the main patch data (PatchTitle info) on the first
+        sheet, then adds individual sheets for each application title containing
+        device-level patch data.
+
+        :param excel_path: Path where Excel file will be saved.
+        :type excel_path: Path
+        :param patch_data_df: DataFrame containing patch title data (from PatchTitle objects).
+        :type patch_data_df: pd.DataFrame
+        :param device_reports: Dictionary mapping title IDs to lists of PatchDevice objects.
+        :type device_reports: dict[str, list[:class:`~patcher.models.patch.PatchDevice`]]
+        """
+        title_lookup = {pt.title_id: pt.title for pt in patch_titles}
+
+        with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
+            patch_data_df.to_excel(writer, sheet_name="Patch Report", index=False)
+            self.log.debug("Added main Patch Report sheet to workbook")
+
+            for title_id, devices in device_reports.items():
+                if not devices:
+                    self.log.debug(f"No devices found for title {title_id}, skipping")
+                    continue
+
+                title_name = title_lookup.get(title_id, f"Title_{title_id}")
+                sheet_name = self._sanitize_sheet_name(title_name)
+
+                device_rows = [
+                    {
+                        "Computer Name": device.computer_name,
+                        "Device ID": device.device_id,
+                        "Username": device.username,
+                        "OS Version": device.operating_system_version,
+                        "App Version": device.version,
+                        "Last Contact": device.last_contact_time.strftime("%Y-%m-%d %H:%M:%S"),
+                        "Department": device.department_name or "",
+                        "Building": device.building_name or "",
+                        "Site": device.site_name or "",
+                    }
+                    for device in devices
+                ]
+
+                device_df = pd.DataFrame(device_rows)
+                device_df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+                # Autosize columns for readability
+                worksheet = writer.sheets[sheet_name]
+                for idx, col in enumerate(device_df.columns):
+                    max_len = max(device_df[col].astype(str).map(len).max(), len(col)) + 2
+                    column_letter = get_column_letter(idx + 1)
+                    worksheet.column_dimensions[column_letter].width = max_len
+
+                self.log.debug(f"Added sheet '{sheet_name}' with {len(devices)} devices")
+
+    async def _export_excel(
+        self,
+        output_dir: Path,
+        df: pd.DataFrame,
+        patch_titles: list[PatchTitle] | None = None,
+        device_reports: dict[str, list[PatchDevice]] | None = None,
+        analysis: bool = False,
+    ) -> Path:
+        """
+        Exports a DataFrame to an Excel file, optionally including per-title device sheets.
+
+        :param output_dir: Directory to save the Excel file.
+        :type output_dir: Path
+        :param df: The summary DataFrame to export.
+        :type df: pd.DataFrame
+        :param analysis: Whether this is an analysis report.
+        :type analysis: bool
+        :param patch_titles:
+        :type patch_titles: list[:class:`~patcher.models.patch.PatchTitle`]
+        :param device_reports: Optional dictionary mapping title IDs to device lists.
+        :type device_reports: dict[str, list[:class:`~patcher.models.patch.PatchDevice`]] | None
+        :return: Path to the exported Excel file.
+        :rtype: Path
+        """
+        excel_path = self._generate_filename(output_dir, "xlsx", analysis)
+
+        try:
+            if device_reports and patch_titles:
+                await asyncio.to_thread(
+                    self._write_multisheet_workbook, excel_path, df, patch_titles, device_reports
+                )
+            else:
+                await asyncio.to_thread(df.to_excel, excel_path, index=False)
+
+            self.latest_excel_file = excel_path
+            self.log.info(f"Excel report created successfully to {excel_path}.")
+            return excel_path
+        except (OSError, PermissionError) as e:
+            raise PatcherError(
+                "Encountered error saving DataFrame.",
+                file_path=str(output_dir),
+                error_msg=str(e),
+            )
+
     async def export(
         self,
         patch_titles: list[PatchTitle],
@@ -297,24 +420,29 @@ class DataManager:
         date_format: str = "%B %d %Y",
         formats: set[str] | None = None,
         header_color: str | None = "#6432bdff",
+        device_reports: dict[str, list[PatchDevice]] | None = None,
     ) -> dict[str, str]:
         """
         Exports patch data to the specified formats.
 
         :param patch_titles: A list of ``PatchTitle`` objects to include in the report. Defaults to ``self.titles`` if not provided
-        :type patch_titles: :py:obj:`~typing.list` [:class:`~patcher.models.patch.PatchTitle`]
+        :type patch_titles: list [:class:`~patcher.models.patch.PatchTitle`]
         :param output_dir: The directory in which to save the exported report(s).
-        :type output_dir: :py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]
+        :type output_dir: str | Path
         :param report_title: The title to use for the header in exported report(s). Defaults to ``HEADER_TEXT`` key in ``com.liquidzoo.patcher.plist`` file.
-        :type report_title: :py:class:`str`
+        :type report_title: str
         :param analysis: Denotes whether this is analysis report (affects HTML output path).
-        :type analysis: :py:class:`bool`
+        :type analysis: bool
         :param date_format: The date format for PDF/HTML headers. Defaults to "%B %d %Y" (Month Day Year).
-        :type date_format: :py:class:`str`
+        :type date_format: str
         :param formats: A set of formats to export. Defaults to all ({"excel", "html", "pdf"}).
-        :type formats: :py:obj:`~typing.Optional` [:py:class:`set`]
+        :type formats: set | None
+        :param header_color: Hex color to use for HTML header table background (defaults to "#6432bdff")
+        :type header_color: str | None
+        :param device_reports: Optional dictionary mapping title IDs to device lists for per-title detail sheets.
+        :type device_reports: dict[str, list[:class:`~patcher.models.patch.PatchDevice`]] | None
         :return: A dictionary containing paths to generated reports.
-        :rtype: :py:obj:`~typing.dict` [:py:class:`str`, :py:class:`str`]
+        :rtype: dict[str, str]
         """
         if formats is None:
             formats = {"excel", "html", "pdf"}
@@ -335,11 +463,11 @@ class DataManager:
         # Excel
         if "excel" in formats:
             try:
-                excel_path = self._generate_filename(output_dir, "xlsx", analysis)
-                await asyncio.to_thread(df.to_excel, excel_path, index=False)
+                excel_path = await self._export_excel(
+                    output_dir, df, patch_titles, device_reports, analysis
+                )
                 self.latest_excel_file = excel_path
                 exported_files["excel"] = str(excel_path)
-                self.log.info(f"Excel report created successfully to {excel_path}.")
             except (OSError, PermissionError) as e:
                 raise PatcherError(
                     "Encountered error saving DataFrame.",
@@ -382,7 +510,7 @@ class DataManager:
         Removes all cached files from Cache directory. See :ref:`reset <resetting_patcher>`.
 
         :return: True if all files were able to be removed, False otherwise.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         try:
             [file.unlink() for file in self.get_cached_files()]
@@ -397,7 +525,7 @@ class DataManager:
         Load all cached data files into a list of DataFrames.
 
         :return: list of pandas DataFrame objects with cached data.
-        :rtype: :py:obj:`~typing.list` [pandas.DataFrame]
+        :rtype: list[pandas.DataFrame]
         """
         dataframes = []
         cached_files = self.get_cached_files()
@@ -415,7 +543,7 @@ class DataManager:
         Retrieves all cached file Paths.
 
         :return: A list of ``Path`` objects pointing to cached files.
-        :rtype: :py:obj:`~typing.list` [:py:obj:`~pathlib.Path`]
+        :rtype: list[Path]
         """
         return [file for file in self.cache_dir.iterdir() if file.suffix == ".pkl"]
 
@@ -426,7 +554,7 @@ class DataManager:
         If a tracked Excel file is available, it is preferred. Otherwise, searches the cache directory.
 
         :return: Path to the latest dataset (Excel or pickle file), or None if no dataset is found.
-        :rtype: :py:obj:`~typing.Optional` [:py:obj:`~pathlib.Path`]
+        :rtype: Path | None
         """
         if self.latest_excel_file and self.latest_excel_file.exists():
             self.log.info(f"Using latest tracked Excel file: {self.latest_excel_file}")
