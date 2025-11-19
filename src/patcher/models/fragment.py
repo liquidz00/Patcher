@@ -42,9 +42,9 @@ class Fragment(Model):
             We are intentionally not using `pydantic.HttpUrl <https://docs.pydantic.dev/latest/api/networks/#pydantic.networks.HttpUrl>`_ objects as this would require typecasting all URL attributes as string down the call stack. This method leverages similar validation logic to ensure proper URL formatting.
 
         :param value: The specific ``*URL`` value to validate.
-        :type value: :py:class:`str`
+        :type value: str
         :return: The properly formatted URL.
-        :rtype: :py:class:`str`
+        :rtype: str
         :raises PatcherError: If value fails validation due to improper HTTP scheme or netloc.
         """
         parsed = urlparse(value)

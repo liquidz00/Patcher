@@ -12,6 +12,7 @@ class UIConfigKeys(str, Enum):
     REG_FONT_PATH = "reg_font_path"
     BOLD_FONT_PATH = "bold_font_path"
     LOGO_PATH = "logo_path"
+    HEADER_COLOR = "header_color"
 
 
 class UIDefaults(Model):
@@ -20,6 +21,7 @@ class UIDefaults(Model):
     font_name: str = Field(default="Assistant", min_length=1)
     reg_font_path: str = Field(default="", min_length=1)
     bold_font_path: str = Field(default="", min_length=1)
+    header_color: str = Field(default="#6432bdff", min_length=1)
     logo_path: str = ""
 
     class Config:

@@ -1,6 +1,5 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import Dict
 
 from pydantic import ValidationError
 
@@ -133,13 +132,13 @@ class TokenManager:
 
         return self._parse_token_response(response)
 
-    def _parse_token_response(self, response: Dict) -> AccessToken:
+    def _parse_token_response(self, response: dict) -> AccessToken:
         """
         Private method that parses the Jamf API Token response and extracts the
         token string and token expiration.
 
         :param response: The API response payload from Jamf.
-        :type response: :py:obj:`~typing.Dict`
+        :type response: dict
         :return: The extracted ``AccessToken`` object.
         :rtype: :class:`~patcher.models.token.AccessToken`
         """

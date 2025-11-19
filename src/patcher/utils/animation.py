@@ -17,9 +17,9 @@ class Animation:
         of Animation objects (e.g., the message template, spinner characters, and color scheme).
 
         :param message_template: The base message to display alongside the spinner.
-        :type message_template: :py:class:`str`
+        :type message_template: str
         :param enable_animation: Flag to enable or disable the spinner animation.
-        :type enable_animation: :py:class:`bool`
+        :type enable_animation: bool
         """
         self.stop_event = asyncio.Event()
         self.message_template = message_template
@@ -55,7 +55,7 @@ class Animation:
         previous message before displaying the new one.
 
         :param new_message_template: The new message to display alongside the spinner.
-        :type new_message_template: :py:class:`str`
+        :type new_message_template: str
         """
         async with self.lock:
             clear_message = "\r" + " " * self.last_message_length + "\r"

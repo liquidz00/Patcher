@@ -2,7 +2,6 @@ import asyncio
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Union
 
 import asyncclick as click
 
@@ -21,7 +20,7 @@ class ReportManager:
         api_client: ApiClient,
         data_manager: DataManager,
         debug: bool = False,
-        installomator: Optional[Installomator] = None,
+        installomator: Installomator | None = None,
     ):
         """
         Handles the generation and management of patch reports.
@@ -31,7 +30,7 @@ class ReportManager:
         :param data_manager: Generates Excel reports from collected patch data.
         :type data_manager: :class:`~patcher.utils.data_manager.DataManager`
         :param debug: Overrides animation of `~patcher.client.report_manager.ReportManager.process_reports` method if True.
-        :type debug: :py:obj:`~typing.Optional` [:py:class:`bool`]
+        :type debug: bool
         :param installomator: An optional :class:`~patcher.utils.installomator.Installomator` object for matching. Defaults to creating a new object during init.
         :type installomator: :class:`~patcher.utils.installomator.Installomator`
         """
@@ -41,7 +40,7 @@ class ReportManager:
         self.log = LogMe(self.__class__.__name__)
         self.iom = installomator or Installomator()
 
-    def _validate_directory(self, path: Union[str, Path]) -> str:
+    def _validate_directory(self, path: str | Path) -> str:
         """Validates or creates the reports directory."""
         self.log.debug(f"Validating directory: {path}")
         output_path = os.path.expanduser(path)
@@ -60,7 +59,7 @@ class ReportManager:
                 error_msg=str(e),
             )
 
-    async def _sort(self, patch_reports: List[PatchTitle], sort_key: str) -> List[PatchTitle]:
+    async def _sort(self, patch_reports: list[PatchTitle], sort_key: str) -> list[PatchTitle]:
         """Sorts provided patch reports by sort key."""
         self.log.debug(f"Detected sorting option '{sort_key}'")
         sort_key = sort_key.lower().replace(" ", "_")
@@ -81,7 +80,7 @@ class ReportManager:
                 error_msg=str(e),
             )
 
-    async def _omit(self, patch_reports: List[PatchTitle]) -> List[PatchTitle]:
+    async def _omit(self, patch_reports: list[PatchTitle]) -> list[PatchTitle]:
         """Omits patch policies with patches released in past 48 hours from exported reports."""
         cutoff = datetime.now() - timedelta(hours=48)
         self.log.debug(
@@ -99,7 +98,7 @@ class ReportManager:
         self.log.info(f"Omitted {omitted_count} policies with recent patches.")
         return patch_reports
 
-    async def _ios(self, patch_reports: List[PatchTitle]) -> List[PatchTitle]:
+    async def _ios(self, patch_reports: list[PatchTitle]) -> list[PatchTitle]:
         """Adds iOS information to exported reports."""
         self.log.debug("Attempting to fetch iOS device IDs.")
         try:
@@ -155,9 +154,9 @@ class ReportManager:
 
     def calculate_ios_on_latest(
         self,
-        device_versions: List[Dict[str, str]],
-        latest_versions: List[Dict[str, str]],
-    ) -> List[PatchTitle]:
+        device_versions: list[dict[str, str]],
+        latest_versions: list[dict[str, str]],
+    ) -> list[PatchTitle]:
         """
         Analyzes iOS version data to determine how many enrolled devices are on the latest version.
 
@@ -165,11 +164,11 @@ class ReportManager:
         provided by the SOFA feed, calculating how many devices are fully updated.
 
         :param device_versions: A list of dictionaries containing devices and their respective iOS versions.
-        :type device_versions: :py:obj:`~typing.List` [:py:obj:`~typing.Dict`]
+        :type device_versions: list[dict[str, str]]
         :param latest_versions: A list of the most recent iOS versions available.
-        :type latest_versions: :py:obj:`~typing.List` [:py:obj:`~typing.Dict`]
+        :type latest_versions: list[dict[str, str]]
         :return: A list of ``PatchTitle`` objects, each representing a summary of the patch status for an iOS version.
-        :rtype: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
+        :rtype: list[:class:`~patcher.models.patch.PatchTitle`]
         :raises PatcherError: If a KeyError or ZeroDivisionError is encountered.
         """
         self.log.debug("Attempting to calculate iOS devices on latest version.")
@@ -219,12 +218,13 @@ class ReportManager:
 
     async def process_reports(
         self,
-        path: Union[str, Path],
+        path: str | Path,
         formats: set[str],
-        sort: Optional[str],
+        sort: str | None,
         omit: bool,
         ios: bool,
         report_title: str,
+        header_color: str,
         date_format: str = "%B %d %Y",
         enable_iom: bool = True,
     ) -> None:
@@ -240,21 +240,23 @@ class ReportManager:
         ensuring that reports are accurate, complete, and formatted according to the user's preferences.
 
         :param path: The directory where the reports will be saved. It must be a valid directory, not a file.
-        :type path: :py:obj:`~typing.Union` [:py:class:`str` | :py:class:`~pathlib.Path`]
+        :type path: str | Path
         :param formats: The set of formats to export. Defaults to all ("excel", "html", "pdf").
-        :type formats: :py:class:`set` [:py:class:`str`]
+        :type formats: set[str]
         :param sort: Specifies the column by which to sort the reports (e.g., 'released' or 'completion_percent').
-        :type sort: :py:obj:`~typing.Optional` [:py:class:`str`]
+        :type sort: str | None
         :param omit: If True, omits patches that were released within the last 48 hours.
-        :type omit: :py:class:`bool`
+        :type omit: bool
         :param ios: If True, includes iOS device data in the reports.
-        :type ios: :py:class:`bool`
-        :param report_title:
-        :type report_title:
+        :type ios: bool
+        :param report_title: The title for the report header.
+        :type report_title: str
+        :param header_color: The color for the report header.
+        :type header_color: str
         :param date_format: Specifies the date format for headers in the reports. Default is "%B %d %Y" (Month Day Year).
-        :type date_format: :py:class:`str`
+        :type date_format: str
         :param enable_iom: If False, disables Installomator matching. Defaults to True.
-        :type enable_iom: :py:class:`bool`
+        :type enable_iom: bool
         """
         animation = Animation(enable_animation=not self.debug)
 
@@ -319,6 +321,7 @@ class ReportManager:
                 analysis=False,
                 formats=formats,
                 date_format=date_format,
+                header_color=header_color,
             )
 
         # Manually stop animation to show success message cleanly

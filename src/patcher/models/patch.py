@@ -1,5 +1,3 @@
-from typing import List, Optional, Union
-
 from pydantic import field_validator, model_validator
 
 from . import Model
@@ -11,21 +9,21 @@ class PatchTitle(Model):
     Represents patch software title information retrieved via API calls.
 
     :ivar title: The name of the patch title.
-    :type title: :py:class:`str`
+    :type title: str
     :ivar title_id: The ``softwareTitleId`` of the patch title from Jamf API response.
-    :type title_id: :py:class:`str`
+    :type title_id: str
     :ivar released: The release date of the patch title.
-    :type released: :py:class:`str`
+    :type released: str
     :ivar hosts_patched: The number of hosts that have applied the patch.
-    :type hosts_patched: :py:class:`int`
+    :type hosts_patched: int
     :ivar missing_patch: The number of hosts missing the patch.
-    :type missing_patch: :py:class:`int`
+    :type missing_patch: int
     :ivar latest_version: The latest version available for the software title.
-    :type latest_version: :py:class:`str`
+    :type latest_version: str
     :ivar completion_percent: The percentage of hosts that have applied the patch.
-    :type completion_percent: :py:class:`float`
+    :type completion_percent: float
     :ivar total_hosts: The total number of hosts.
-    :type total_hosts: :py:class:`int`
+    :type total_hosts: int
     :ivar install_label: The corresponding `Installomator <https://github.com/Installomator/Installomator>`_ label(s) if available.
     """
 
@@ -37,20 +35,20 @@ class PatchTitle(Model):
     latest_version: str
     completion_percent: float = 0.0
     total_hosts: int = 0
-    install_label: Optional[List[Label]] = []  # account for variants (e.g., zulujdk8, zulujdk9)
+    install_label: list[Label] | None = []  # account for variants (e.g., zulujdk8, zulujdk9)
 
     def __str__(self):
         return f"{self.title} ({self.latest_version})"
 
     @field_validator("title_id")
-    def cast_as_string(cls, value: Union[int, str]) -> str:
+    def cast_as_string(cls, value: int | str) -> str:
         """
         Ensures the ``title_id`` property is always a string, regardless of type in API response payload.
 
         :param value: The value of the ``title_id`` field.
-        :type value: :py:obj:`~typing.Union` [:py:class:`int` | :py:class:`str`]
+        :type value: int | str
         :return: The value cast as a string.
-        :rtype: :py:class:`str`
+        :rtype: str
         """
         return str(value)
 

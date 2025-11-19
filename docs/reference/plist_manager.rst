@@ -6,5 +6,5 @@
 Property List Manager
 =====================
 
-.. autoclass:: patcher.client.plist_manager.PropertyListManager
+.. autoclass:: patcher.client.plist_manager.PropertylistManager
     :members:

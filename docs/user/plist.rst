@@ -4,7 +4,7 @@
 Property List Configuration
 ===========================
 
-Patcher uses a property list (``.plist``) file to store persistent settings, such as user interface customizations, setup status, and integration preferences. This file is stored in the Patcher folder of the Application Support directory in the user library: 
+Patcher uses a property list (``.plist``) file to store persistent settings, such as user interface customizations, setup status, and integration preferences. This file is stored in the Patcher folder of the Application Support directory in the user library:
 
 ``~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist``
 
@@ -16,7 +16,7 @@ Property List Format
 .. admonition:: Changed in version 2.1.1
     :class: warning
 
-    The property list format has been updated to be more simplified, aiming to help end-users interact or modify the settings in a more efficient manner. Below is a summary of the changes. 
+    The property list format has been updated to be more simplified, aiming to help end-users interact or modify the settings in a more efficient manner. Below is a summary of the changes.
 
 .. container:: sd-table
 
@@ -48,19 +48,22 @@ Property List Format
         * - Company logo
           - ``LOGO_PATH``
           - ``logo_path``
+        * - HTML header color
+          - *N/A*
+          - ``header_color``
         * - Setup completion
           - ``first_run_done``
           - ``setup_completed``
         * - Installomator support (:ref:`ref <installomator_support>`)
-          - *N/A* 
+          - *N/A*
           - ``enable_installomator``
 
-The new format introduces consistent naming conventions and moves the setup completion flag (``setup_completed``) to a top-level key-value pair rather than being nested under the ``Setup`` dictionary. Additionally, the user interface settings dictionary has been renamed from ``UI`` to ``UserInterfaceSettings`` to improve clarity and maintain consistency. 
+The new format introduces consistent naming conventions and moves the setup completion flag (``setup_completed``) to a top-level key-value pair rather than being nested under the ``Setup`` dictionary. Additionally, the user interface settings dictionary has been renamed from ``UI`` to ``UserInterfaceSettings`` to improve clarity and maintain consistency.
 
 Automatic Conversion
 ^^^^^^^^^^^^^^^^^^^^
 
-For existing users, Patcher will **automatically migrate to the new format** if the previous format is detected. A backup file is also created in the event the migration fails so settings can be revived if necessary. 
+For existing users, Patcher will **automatically migrate to the new format** if the previous format is detected. A backup file is also created in the event the migration fails so settings can be revived if necessary.
 
 .. literalinclude:: ../../src/patcher/client/plist_manager.py
     :lines: 93-127
@@ -73,7 +76,7 @@ For a full example of the new format, see the :ref:`XML configuration <full_exam
 Modifying the Property List
 ---------------------------
 
-The property list can be modified using ``PlistBuddy`` or a code editor of your choice (VSCode, BBEdit, CodeRunner, etc.). The ``defaults`` command can also be leveraged, but is not recommended as it has trouble updating keys nested within dictionaries. 
+The property list can be modified using ``PlistBuddy`` or a code editor of your choice (VSCode, BBEdit, CodeRunner, etc.). The ``defaults`` command can also be leveraged, but is not recommended as it has trouble updating keys nested within dictionaries.
 
 .. admonition:: Editing Binary Property Lists
     :class: admonition-optional
@@ -83,8 +86,8 @@ The property list can be modified using ``PlistBuddy`` or a code editor of your 
     .. code-block:: console
 
         $ plutil -convert xml1 ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
-    
-    Once finished making modifications, convert it back to binary format: 
+
+    Once finished making modifications, convert it back to binary format:
 
     .. code-block:: console
 
@@ -120,13 +123,24 @@ Adding a Company Logo
 
 Patcher allows branding with a company logo. The logo must be in **PNG, JPEG, or a Pillow-supported format**.
 
-To configure a logo: 
+To configure a logo:
 
 .. code-block:: console
 
-    $ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:logo_path '/path/to/logo.png'"
+    $ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:logo_path '/path/to/logo.png'" ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 
-For more details on customizing fonts and adding a company logo, see :ref:`customize_reports`
+HTML Header Color
+^^^^^^^^^^^^^^^^^
+
+To customize the header color for HTML reports:
+
+.. code-block:: console
+
+    $ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:header_color '#6432bdff'" ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
+
+The default color is ``#6432bdff``. Hex colors can be specified with or without the ``#`` prefix.
+
+For more details on customizing reports, see :ref:`customize_reports`
 
 .. _installomator_support:
 
@@ -164,6 +178,8 @@ Here is an example configuration with all available keys and values:
             <string>/Users/spesh/Library/Application Support/Patcher/fonts/Assistant-Regular.ttf</string>
             <key>bold_font_path</key>
             <string>/Users/spesh/Library/Application Support/Patcher/fonts/Assistant-Bold.ttf</string>
+            <key>header_color</key>
+            <string>#6432bdff</string>
             <key>logo_path</key>
             <string>/Users/spesh/Library/Application Support/Patcher/logo.png</string>
         </dict>

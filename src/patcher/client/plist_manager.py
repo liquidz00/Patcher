@@ -1,14 +1,14 @@
 import plistlib
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 from ..models.ui import UIConfigKeys
 from ..utils.exceptions import PatcherError
 from ..utils.logger import LogMe
 
 
-class PropertyListManager:
+class PropertylistManager:
     def __init__(self):
         """
         Handles reading, writing, and managing configuration stored in Patcher's property list file (``self.plist_path``).
@@ -39,7 +39,7 @@ class PropertyListManager:
                     error_msg=str(e),
                 )
 
-    def _load_plist_file(self) -> Dict:
+    def _load_plist_file(self) -> dict:
         """
         Reads values from Patcher property list file after verifying it exists.
 
@@ -59,7 +59,7 @@ class PropertyListManager:
             )
             return {}
 
-    def _write_plist_file(self, plist_data: Dict[str, Any]) -> None:
+    def _write_plist_file(self, plist_data: dict[str, Any]) -> None:
         """Writes specified data to Patcher property list file."""
         if not isinstance(plist_data, dict):
             raise PatcherError("Invalid data type for property list. Expected dictionary.")
@@ -85,7 +85,7 @@ class PropertyListManager:
         Determines whether the plist file needs to be migrated.
 
         :return: True if old format is detected, False otherwise.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         data = self._load_plist_file()
         return any(key in data for key in ["Setup", "UI", "Installomator"])
@@ -126,18 +126,18 @@ class PropertyListManager:
         except PatcherError:
             raise
 
-    def get(self, section: str, key: Optional[str] = None) -> Optional[Union[Dict[str, Any], Any]]:
+    def get(self, section: str, key: str | None = None) -> dict[str, Any] | Any | None:
         """
         Retrieves a value from the property list file.
 
         If a key is provided, its value will be returned. Otherwise, the section will be returned.
 
         :param section: The section in the property list file to retrieve from.
-        :type section: :py:class:`str`
+        :type section: str
         :param key: The key whose value should be retrieved. If None, returns the entire section.
-        :type key: :py:class:`str`
+        :type key: str | None
         :return: The value of the specified key, the full section, or None if not found.
-        :rtype: :py:obj:`~typing.Optional` [:py:obj:`~typing.Any`]
+        :rtype: dict[str, Any] | Any | None
         """
         data = self._load_plist_file()
         if section not in data:
@@ -154,11 +154,11 @@ class PropertyListManager:
         - Otherwise, it stores the value as a top-level key.
 
         :param key: The section or top-level key in the property list.
-        :type key: :py:class:`str`
+        :type key: str
         :param value: The value to assign. Can be a dictionary or a single value.
-        :type value: :py:obj:`~typing.Any`
+        :type value: Any
         :param migration: If True, allows type changes (dict → primitive or primitive → dict).
-        :type migration: :py:class:`bool`
+        :type migration: bool
         """
         data = self._load_plist_file()
 
@@ -188,7 +188,7 @@ class PropertyListManager:
 
         self._write_plist_file(data)
 
-    def remove(self, key: str, value: Optional[str] = None) -> bool:
+    def remove(self, key: str, value: str | None = None) -> bool:
         """
         Removes a key or a specific value from a key in the property list.
 
@@ -196,11 +196,11 @@ class PropertyListManager:
         - If ``value`` is provided, only that specific value is removed from within the dictionary.
 
         :param key: The key (or section) to remove from the property list.
-        :type key: :py:class:`str`
+        :type key: str
         :param value: The specific value to remove within the key. If None, removes the entire key.
-        :type key: :py:obj:`~typing.Optional` [:py:class:`str`]
+        :type value: str | None
         :return: True if removal was successful, False otherwise.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         data = self._load_plist_file()
         if key in data:
@@ -231,7 +231,7 @@ class PropertyListManager:
         If the plist file exists, it is removed from disk. A new, empty plist will be created when values are next set.
 
         :return: True if reset was successful, False otherwise.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         if self.plist_path.exists():
             try:

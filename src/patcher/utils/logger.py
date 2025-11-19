@@ -4,7 +4,7 @@ import sys
 import traceback
 from logging.handlers import RotatingFileHandler
 from types import TracebackType
-from typing import Optional, Type
+from typing import Type
 
 import asyncclick as click
 
@@ -19,21 +19,21 @@ class PatcherLog:
 
     @staticmethod
     def setup_logger(
-        name: Optional[str] = None,
-        level: Optional[int] = LOG_LEVEL,
+        name: str | None = None,
+        level: int | None = LOG_LEVEL,
         debug: bool = False,
     ) -> logging.Logger:
         """
         Configures and returns a logger. If the logger is already configured, it ensures no duplicate handlers.
 
         :param name: Name of the logger, defaults to "Patcher".
-        :type name: :py:obj:`~typing.Optional` [:py:class:`str`]
+        :type name: str | None
         :param level: Logging level, defaults to INFO if not specified.
-        :type level: :py:obj:`~typing.Optional` [:py:class:`int`]
+        :type level: int | None
         :param debug: Whether to enable debug logging for console, defaults to False.
-        :type debug: :py:class:`bool`
+        :type debug: bool
         :return: The configured logger.
-        :rtype: :py:obj:`~logging.Logger`
+        :rtype: logging.Logger
         """
         logger_name = name if name else PatcherLog.LOGGER_NAME
         os.makedirs(PatcherLog.LOG_DIR, exist_ok=True)
@@ -63,7 +63,7 @@ class PatcherLog:
         return logger
 
     @staticmethod
-    def setup_child_logger(childName: str, loggerName: Optional[str] = None) -> logging.Logger:
+    def setup_child_logger(childName: str, loggerName: str | None = None) -> logging.Logger:
         """
         Setup a child logger for a specified context.
 
@@ -73,11 +73,11 @@ class PatcherLog:
             The ``debug`` parameter is now handled at CLI entry point. Child loggers with an explicitly set logging level will not respect configuration changes to the root logger.
 
         :param childName: The name of the child logger.
-        :type childName: :py:class:`str`
+        :type childName: str
         :param loggerName: The name of the parent logger, defaults to "Patcher".
-        :type loggerName: :py:class:`str`
+        :type loggerName: str | None
         :return: The configured child logger.
-        :rtype: :py:obj:`~logging.Logger`
+        :rtype: logging.Logger
         """
         name = loggerName if loggerName else PatcherLog.LOGGER_NAME
         return logging.getLogger(name).getChild(childName)
@@ -86,7 +86,7 @@ class PatcherLog:
     def custom_excepthook(
         exc_type: Type[BaseException],
         exc_value: BaseException,
-        exc_traceback: Optional[TracebackType],
+        exc_traceback: TracebackType | None,
     ) -> None:
         """
         A custom exception handler for unhandled exceptions.
@@ -94,11 +94,11 @@ class PatcherLog:
         This method is intended to be assigned to ``sys.excepthook`` to handle any uncaught exceptions in the application.
 
         :param exc_type: The class of the exception raised.
-        :type exc_type: :py:obj:`~typing.Type` of :py:class:`BaseException`
+        :type exc_type: Type[BaseException]
         :param exc_value: The instance of the exception raised.
-        :type exc_value: :py:class:`BaseException`
+        :type exc_value: BaseException
         :param exc_traceback: The traceback object associated with the exception.
-        :type exc_traceback: :py:obj:`~typing.Optional` of :py:obj:`~types.TracebackType`
+        :type exc_traceback: TracebackType | None
         """
         parent_logger = logging.getLogger(PatcherLog.LOGGER_NAME)
         child_logger = parent_logger.getChild("UnhandledException")

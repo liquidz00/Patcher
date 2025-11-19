@@ -10,7 +10,7 @@ from src.patcher.utils.exceptions import PatcherError, ShellCommandError
 def ui_manager(mock_plist_manager, monkeypatch):
     with (
         patch("src.patcher.client.ui_manager.BaseAPIClient") as mock_api_client,
-        patch("src.patcher.client.ui_manager.PropertyListManager", return_value=mock_plist_manager),
+        patch("src.patcher.client.ui_manager.PropertylistManager", return_value=mock_plist_manager),
     ):
         mock_api = mock_api_client.return_value
         mock_api.execute_sync.return_value = b"Mock response"
@@ -67,6 +67,7 @@ def test_config_load_default(ui_manager, mock_plist_manager):
             UIConfigKeys.REG_FONT_PATH.value: "/mock/path/Assistant-Regular.ttf",
             UIConfigKeys.BOLD_FONT_PATH.value: "/mock/path/Assistant-Bold.ttf",
             UIConfigKeys.LOGO_PATH.value: "",
+            UIConfigKeys.HEADER_COLOR.value: "#6432bdff",
         }
 
         assert config == expected_config

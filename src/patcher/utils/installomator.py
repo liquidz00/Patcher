@@ -3,7 +3,7 @@ import fnmatch
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import ValidationError
 from rapidfuzz import fuzz, process
@@ -20,14 +20,14 @@ IGNORED_TEAMS = ["Frydendal", "Media", "LL3KBL2M3A"]  # "LL3KBL2M3A" - lcadvance
 
 
 class Installomator:
-    def __init__(self, concurrency: Optional[int] = 5):
+    def __init__(self, concurrency: int | None = 5):
         """
         The Installomator class interacts with `Installomator <https://github.com/Installomator/Installomator>`_, a script used for automated software installations on macOS.
 
         This class provides methods for fetching, parsing, and matching Installomator labels to ``PatchTitle`` objects using direct or fuzzy matching.
 
         :param concurrency: Number of concurrent requests allowed for API operations. See :ref:`concurrency <concurrency>` in Usage docs.
-        :type concurrency: :py:obj:`~typing.Optional` [:py:class:`int`]
+        :type concurrency: int | None
         """
         self.log = LogMe(self.__class__.__name__)
         self.label_path = Path.home() / "Library/Application Support/Patcher/.labels"
@@ -36,18 +36,18 @@ class Installomator:
         self.threshold = 85
         self.review_file = Path.home() / "Library/Application Support/Patcher/unmatched_apps.json"
 
-        self._labels: Optional[List[Label]] = None
-        self._fragments: Optional[List[Fragment]] = None
+        self._labels: list[Label] | None = None
+        self._fragments: list[Fragment] | None = None
 
     @staticmethod
-    def _validate_labels(value: List[Any]) -> List[Label]:
+    def _validate_labels(value: list[Any]) -> list[Label]:
         """Validates the provided value is a list of ``Label`` objects."""
         if not isinstance(value, list):
             raise PatcherError("Value provided is not a list of Label objects.", value=value)
 
         validated_labels = [item for item in value if isinstance(item, Label)]
         if not validated_labels:
-            raise PatcherError("List provided does not contain any valid Label objects.")
+            raise PatcherError("list provided does not contain any valid Label objects.")
 
         return validated_labels
 
@@ -71,7 +71,7 @@ class Installomator:
             return False
 
     @staticmethod
-    def _parse(fragment: str) -> Dict[str, Any]:
+    def _parse(fragment: str) -> dict[str, Any]:
         """Parses the passed fragment string and returns dictionary of formatted key-values."""
         fragment = re.sub(r"^\w+\)\s*", "", fragment).strip()  # Remove opening key
         fragment = re.sub(r";;\s*$", "", fragment).strip()  # Remove trailing ;;
@@ -109,7 +109,7 @@ class Installomator:
 
         return data
 
-    async def _fetch_fragments(self) -> List[Fragment]:
+    async def _fetch_fragments(self) -> list[Fragment]:
         """Fetches Installomator fragments via GitHub API."""
         installomator_url = (
             "https://api.github.com/repos/Installomator/Installomator/contents/fragments/labels"
@@ -125,7 +125,7 @@ class Installomator:
                 "Unable to retrieve Installomator fragments as expected.", error_msg=str(e)
             )
 
-    async def _create_label_dir(self, fragments: List[Fragment]) -> bool:
+    async def _create_label_dir(self, fragments: list[Fragment]) -> bool:
         """Creates label directory to save raw Installomator fragments locally."""
         if not self.label_path.exists():
             self.label_path.mkdir(parents=True, exist_ok=True)
@@ -145,7 +145,7 @@ class Installomator:
         results = await asyncio.gather(*tasks)
         return all(result is True for result in results)
 
-    async def _build_labels(self) -> List[Label]:
+    async def _build_labels(self) -> list[Label]:
         """Builds list of ``Label`` objects from parsing ``self.label_path``."""
         labels = []
         for file_path in self.label_path.glob("*.sh"):
@@ -177,7 +177,7 @@ class Installomator:
         """Normalizes app names to better match Installomator labels (e.g. nodejs)."""
         return app_name.lower().replace(" ", "").replace(".", "")
 
-    def _match_directly(self, app_names: List[str], label_lookup: Dict[str, Label]) -> List[Label]:
+    def _match_directly(self, app_names: list[str], label_lookup: dict[str, Label]) -> list[Label]:
         """Attempts direct and normalized name matching."""
         matched_labels = []
         for app_name in app_names:
@@ -188,7 +188,7 @@ class Installomator:
                 matched_labels.append(label_lookup[normalized_name])
         return matched_labels
 
-    def _match_fuzzy(self, app_names: List[str], label_lookup: Dict[str, Label]) -> List[Label]:
+    def _match_fuzzy(self, app_names: list[str], label_lookup: dict[str, Label]) -> list[Label]:
         """Attempts fuzzy matching if no direct match is found."""
         matched_labels = []
         for app_name in app_names:
@@ -203,9 +203,9 @@ class Installomator:
 
     def _second_pass(
         self,
-        unmatched_apps: List[Dict[str, Any]],
-        label_lookup: Dict[str, Label],
-        patch_titles: List[PatchTitle],
+        unmatched_apps: list[dict[str, Any]],
+        label_lookup: dict[str, Label],
+        patch_titles: list[PatchTitle],
     ) -> int:
         """Attempts to match previously unmatched apps by normalized ``PatchTitle.title`` and fuzzy search."""
         matched_count = 0
@@ -244,18 +244,18 @@ class Installomator:
         unmatched_apps[:] = still_unmatched
         return matched_count
 
-    def _save_unmatched_apps(self, unmatched_apps: List[Dict[str, Any]]) -> None:
+    def _save_unmatched_apps(self, unmatched_apps: list[dict[str, Any]]) -> None:
         """Saves unmatched apps to a JSON file for later review."""
         self.review_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.review_file, "w") as file:
             json.dump(unmatched_apps, file, indent=4)  # type: ignore
 
-    async def get_labels(self) -> List[Label]:
+    async def get_labels(self) -> list[Label]:
         """
         Builds ``Label`` objects after collecting ``Fragment`` objects from GitHub API.
 
         :return: The compiled list of ``Label`` objects.
-        :rtype: :py:obj:`~typing.List` [:class:`~patcher.models.label.Label`]
+        :rtype: :py:obj:`~typing.list` [:class:`~patcher.models.label.Label`]
         """
         if self._labels is None:
             fragments = await self._fetch_fragments()
@@ -263,7 +263,7 @@ class Installomator:
             self._labels = await self._build_labels()
         return self._labels
 
-    async def match(self, patch_titles: List[PatchTitle]) -> None:
+    async def match(self, patch_titles: list[PatchTitle]) -> None:
         """
         Matches Installomator labels to ``PatchTitle`` objects using direct mapping and fuzzy matching.
 
@@ -273,7 +273,7 @@ class Installomator:
         - Updates :attr:`~patcher.models.patch.PatchTitle.install_label` with matched labels
 
         :param patch_titles: The list of ``PatchTitle`` objects to match with ``Label`` objects.
-        :type patch_titles: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
+        :type patch_titles: :py:obj:`~typing.list` [:class:`~patcher.models.patch.PatchTitle`]
         """
         self.log.debug("Starting label-patch title matching process.")
 

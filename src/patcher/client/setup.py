@@ -1,7 +1,6 @@
 import json
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
 
 import asyncclick as click
 
@@ -12,7 +11,7 @@ from ..utils.exceptions import APIResponseError, SetupError, TokenError
 from ..utils.logger import LogMe
 from . import BaseAPIClient
 from .config_manager import ConfigManager
-from .plist_manager import PropertyListManager
+from .plist_manager import PropertylistManager
 from .token_manager import TokenManager
 from .ui_manager import UIConfigManager
 
@@ -20,7 +19,7 @@ from .ui_manager import UIConfigManager
 GREET = "Thanks for downloading Patcher!\n"
 WELCOME = """It looks like this is your first time using the tool. We will guide you through the initial setup to get you started.
 
-The setup assistant will prompt you to choose your setup method--Standard is the automated setup which will prompt for your Jamf URL, your Jamf Pro username and your Jamf Pro password. Patcher ONLY uses this information to create the necessary API role and client on your behalf, your credentials are not stored whatsoever. Once generated, these client credentials (and generated bearer token) can be found in your keychain. The SSO setup will prompt for a client ID and client secret of an API Client that has already been created. 
+The setup assistant will prompt you to choose your setup method--Standard is the automated setup which will prompt for your Jamf URL, your Jamf Pro username and your Jamf Pro password. Patcher ONLY uses this information to create the necessary API role and client on your behalf, your credentials are not stored whatsoever. Once generated, these client credentials (and generated bearer token) can be found in your keychain. The SSO setup will prompt for a client ID and client secret of an API Client that has already been created.
 
 You will be prompted to enter in the header and footer text for PDF reports, along with optional custom fonts and branding logo. These can be configured later by modifying the corresponding keys in the com.liquidzoo.patcher.plist file in Patcher's Application Support directory stored in the user library.
 
@@ -63,7 +62,7 @@ class SetupStateManager:
         allowing the setup process to be resumed from the last known stage.
 
         :param state_path: Filesystem path to the JSON file used to persist setup stage.
-        :type state_path: :py:obj:`~pathlib.Path`
+        :type state_path: Path
         """
         self.state_path = state_path
 
@@ -113,7 +112,7 @@ class Setup:
         self,
         config: ConfigManager,
         ui_config: UIConfigManager,
-        plist_manager: PropertyListManager,
+        plist_manager: PropertylistManager,
     ):
         """
         Handles the initial setup process for the Patcher CLI tool.
@@ -127,7 +126,7 @@ class Setup:
         :param ui_config: Handles UI-related configurations for the setup process.
         :type ui_config: :class:`~patcher.client.ui_manager.UIConfigManager`
         :param plist_manager: Handles read/write operations to project property list.
-        :type plist_manager: :class:`~patcher.client.plist_manager.PropertyListManager`
+        :type plist_manager: :class:`~patcher.client.plist_manager.PropertylistManager`
         """
         self.config = config
         self.ui_config = ui_config
@@ -152,7 +151,7 @@ class Setup:
         Indicates whether the setup process has been completed.
 
         :return: True if setup has been completed, False otherwise.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         if self._completed is None:
             self.log.debug("Checking setup completion status.")
@@ -177,7 +176,7 @@ class Setup:
         Assigns a ``SetupStage`` value to the stage property.
 
         :param value: The value to assign to ``self.stage``.
-        :type value: :class:`~patcher.client.setup.SetupStage`
+        :type value: SetupStage
         """
         self._stage = value
 
@@ -198,26 +197,26 @@ class Setup:
         if value:
             self.state_manager.destroy()
 
-    def _get_creds(self, include_token: bool = False) -> Dict:
+    def _get_creds(self, include_token: bool = False) -> dict:
         """Retrieves all stored credentials from keychain."""
         keys = ["URL", "CLIENT_ID", "CLIENT_SECRET"]
         if include_token:
             keys.extend(["TOKEN", "TOKEN_EXPIRATION"])
         return {key: self.config.get_credential(key) for key in keys}
 
-    def _save_creds(self, creds: Dict) -> None:
+    def _save_creds(self, creds: dict) -> None:
         """Save gathered credentials to keychain."""
         for key, value in creds.items():
             self.config.set_credential(key, value)
 
-    def prompt_credentials(self, setup_type: SetupType) -> Dict:
+    def prompt_credentials(self, setup_type: SetupType) -> dict:
         """
         Prompt for credentials based on the credential type.
 
         :param setup_type: The ``SetupType`` of credentials to prompt for.
-        :type setup_type: :class:`~patcher.client.setup.SetupType`
+        :type setup_type: SetupType
         :return: The credentials in dictionary form.
-        :rtype: :py:obj:`~typing.Dict`
+        :rtype: dict
         """
         self.log.info(f"Prompting user for {setup_type.value} credentials.")
         if setup_type == SetupType.STANDARD:
@@ -234,17 +233,17 @@ class Setup:
             }
 
     def validate_creds(
-        self, creds: Dict, required_keys: Tuple[str, ...], setup_type: SetupType
+        self, creds: dict, required_keys: tuple[str, ...], setup_type: SetupType
     ) -> None:
         """
         Validates all required keys are present in the credentials.
 
         :param creds: Credentials to validate
-        :type creds: :py:obj:`~typing.Dict`
+        :type creds: dict
         :param required_keys: Keys required to be present in passed credentials.
-        :type required_keys: :py:obj:`~typing.Tuple` [:py:class:`str`, ...]
+        :type required_keys: tuple[str, ...]
         :param setup_type: The ``SetupType`` to validate credentials against.
-        :type setup_type: :class:`~patcher.client.setup.SetupType`
+        :type setup_type: SetupType
         :raises SetupError: If any credentials are missing.
         """
         self.log.info(f"Validating credentials for {setup_type.value} setup.")
@@ -272,18 +271,18 @@ class Setup:
         self.plist_manager.set("enable_installomator", use_installomator)
 
     async def get_token(
-        self, setup_type: SetupType = SetupType.STANDARD, creds: Optional[Dict] = None
-    ) -> Union[str, AccessToken]:
+        self, setup_type: SetupType = SetupType.STANDARD, creds: dict | None = None
+    ) -> str | AccessToken:
         """
         Fetches a Token (basic or ``AccessToken``) depending on setup type (Standard or SSO).
 
         :param setup_type: ``SetupType`` specified dictates which type of Token will be retrieved (basic or bearer).
-        :type setup_type: :class:`~patcher.client.setup.SetupType`
+        :type setup_type: SetupType
         :param creds: If ``SetupType`` is "Standard", the user credentials needed to obtain a basic token.
-        :type creds: :py:obj:`~typing.Optional` [:py:obj:`~typing.Dict`]
+        :type creds: dict | None
         :raises SetupError: If either type of Token could not be obtained.
         :return: For ``SetupType.STANDARD``, the basic token is returned. For ``SetupType.SSO``, the ``AccessToken`` object is returned.
-        :rtype: :py:obj:`~typing.Union` [:py:class:`str`, :class:`~patcher.models.token.AccessToken`]
+        :rtype: str | AccessToken
         """
         if setup_type == SetupType.SSO:
             token_manager = TokenManager(self.config)
@@ -313,17 +312,17 @@ class Setup:
                     error_msg=str(e),
                 )
 
-    async def create_api_client(self, basic_token: str, jamf_url: str) -> Tuple[str, str]:
+    async def create_api_client(self, basic_token: str, jamf_url: str) -> tuple[str, str]:
         """
         Creates API Role and Client for standard setup types.
 
         :param basic_token: The basic token used for authorization in creating API Role and Client
-        :type basic_token: :py:class:`str`
+        :type basic_token: str
         :param jamf_url: The Jamf Pro instance URL to create API Role and Clients in.
-        :type jamf_url: :py:class:`str`
+        :type jamf_url: str
         :raises SetupError: If either the API Role or API Client could not be created.
         :return: The client ID and client secret of the created API Client and Role.
-        :rtype: :py:obj:`~typing.Tuple` [:py:class:`str`, :py:class:`str`]
+        :rtype: tuple[str, str]
         """
         api_client = BaseAPIClient()
         if not await api_client.create_roles(token=basic_token, jamf_url=jamf_url):
@@ -436,7 +435,7 @@ class Setup:
         self.stage = SetupStage.COMPLETED
         self._mark_completion(value=True)
 
-    async def start(self, animator: Optional[Animation] = None, fresh: bool = False) -> None:
+    async def start(self, animator: Animation | None = None, fresh: bool = False) -> None:
         """
         Allows the user to choose between different setup methods (Standard or SSO).
 
@@ -452,9 +451,9 @@ class Setup:
             For SSO users, reference our :ref:`handling-sso` page for assistance creating an API integration.
 
         :param animator: The animation instance to update messages. Defaults to ``self.animator``.
-        :type animator: :py:obj:`~typing.Optional` [:class:`~patcher.utils.animation.Animation`]
+        :type animator: Animation | None
         :param fresh: If ``True``, starts setup from scratch regardless of previous stage saved.
-        :type fresh: :py:class:`bool`
+        :type fresh: bool
         :raises SetupError: If a token could not be fetched, credentials are missing or setup could not be marked complete.
         """
         if self.completed:
@@ -504,7 +503,7 @@ class Setup:
             It is important to remove the API Role and Client objects before re-running the Setup assistant.
 
         :return: ``True`` if the Setup section in the property list file was removed.
-        :rtype: :py:class:`bool`
+        :rtype: bool
         """
         self.log.debug("Attempting to reset setup.")
         success = self.plist_manager.remove("setup_completed")

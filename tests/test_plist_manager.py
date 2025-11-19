@@ -3,7 +3,7 @@ from pathlib import Path
 from unittest.mock import mock_open
 
 import pytest
-from src.patcher.client.plist_manager import PropertyListManager
+from src.patcher.client.plist_manager import PropertylistManager
 from src.patcher.utils.exceptions import PatcherError
 
 
@@ -40,8 +40,8 @@ def test_load_plist_file_valid(mock_plist_manager, mocker, mock_plist):
 
 
 def test_load_plist_file_missing(mocker, tmp_path):
-    mocker.patch.object(PropertyListManager, "_ensure_directory", return_value=None)
-    plist_manager = PropertyListManager()
+    mocker.patch.object(PropertylistManager, "_ensure_directory", return_value=None)
+    plist_manager = PropertylistManager()
     plist_manager.plist_path = tmp_path / "mock_plist.plist"
 
     mocker.patch.object(Path, "exists", return_value=False)
@@ -49,16 +49,16 @@ def test_load_plist_file_missing(mocker, tmp_path):
 
 
 def test_load_plist_file_corrupted(mocker, tmp_path):
-    mocker.patch.object(PropertyListManager, "_ensure_directory", return_value=None)
-    plist_manager = PropertyListManager()
+    mocker.patch.object(PropertylistManager, "_ensure_directory", return_value=None)
+    plist_manager = PropertylistManager()
     plist_manager.plist_path = tmp_path / "mock_plist.plist"
     mocker.patch("plistlib.load", side_effect=plistlib.InvalidFileException)
     assert plist_manager._load_plist_file() == {}
 
 
 def test_write_plist_file_success(mocker, tmp_path, mock_plist):
-    mocker.patch.object(PropertyListManager, "_ensure_directory", return_value=None)
-    plist_manager = PropertyListManager()
+    mocker.patch.object(PropertylistManager, "_ensure_directory", return_value=None)
+    plist_manager = PropertylistManager()
     plist_manager.plist_path = tmp_path / "mock_plist.plist"
     mock_open_instance = mock_open()
     mocker.patch.object(Path, "open", mock_open_instance)
@@ -71,8 +71,8 @@ def test_write_plist_file_success(mocker, tmp_path, mock_plist):
 
 
 def test_write_plist_file_error(mocker, tmp_path, mock_plist):
-    mocker.patch.object(PropertyListManager, "_ensure_directory", return_value=None)
-    plist_manager = PropertyListManager()
+    mocker.patch.object(PropertylistManager, "_ensure_directory", return_value=None)
+    plist_manager = PropertylistManager()
     plist_manager.plist_path = tmp_path / "mock_plist.plist"
 
     mocker.patch.object(Path, "open", side_effect=PermissionError("Write access denied"))

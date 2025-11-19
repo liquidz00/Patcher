@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import Field, field_validator
 
@@ -15,7 +15,7 @@ class Label(Model):
     For detailed reference on Installomator Labels, see :ref:`Installomator <installomator>` in the project docs, or visit the :ghwiki:`Labels reference <Installomator:Label Variables Reference>` in the Installomator wiki.
 
     :param name: The name of the Application the label is tied to (e.g., 'Google Chrome')
-    :type name: :py:class:`str`
+    :type name: str
     :param type: The type of installation package.
 
             Allowed values:
@@ -28,13 +28,13 @@ class Label(Model):
             - ``pkgInZip``
             - ``appInDmgInZip``
 
-    :type type: :py:class:`str`
+    :type type: str
     :param expectedTeamID: The expected Team ID of the software publisher (must be a 10-character string).
-    :type expectedTeamID: :py:class:`str`
+    :type expectedTeamID: str
     :param installomatorLabel: The label name of the software title (e.g., 'googlechromepkg')
-    :type installomatorLabel: :py:class:`str`
+    :type installomatorLabel: str
     :param downloadURL: The URL from which the package can be downloaded.
-    :type downloadURL: :py:class:`str`
+    :type downloadURL: str
     """
 
     name: str
@@ -63,7 +63,7 @@ class Label(Model):
     #   CLIInstaller: Optional[str] = None
     #   CLIArguments: Optional[list[str]] = None
     #   installerTool: Optional[str] = None
-    #   curlOptions: Optional[List[str]] = None
+    #   curlOptions: Optional[list[str]] = None
 
     def __str__(self):
         return f"Name: {self.name} Type: {self.type} Label: {self.installomatorLabel}"
@@ -94,14 +94,14 @@ class Label(Model):
         return v
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any], **kwargs) -> "Label":
+    def from_dict(cls, data: dict[str, Any], **kwargs) -> "Label":
         """
         Creates a ``Label`` instance from passed dictionary.
 
         Only includes keys that match the fields defined in the model.
 
         :param data: API response payload to parse for object creation.
-        :type data: :py:obj:`~typing.Dict`
+        :type data: dict[str, Any]
         :return: The configured ``Label`` object.
         :rtype: :class:`~patcher.models.label.Label`
         """

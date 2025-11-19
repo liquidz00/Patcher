@@ -23,9 +23,9 @@ def check_token(func: Callable) -> Any:
     a valid and sufficiently long-lived access token to interact with the Jamf API.
 
     :param func: The asynchronous function to be decorated.
-    :type func: :py:obj:`~typing.Callable`
+    :type func: Callable
     :return: The result of the decorated function.
-    :rtype: :py:obj:`~typing.Any`
+    :rtype: Any
     :raises TokenError: If the AccessToken fails validation (is invalid), if refresh fails or returns ``None``.
     """
 

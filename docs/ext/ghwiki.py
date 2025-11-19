@@ -1,5 +1,4 @@
 import re
-from typing import Dict, List, Optional, Tuple
 
 from docutils import nodes
 from docutils.nodes import Node, system_message
@@ -11,7 +10,7 @@ from sphinx.util.docutils import SphinxRole
 class GitHubWikiRole(SphinxRole):
     """Custom role to resolve GitHub Wiki references, supporting multiple repositories."""
 
-    def process_link(self, repo_url: str, page_name: str, header: Optional[str] = None):
+    def process_link(self, repo_url: str, page_name: str, header: str | None = None):
         page_slug = page_name.replace(" ", "-")
 
         if header:
@@ -28,7 +27,7 @@ class GitHubWikiRole(SphinxRole):
 
     def parse_role_text(
         self, text: str, env: BuildEnvironment
-    ) -> Tuple[Optional[str], str, str, Optional[str]]:
+    ) -> tuple[str | None, str, str, str | None]:
         """
         Parses the role text to extract optional link test, repository, page name, and header.
         Format: "Custom Link Text <Repo:Page#Header>"
@@ -57,14 +56,14 @@ class GitHubWikiRole(SphinxRole):
 
     def create_reference_node(
         self, link: str, link_text: str
-    ) -> Tuple[List[Node], List[system_message]]:
+    ) -> tuple[list[Node], list[system_message]]:
         """Creates inline reference node for link."""
         ref_node = nodes.reference(rawsource=self.text, text=link_text, refuri=link)
         inline_node = nodes.inline()
         inline_node += ref_node
         return [inline_node], []
 
-    def run(self) -> Tuple[List[Node], List[system_message]]:
+    def run(self) -> tuple[list[Node], list[system_message]]:
         """Process custom role and generate appropriate reference node."""
         text = self.text
         env = self.inliner.document.settings.env
@@ -83,7 +82,7 @@ class GitHubWikiRole(SphinxRole):
         return self.create_reference_node(link, link_text or page_name)
 
 
-def setup(app: Sphinx) -> Dict[str, object]:
+def setup(app: Sphinx) -> dict[str, object]:
     """Sphinx extension setup."""
     app.add_role("ghwiki", GitHubWikiRole())
     app.add_config_value("github_wiki_repos", {}, "env")

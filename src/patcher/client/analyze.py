@@ -1,7 +1,7 @@
 import pickle
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable
 
 import pandas as pd
 
@@ -20,7 +20,7 @@ class BaseEnum(Enum):
         Maps CLI-friendly inputs (e.g., '--most-installed', '--release-frequency') to Enum values.
 
         :param value: CLI-friendly string.
-        :type value: :py:class:`str`
+        :type value: str
         :return: Corresponding Enum value
         :rtype: :class:`~patcher.client.analyze.FilterCriteria` | :class:`~patcher.client.analyze.TrendCriteria`
         :raises PatcherError: If the input is invalid
@@ -62,7 +62,7 @@ class Analyzer:
     def __init__(
         self,
         data_manager: DataManager,
-        excel_path: Optional[Union[Path, str]] = None,
+        excel_path: Path | str | None = None,
     ):
         """
         Performs analysis on patch data retrieved via :class:`~patcher.utils.data_manager.DataManager`.
@@ -72,7 +72,7 @@ class Analyzer:
         :param data_manager: The ``DataManager`` instance for retrieving and managing patch data.
         :type data_manager: :class:`~patcher.utils.data_manager.DataManager`
         :param excel_path: Path to the Excel file.
-        :type excel_path: :py:obj:`~typing.Union` [:py:obj:`~pathlib.Path` | :py:class:`str`]
+        :type excel_path: Path | str | None
         """
         self.log = LogMe(self.__class__.__name__)
         self.data_manager = data_manager
@@ -81,7 +81,7 @@ class Analyzer:
         else:
             self.df = pd.DataFrame([patch.model_dump() for patch in self.data_manager.titles])
 
-    def _validate_path(self, file_path: Union[Path, str]) -> bool:
+    def _validate_path(self, file_path: Path | str) -> bool:
         """Ensures the file path passed exists and is a file (not a directory)."""
         self.log.debug(f"Validating file path: {file_path}")
         if isinstance(file_path, str):
@@ -97,7 +97,7 @@ class Analyzer:
         self.log.info(f"File at {file_path} validated successfully.")
         return True
 
-    def _combine_datasets(self, datasets: List[Union[pd.DataFrame, Path, str]]) -> pd.DataFrame:
+    def _combine_datasets(self, datasets: list[pd.DataFrame | Path | str]) -> pd.DataFrame:
         """Combines multiple datasets into a single DataFrame."""
         dataframes = []
         for dataset in datasets:
@@ -121,12 +121,12 @@ class Analyzer:
         self.log.info(f"Combined {len(dataframes)} datasets into a single DataFrame.")
         return combined_df
 
-    def initialize_dataframe(self, excel_path: Union[Path, str]) -> pd.DataFrame:
+    def initialize_dataframe(self, excel_path: Path | str) -> pd.DataFrame:
         """
         Initializes a DataFrame by reading the Excel file from the provided path.
 
-        :param excel_path: The path to the Excel file, either as a string or a :py:class:`~pathlib.Path` object.
-        :type excel_path: :py:obj:`~typing.Union` [:py:obj:`~pathlib.Path` | :py:class:`str`]
+        :param excel_path: The path to the Excel file, either as a string or a Path object.
+        :type excel_path: Path | str
         :return: A pandas DataFrame loaded from the Excel file.
         :rtype: `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
         :raises PatcherError: If the passed ``excel_file`` could not be validated (does not exist, or is not a file).
@@ -163,16 +163,16 @@ class Analyzer:
             )
 
     @staticmethod
-    def format_table(data: List[List[str]], headers: Optional[List[str]] = None) -> str:
+    def format_table(data: list[list[str]], headers: list[str] | None = None) -> str:
         """
         Formats the data passed into a table for CLI output.
 
         :param data: The data to display in the table.
-        :type data: :py:obj:`~typing.List` [:py:obj:`~typing.List`]
+        :type data: list[list[str]]
         :param headers: Header names for the columns of the tables.
-        :type headers: :py:obj:`~typing.Optional` [:py:obj:`~typing.List`]
+        :type headers: list[str] | None
         :return: The formatted table as a string.
-        :rtype: :py:class:`str`
+        :rtype: str
         """
         if headers:
             data = [headers] + data
@@ -190,9 +190,9 @@ class Analyzer:
     def filter_titles(
         self,
         criteria: FilterCriteria,
-        threshold: Optional[float] = 70.0,
-        top_n: Optional[int] = None,
-    ) -> List[PatchTitle]:
+        threshold: float | None = 70.0,
+        top_n: int | None = None,
+    ) -> list[PatchTitle]:
         """
         Filters and sorts PatchTitle objects based on specified criteria.
 
@@ -211,16 +211,16 @@ class Analyzer:
 
         :type criteria: :class:`~patcher.client.analyze.FilterCriteria`
         :param threshold: The threshold for filtering completion percentages, default is 70.0.
-        :type threshold: :py:obj:`~typing.Optional` [:py:class:`float`]
+        :type threshold: float | None
         :param top_n: Number of results to return. If None (default), return all matching results.
-        :type top_n: :py:obj:`~typing.Optional` [:py:class:`int`]
+        :type top_n: int | None
         :return: Filtered and sorted list of ``PatchTitle`` objects.
-        :rtype: :py:obj:`~typing.List` [:class:`~patcher.models.patch.PatchTitle`]
+        :rtype: list[:class:`~patcher.models.patch.PatchTitle`]
         """
         self.log.debug(f"Attempting to filter titles by {criteria}.")
 
         titles = self.data_manager.titles
-        sort_criteria: Dict[FilterCriteria, Callable[[], List[PatchTitle]]] = {
+        sort_criteria: dict[FilterCriteria, Callable[[], list[PatchTitle]]] = {
             FilterCriteria.MOST_INSTALLED: lambda: sorted(
                 titles, key=lambda pt: pt.total_hosts, reverse=True
             ),
@@ -282,8 +282,8 @@ class Analyzer:
     def timelapse(
         self,
         criteria: TrendCriteria,
-        datasets: Optional[List[Union[Path, str, pd.DataFrame]]] = None,
-        sort_by: Optional[str] = None,
+        datasets: list[Path | str | pd.DataFrame] | None = None,
+        sort_by: str | None = None,
         ascending: bool = True,
     ) -> pd.DataFrame:
         """
@@ -292,11 +292,11 @@ class Analyzer:
         :param criteria: The trend analysis criteria to use.
         :type criteria: :class:`~patcher.client.analyze.TrendCriteria`
         :param datasets: A list of DataFrames or file paths to analyze. If None, uses cached data.
-        :type datasets: :py:obj:`~typing.Optional` [:py:obj:`~typing.List`]
+        :type datasets: list[Path | str | pd.DataFrame] | None
         :param sort_by: A column to sort the results by.
-        :type sort_by: :py:obj:`~typing.Optional` [:py:class:`str`]
+        :type sort_by: str | None
         :param ascending: Sorting order (ascending if True, descending if False).
-        :type ascending: :py:class:`bool`
+        :type ascending: bool
         :return: A DataFrame with the trend analysis results.
         :rtype: `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
         :raises PatcherError: If criteria is invalid or data loading fails.
@@ -311,7 +311,7 @@ class Analyzer:
 
         combined_df = self._combine_datasets(datasets)
 
-        trend_criteria: Dict[TrendCriteria, Callable[[], pd.DataFrame]] = {
+        trend_criteria: dict[TrendCriteria, Callable[[], pd.DataFrame]] = {
             TrendCriteria.PATCH_ADOPTION: lambda: combined_df.groupby("title", as_index=False)
             .agg(
                 average_completion=("completion_percent", "mean"),
