@@ -28,12 +28,15 @@ jobs:
           cache-dependency-glob: "uv.lock"
 
       - name: Set up Python
-        run: uv python install 3.x
+        run: uv python install 3.11
+
+      - name: Sync dependencies
+        run: uv sync --extra dev
 
       - name: Read release version
         id: read_version
         run: |
-          VERSION=$(python3 -c 'import src.patcher.__about__ as about; print(about.__version__)')
+          VERSION=$(uv run python -c 'import src.patcher.__about__ as about; print(about.__version__)')
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
 
       - name: Build binary wheel and source tarball
@@ -59,6 +62,7 @@ jobs:
       - name: Generate changelog
         id: changelog
         uses: metcalfc/changelog-generator@3f82cef08fe5dcf57c591fe165e70e1d5032e15a  # v4.6.2
+        continue-on-error: true  # don't block releases
         with:
           myToken: ${{ secrets.GITHUB_TOKEN }}
           reverse: 'true'
