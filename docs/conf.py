@@ -10,7 +10,7 @@ import warnings
 from pathlib import Path
 
 from sphinx.locale import _
-from src.patcher.__about__ import __version__
+from patcher.__about__ import __version__
 
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("../src"))
@@ -146,7 +146,7 @@ togglebutton_hint_hide = str(_("Click to collapse"))
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_baseurl = "http://patcher.readthedocs.io"
+html_baseurl = "https://patcher.readthedocs.io"
 html_theme = "pydata_sphinx_theme"
 html_logo = "_static/v2-logo.svg"
 html_favicon = "_static/v2-logo-favicon.svg"
