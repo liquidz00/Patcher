@@ -51,16 +51,19 @@ patcherctl = "patcher.cli:cli"
 
 [project.optional-dependencies]
 dev = [
-  "autodoc-pydantic",
+  "patcher[docs]",
   "build",
-  "myst-parser",
   "pre-commit>=4.3.0",
-  "pydata-sphinx-theme",
   "pytest>=8.2.2",
   "pytest-asyncio>=0.23.5",
   "pytest-cov>=4.0.0",
   "pytest-mock>=3.14.0",
   "ruff>=0.5.1",
+]
+docs = [
+  "autodoc-pydantic",
+  "myst-parser",
+  "pydata-sphinx-theme",
   "sphinx>=7.3.7",
   "sphinx-design",
   "sphinx-copybutton",

@@ -89,14 +89,14 @@ def linkcode_resolve(domain, info):
     """Generate external links to source code on GitHub."""
     if domain != "py":
         return None
-    
+
     modname = info.get("module")
     fullname = info.get("fullname")
 
     submod = sys.modules.get(modname)
     if submod is None:
         return None
-    
+
     obj = submod
     for part in fullname.split("."):
         try:
@@ -105,7 +105,7 @@ def linkcode_resolve(domain, info):
                 obj = getattr(obj, part)
         except AttributeError:
             return None
-    
+
     try:
         fn = inspect.getsourcefile(inspect.unwrap(obj))
     except TypeError:
@@ -115,7 +115,7 @@ def linkcode_resolve(domain, info):
             fn = None
     if not fn:
         return None
-    
+
     try:
         source, lineno = inspect.getsourcelines(obj)
     except (TypeError, OSError):
@@ -123,7 +123,7 @@ def linkcode_resolve(domain, info):
             source, lineno = inspect.getsourcelines(obj.fget)  # property
         except (AttributeError, TypeError):
             lineno = None
-    
+
     linespec = f"#L{lineno}-L{lineno + len(source) - 1}" if lineno else ""
 
     # Convert to relative path for GHlinks
@@ -146,7 +146,7 @@ togglebutton_hint_hide = str(_("Click to collapse"))
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_baseurl = "http://patcher.liquidzoo.io"
+html_baseurl = "http://patcher.readthedocs.io"
 html_theme = "pydata_sphinx_theme"
 html_logo = "_static/v2-logo.svg"
 html_favicon = "_static/v2-logo-favicon.svg"
