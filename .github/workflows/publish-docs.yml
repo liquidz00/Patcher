@@ -1,12 +1,6 @@
 name: Publish Docs
 
 on:
-  push:
-    branches:
-      - 'main'
-    paths:
-      - 'docs/**'
-      - 'src/**'
   workflow_dispatch:
 
 permissions:
