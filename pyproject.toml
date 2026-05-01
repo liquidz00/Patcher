@@ -41,8 +41,8 @@ classifiers = [
 
 
 [project.urls]
-Homepage = "https://patcher.liquidzoo.io"
-Documentation = "https://patcher.liquidzoo.io"
+Homepage = "https://patcher.readthedocs.io"
+Documentation = "https://patcher.readthedocs.io"
 Repository = "https://github.com/liquidz00/Patcher"
 Issues = "https://github.com/liquidz00/Patcher/issues/new?assignees=&labels=bug&projects=&template=issue.md&title=%5BISSUE%5D+Your+Issue+Title"
 
@@ -51,7 +51,7 @@ patcherctl = "patcher.cli:cli"
 
 [project.optional-dependencies]
 dev = [
-  "patcher[docs]",
+  "patcherctl[docs]",
   "build",
   "pre-commit>=4.3.0",
   "pytest>=8.2.2",
