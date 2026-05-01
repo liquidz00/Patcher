@@ -24,13 +24,13 @@ Using the `--pre` option alone will not install beta releases from TestPyPI sinc
 
 ## Verifying the Installation
 
-After installation, you can verify Patcher is installed correctly by running: 
+After installation, you can verify Patcher is installed correctly by running:
 
 ```console
 $ patcherctl --version
 ```
 
-This should display the installed version of Patcher. Additionally, the `--help` command can also verify installation and show helpful {ref}`options to pass <usage>` at runtime: 
+This should display the installed version of Patcher. Additionally, the `--help` command can also verify installation and show helpful {ref}`options to pass <usage>` at runtime:
 
 ```shell
 $ patcherctl --help
@@ -40,7 +40,7 @@ Usage: python -m patcher.cli <options> COMMAND [ARGS]...
   Main CLI entry point for Patcher.
 
   Visit our project documentation for full details:
-  https://patcher.liquidzoo.io.
+  https://patcher.readthedocs.io.
 
   Exit Codes:
       0   Success
@@ -66,7 +66,7 @@ If instead you are presented with an error such as ``command not found``, ensure
 
 ### Adding Python to ``PATH``
 
-CLI tools are typically installed to the ``/bin`` subdirectory of the Python framework. This can be added to your shell ``PATH`` by executing: 
+CLI tools are typically installed to the ``/bin`` subdirectory of the Python framework. This can be added to your shell ``PATH`` by executing:
 
 ```{code-block} bash
 echo 'export PATH=$(python3 -m site --user-base)/bin:$PATH' >> ~/.zshrc && source ~/.zshrc
@@ -79,7 +79,7 @@ If ``zsh`` is not your default shell, adjust the command to reflect the proper s
 
 As of version 1.4.1, Patcher no longer modifies SSL configurations. SSL handling for custom certificates required some additional TLC by end users and would often cause SSL verification errors at runtime. This is compounded when taking into account our end users are likely on managed systems with security policies and third-party certificates (e.g., Zscaler).  
 
-With the current version, SSL handling is no longer required by the end user. We've integrated ``curl`` with ``asyncio`` within Patcher's functionality to automatically handle SSL verification as part of API requests. This design choice removes the need for manual SSL configurations, streamlining the setup for MacAdmins on managed computers. 
+With the current version, SSL handling is no longer required by the end user. We've integrated ``curl`` with ``asyncio`` within Patcher's functionality to automatically handle SSL verification as part of API requests. This design choice removes the need for manual SSL configurations, streamlining the setup for MacAdmins on managed computers.
 
 :::{note}
 While the current integration between `curl` and `asyncio` gets the job done for handling SSL verification, there's room for refinement. Community contributions to enhance this functionality are welcome and encouraged. If you're interested in exploring ways to solidify this process further, check out the relevant code in the {ref}`BaseAPIClient <base_api_client>` class.
@@ -87,4 +87,4 @@ While the current integration between `curl` and `asyncio` gets the job done for
 
 This update makes it easier for Patcher to run smoothly in secure environments, without the hassle of adjusting system certificates or tinkering with Python’s SSL settings.
 
-**If none of the above steps worked to resolve the issue**, please reach out to us and let us know what (if any) security software is installed on your machine. This will help us troubleshoot issues in the future. Additionally, get in touch with someone from your security team for next steps as they may have a solution in place. 
+**If none of the above steps worked to resolve the issue**, please reach out to us and let us know what (if any) security software is installed on your machine. This will help us troubleshoot issues in the future. Additionally, get in touch with someone from your security team for next steps as they may have a solution in place.

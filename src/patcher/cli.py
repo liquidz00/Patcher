@@ -117,7 +117,7 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool, fresh: bool)
     """
     Main CLI entry point for Patcher.
 
-    Visit our project documentation for full details: https://patcher.liquidzoo.io.
+    Visit our project documentation for full details: https://patcher.readthedocs.io.
 
     \b
     Exit Codes:
@@ -168,7 +168,9 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool, fresh: bool)
             click.echo(
                 "Patcher is now ready for use. You can use the --help flag to view available options."
             )
-            click.echo("For more information, visit the project docs: https://patcher.liquidzoo.io")
+            click.echo(
+                "For more information, visit the project docs: https://patcher.readthedocs.io"
+            )
             ctx.exit(0)  # Exit to avoid running a command
 
 
