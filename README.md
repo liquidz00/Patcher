@@ -94,7 +94,7 @@ $ make format
 
 ## Contributing
 
-[Contributions](https://patcher.readthedocs.io/contributing/index.html) to Patcher are welcome! We have set up templates for submitting [issues](https://github.com/liquidz00/Patcher/issues/new?template=issue.md), [feature requests](https://github.com/liquidz00/Patcher/issues/new?template=feature_request.md), and [feedback](https://github.com/liquidz00/Patcher/issues/new?template=feedback.md). Please be sure to utilize these templates when contributing to the project.
+[Contributions](https://patcher.readthedocs.io/en/latest/contributing/index.html) to Patcher are welcome! We have set up templates for submitting [issues](https://github.com/liquidz00/Patcher/issues/new?template=issue.md), [feature requests](https://github.com/liquidz00/Patcher/issues/new?template=feature_request.md), and [feedback](https://github.com/liquidz00/Patcher/issues/new?template=feedback.md). Please be sure to utilize these templates when contributing to the project.
 
 <!--
 Author: Andrew Lerman
