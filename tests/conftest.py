@@ -261,7 +261,10 @@ def mock_sofa_response():
 
 @pytest.fixture
 def mock_access_token():
-    return AccessToken(token="mocked_token", expires=datetime(2026, 1, 1, tzinfo=timezone.utc))
+    return AccessToken(
+        token="mocked_token",
+        expires=datetime.now(timezone.utc) + timedelta(days=365),
+    )
 
 
 @pytest.fixture
@@ -278,7 +281,7 @@ def config_manager():
     mock_config = MagicMock()
     mock_config.get_credential.side_effect = lambda key: {
         "TOKEN": "mocked_token",
-        "TOKEN_EXPIRATION": datetime(2026, 1, 1, tzinfo=timezone.utc),
+        "TOKEN_EXPIRATION": datetime.now(timezone.utc) + timedelta(days=365),
         "CLIENT_ID": "mock_client_id",
         "CLIENT_SECRET": "mock_client_secret",
         "URL": "https://mocked.url",
