@@ -9,9 +9,9 @@ The User Guide is designed to be your go-to resource for learning how to set up,
 ## What You'll Find Here
 
 - **Getting Started**: Learn about prerequisites, installation, and running the setup assistant to configure Patcher for the first time.
-- **Setup**: Detailed instructions for configuring Patcher to fit your organization's needs, including Jamf Pro integration and scheduling automated reports. 
+- **Setup**: Detailed instructions for configuring Patcher to fit your organization's needs, including Jamf Pro integration and scheduling automated reports.
 - **Usage**: Explore how to use Patcher's commands and features, from exporting patch data and customizing reports to analyzing software titles and trends.
-- **Support and Troubleshooting**: Get answers to common questions and find solutions to potential issues. 
+- **Support and Troubleshooting**: Get answers to common questions and find solutions to potential issues.
 
 * * *
 
@@ -25,7 +25,7 @@ The User Guide is designed to be your go-to resource for learning how to set up,
 :class-title: patcher-title
 :shadow: md
 
-Learn about prerequisites and installation. 
+Learn about prerequisites and installation.
 ```{toctree}
 :caption: Getting Started
 :maxdepth: 2
@@ -61,6 +61,7 @@ setup_assistant
 jamf_deployment
 plist
 schedulereports
+ci_cd
 ```
 
 +++
