@@ -85,3 +85,52 @@ def test_reset_config_partial_failure(real_config_manager):
         result = real_config_manager.reset_config()
         assert mock_delete_credential.call_count == 5
         assert result is False
+
+
+# In-memory mode (non-interactive / CI/CD)
+
+
+def test_in_memory_mode_property():
+    """A ConfigManager constructed with in_memory_credentials reports in_memory_mode=True."""
+    cm_keychain = ConfigManager(service_name="TestService")
+    cm_memory = ConfigManager(service_name="TestService", in_memory_credentials={})
+
+    assert cm_keychain.in_memory_mode is False
+    assert cm_memory.in_memory_mode is True
+
+
+def test_in_memory_get_returns_from_dict_without_keyring():
+    """get_credential reads from the in-memory dict and never touches keyring."""
+    cm = ConfigManager(
+        service_name="TestService",
+        in_memory_credentials={"CLIENT_ID": "abc-123"},
+    )
+    with patch("keyring.get_password") as mock_keyring:
+        result = cm.get_credential("CLIENT_ID")
+    assert result == "abc-123"
+    mock_keyring.assert_not_called()
+
+
+def test_in_memory_get_returns_none_for_missing_key():
+    """get_credential returns None for absent keys without raising."""
+    cm = ConfigManager(service_name="TestService", in_memory_credentials={})
+    with patch("keyring.get_password") as mock_keyring:
+        assert cm.get_credential("NEVER_SET") is None
+    mock_keyring.assert_not_called()
+
+
+def test_in_memory_set_writes_to_dict_without_keyring():
+    """set_credential writes to the in-memory dict and never touches keyring."""
+    cm = ConfigManager(service_name="TestService", in_memory_credentials={})
+    with patch("keyring.set_password") as mock_keyring:
+        cm.set_credential("CLIENT_SECRET", "shh")
+    assert cm.get_credential("CLIENT_SECRET") == "shh"
+    mock_keyring.assert_not_called()
+
+
+def test_in_memory_constructor_copies_input_dict():
+    """Mutating the dict passed in shouldn't leak into the ConfigManager."""
+    creds = {"URL": "https://example.com"}
+    cm = ConfigManager(service_name="TestService", in_memory_credentials=creds)
+    creds["URL"] = "https://changed.example.com"
+    assert cm.get_credential("URL") == "https://example.com"
