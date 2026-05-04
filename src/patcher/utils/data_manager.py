@@ -1,7 +1,8 @@
 import asyncio
+import json
 import pickle
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from string import Template
 
@@ -14,6 +15,35 @@ from ..models.patch import PatchDevice, PatchTitle
 from .exceptions import PatcherError
 from .logger import LogMe
 from .pdf_report import PDFReport
+
+
+def serialize_titles_to_dict(
+    patch_titles: list[PatchTitle], report_title: str | None = None
+) -> dict:
+    """Convert a list of :class:`PatchTitle` into a JSON-serializable dict.
+
+    Pure function with no I/O — safe to call from CLI export, library code,
+    or anywhere a structured representation of the titles is useful.
+
+    The returned dict has the shape::
+
+        {
+            "generated_at": "2026-05-04T18:30:00+00:00",
+            "report_title": "...",
+            "title_count": 42,
+            "titles": [<PatchTitle.model_dump()>, ...]
+        }
+
+    :param patch_titles: List of :class:`PatchTitle` objects to serialize.
+    :param report_title: Optional title carried through to consumers.
+    :return: A dict ready for ``json.dump`` or direct programmatic use.
+    """
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "report_title": report_title,
+        "title_count": len(patch_titles),
+        "titles": [title.model_dump(mode="json") for title in patch_titles],
+    }
 
 
 class DataManager:
@@ -192,6 +222,16 @@ class DataManager:
 
         export_dir.mkdir(parents=True, exist_ok=True)
         return export_dir / filename
+
+    async def _export_json(
+        self,
+        patch_titles: list[PatchTitle],
+        json_path: Path,
+        report_title: str | None,
+    ) -> None:
+        """Writes the serialized titles to ``json_path``."""
+        payload = serialize_titles_to_dict(patch_titles, report_title=report_title)
+        await asyncio.to_thread(json_path.write_text, json.dumps(payload, indent=2))
 
     async def _export_pdf(self, df: pd.DataFrame, pdf_path: Path, date_format: str):
         """Generates a PDF Report from a given DataFrame."""
@@ -445,7 +485,7 @@ class DataManager:
         :rtype: dict[str, str]
         """
         if formats is None:
-            formats = {"excel", "html", "pdf"}
+            formats = {"excel", "html", "pdf", "json"}
 
         exported_files = {}
 
@@ -497,6 +537,20 @@ class DataManager:
         except (OSError, PermissionError) as e:
             raise PatcherError(
                 "Encountered an error saving HTML report.",
+                file_path=str(output_dir),
+                error_msg=str(e),
+            )
+
+        try:
+            # JSON — serialized straight from PatchTitle models (no DataFrame round-trip)
+            # so consumers get the same shape the library exposes programmatically.
+            if "json" in formats:
+                json_path = self._generate_filename(output_dir, "json", analysis)
+                await self._export_json(patch_titles, json_path, report_title)
+                exported_files["json"] = str(json_path)
+        except (OSError, PermissionError) as e:
+            raise PatcherError(
+                "Encountered an error saving JSON report.",
                 file_path=str(output_dir),
                 error_msg=str(e),
             )

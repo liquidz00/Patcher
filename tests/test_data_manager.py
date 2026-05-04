@@ -1,3 +1,4 @@
+import json
 import os
 import pickle
 from datetime import datetime, timedelta
@@ -8,7 +9,7 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 from src.patcher.models.patch import PatchTitle
-from src.patcher.utils.data_manager import DataManager
+from src.patcher.utils.data_manager import DataManager, serialize_titles_to_dict
 from src.patcher.utils.exceptions import PatcherError
 
 
@@ -222,3 +223,78 @@ async def test_load_cached_data_with_corrupted_files(mock_data_manager):
 
     # Assert that no valid data was loaded
     assert len(loaded_data) == 0
+
+
+# JSON export tests
+
+
+def test_serialize_titles_to_dict_shape(sample_patch_reports):
+    """The serializer wraps titles in metadata and preserves model fields."""
+    payload = serialize_titles_to_dict(sample_patch_reports, report_title="Test Report")
+
+    assert payload["report_title"] == "Test Report"
+    assert payload["title_count"] == 1
+    assert "generated_at" in payload  # ISO timestamp
+    assert isinstance(payload["titles"], list)
+
+    title = payload["titles"][0]
+    assert title["title"] == "Example Software"
+    assert title["title_id"] == "0"
+    assert title["completion_percent"] == 83.33
+    assert title["total_hosts"] == 12
+
+
+def test_serialize_titles_to_dict_empty():
+    """An empty title list still produces a valid envelope."""
+    payload = serialize_titles_to_dict([], report_title=None)
+    assert payload["title_count"] == 0
+    assert payload["titles"] == []
+    assert payload["report_title"] is None
+
+
+def test_serialize_titles_to_dict_is_json_serializable(sample_patch_reports):
+    """The dict must round-trip through json.dumps without errors."""
+    payload = serialize_titles_to_dict(sample_patch_reports, report_title="Test")
+    json_str = json.dumps(payload)
+    parsed = json.loads(json_str)
+    assert parsed["title_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_export_to_json_success(sample_patch_reports, temp_output_dir):
+    """The export method writes a valid JSON file when 'json' is in formats."""
+    data_manager = DataManager()
+
+    with patch.object(data_manager, "_cache_data", return_value=None):
+        exported_files = await data_manager.export(
+            sample_patch_reports, temp_output_dir, "Test Report", formats={"json"}
+        )
+
+    json_path = exported_files.get("json")
+    assert json_path is not None
+    assert os.path.exists(json_path)
+    assert json_path.endswith(".json")
+
+    with open(json_path) as f:
+        payload = json.load(f)
+
+    assert payload["title_count"] == 1
+    assert payload["report_title"] == "Test Report"
+    assert payload["titles"][0]["title"] == "Example Software"
+    assert "generated_at" in payload
+
+
+@pytest.mark.asyncio
+async def test_export_default_includes_json(sample_patch_reports, temp_output_dir):
+    """When no formats are specified, JSON is included in the default set."""
+    data_manager = DataManager()
+
+    with patch.object(data_manager, "_cache_data", return_value=None):
+        exported_files = await data_manager.export(
+            sample_patch_reports, temp_output_dir, "Test Report"
+        )
+
+    assert "json" in exported_files
+    assert "excel" in exported_files
+    assert "html" in exported_files
+    assert "pdf" in exported_files

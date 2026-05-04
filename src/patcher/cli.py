@@ -310,7 +310,7 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
     "formats",
     multiple=True,
     metavar="<format>",
-    type=click.Choice(["excel", "html", "pdf"], case_sensitive=False),
+    type=click.Choice(["excel", "html", "pdf", "json"], case_sensitive=False),
     help="Specify report formats (default: all). Use multiple times for multiple formats.",
 )
 @click.option(
@@ -407,7 +407,7 @@ async def export(
         debug=ctx.obj.get("debug"),
     )
 
-    selected_formats = set(formats) if formats else {"excel", "html", "pdf"}
+    selected_formats = set(formats) if formats else {"excel", "html", "pdf", "json"}
     actual_format = DATE_FORMATS[date_format]
 
     ui_config, plist_manager = ctx.obj.get("ui_config"), ctx.obj.get("plist_manager")
