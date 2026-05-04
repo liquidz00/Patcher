@@ -8,6 +8,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.4.0] - 2026-05-04
+### Added
+- JSON output format for exported patch reports (`--format=json`). Suitable for machine-consumable pipelines and downstream automation.
+- Non-interactive setup mode for CI/CD environments. Pass `--client-id` / `--client-secret` / `--url` (or `PATCHER_CLIENT_ID` / `PATCHER_CLIENT_SECRET` / `PATCHER_URL` env vars) to skip every interactive prompt and run without keychain access.
+- Documentation page covering non-interactive mode with a complete GitHub Actions workflow example.
+
+
 ## [v2.3.0] - 2025-11-19
 ### Added
 - Ability to customize the header color in exported HTML reports [(#39)(https://github.com/liquidz00/Patcher/issues/39)]
