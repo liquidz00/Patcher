@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
 import pytest
-import pytz
 from fpdf import FPDF
 from src.patcher.client import BaseAPIClient
 from src.patcher.client.api_client import ApiClient
@@ -88,7 +87,7 @@ def mock_summary_response():
             "softwareTitleConfigurationId": "3",
             "title": "Google Chrome",
             "latestVersion": "122.0.6261.57",
-            "releaseDate": get_iso_format(datetime.now(pytz.utc) - timedelta(days=3)),
+            "releaseDate": get_iso_format(datetime.now(timezone.utc) - timedelta(days=3)),
             "upToDate": 23,
             "outOfDate": 163,
             "onDashboard": True,
@@ -98,7 +97,7 @@ def mock_summary_response():
             "softwareTitleConfigurationId": "4",
             "title": "Jamf Connect",
             "latestVersion": "2.32.0",
-            "releaseDate": get_iso_format(datetime.now(pytz.utc) - timedelta(hours=24)),
+            "releaseDate": get_iso_format(datetime.now(timezone.utc) - timedelta(hours=24)),
             "upToDate": 185,
             "outOfDate": 19,
             "onDashboard": True,
@@ -108,7 +107,7 @@ def mock_summary_response():
             "softwareTitleConfigurationId": "5",
             "title": "Apple macOS Ventura",
             "latestVersion": "13.6.4 (22G513)",
-            "releaseDate": get_iso_format(datetime.now(pytz.utc) - timedelta(days=7)),
+            "releaseDate": get_iso_format(datetime.now(timezone.utc) - timedelta(days=7)),
             "upToDate": 6,
             "outOfDate": 5,
             "onDashboard": True,
@@ -125,7 +124,7 @@ def mock_patch_title_response():
         PatchTitle(
             title="Google Chrome",
             title_id="3",
-            released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=3)),
+            released=get_iso_format(datetime.now(timezone.utc) - timedelta(days=3)),
             hosts_patched=23,
             missing_patch=163,
             latest_version="2.0.0",
@@ -133,7 +132,7 @@ def mock_patch_title_response():
         PatchTitle(
             title="Jamf Connect",
             title_id="4",
-            released=get_iso_format(datetime.now(pytz.utc) - timedelta(hours=24)),
+            released=get_iso_format(datetime.now(timezone.utc) - timedelta(hours=24)),
             hosts_patched=185,
             missing_patch=19,
             latest_version="1.4.5",
@@ -141,7 +140,7 @@ def mock_patch_title_response():
         PatchTitle(
             title="Apple macOS Ventura",
             title_id="5",
-            released=get_iso_format(datetime.now(pytz.utc) - timedelta(days=7)),
+            released=get_iso_format(datetime.now(timezone.utc) - timedelta(days=7)),
             hosts_patched=6,
             missing_patch=5,
             latest_version="13.7.1",
