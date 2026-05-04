@@ -312,49 +312,53 @@ class Analyzer:
         combined_df = self._combine_datasets(datasets)
 
         trend_criteria: dict[TrendCriteria, Callable[[], pd.DataFrame]] = {
-            TrendCriteria.PATCH_ADOPTION: lambda: combined_df.groupby("title", as_index=False)
-            .agg(
-                average_completion=("completion_percent", "mean"),
-                recent_release=("released", "max"),
-            )
-            .rename(
-                columns={
-                    "title": "Title",
-                    "average_completion": "Average Completion",
-                    "recent_release": "Most Recent Release",
-                }
-            )
-            .assign(
-                **{
-                    "Most Recent Release": lambda df: df["Most Recent Release"].dt.strftime(
-                        "%Y-%m-%d"
-                    ),
-                    "Average Completion": lambda df: df["Average Completion"].apply(
-                        lambda x: f"{x:.2f}%"
-                    ),
-                }
+            TrendCriteria.PATCH_ADOPTION: lambda: (
+                combined_df.groupby("title", as_index=False)
+                .agg(
+                    average_completion=("completion_percent", "mean"),
+                    recent_release=("released", "max"),
+                )
+                .rename(
+                    columns={
+                        "title": "Title",
+                        "average_completion": "Average Completion",
+                        "recent_release": "Most Recent Release",
+                    }
+                )
+                .assign(
+                    **{
+                        "Most Recent Release": lambda df: df["Most Recent Release"].dt.strftime(
+                            "%Y-%m-%d"
+                        ),
+                        "Average Completion": lambda df: df["Average Completion"].apply(
+                            lambda x: f"{x:.2f}%"
+                        ),
+                    }
+                )
             ),
-            TrendCriteria.RELEASE_FREQUENCY: lambda: combined_df.groupby("title", as_index=False)
-            .agg(release_count=("released", "nunique"))
-            .rename(columns={"title": "Title", "release_count": "Release Count"}),
-            TrendCriteria.COMPLETION_TRENDS: lambda: combined_df.groupby(
-                ["released", "title"], as_index=False
-            )
-            .agg(average_completion=("completion_percent", "mean"))
-            .rename(
-                columns={
-                    "title": "Title",
-                    "average_completion": "Average Completion",
-                    "released": "Release Date",
-                }
-            )
-            .assign(
-                **{
-                    "Release Date": lambda df: df["Release Date"].dt.strftime("%Y-%m-%d"),
-                    "Average Completion": lambda df: df["Average Completion"].apply(
-                        lambda x: f"{x:.2f}%"
-                    ),
-                }
+            TrendCriteria.RELEASE_FREQUENCY: lambda: (
+                combined_df.groupby("title", as_index=False)
+                .agg(release_count=("released", "nunique"))
+                .rename(columns={"title": "Title", "release_count": "Release Count"})
+            ),
+            TrendCriteria.COMPLETION_TRENDS: lambda: (
+                combined_df.groupby(["released", "title"], as_index=False)
+                .agg(average_completion=("completion_percent", "mean"))
+                .rename(
+                    columns={
+                        "title": "Title",
+                        "average_completion": "Average Completion",
+                        "released": "Release Date",
+                    }
+                )
+                .assign(
+                    **{
+                        "Release Date": lambda df: df["Release Date"].dt.strftime("%Y-%m-%d"),
+                        "Average Completion": lambda df: df["Average Completion"].apply(
+                            lambda x: f"{x:.2f}%"
+                        ),
+                    }
+                )
             ),
         }
 
