@@ -1,9 +1,18 @@
-# Set update schedule for GitHub Actions
-
 version: 2
 updates:
 
+  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "monthly"
+
+  # Python (uv-managed). Groups all updates into a single weekly PR
+  # to avoid noise — security alerts still fire individually as needed.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      python-deps:
+        patterns: ["*"]
