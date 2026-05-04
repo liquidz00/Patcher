@@ -115,8 +115,14 @@ select = [
   "N802",
   "N806"
 ]
-per-file-ignores = {"utils/animation.py" = ["F403"]}
 ignore = ["E722"]
+
+[tool.ruff.lint.per-file-ignores]
+"utils/animation.py" = ["F403"]
+# Test code commonly assigns mocks to PascalCase names that stand in for the
+# class being patched (e.g. MockTokenManager = MagicMock()). N806 (non-lowercase
+# variable in function) is the wrong lint to enforce in that context.
+"tests/**/*.py" = ["N806"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
