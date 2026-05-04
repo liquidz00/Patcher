@@ -435,6 +435,53 @@ class Setup:
         self.stage = SetupStage.COMPLETED
         self._mark_completion(value=True)
 
+    async def bootstrap_noninteractive(
+        self,
+        client_id: str,
+        client_secret: str,
+        url: str,
+    ) -> None:
+        """
+        Non-interactive setup path for CI/CD environments.
+
+        Skips all prompts (setup type, Installomator, UI configuration). The provided
+        credentials are stored via the configured :class:`ConfigManager` — when that
+        manager is in in-memory mode (the typical CI/CD setup) the macOS keychain is
+        not touched. An access token is then fetched so subsequent API calls succeed.
+
+        Setup completion is marked in memory only — no plist mutation. The next
+        invocation will need to provide credentials again, which is the desired
+        behavior on ephemeral runners.
+
+        :param client_id: Jamf Pro API client ID.
+        :type client_id: str
+        :param client_secret: Jamf Pro API client secret.
+        :type client_secret: str
+        :param url: Jamf Pro instance URL.
+        :type url: str
+        :raises SetupError: If a token cannot be obtained with the provided credentials.
+        """
+        self.log.info("Bootstrapping Patcher in non-interactive mode.")
+
+        self.config.set_credential("URL", url)
+        self.config.set_credential("CLIENT_ID", client_id)
+        self.config.set_credential("CLIENT_SECRET", client_secret)
+
+        token_manager = TokenManager(self.config)
+        try:
+            await token_manager.fetch_token()
+        except TokenError as e:
+            self.log.error(f"Non-interactive token fetch failed. Details: {e}")
+            raise SetupError(
+                "Failed to obtain an AccessToken in non-interactive mode. "
+                "Verify the provided credentials are correct.",
+                error_msg=str(e),
+            )
+
+        # Mark completion in memory only — do not write to plist.
+        self._completed = True
+        self.log.info("Non-interactive bootstrap completed successfully.")
+
     async def start(self, animator: Animation | None = None, fresh: bool = False) -> None:
         """
         Allows the user to choose between different setup methods (Standard or SSO).

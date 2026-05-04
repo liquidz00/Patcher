@@ -8,7 +8,11 @@ from ..utils.logger import LogMe
 
 
 class ConfigManager:
-    def __init__(self, service_name: str = "Patcher"):
+    def __init__(
+        self,
+        service_name: str = "Patcher",
+        in_memory_credentials: dict[str, str] | None = None,
+    ):
         """
         Manages configuration settings, primarily focused on handling credentials stored in the macOS keychain.
 
@@ -18,17 +22,35 @@ class ConfigManager:
         ``ConfigManager`` objects are initialized with a default service name of "Patcher", which is used as a
         namespace for storing and retrieving credentials in macOS keychain.
 
+        For non-interactive use (CI/CD environments without a keychain backend), pass
+        ``in_memory_credentials`` to bypass the keychain entirely. Reads check the
+        in-memory dict first and fall through to keyring only if the key is absent.
+        Writes go to the in-memory dict only — keyring is not touched.
+
         :param service_name: Service name for storing credentials in the keyring. Defaults to 'Patcher'.
         :type service_name: str
+        :param in_memory_credentials: Optional dict of credentials held in memory; when present
+            the keyring is not used for either reads or writes.
+        :type in_memory_credentials: dict[str, str] | None
         """
         self.log = LogMe(self.__class__.__name__)
         self.service_name = service_name
-        self.log.debug(f"ConfigManager initialized with service name: {self.service_name}")
+        self._memory: dict[str, str] | None = (
+            dict(in_memory_credentials) if in_memory_credentials is not None else None
+        )
+        mode = "in-memory" if self._memory is not None else "keyring"
+        self.log.debug(f"ConfigManager initialized with service name: {self.service_name} ({mode})")
+
+    @property
+    def in_memory_mode(self) -> bool:
+        """Whether this manager bypasses the keyring (CI/CD-friendly mode)."""
+        return self._memory is not None
 
     def get_credential(self, key: str) -> str:
         """
-        This method is useful for accessing stored credentials without hardcoding them in scripts.
-        It ensures that sensitive data like passwords or API tokens are securely stored and retrieved.
+        Retrieves a credential by key. In in-memory mode, returns from the
+        in-memory dict (or ``None`` if absent). Otherwise reads from the
+        macOS keychain.
 
         :param key: The key of the credential to retrieve, typically a descriptive name like 'API_KEY'.
         :type key: str
@@ -37,6 +59,15 @@ class ConfigManager:
         :raises CredentialError: If the specified credential could not be retrieved.
         """
         self.log.debug(f"Attempting to retrieve credential for key: '{key}'")
+
+        if self.in_memory_mode:
+            credential = self._memory.get(key)
+            if credential:
+                self.log.info(f"Credential for key '{key}' retrieved from in-memory store.")
+            else:
+                self.log.warning(f"Credential for key '{key}' not present in in-memory store.")
+            return credential
+
         try:
             credential = keyring.get_password(self.service_name, key)
             if credential:
@@ -53,10 +84,9 @@ class ConfigManager:
 
     def set_credential(self, key: str, value: str) -> None:
         """
-        Stores a credential in the keyring under the specified key.
-
-        Method is used to securely store sensitive data such as Jamf URL, API Tokens, and API credentials
-        such as client ID and client secret.
+        Stores a credential. In in-memory mode, writes to the in-memory dict
+        only — the keychain is never touched. Otherwise writes to the macOS
+        keychain.
 
         :param key: The key under which the credential will be stored. This acts as an identifier for the credential.
         :type key: str
@@ -65,6 +95,12 @@ class ConfigManager:
         :raises CredentialError: If the specified credential could not be saved.
         """
         self.log.debug(f"Attempting to store credential for key: '{key}'")
+
+        if self.in_memory_mode:
+            self._memory[key] = value
+            self.log.info(f"Credential for key '{key}' stored in in-memory store.")
+            return
+
         try:
             keyring.set_password(self.service_name, key, value)
             self.log.info(f"Credential for key '{key}' set successfully")

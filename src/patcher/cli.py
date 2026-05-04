@@ -112,8 +112,39 @@ warnings.formatwarning = warning_format
 @click.option(
     "--fresh", is_flag=True, help="Start setup from scratch, ingoring previously saved progress."
 )
+@click.option(
+    "--client-id",
+    envvar="PATCHER_CLIENT_ID",
+    metavar="<client_id>",
+    help=(
+        "Jamf Pro API client ID. When passed alongside --client-secret and --url "
+        "(or via PATCHER_CLIENT_ID, PATCHER_CLIENT_SECRET, PATCHER_URL env vars), "
+        "Patcher runs in non-interactive mode without keychain access — intended "
+        "for CI/CD environments."
+    ),
+)
+@click.option(
+    "--client-secret",
+    envvar="PATCHER_CLIENT_SECRET",
+    metavar="<client_secret>",
+    help="Jamf Pro API client secret. See --client-id for non-interactive mode notes.",
+)
+@click.option(
+    "--url",
+    envvar="PATCHER_URL",
+    metavar="<jamf_url>",
+    help="Jamf Pro instance URL. See --client-id for non-interactive mode notes.",
+)
 @click.pass_context
-async def cli(ctx: click.Context, debug: bool, disable_cache: bool, fresh: bool) -> None:
+async def cli(
+    ctx: click.Context,
+    debug: bool,
+    disable_cache: bool,
+    fresh: bool,
+    client_id: str | None,
+    client_secret: str | None,
+    url: str | None,
+) -> None:
     """
     Main CLI entry point for Patcher.
 
@@ -137,6 +168,12 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool, fresh: bool)
     :type disable_cache: bool
     :param fresh: If ``True``, forces the setup assistant to start from scratch. Defaults to ``False``.
     :type fresh: bool
+    :param client_id: Jamf Pro API client ID for non-interactive mode.
+    :type client_id: str | None
+    :param client_secret: Jamf Pro API client secret for non-interactive mode.
+    :type client_secret: str | None
+    :param url: Jamf Pro instance URL for non-interactive mode.
+    :type url: str | None
     """
     setup_logging(debug)
 
@@ -144,14 +181,22 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool, fresh: bool)
         cache_dir = Path.home() / "Library/Caches/Patcher"
         initialize_cache(cache_dir)
 
+    # Non-interactive mode is engaged when all three credentials are present
+    # (via flags or PATCHER_* env vars). In that mode we bypass the keychain
+    # and skip every interactive prompt.
+    noninteractive = bool(client_id and client_secret and url)
+
+    config_manager = ConfigManager(in_memory_credentials={}) if noninteractive else ConfigManager()
+
     # Instantiate classes, store in context
     ctx.obj = {
         "debug": debug,
         "disable_cache": disable_cache,
+        "noninteractive": noninteractive,
         "animation": Animation(enable_animation=not debug),
         "log": LogMe(__name__),
         "plist_manager": PropertylistManager(),
-        "config": ConfigManager(),
+        "config": config_manager,
         "ui_config": UIConfigManager(),
     }
 
@@ -160,9 +205,15 @@ async def cli(ctx: click.Context, debug: bool, disable_cache: bool, fresh: bool)
 
     # Check Setup completion
     async with ctx.obj.get("animation").error_handling():
-        if ctx.obj.get("plist_manager").needs_migration():
+        if not noninteractive and ctx.obj.get("plist_manager").needs_migration():
             ctx.obj.get("plist_manager").migrate_plist()
-        if not setup.completed:
+
+        if noninteractive:
+            await setup.bootstrap_noninteractive(
+                client_id=client_id, client_secret=client_secret, url=url
+            )
+            # Fall through — let the requested subcommand run.
+        elif not setup.completed:
             await setup.start(animator=ctx.obj.get("animation"), fresh=fresh)
             click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
             click.echo(

@@ -219,3 +219,64 @@ async def test_create_client_failure(setup_instance):
     with patch.object(setup_instance, "start", side_effect=mock_start):
         with pytest.raises(Exception, match="boom"):
             await setup_instance.start()
+
+
+# Non-interactive bootstrap (CI/CD path)
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_noninteractive_success(setup_instance):
+    """Bootstrap saves creds, fetches a token, and marks completion in memory."""
+    setup_instance.config.set_credential.reset_mock()
+
+    with patch("src.patcher.client.setup.TokenManager") as MockTokenManager:
+        mock_tm = MagicMock()
+        mock_tm.fetch_token = MagicMock()
+
+        async def fake_fetch_token():
+            return MagicMock(token="abc", expires="2099-01-01T00:00:00Z")
+
+        mock_tm.fetch_token.side_effect = fake_fetch_token
+        MockTokenManager.return_value = mock_tm
+
+        await setup_instance.bootstrap_noninteractive(
+            client_id="cid", client_secret="csec", url="https://jamf.example.com"
+        )
+
+    # All three creds were saved via ConfigManager
+    saved_calls = setup_instance.config.set_credential.call_args_list
+    saved_keys = {call.args[0] for call in saved_calls}
+    assert {"URL", "CLIENT_ID", "CLIENT_SECRET"}.issubset(saved_keys)
+
+    # Token was fetched
+    mock_tm.fetch_token.assert_called_once()
+
+    # In-memory completion marked, no plist write
+    assert setup_instance._completed is True
+    setup_instance.plist_manager.set.assert_not_called() if hasattr(
+        setup_instance.plist_manager.set, "assert_not_called"
+    ) else None
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_noninteractive_token_failure_raises_setuperror(setup_instance):
+    """If the token fetch fails, a SetupError is raised with a clear message."""
+    from src.patcher.utils.exceptions import TokenError
+
+    with patch("src.patcher.client.setup.TokenManager") as MockTokenManager:
+        mock_tm = MagicMock()
+
+        async def boom():
+            raise TokenError("bad creds", url="https://jamf.example.com", error_msg="401")
+
+        mock_tm.fetch_token.side_effect = boom
+        MockTokenManager.return_value = mock_tm
+
+        with pytest.raises(SetupError) as excinfo:
+            await setup_instance.bootstrap_noninteractive(
+                client_id="cid", client_secret="bad", url="https://jamf.example.com"
+            )
+
+    assert "non-interactive mode" in str(excinfo.value)
+    # Completion NOT marked
+    assert setup_instance._completed is None or setup_instance._completed is False
