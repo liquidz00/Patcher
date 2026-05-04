@@ -1,79 +1,85 @@
 ---
-description: Python best practices and patterns for modern software development with Flask and SQLite
+description: Python conventions for the Patcher CLI / library. Use these rules when generating or editing Python code.
 globs: **/*.py
+alwaysApply: true
 ---
 
-# Python Best Practices
+# Patcher — Python Conventions
 
-## Project Structure
-- Place tests in `tests/` directory parallel
-- Keep configuration in `config/` or as environment variables
-- Store requirements in `pyproject.toml`
-- Place static files in `static/` directory
-- Use `templates/` for Jinja2 templates
+## Project structure
+- Source lives in `src/patcher/`
+- Tests in `tests/` (flat layout — no nested directories)
+- Models in `src/patcher/models/` (Pydantic 2)
+- Reusable utilities in `src/patcher/utils/`
+- HTML/PDF templates in `src/patcher/templates/`
+- Documentation in `docs/` (Sphinx + MyST)
 
-## Code Style
-- Follow Black code formatting
-- Use isort for import sorting
-- Follow PEP 8 naming conventions:
-  - snake_case for functions and variables
-  - PascalCase for classes
-  - UPPER_CASE for constants
-- Maximum line length of 100 characters
-- Use absolute imports over relative imports
-- Use proper response formats
+## Code style
+- **Ruff** for linting AND formatting (not Black, not isort separately).
+  Configuration is in `pyproject.toml` under `[tool.ruff]`.
+- Line length: **100**
+- Quotes: double
+- Target Python 3.10+
+- **Relative imports** within the package (`from .client import ApiClient`, `from ..models.patch import PatchTitle`). Don't use absolute imports for in-package references.
+- PEP 8 naming: `snake_case` for funcs/vars, `PascalCase` for classes, `UPPER_CASE` for constants. Tests are exempt from N806 (PascalCase mock vars are intentional).
 
-## Type Hints
-- Use type hints for all function parameters and returns
-- Import types from `typing` module
-- Use `Optional[Type]` instead of `Type | None`
-- Use `TypeVar` for generic types
-- Define custom types in `types.py`
-- Use `Protocol` for duck typing
+## Type hints
+- Type hints required on every public function/method parameter and return.
+- Use **modern union syntax**: `str | None`, `list[int]`, `dict[str, Any]`.
+- Do NOT use `Optional[Type]`, `Union[A, B]`, `List[T]`, `Dict[K, V]` — those are pre-3.10 forms and don't match the codebase.
+- Use `from __future__ import annotations` only when needed for forward references.
+
+## Docstrings
+- Sphinx / reStructuredText style with `:param:`, `:type:`, `:return:`, `:rtype:`, `:raises:` markup.
+- Do NOT use Google or NumPy docstring style.
+- The opening `"""` goes on its own line immediately after the function/class signature.
+- See `.cursor/rules/sphinx-style-docstrings.mdc` for the full rule + examples.
+
+## Async-first
+- Most of the codebase is async. CLI uses `asyncclick`.
+- New API-touching code should be async.
+- When calling sync code from async, use `asyncio.to_thread`.
+- Tests for async code must use `@pytest.mark.asyncio`.
+
+## Pydantic 2
+- All models inherit from `pydantic.BaseModel` (or `Model` re-export from `models/__init__.py`).
+- Use `.model_dump(mode="json")` when producing JSON output (preserves enums, datetimes, nested models).
+- Use `.model_dump()` (no mode) for in-Python dict use.
+- Use `field_validator` and `model_validator` decorators for validation, not `@validator` (Pydantic 1).
+
+## Errors
+- Custom exceptions live in `utils/exceptions.py`. All inherit from `PatcherError`.
+- Surface user-facing errors via `PatcherError(message, key=value, ...)`.
+- The CLI maps exception types to specific exit codes (1 = PatcherError, 2 = unhandled, 3 = SetupError, 4 = APIResponseError, 130 = KeyboardInterrupt).
 
 ## Testing
-- Use pytest for testing
-- Write tests for all routes
-- Use pytest-cov for coverage
-- Implement proper fixtures
-- Use proper mocking with pytest-mock
-- Test all error scenarios
-
-## Security
-- Sanitize all user inputs
-- Use proper session configuration
-- Implement proper logging
-- Follow OWASP guidelines
-
-## Error Handling
-- Create custom exception classes
-- Use proper try-except blocks
-- Implement proper logging
-- Return proper error responses
-- Handle edge cases properly
-- Use proper error messages
-
-## Documentation
-- Use reStructuredText-style docstrings
-- Document all public APIs
-- Keep README.md updated
-- Use proper inline comments
-- Generate API documentation
-- Document environment setup
-
-## Development Workflow
-- Leverage `uv` for package management
-- Use virtual environments (venv)
-- Implement pre-commit hooks
-- Use proper Git workflow
-- Follow semantic versioning
-- Use proper CI/CD practices
-- Implement proper logging
+- `pytest` + `pytest-asyncio` + `pytest-mock` + `unittest.mock`.
+- **No live Jamf Pro instance is available.** Mock the API layer (`ApiClient`, `BaseAPIClient`, `TokenManager`) for any test that touches the network.
+- Shared fixtures live in `tests/conftest.py`.
 
 ## Dependencies
-- Pin dependency versions
-- Use pyproject.toml for production
-- Separate dev dependencies
-- Use proper package versions
-- Regularly update dependencies
-- Check for security vulnerabilities
+- Managed by `uv`. Run `uv sync --all-extras` to set up dev deps.
+- Production deps in `[project.dependencies]`, dev deps in `[project.optional-dependencies]` under `dev`/`docs`.
+- Don't add new top-level dependencies casually — discuss in an issue first.
+
+## Logging
+- Use `LogMe(self.__class__.__name__)` (or `__name__` for module-level). Defined in `utils/logger.py`.
+- Use `self.log.debug/info/warning/error/exception` instead of `print()`.
+- The CLI's global logger is configured in `setup_logging(debug)`.
+
+## Library readiness
+- Patcher will eventually be importable as a library, not just runnable as a CLI.
+- Prefer **pure functions** for data transformations (e.g. `serialize_titles_to_dict`).
+- Don't bake `click.echo()` or `click.prompt()` into business logic — those belong in `cli.py`.
+- Keep credential handling abstracted behind `ConfigManager` so the library can use `in_memory_credentials` without keychain dependencies.
+
+## Development workflow
+- Pre-commit hooks are configured (`.pre-commit-config.yaml`) and must pass.
+- Conventional Commits style: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, `build:`, `ci:`.
+- `make lint` is the source of truth for "is this ready to commit?" — runs format-check + lint check.
+- `make format` only fixes formatting. It does NOT remove unused imports — those are caught by lint.
+
+## What this codebase is NOT
+- Not a web app. There are no routes, sessions, or user-input sanitization in the OWASP sense. Don't suggest Flask/Django/FastAPI patterns.
+- Not a library yet (but designed to become one — see "Library readiness").
+- Not a service. It's a CLI that exits after each invocation.
