@@ -128,6 +128,9 @@ ignore = ["E722"]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 minversion = "6.0"
+# Project root on the path so tests can `from src.patcher.X import Y`.
+# Required after pytest 9 tightened implicit sys.path manipulation.
+pythonpath = ["."]
 addopts = [
   "--durations=5",
   "--color=yes",
