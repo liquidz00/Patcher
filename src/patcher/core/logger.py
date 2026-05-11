@@ -6,8 +6,6 @@ from logging.handlers import RotatingFileHandler
 from types import TracebackType
 from typing import Type
 
-import asyncclick as click
-
 
 class PatcherLog:
     LOGGER_NAME = "Patcher"
@@ -21,17 +19,18 @@ class PatcherLog:
     def setup_logger(
         name: str | None = None,
         level: int | None = LOG_LEVEL,
-        debug: bool = False,
     ) -> logging.Logger:
         """
-        Configures and returns a logger. If the logger is already configured, it ensures no duplicate handlers.
+        Configures and returns the Patcher logger with a rotating file handler.
 
-        :param name: Name of the logger, defaults to "Patcher".
+        Pure stdlib — no terminal output. Console / colored output is installed
+        separately by the CLI via :func:`patcher.cli.terminal_logger.install_terminal_handler`;
+        library callers get file logging only.
+
+        :param name: Name of the logger, defaults to ``"Patcher"``.
         :type name: str | None
-        :param level: Logging level, defaults to INFO if not specified.
+        :param level: Logging level for the file handler. Defaults to INFO.
         :type level: int | None
-        :param debug: Whether to enable debug logging for console, defaults to False.
-        :type debug: bool
         :return: The configured logger.
         :rtype: logging.Logger
         """
@@ -50,15 +49,7 @@ class PatcherLog:
             )
             file_handler.setLevel(level or PatcherLog.LOG_LEVEL)
             logger.addHandler(file_handler)
-
-            # Console handler for user-facing messages if debug is True
-            if debug:
-                console_handler = logging.StreamHandler(sys.stdout)
-                console_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
-                console_handler.setLevel(logging.DEBUG)
-                logger.addHandler(console_handler)
-
-            logger.setLevel(logging.DEBUG)  # Capture all messages, delegate to handlers
+            logger.setLevel(logging.DEBUG)  # Capture all messages; handlers gate by level
 
         return logger
 
@@ -67,14 +58,9 @@ class PatcherLog:
         """
         Setup a child logger for a specified context.
 
-        .. admonition:: Removed in version 2.0
-            :class: danger
-
-            The ``debug`` parameter is now handled at CLI entry point. Child loggers with an explicitly set logging level will not respect configuration changes to the root logger.
-
         :param childName: The name of the child logger.
         :type childName: str
-        :param loggerName: The name of the parent logger, defaults to "Patcher".
+        :param loggerName: The name of the parent logger, defaults to ``"Patcher"``.
         :type loggerName: str | None
         :return: The configured child logger.
         :rtype: logging.Logger
@@ -89,9 +75,13 @@ class PatcherLog:
         exc_traceback: TracebackType | None,
     ) -> None:
         """
-        A custom exception handler for unhandled exceptions.
+        Logs unhandled exceptions to Patcher's log file. Pure file logging — no
+        terminal output. The CLI installs a chained excepthook that adds
+        user-facing stderr messages on top of this one (see
+        :func:`patcher.cli.terminal_logger.install_terminal_excepthook`).
 
-        This method is intended to be assigned to ``sys.excepthook`` to handle any uncaught exceptions in the application.
+        ``KeyboardInterrupt`` is treated as a graceful exit (logged at INFO,
+        process exits 130). All other uncaught exceptions are logged at ERROR.
 
         :param exc_type: The class of the exception raised.
         :type exc_type: Type[BaseException]
@@ -105,64 +95,38 @@ class PatcherLog:
         child_logger.setLevel(parent_logger.level)
 
         if exc_type.__name__ == "KeyboardInterrupt":
-            # Exit gracefully on keyboard interrupt
             child_logger.info("User interrupted the process.")
             sys.exit(130)  # SIGINT
 
-        # format traceback
         formatted_traceback = "".join(
             traceback.format_exception(exc_type, exc_value, exc_traceback)
         )
-
         child_logger.error(
             f"Unhandled exception: {exc_type.__name__}: {exc_value}\n{formatted_traceback}"
         )
-
-        # Show user-friendly message in console
-        console_message = f"❌ {exc_type.__name__}: {exc_value}"
-
-        click.echo(
-            click.style(console_message, fg="red", bold=True),
-            err=True,
-        )
-        click.echo(
-            f"💡 For more details, please check the log file at: '{PatcherLog.LOG_FILE}'",
-            err=True,
-        )
-        return
 
 
 class LogMe:
     def __init__(self, class_name: str):
         """
-        A wrapper class for logging with optional output to console using click.
+        Thin wrapper around a stdlib :class:`logging.Logger` scoped to a class
+        name. Adds nothing beyond the file logging configured by
+        :meth:`PatcherLog.setup_logger`; terminal-color output is the CLI's
+        responsibility.
 
         :param class_name: The name of the class for which the logger is being set up.
         :type class_name: str
         """
         self.logger = PatcherLog.setup_child_logger(class_name)
 
-    @property
-    def is_debug(self) -> bool:
-        """Check if any logger handlers are set to debug level."""
-        return any(h.level == logging.DEBUG for h in self.logger.handlers)
-
     def debug(self, msg: str):
         self.logger.debug(msg)
-        if self.is_debug:
-            click.echo(click.style(f"\rDEBUG: {msg.strip()}", fg="magenta"))
 
     def info(self, msg: str):
         self.logger.info(msg)
-        if self.is_debug:
-            click.echo(click.style(f"\rINFO: {msg.strip()}", fg="blue"))
 
     def warning(self, msg: str):
         self.logger.warning(msg)
-        if self.is_debug:
-            click.echo(click.style(f"\rWARNING: {msg.strip()}", fg="yellow", bold=True))
 
     def error(self, msg: str):
-        # Error message formatting is handled by CLI, bypassing need to format error messages
-        # at the class level
         self.logger.error(msg)

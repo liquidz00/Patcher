@@ -44,15 +44,15 @@ The CLI is **async-first** — `cli/__init__.py` uses `asyncclick` and the entry
 
 `patcher.client.BaseAPIClient` (in `client/__init__.py`) is the foundation: it owns `asyncio.Semaphore`-bounded concurrency (default 5; **do not raise without cause** — Jamf scalability guidance), wraps a lazily-constructed `httpx.AsyncClient` exposed via the `http` property (TLS via `truststore.SSLContext` so OS-installed CAs are honored automatically), and centralizes HTTP status handling (4xx/5xx → `APIResponseError`, with a `not_found=True` flag for 404). The three async entry points are `fetch_json`, `fetch_text`, and `fetch_basic_token`; one-shot sync downloads (default fonts) use `httpx.get` directly with the same truststore context.
 
-`ApiClient` extends it with Jamf-specific endpoints. `TokenManager` (used inside `ApiClient`) handles bearer token lifecycle and is decorated via `client/decorators.check_token`. **Never instantiate `ApiClient` before setup completes** — its constructor calls `token_manager.attach_client()` which expects a saved `JamfClient`.
+`ApiClient` extends it with Jamf-specific endpoints. `TokenManager` (used inside `ApiClient`) handles bearer token lifecycle; `ApiClient._headers()` calls `TokenManager.ensure_valid_token()` on every request, so token validation happens once per call without a decorator wrapping methods. **Never instantiate `ApiClient` before setup completes** — its constructor calls `token_manager.attach_client()` which expects a saved `JamfClient`.
 
 ### Directory layout
 
 Source is organized into three layers under `src/patcher/`:
 
-- **`client/`** — HTTP transport, no CLI/keyring deps. `BaseAPIClient` (in `client/__init__.py`), `ApiClient` (Jamf endpoints), `TokenManager`, `decorators` (`check_token`).
-- **`core/`** — domain logic and managers. `exceptions`, `logger`, `plist_manager`, `config_manager` (keyring lives here), `ui_manager`, `data_manager`, `pdf_report`, `report_manager`, `analyze`, `installomator`, `animation`, and the Pydantic `models/` subpackage.
-- **`cli/`** — CLI surface only. `cli/__init__.py` is the click entry point and composition root; `cli/setup.py` is the interactive setup flow. Anything that prompts the user or pulls in `asyncclick`-specific behavior lives here.
+- **`client/`** — HTTP transport, no CLI/keyring deps. `BaseAPIClient` (in `client/__init__.py`), `ApiClient` (Jamf endpoints), `TokenManager`.
+- **`core/`** — domain logic and managers, no `asyncclick` / `PIL` imports. `exceptions`, `logger` (stdlib only — terminal output is the CLI's job), `plist_manager`, `config_manager` (keyring lives here), `ui_manager` (config + persistence + font download; interactive prompts moved to `cli/setup.py`), `data_manager`, `pdf_report`, `report_manager` (helpers only; the `process_reports` workflow lives in `cli/`), `analyze`, `installomator`, and the Pydantic `models/` subpackage.
+- **`cli/`** — CLI surface. `cli/__init__.py` is the click entry point and composition root; `cli/setup.py` holds the interactive setup flow and the UI prompts; `cli/report.py` holds `process_reports`; `cli/animation.py` is the terminal spinner; `cli/terminal_logger.py` is the click-styled logging adapter installed when `--debug` runs.
 
 The repo root also reserves an `api/` directory (sibling to `src/`) for the future Patcher API service — the canonical apps/patching-methods database. It is a separate deliverable and is **not** packaged into the Python distribution.
 

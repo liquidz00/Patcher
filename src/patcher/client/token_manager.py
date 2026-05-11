@@ -175,22 +175,30 @@ class TokenManager:
 
     async def ensure_valid_token(self) -> AccessToken:
         """
-        Verifies the current access token is valid (present and not expired).
-        If the token is found to be invalid, a new token is requested and refreshed.
+        Verify the current access token is valid (present and not expired);
+        refresh it if not. Pydantic :class:`ValidationError` from the
+        underlying token or client objects is translated to
+        :class:`TokenError` so callers see a single, consistent exception
+        type for token-validation failures.
 
-        .. seealso::
-            The :meth:`~patcher.client.decorators.check_token` decorator leverages
-            this method with thread locking to ensure tokens are valid before API calls.
+        Called by :meth:`~patcher.client.api_client.ApiClient._headers` on
+        every Jamf request. Every API method on ``ApiClient`` builds its
+        headers via that method, so token validation runs exactly once per
+        request without a separate decorator.
 
         :return: The ``AccessToken`` object by way of ``self.token`` property.
         :rtype: :class:`~patcher.core.models.token.AccessToken`
+        :raises TokenError: If the access token or jamf client fail
+            pydantic validation, or if a refresh attempt fails.
         """
         async with self.lock:
-            if self.token.is_expired:
-                self.log.warning("Bearer token is invalid or expired, attempting to refresh...")
-                await self.fetch_token()
-
-            self.log.info(
-                f"Token ending in ({self.token.token[-4:]}) retrieved successfully. Remaining seconds: {self.token.seconds_remaining}"
-            )
-            return self.token
+            try:
+                if self.token.is_expired:
+                    self.log.warning("Bearer token is invalid or expired, attempting to refresh...")
+                    await self.fetch_token()
+                self.log.info(
+                    f"Token ending in ({self.token.token[-4:]}) retrieved successfully. Remaining seconds: {self.token.seconds_remaining}"
+                )
+                return self.token
+            except ValidationError as e:
+                raise TokenError("AccessToken failed validation", error_msg=str(e))

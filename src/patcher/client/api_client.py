@@ -8,7 +8,6 @@ from ..core.exceptions import APIResponseError, PatcherError
 from ..core.logger import LogMe
 from ..core.models.patch import PatchDevice, PatchTitle
 from . import BaseAPIClient
-from .decorators import check_token
 from .token_manager import TokenManager
 
 
@@ -64,7 +63,6 @@ class ApiClient(BaseAPIClient):
         self.log.debug(f"Using token ending in {latest_token.token[-4:]}")
         return {"accept": "application/json", "Authorization": f"Bearer {latest_token}"}
 
-    @check_token
     async def get_policies(self) -> list[str]:
         """
         Retrieves a list of patch software title IDs from the Jamf API.
@@ -80,7 +78,6 @@ class ApiClient(BaseAPIClient):
             raise
         return [title.get("id") for title in response]
 
-    @check_token
     async def get_summaries(self, policy_ids: list[str]) -> list[PatchTitle]:
         """
         Retrieves patch summaries asynchronously for the specified policy IDs from the Jamf API.
@@ -114,7 +111,6 @@ class ApiClient(BaseAPIClient):
         ]
         return patch_titles
 
-    @check_token
     async def get_title_report_csv(self, title_id: str) -> list[PatchDevice]:
         """
         Retrieve the complete patch report for a specific software title using the CSV export endpoint.
@@ -170,7 +166,6 @@ class ApiClient(BaseAPIClient):
         self.log.info(f"Collected {len(devices)} devices from CSV export for title {title_id}")
         return devices
 
-    @check_token
     async def get_title_reports(self, title_ids: list[str]) -> dict[str, list[PatchDevice]]:
         """
         Retrieves patch reports for multiple software titles.
@@ -200,7 +195,6 @@ class ApiClient(BaseAPIClient):
         self.log.info(f"Collected {total_devices} total devices across {len(title_ids)} titles")
         return results
 
-    @check_token
     async def get_device_ids(self) -> list[int]:
         """
         Asynchronously fetches the list of mobile device IDs from the Jamf Pro API.
@@ -220,7 +214,6 @@ class ApiClient(BaseAPIClient):
         devices = response.get("results")
         return [device.get("id") for device in devices if device]
 
-    @check_token
     async def get_device_os_versions(self, device_ids: list[int]) -> list[dict[str, str]]:
         """
         Asynchronously fetches the OS version and serial number for each device ID provided.
@@ -250,7 +243,6 @@ class ApiClient(BaseAPIClient):
         ]
         return devices
 
-    @check_token
     async def get_app_names(self, patch_titles: list[PatchTitle]) -> list[dict[str, Any]]:
         """
         Fetches all possible app names for each ``PatchTitle`` object provided.

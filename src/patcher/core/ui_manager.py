@@ -3,12 +3,10 @@ import ssl
 from functools import cached_property
 from pathlib import Path
 
-import asyncclick as click
 import httpx
 import truststore
-from PIL import Image
 
-from .exceptions import PatcherError, SetupError
+from .exceptions import PatcherError
 from .logger import LogMe
 from .models.ui import UIConfigKeys, UIDefaults
 from .plist_manager import PropertylistManager
@@ -181,117 +179,6 @@ class UIConfigManager:
         except Exception as e:  # intentional
             self.log.error(f"Failed resetting UI-config settings. Details: {e}")
             return False
-
-    def setup_ui(self):
-        """
-        Guides the user through configuring UI settings for PDF reports, including header/footer text,
-        font choices, and an optional branding logo.
-
-        .. note::
-            This function is used solely by the :class:`~patcher.cli.setup.Setup` class during initial setup.
-
-        """
-        self.log.debug("Prompting user for UI setup.")
-        defaults = UIDefaults()
-        self._download_fonts()
-
-        settings = {
-            UIConfigKeys.HEADER.value: click.prompt(
-                "Enter Header Text for PDF reports",
-                default=self.config.get(UIConfigKeys.HEADER.value, defaults.header_text),
-                show_default=True,
-            ),
-            UIConfigKeys.FOOTER.value: click.prompt(
-                "Enter Footer Text for PDF reports",
-                default=self.config.get(UIConfigKeys.FOOTER.value, defaults.footer_text),
-                show_default=True,
-            ),
-            UIConfigKeys.FONT_NAME.value: "Assistant",
-            UIConfigKeys.REG_FONT_PATH.value: str(self._get_font_paths()["regular"]),
-            UIConfigKeys.BOLD_FONT_PATH.value: str(self._get_font_paths()["bold"]),
-            UIConfigKeys.LOGO_PATH.value: "",
-        }
-
-        if click.confirm("Would you like to use a custom font?", default=False):
-            settings.update(self.configure_font())
-
-        if click.confirm(
-            "Would you like to use a custom logo in your exported PDF reports?", default=False
-        ):
-            settings[UIConfigKeys.LOGO_PATH.value] = self.configure_logo()
-
-        if click.confirm(
-            "Would you like to use a custom header color in your exported HTML reports?",
-            default=False,
-        ):
-            header_color = str(
-                click.prompt("Enter header color value (Hex format)")
-            )  # default set at model level
-            if not header_color.startswith("#"):
-                header_color = f"#{header_color}"
-            settings[UIConfigKeys.HEADER_COLOR.value] = header_color
-
-        self.config = settings
-
-    def configure_font(self) -> dict[str, str]:
-        """
-        Allows the user to specify a custom font or use the default provided by the application.
-        The chosen fonts are copied to the appropriate directory for use in PDF report generation.
-
-        :return: A dictionary containing the font name, regular font path, and bold font path.
-        :rtype: dict[str, str]
-        """
-        font_name = click.prompt("Enter custom font name", default="CustomFont")
-        regular_src = Path(click.prompt("Enter the path to the regular font file"))
-        bold_src = Path(click.prompt("Enter the path to the bold font file"))
-
-        regular_dest, bold_dest = self._get_font_paths()["regular"], self._get_font_paths()["bold"]
-        self._copy_file(regular_src, regular_dest)
-        self._copy_file(bold_src, bold_dest)
-
-        return {
-            UIConfigKeys.FONT_NAME.value: font_name,
-            UIConfigKeys.REG_FONT_PATH.value: str(regular_dest),
-            UIConfigKeys.BOLD_FONT_PATH.value: str(bold_dest),
-        }
-
-    def configure_logo(self) -> str:
-        """
-        Configures the logo file for PDF reports based on user input.
-
-        If a logo file is specified, it is validated and copied to Patcher's Application Support directory.
-        Similar to :meth:`~patcher.core.ui_manager.UIConfigManager.configure_font` this method is
-        solely used in conjunction with the :class:`~patcher.cli.setup.Setup` class.
-
-        :return: The path to the saved logo file, or None if no logo is configured.
-        :rtype: str
-        :raises SetupError: If the provided logo path does not exist.
-        :raises PatcherError: If the provided logo fails pillow validation.
-        :raises PatcherError: If the logo file could not be copied to the destination path.
-        """
-        logo_src = Path(click.prompt("Enter the path to the logo file"))
-        if not logo_src.exists():
-            raise SetupError(
-                "The specified logo path does not exist, please check the path and try again.",
-                path=logo_src,
-            )
-
-        # Validate file is an image
-        try:
-            with Image.open(logo_src) as img:
-                img.verify()
-            self.log.info(f"Logo file {logo_src} validated successfully.")
-        except (IOError, Image.UnidentifiedImageError) as e:
-            self.log.error(f"Image validation failed for {logo_src}: {e}")
-            raise PatcherError(
-                "The specified logo is not a valid image file. Please try again.",
-                path=logo_src,
-                error_msg=str(e),
-            )
-
-        logo_dest = self.plist_manager.plist_path.parent / "logo.png"
-        self._copy_file(logo_src, logo_dest)
-        return str(logo_dest)
 
     def get_logo_path(self) -> str | None:
         """

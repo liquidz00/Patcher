@@ -69,7 +69,7 @@ Patcher leverages specific exit codes depending on what type of error occurred a
 Debug Mode (verbose)
 --------------------
 
-Patcher accepts a global ``--debug`` (or ``-x``) flag to show debug log level messages and higher to standard out. This overrides the built in :class:`~patcher.core.animation.Animation` from showing so no message conflicts occur. This flag is handled at the root CLI level and thus can be passed to any command, but needs to be passed before any command:
+Patcher accepts a global ``--debug`` (or ``-x``) flag to show debug log level messages and higher to standard out. This overrides the built in :class:`~patcher.cli.animation.Animation` from showing so no message conflicts occur. This flag is handled at the root CLI level and thus can be passed to any command, but needs to be passed before any command:
 
 .. code-block:: console
 

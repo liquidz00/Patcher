@@ -34,7 +34,6 @@ token
 
 animation
 data_manager
-decorators
 exceptions
 installomator
 logger

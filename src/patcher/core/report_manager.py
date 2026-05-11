@@ -3,10 +3,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import asyncclick as click
-
 from ..client.api_client import ApiClient
-from .animation import Animation
 from .data_manager import DataManager
 from .exceptions import APIResponseError, PatcherError
 from .installomator import Installomator
@@ -146,12 +143,6 @@ class ReportManager:
         self.log.info("iOS information successfully appended to patch reports.")
         return patch_reports
 
-    def _success(self, report_count: int, reports_dir: str) -> None:
-        self.log.info(f"{report_count} patch reports saved successfully to {reports_dir}.")
-        click.echo(
-            click.style(f"\r✅ Success! Reports saved to {reports_dir}", bold=True, fg="green")
-        )
-
     def calculate_ios_on_latest(
         self,
         device_versions: list[dict[str, str]],
@@ -215,126 +206,3 @@ class ReportManager:
                 "Division by zero encountered during iOS Device percentage calculation.",
                 error_msg=str(e),
             )
-
-    async def process_reports(
-        self,
-        path: str | Path,
-        formats: set[str],
-        sort: str | None,
-        omit: bool,
-        ios: bool,
-        report_title: str,
-        header_color: str,
-        date_format: str = "%B %d %Y",
-        enable_iom: bool = True,
-        device_details: bool = False,
-    ) -> None:
-        """
-        Asynchronously generates and saves patch reports, with options for customization.
-
-        This method is the core of the report generation process, orchestrating the collection
-        of patch data, sorting, filtering, and ultimately saving the data to an Excel file.
-        It can also generate a PDF report and include additional iOS device data.
-
-        This function is not intended to be called directly by users, but rather is a key part of the CLI's
-        automated reporting process. It handles all the necessary steps from data collection to file generation,
-        ensuring that reports are accurate, complete, and formatted according to the user's preferences.
-
-        :param path: The directory where the reports will be saved. It must be a valid directory, not a file.
-        :type path: str | Path
-        :param formats: The set of formats to export. Defaults to all ("excel", "html", "pdf").
-        :type formats: set[str]
-        :param sort: Specifies the column by which to sort the reports (e.g., 'released' or 'completion_percent').
-        :type sort: str | None
-        :param omit: If True, omits patches that were released within the last 48 hours.
-        :type omit: bool
-        :param ios: If True, includes iOS device data in the reports.
-        :type ios: bool
-        :param report_title: The title for the report header.
-        :type report_title: str
-        :param header_color: The color for the report header.
-        :type header_color: str
-        :param date_format: Specifies the date format for headers in the reports. Default is "%B %d %Y" (Month Day Year).
-        :type date_format: str
-        :param enable_iom: If False, disables Installomator matching. Defaults to True.
-        :type enable_iom: bool
-        :param device_details: If True, includes per-title device detail sheets in Excel export.
-        :type device_details: bool
-        """
-        animation = Animation(enable_animation=not self.debug)
-
-        async with animation.error_handling():
-            self.log.debug("Starting report generation process.")
-            output_path = self._validate_directory(path)
-
-            self.log.debug("Attempting to retrieve policy IDs.")
-            await animation.update_msg("Retrieving policy IDs from Jamf...")
-            try:
-                patch_ids = await self.api_client.get_policies()
-                self.log.info(f"Retrieved policy IDs for {len(patch_ids)} policies.")
-            except APIResponseError as e:
-                self.log.error(f"Unable to obtain policy IDs from Jamf instance. Details: {e}")
-                raise PatcherError(
-                    "Failed to retrieve policy IDs from Jamf instance.", error_msg=str(e)
-                )
-
-            self.log.debug("Attempting to retrieve patch summaries.")
-            await animation.update_msg("Retrieving patch summaries from Jamf...")
-            try:
-                patch_reports = await self.api_client.get_summaries(patch_ids)
-                self.log.info(f"Received policy summaries for {len(patch_reports)} policies.")
-            except APIResponseError as e:
-                self.log.error(f"Unable to fetch patch summaries from Jamf instance. Details: {e}")
-                raise PatcherError(
-                    "Failed to retrieve patch summaries from Jamf instance.", error_msg=str(e)
-                )
-
-            # (option) Sort
-            if sort:
-                await animation.update_msg("Sorting reports...")
-                patch_reports = await self._sort(patch_reports, sort)
-
-            # (option) Omit
-            if omit:
-                await animation.update_msg("Omitting recent releases...")
-                patch_reports = await self._omit(patch_reports)
-
-            # (option) iOS
-            if ios:
-                await animation.update_msg("Including iOS info...")
-                patch_reports = await self._ios(patch_reports)
-
-            # Match titles with labels via Installomator if enabled
-            if enable_iom:
-                await animation.update_msg("Identifying Installomator support for titles...")
-                try:
-                    await self.iom.match(patch_reports)
-                except APIResponseError as e:
-                    if getattr(e, "not_found", False):
-                        self.log.warning(f"One or more patch titles were not found: {e}")
-                    else:
-                        self.log.error(f"An API error occurred while matching patch titles: {e}")
-
-            # (option) Device Details
-            device_reports = None
-            if device_details:
-                await animation.update_msg("Fetching per-title patch reports...")
-                title_ids = [patch.title_id for patch in patch_reports]
-                device_reports = await self.api_client.get_title_reports(title_ids)
-
-            # Generate reports
-            await animation.update_msg("Generating reports...")
-            await self.data_manager.export(
-                patch_titles=patch_reports,
-                output_dir=output_path,
-                report_title=report_title,
-                analysis=False,
-                formats=formats,
-                date_format=date_format,
-                header_color=header_color,
-                device_reports=device_reports,
-            )
-
-        # Manually stop animation to show success message cleanly
-        animation.stop_event.set()
-        self._success(len(patch_reports), output_path)

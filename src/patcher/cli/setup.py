@@ -3,17 +3,19 @@ from enum import Enum
 from pathlib import Path
 
 import asyncclick as click
+from PIL import Image
 
 from ..client import BaseAPIClient
 from ..client.token_manager import TokenManager
-from ..core.animation import Animation
 from ..core.config_manager import ConfigManager
-from ..core.exceptions import APIResponseError, SetupError, TokenError
+from ..core.exceptions import APIResponseError, PatcherError, SetupError, TokenError
 from ..core.logger import LogMe
 from ..core.models.jamf_client import JamfClient
 from ..core.models.token import AccessToken
+from ..core.models.ui import UIConfigKeys, UIDefaults
 from ..core.plist_manager import PropertylistManager
 from ..core.ui_manager import UIConfigManager
+from .animation import Animation
 
 # Welcome messages
 GREET = "Thanks for downloading Patcher!\n"
@@ -232,6 +234,114 @@ class Setup:
                 "CLIENT_SECRET": click.prompt("Enter your API Client Secret"),
             }
 
+    def prompt_ui_settings(self) -> None:
+        """
+        Drive the interactive UI configuration prompts (header/footer text,
+        font, logo, header color) and persist them via the
+        :class:`~patcher.core.ui_manager.UIConfigManager`. Triggers font
+        downloads on first run.
+
+        Replaces the legacy ``UIConfigManager.setup_ui`` method, moved to the
+        CLI layer so the core UI config object stays free of ``asyncclick``
+        and ``PIL`` dependencies for library callers.
+        """
+        self.log.debug("Prompting user for UI setup.")
+        defaults = UIDefaults()
+        self.ui_config._download_fonts()
+
+        settings = {
+            UIConfigKeys.HEADER.value: click.prompt(
+                "Enter Header Text for PDF reports",
+                default=self.ui_config.config.get(UIConfigKeys.HEADER.value, defaults.header_text),
+                show_default=True,
+            ),
+            UIConfigKeys.FOOTER.value: click.prompt(
+                "Enter Footer Text for PDF reports",
+                default=self.ui_config.config.get(UIConfigKeys.FOOTER.value, defaults.footer_text),
+                show_default=True,
+            ),
+            UIConfigKeys.FONT_NAME.value: "Assistant",
+            UIConfigKeys.REG_FONT_PATH.value: str(self.ui_config._get_font_paths()["regular"]),
+            UIConfigKeys.BOLD_FONT_PATH.value: str(self.ui_config._get_font_paths()["bold"]),
+            UIConfigKeys.LOGO_PATH.value: "",
+        }
+
+        if click.confirm("Would you like to use a custom font?", default=False):
+            settings.update(self.prompt_font_config())
+
+        if click.confirm(
+            "Would you like to use a custom logo in your exported PDF reports?", default=False
+        ):
+            settings[UIConfigKeys.LOGO_PATH.value] = self.prompt_logo_config()
+
+        if click.confirm(
+            "Would you like to use a custom header color in your exported HTML reports?",
+            default=False,
+        ):
+            header_color = str(click.prompt("Enter header color value (Hex format)"))
+            if not header_color.startswith("#"):
+                header_color = f"#{header_color}"
+            settings[UIConfigKeys.HEADER_COLOR.value] = header_color
+
+        self.ui_config.config = settings
+
+    def prompt_font_config(self) -> dict[str, str]:
+        """
+        Prompt for custom font paths and copy them into Patcher's font
+        directory.
+
+        :return: A dictionary containing the font name, regular font path,
+            and bold font path.
+        :rtype: dict[str, str]
+        """
+        font_name = click.prompt("Enter custom font name", default="CustomFont")
+        regular_src = Path(click.prompt("Enter the path to the regular font file"))
+        bold_src = Path(click.prompt("Enter the path to the bold font file"))
+
+        font_paths = self.ui_config._get_font_paths()
+        regular_dest, bold_dest = font_paths["regular"], font_paths["bold"]
+        self.ui_config._copy_file(regular_src, regular_dest)
+        self.ui_config._copy_file(bold_src, bold_dest)
+
+        return {
+            UIConfigKeys.FONT_NAME.value: font_name,
+            UIConfigKeys.REG_FONT_PATH.value: str(regular_dest),
+            UIConfigKeys.BOLD_FONT_PATH.value: str(bold_dest),
+        }
+
+    def prompt_logo_config(self) -> str:
+        """
+        Prompt for a logo file path, validate it as an image, and copy it
+        into Patcher's Application Support directory.
+
+        :return: The path to the saved logo file.
+        :rtype: str
+        :raises SetupError: If the provided logo path does not exist.
+        :raises PatcherError: If the file is not a valid image, or copying fails.
+        """
+        logo_src = Path(click.prompt("Enter the path to the logo file"))
+        if not logo_src.exists():
+            raise SetupError(
+                "The specified logo path does not exist, please check the path and try again.",
+                path=logo_src,
+            )
+
+        try:
+            with Image.open(logo_src) as img:
+                img.verify()
+            self.log.info(f"Logo file {logo_src} validated successfully.")
+        except (IOError, Image.UnidentifiedImageError) as e:
+            self.log.error(f"Image validation failed for {logo_src}: {e}")
+            raise PatcherError(
+                "The specified logo is not a valid image file. Please try again.",
+                path=logo_src,
+                error_msg=str(e),
+            )
+
+        logo_dest = self.ui_config.plist_manager.plist_path.parent / "logo.png"
+        self.ui_config._copy_file(logo_src, logo_dest)
+        return str(logo_dest)
+
     def validate_creds(
         self, creds: dict, required_keys: tuple[str, ...], setup_type: SetupType
     ) -> None:
@@ -350,7 +460,7 @@ class Setup:
         and saves credentials. For ``SSO``, stores the provided client credentials.
 
         :param animator: The animation instance to update messages.
-        :type animator: :class:`~patcher.core.animation.Animation`
+        :type animator: :class:`~patcher.cli.animation.Animation`
         :param setup_type: The selected setup type (Standard or SSO).
         :type setup_type: :class:`~patcher.cli.setup.SetupType`
         :raises SetupError: If credentials are missing or a token cannot be obtained.
@@ -382,7 +492,7 @@ class Setup:
         Attempts to fetch and persist an ``AccessToken`` using stored credentials.
 
         :param animator: The animation instance to update messages.
-        :type animator: :class:`~patcher.core.animation.Animation`
+        :type animator: :class:`~patcher.cli.animation.Animation`
         :param _setup_type: Placeholder to satisfy stage dispatch signature. Not used in this stage.
         :type _setup_type: :class:`~patcher.cli.setup.SetupType`
         :raises SetupError: If an :class:`~patcher.core.models.token.AccessToken` cannot be retrieved
@@ -400,7 +510,7 @@ class Setup:
         Uses stored credentials and token to instantiate and store a ``JamfClient`` object.
 
         :param animator: The animation instance to update messages.
-        :type animator: :class:`~patcher.core.animation.Animation`
+        :type animator: :class:`~patcher.cli.animation.Animation`
         :param _setup_type: Placeholder to satisfy stage dispatch signature. Not used in this stage.
         :type _setup_type: :class:`~patcher.cli.setup.SetupType`
         """
@@ -425,12 +535,12 @@ class Setup:
         Final stage in setup: configures user interface settings and marks setup as complete.
 
         :param animator: The animation instance to update messages.
-        :type animator: :class:`~patcher.core.animation.Animation`
+        :type animator: :class:`~patcher.cli.animation.Animation`
         :param _setup_type: Placeholder to satisfy stage dispatch signature. Not used in this stage.
         :type _setup_type: :class:`~patcher.cli.setup.SetupType`
         """
         await animator.stop()
-        self.ui_config.setup_ui()
+        self.prompt_ui_settings()
         self.state_manager.save_stage(SetupStage.COMPLETED)
         self.stage = SetupStage.COMPLETED
         self._mark_completion(value=True)
@@ -486,7 +596,7 @@ class Setup:
         """
         Allows the user to choose between different setup methods (Standard or SSO).
 
-        An optional :class:`~patcher.core.animation.Animation` object can be passed to update animation
+        An optional :class:`~patcher.cli.animation.Animation` object can be passed to update animation
         messages at runtime. Defaults to ``self.animator``.
 
         **Options**:

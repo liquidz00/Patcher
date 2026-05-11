@@ -9,7 +9,6 @@ import asyncclick as click
 from ..__about__ import __version__
 from ..client.api_client import ApiClient
 from ..core.analyze import Analyzer, FilterCriteria, TrendCriteria
-from ..core.animation import Animation
 from ..core.config_manager import ConfigManager
 from ..core.data_manager import DataManager
 from ..core.exceptions import APIResponseError, InstallomatorWarning, PatcherError, SetupError
@@ -17,7 +16,10 @@ from ..core.logger import LogMe, PatcherLog
 from ..core.plist_manager import PropertylistManager
 from ..core.report_manager import ReportManager
 from ..core.ui_manager import UIConfigManager
+from .animation import Animation
+from .report import process_reports
 from .setup import Setup
+from .terminal_logger import install_terminal_excepthook, install_terminal_handler
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -33,12 +35,17 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 def setup_logging(debug: bool) -> None:
     """
-    Configures global logging based on the debug flag.
+    Configures Patcher logging for the CLI process.
 
-    :param debug: Whether to enable debug logging.
+    Installs the always-on rotating file handler, then attaches the
+    click-backed terminal handler when ``debug`` is true so debug runs
+    surface colored, level-prefixed output to stdout.
+
+    :param debug: Whether to enable debug-level console output.
     :type debug: bool
     """
-    PatcherLog.setup_logger(debug=debug)
+    PatcherLog.setup_logger()
+    install_terminal_handler(debug)
 
 
 def format_err(exc: PatcherError) -> None:
@@ -97,9 +104,17 @@ def warning_format(message, category, filename, lineno, file=None, line=None):
     return f"{category.__name__}: {message}\n"
 
 
-sys.excepthook = PatcherLog.custom_excepthook  # Log unhandled exceptions
-warnings.simplefilter("always", InstallomatorWarning)  # Show warnings in CLI
-warnings.formatwarning = warning_format
+def _install_cli_process_hooks() -> None:
+    """Apply process-wide side effects scoped to a CLI invocation.
+
+    Kept inside the ``cli()`` callback rather than at module import time so
+    importing ``patcher.cli.setup`` (or anything else under ``patcher.cli``)
+    from library code does not mutate ``sys.excepthook`` or the global
+    warnings filter as a side effect.
+    """
+    install_terminal_excepthook()
+    warnings.simplefilter("always", InstallomatorWarning)
+    warnings.formatwarning = warning_format
 
 
 # Entry
@@ -176,6 +191,7 @@ async def cli(
     :type url: str | None
     """
     setup_logging(debug)
+    _install_cli_process_hooks()
 
     if not disable_cache:
         cache_dir = Path.home() / "Library/Caches/Patcher"
@@ -299,7 +315,7 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
             log.info("Resetting UI elements...")
             if ui_config.reset_config():
                 # Only prompt to setup UI if reset_config was successful
-                ui_config.setup_ui()
+                setup.prompt_ui_settings()
         elif kind.lower() == "creds":
             log.info(f"Resetting credentials... (specific: {credential if credential else 'all'})")
 
@@ -463,8 +479,9 @@ async def export(
 
     ui_config, plist_manager = ctx.obj.get("ui_config"), ctx.obj.get("plist_manager")
 
-    # Not wrapping in animation error_handling in favor of existence on process_reports method
-    await patcher.process_reports(
+    # Animation + error handling are scoped inside process_reports
+    await process_reports(
+        patcher,
         path=path,
         formats=selected_formats,
         sort=sort,
