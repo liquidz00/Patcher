@@ -1,4 +1,3 @@
-import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -8,14 +7,7 @@ from src.patcher.utils import exceptions
 # Test getting policies (success, error)
 @pytest.mark.asyncio
 async def test_get_policies(api_client, mock_policy_response):
-    mock_body = json.dumps(mock_policy_response)
-    mock_stdout = f"{mock_body}\nSTATUS:200".encode("utf-8")
-
-    mock_process = AsyncMock()
-    mock_process.communicate.return_value = (mock_stdout, b"")
-    mock_process.returncode = 0
-
-    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+    with patch.object(api_client, "fetch_json", AsyncMock(return_value=mock_policy_response)):
         policies = await api_client.get_policies()
 
         assert len(policies) == len(mock_policy_response)
@@ -24,11 +16,13 @@ async def test_get_policies(api_client, mock_policy_response):
 
 @pytest.mark.asyncio
 async def test_get_policies_invalid_response(api_client):
-    mock_process = AsyncMock()
-    mock_process.communicate.return_value = ('{"invalid": "response"}'.encode("utf-8"), b"")
-    mock_process.returncode = 0
-
-    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+    """If fetch_json fails to parse the upstream response, get_policies re-raises."""
+    err = exceptions.APIResponseError(
+        "Failed parsing JSON response from API",
+        url="https://example.com",
+        error_msg="Expecting value",
+    )
+    with patch.object(api_client, "fetch_json", AsyncMock(side_effect=err)):
         with pytest.raises(exceptions.APIResponseError) as excinfo:
             await api_client.get_policies()
 
@@ -37,14 +31,11 @@ async def test_get_policies_invalid_response(api_client):
 
 @pytest.mark.asyncio
 async def test_get_policies_error(api_client):
-    mock_body = '{"httpStatus": 401, "errors": []}'
-    mock_stdout = f"{mock_body}\nSTATUS:401".encode("utf-8")
-
-    mock_process = AsyncMock()
-    mock_process.communicate.return_value = (mock_stdout, b"")
-    mock_process.returncode = 0
-
-    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+    """A 4xx response surfaced as APIResponseError propagates through get_policies."""
+    err = exceptions.APIResponseError(
+        "Client error received.", status_code=401, error="Unauthorized"
+    )
+    with patch.object(api_client, "fetch_json", AsyncMock(side_effect=err)):
         with pytest.raises(exceptions.APIResponseError):
             await api_client.get_policies()
 
@@ -52,13 +43,6 @@ async def test_get_policies_error(api_client):
 # Test getting summaries (success, error)
 @pytest.mark.asyncio
 async def test_get_summaries(api_client, mock_summary_response):
-    mock_body = json.dumps(mock_summary_response)
-    mock_stdout = f"{mock_body}\nSTATUS:200".encode("utf-8")
-
-    mock_process = AsyncMock()
-    mock_process.communicate.return_value = (mock_stdout, b"")
-    mock_process.returncode = 0
-
     with patch.object(api_client, "fetch_json", side_effect=mock_summary_response):
         summaries = await api_client.get_summaries(["3", "4", "5"])
 
@@ -69,13 +53,8 @@ async def test_get_summaries(api_client, mock_summary_response):
 
 @pytest.mark.asyncio
 async def test_get_summaries_error(api_client):
-    mock_body = '{"httpStatus": 401, "errors": []}'
-    mock_stdout = f"{mock_body}\nSTATUS:405".encode("utf-8")
-
-    mock_process = AsyncMock()
-    mock_process.communicate.return_value = (mock_stdout, b"")
-    mock_process.returncode = 0
-
-    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+    """A non-success status from fetch_json surfaces as APIResponseError."""
+    err = exceptions.APIResponseError("Unexpected HTTP status code received.", status_code=405)
+    with patch.object(api_client, "fetch_json", AsyncMock(side_effect=err)):
         with pytest.raises(exceptions.APIResponseError):
             await api_client.get_summaries(["1", "2", "3"])

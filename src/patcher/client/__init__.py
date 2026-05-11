@@ -1,6 +1,7 @@
 import asyncio
 import json
 import subprocess
+from typing import Any
 from urllib.parse import urlencode
 
 import httpx
@@ -317,74 +318,77 @@ class BaseAPIClient:
         """
         Asynchronously fetches JSON data from the specified URL using the specified HTTP method.
 
+        Routes the request through the per-instance ``httpx.AsyncClient`` (see
+        :attr:`http`). Form-encoded vs JSON request bodies are selected based
+        on the ``Content-Type`` header of the merged request headers — the
+        same routing logic the prior curl-based implementation used. Non-2xx
+        responses are translated via :meth:`_handle_status_code` into
+        :class:`APIResponseError` (with ``not_found=True`` on 404), preserving
+        the public exception contract for callers.
+
         :param url: The URL to fetch data from.
         :type url: str
-        :param headers: Optional headers to include in the request. Defaults to ``self.headers``.
+        :param headers: Optional headers to include in the request. Defaults to ``self.default_headers``.
         :type headers: dict[str, str] | None
         :param method: HTTP method to use ("GET" or "POST"). Defaults to "GET".
         :type method: str
-        :param data: Optional form data to include for POST request.
+        :param data: Optional request body. Form-encoded when the request
+            ``Content-Type`` is ``application/x-www-form-urlencoded``;
+            JSON-encoded otherwise.
         :type data: dict[str, str] | None
-        :param query_params: Additional query parameters to append to the URL. Defaults to None.
+        :param query_params: Additional query parameters to append to the URL.
         :type query_params: dict[str, str] | None
-        :return: The fetched JSON data as a dictionary.
+        :return: The decoded JSON response body.
         :rtype: dict
-        :raises APIResponseError: If the response payload is not valid JSON, or if command execution fails.
+        :raises APIResponseError: If the response is non-2xx, if a network error
+            prevents the request from completing, or if the response body is
+            not valid JSON.
         """
         self.log.debug("Attempting to fetch JSON.")
 
-        if query_params:
-            query_string = urlencode(query_params)
-            url = f"{url}?{query_string}"
-
         final_headers = headers if headers else self.default_headers
-        header_string = self._format_headers(final_headers)
+        method_upper = method.upper()
 
-        # By using the -w parameter with %{http_code}, we are appending the status code
-        # to the end of the API response. This is to handle cases where responses
-        # do not have 'httpStatus' keys by default.
-        command = [
-            "/usr/bin/curl",
-            "-s",
-            "-X",
-            method,
-            url,
-            *header_string,
-            "-w",
-            "\nSTATUS:%{http_code}",
-        ]
+        request_kwargs: dict[str, Any] = {
+            "url": url,
+            "headers": final_headers,
+        }
+        if query_params:
+            request_kwargs["params"] = query_params
 
-        # Add form data for POST requests
-        if method.upper() == "POST" and data:
+        # Form-encoded vs JSON body routing mirrors the prior curl logic:
+        # if the caller set Content-Type=application/x-www-form-urlencoded
+        # we pass `data=` (httpx form-encodes); otherwise we pass `json=`
+        # (httpx serializes + sets Content-Type=application/json).
+        if method_upper == "POST" and data:
             self.log.debug("Adding POST data to the request.")
             if final_headers.get("Content-Type") == "application/x-www-form-urlencoded":
-                # Format each item separately instead
-                form_data = [item for k, v in data.items() for item in ["-d", f"{k}={v}"]]
-                command.extend(form_data)
+                request_kwargs["data"] = data
             else:
-                # JSON is assumed for other content types
-                json_payload = json.dumps(data)
-                command.extend(["-d", json_payload])
-
-        async with self.semaphore:
-            output = await self.execute(command)
+                request_kwargs["json"] = data
 
         try:
-            # Separate status code from body of response
-            response_body, status_line = output.rsplit("\nSTATUS:", 1)
-            status_code = int(status_line.strip())
-            response_json = json.loads(response_body)  # Re-parse body as JSON
+            async with self.semaphore:
+                response = await self.http.request(method_upper, **request_kwargs)
+        except httpx.RequestError as e:
+            raise APIResponseError(
+                "Network error fetching URL",
+                url=url,
+                error_msg=str(e),
+            )
+
+        try:
+            response_json = response.json()
         except (json.JSONDecodeError, ValueError) as e:
-            sanitized = self._sanitize_command(command)
             raise APIResponseError(
                 "Failed parsing JSON response from API",
                 url=url,
-                command=sanitized,
+                status_code=response.status_code,
                 error_msg=str(e),
             )
 
         self.log.info("Retrieved valid JSON response API call.")
-        return self._handle_status_code(status_code, response_json)
+        return self._handle_status_code(response.status_code, response_json)
 
     async def fetch_batch(
         self,

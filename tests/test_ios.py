@@ -1,4 +1,3 @@
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -9,14 +8,9 @@ from src.patcher.utils import exceptions
 # Test valid response - iOS device IDs
 @pytest.mark.asyncio
 async def test_get_device_ids_valid(api_client, mock_ios_device_id_list_response):
-    mock_body = json.dumps(mock_ios_device_id_list_response)
-    mock_stdout = f"{mock_body}\nSTATUS:200".encode("utf-8")
-    mock_process = AsyncMock()
-
-    mock_process.communicate.return_value = (mock_stdout, b"")  # Bytes for stderr
-    mock_process.returncode = 0
-
-    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+    with patch.object(
+        api_client, "fetch_json", AsyncMock(return_value=mock_ios_device_id_list_response)
+    ):
         devices = await api_client.get_device_ids()
 
         assert devices is not None
@@ -27,11 +21,13 @@ async def test_get_device_ids_valid(api_client, mock_ios_device_id_list_response
 # Test invalid response - iOS device IDs
 @pytest.mark.asyncio
 async def test_get_device_ids_invalid(api_client):
-    mock_process = AsyncMock()
-    mock_process.communicate.return_value = ('{"invalid": "response"}'.encode("utf-8"), b"")
-    mock_process.returncode = 0
-
-    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+    """If fetch_json fails to parse upstream, get_device_ids re-raises."""
+    err = exceptions.APIResponseError(
+        "Failed parsing JSON response from API",
+        url="https://example.com",
+        error_msg="Expecting value",
+    )
+    with patch.object(api_client, "fetch_json", AsyncMock(side_effect=err)):
         with pytest.raises(exceptions.APIResponseError) as excinfo:
             await api_client.get_device_ids()
 
@@ -41,11 +37,11 @@ async def test_get_device_ids_invalid(api_client):
 # Test API error response
 @pytest.mark.asyncio
 async def test_get_device_ids_api_error(api_client):
-    mock_process = AsyncMock()
-    mock_process.communicate.return_value = ('{"error": "Unauthorized"}'.encode("utf-8"), b"")
-    mock_process.returncode = 0
-
-    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+    """A 4xx upstream surfaces as APIResponseError through get_device_ids."""
+    err = exceptions.APIResponseError(
+        "Client error received.", status_code=401, error="Unauthorized"
+    )
+    with patch.object(api_client, "fetch_json", AsyncMock(side_effect=err)):
         with pytest.raises(exceptions.APIResponseError):
             await api_client.get_device_ids()
 
@@ -54,14 +50,7 @@ async def test_get_device_ids_api_error(api_client):
 @pytest.mark.asyncio
 async def test_get_ios_versions_valid(api_client, mock_ios_detail_response):
     device_ids = [1]
-    mock_body = json.dumps(mock_ios_detail_response)
-    mock_stdout = f"{mock_body}\nSTATUS:200".encode("utf-8")
-    mock_process = AsyncMock()
-
-    mock_process.communicate.return_value = (mock_stdout, b"")
-    mock_process.returncode = 0
-
-    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+    with patch.object(api_client, "fetch_json", AsyncMock(return_value=mock_ios_detail_response)):
         fetched_devices = await api_client.get_device_os_versions(device_ids)
 
     assert fetched_devices[0].get("SN") == mock_ios_detail_response.get("serialNumber")
