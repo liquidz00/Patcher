@@ -18,31 +18,44 @@ from .models.patch import PatchTitle
 
 IGNORED_TEAMS = ["Frydendal", "Media", "LL3KBL2M3A"]  # "LL3KBL2M3A" - lcadvancedvpnclient
 
-# InstallomatorClient hosts a flat list of every label name in Labels.txt at the
+# Installomator hosts a flat list of every label name in Labels.txt at the
 # repo root. Parsing this file before fetching individual fragments lets us
 # avoid the ~700-call directory-listing + mass-download fan-out that the
 # previous implementation performed on first run.
 _INSTALLOMATOR_RAW_BASE = (
-    "https://raw.githubusercontent.com/InstallomatorClient/InstallomatorClient/refs/heads/main"
+    "https://raw.githubusercontent.com/Installomator/Installomator/refs/heads/main"
 )
 _LABELS_TXT_URL = f"{_INSTALLOMATOR_RAW_BASE}/Labels.txt"
 _FRAGMENT_URL_TEMPLATE = f"{_INSTALLOMATOR_RAW_BASE}/fragments/labels/{{name}}.sh"
 
 
 class InstallomatorClient:
-    def __init__(self, concurrency: int | None = 5):
+    def __init__(self, concurrency: int | None = 5, api: JamfClient | None = None):
         """
-        The InstallomatorClient class interacts with `InstallomatorClient <https://github.com/InstallomatorClient/InstallomatorClient>`_, a script used for automated software installations on macOS.
+        Wrapper around the `Installomator <https://github.com/Installomator/Installomator>`_ project — the macOS automated-installer script set.
 
-        This class provides methods for discovering, fetching, and matching InstallomatorClient labels to ``PatchTitle`` objects. Discovery uses the lightweight ``Labels.txt`` file at the InstallomatorClient repo root; individual ``.sh`` fragments are fetched lazily and only for matches.
+        This class provides methods for discovering, fetching, and matching Installomator labels to ``PatchTitle`` objects. Discovery uses the lightweight ``Labels.txt`` file at the Installomator repo root; individual ``.sh`` fragments are fetched lazily and only for matches.
 
         :param concurrency: Number of concurrent requests allowed for API operations. See :ref:`concurrency <concurrency>` in Usage docs.
         :type concurrency: int | None
+        :param api: Optional configured :class:`JamfClient` to use for the
+            Jamf API calls inside :meth:`match` (specifically
+            :meth:`JamfClient.get_app_names`). If ``None``, a new
+            ``JamfClient`` is built using the default :class:`ConfigManager`
+            (keyring-backed) — which requires Jamf credentials to already
+            exist. Library callers using
+            :class:`patcher.core.patcher_client.PatcherClient` get the
+            client's shared ``JamfClient`` injected automatically.
+        :type api: :class:`~patcher.client.jamf.JamfClient` | None
         """
         self.log = LogMe(self.__class__.__name__)
         self.label_path = Path.home() / "Library/Application Support/Patcher/.labels"
-        self.config = ConfigManager()
-        self.api = JamfClient(config=self.config, concurrency=concurrency)
+        if api is None:
+            self.config = ConfigManager()
+            self.api = JamfClient(config=self.config, concurrency=concurrency)
+        else:
+            self.config = None
+            self.api = api
         self.threshold = 85
         self.review_file = Path.home() / "Library/Application Support/Patcher/unmatched_apps.json"
 
@@ -112,7 +125,7 @@ class InstallomatorClient:
             return Label.from_dict(fragment_dict, installomatorLabel=script_name)
         except ValidationError as e:
             self.log.warning(
-                f"Skipping invalid InstallomatorClient label: {script_name} due to validation error: {e}"
+                f"Skipping invalid Installomator label: {script_name} due to validation error: {e}"
             )
             return None
 
@@ -122,7 +135,7 @@ class InstallomatorClient:
 
     async def list_available_labels(self) -> set[str]:
         """
-        Return the set of every label name currently available in InstallomatorClient.
+        Return the set of every label name currently available in Installomator.
 
         Fetches and parses :data:`_LABELS_TXT_URL`. The result is cached on the instance for the session; subsequent calls do not re-fetch.
 
@@ -133,13 +146,11 @@ class InstallomatorClient:
         if self._available_names is not None:
             return self._available_names
 
-        self.log.debug(f"Fetching InstallomatorClient Labels.txt from {_LABELS_TXT_URL}")
+        self.log.debug(f"Fetching Installomator Labels.txt from {_LABELS_TXT_URL}")
         try:
             content = await self.api.fetch_text(_LABELS_TXT_URL)
         except APIResponseError as e:
-            raise PatcherError(
-                "Unable to retrieve InstallomatorClient Labels.txt", error_msg=str(e)
-            )
+            raise PatcherError("Unable to retrieve Installomator Labels.txt", error_msg=str(e))
 
         # Labels.txt is one label name per line. Strip whitespace, drop blanks
         # and comments (lines starting with '#'), normalize to lowercase to
@@ -150,12 +161,12 @@ class InstallomatorClient:
             if line.strip() and not line.strip().startswith("#")
         }
         self._available_names = names
-        self.log.info(f"Discovered {len(names)} InstallomatorClient labels.")
+        self.log.info(f"Discovered {len(names)} Installomator labels.")
         return names
 
     async def get_label(self, name: str) -> Label | None:
         """
-        Fetch and parse a single InstallomatorClient label by script name.
+        Fetch and parse a single Installomator label by script name.
 
         Lookup order:
 
@@ -163,7 +174,7 @@ class InstallomatorClient:
         2. On-disk cache (``~/Library/Application Support/Patcher/.labels/<name>.sh``)
         3. HTTP fetch from :data:`_FRAGMENT_URL_TEMPLATE`
 
-        :param name: The InstallomatorClient script name (e.g. ``"googlechrome"``).
+        :param name: The Installomator script name (e.g. ``"googlechrome"``).
             Case-insensitive; normalized to lowercase before lookup.
         :type name: str
         :return: The constructed ``Label`` object, or ``None`` if the fragment
@@ -194,11 +205,11 @@ class InstallomatorClient:
         # best-effort: log and return None so a single broken label
         # doesn't kill the batch.
         url = _FRAGMENT_URL_TEMPLATE.format(name=key)
-        self.log.debug(f"Fetching InstallomatorClient fragment from {url}")
+        self.log.debug(f"Fetching Installomator fragment from {url}")
         try:
             content = await self.api.fetch_text(url)
         except APIResponseError as e:
-            self.log.warning(f"Failed to fetch InstallomatorClient fragment for '{name}': {e}")
+            self.log.warning(f"Failed to fetch Installomator fragment for '{name}': {e}")
             return None
 
         if not content:
@@ -218,7 +229,7 @@ class InstallomatorClient:
 
     async def get_labels(self, names: Iterable[str] | None = None) -> list[Label]:
         """
-        Fetch and parse multiple InstallomatorClient labels in parallel.
+        Fetch and parse multiple Installomator labels in parallel.
 
         :param names: Specific label script names to fetch. If ``None`` (the
             default), fetches **every** label listed in :data:`_LABELS_TXT_URL`
@@ -249,7 +260,7 @@ class InstallomatorClient:
 
     @staticmethod
     def _normalize(app_name: str) -> str:
-        """Normalizes app names to better match InstallomatorClient labels (e.g. nodejs)."""
+        """Normalizes app names to better match Installomator labels (e.g. nodejs)."""
         return app_name.lower().replace(" ", "").replace(".", "")
 
     def _match_directly(self, app_names: list[str], available: set[str]) -> list[str]:
@@ -329,7 +340,7 @@ class InstallomatorClient:
 
     async def match(self, patch_titles: list[PatchTitle]) -> None:
         """
-        Match Jamf patch titles to InstallomatorClient labels.
+        Match Jamf patch titles to Installomator labels.
 
         Flow:
 

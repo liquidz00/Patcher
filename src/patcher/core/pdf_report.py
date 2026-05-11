@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import pandas as pd
@@ -8,7 +9,7 @@ from fpdf.enums import XPos, YPos
 from PIL import Image
 
 from .logger import LogMe
-from .ui_manager import UIConfigManager
+from .models.ui import UIDefaults
 
 
 class PDFReport(FPDF):
@@ -18,12 +19,16 @@ class PDFReport(FPDF):
         unit="mm",
         format="A4",
         date_format="%B %d %Y",
-        ui_config: UIConfigManager = None,
+        ui_config: dict | None = None,
     ):
         """
-        The ``PDFReport`` class extends FPDF to create a PDF report from an Excel file containing patch data.
+        Extends ``FPDF`` to produce a PDF patch report from a styled DataFrame.
 
-        It supports custom headers, footers, font styles, and an optional branding logo based on the UI configuration.
+        The ``ui_config`` dict drives header/footer text, font selection,
+        branding logo, and header color. When omitted, ``UIDefaults`` is
+        used (no plist read, no I/O). The CLI passes
+        ``UIConfigManager.config`` (a plist-backed dict); library callers
+        pass a dict they constructed themselves or read from elsewhere.
 
         :param orientation: Orientation of the PDF, default is "L" (landscape).
         :type orientation: str
@@ -33,20 +38,30 @@ class PDFReport(FPDF):
         :type format: str
         :param date_format: Date format string for the PDF report header, default is "%B %d %Y".
         :type date_format: str
-        :param ui_config: Optional UIConfigManager object to pass, defaults to initializing new object.
-        :type ui_config: :class:`~patcher.core.ui_manager.UIConfigManager`
+        :param ui_config: Dict of UI settings (header text, footer, font
+            paths, logo, header color). Defaults to :class:`UIDefaults` values.
+        :type ui_config: dict | None
         """
         self.log = LogMe(self.__class__.__name__)
         super().__init__(orientation=orientation, unit=unit, format=format)  # type: ignore
         self.date_format = date_format
-        self.ui = ui_config or UIConfigManager()
-        self.ui_config = self.ui.config
+        self.ui_config = ui_config if ui_config is not None else UIDefaults().model_dump()
 
         self.table_headers = []
         self.column_widths = []
 
-        self.add_font(self.ui_config.get("font_name"), "", self.ui_config.get("reg_font_path"))
-        self.add_font(self.ui_config.get("font_name"), "B", self.ui_config.get("bold_font_path"))
+        # Custom font is opt-in: register only if both paths exist on disk.
+        # Otherwise fall back to fpdf's built-in Helvetica so library callers
+        # without configured fonts can still generate PDFs.
+        reg = self.ui_config.get("reg_font_path") or ""
+        bold = self.ui_config.get("bold_font_path") or ""
+        font_name = self.ui_config.get("font_name") or "Helvetica"
+        if reg and bold and Path(reg).exists() and Path(bold).exists():
+            self.add_font(font_name, "", reg)
+            self.add_font(font_name, "B", bold)
+            self.ui_config["font_name"] = font_name
+        else:
+            self.ui_config["font_name"] = "Helvetica"
 
     @staticmethod
     def get_image_ratio(image_path: str) -> float:

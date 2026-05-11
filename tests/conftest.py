@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pandas as pd
 import pytest
 from fpdf import FPDF
+from src.patcher.cli.plist_manager import PropertylistManager
 from src.patcher.client import HTTPClient
 from src.patcher.client.jamf import JamfClient
 from src.patcher.client.token_manager import TokenManager
@@ -14,9 +15,7 @@ from src.patcher.core.models.jamf import JamfCredentials
 from src.patcher.core.models.patch import PatchTitle
 from src.patcher.core.models.token import AccessToken
 from src.patcher.core.pdf_report import PDFReport
-from src.patcher.core.plist_manager import PropertylistManager
 from src.patcher.core.report_manager import ReportManager
-from src.patcher.core.ui_manager import UIConfigManager
 
 
 @pytest.fixture
@@ -299,19 +298,33 @@ def stop_event_fixture():
 def patcher_instance(
     mock_policy_response, mock_patch_title_response, config_manager, mock_installomator
 ):
-    api_client = AsyncMock()
+    """Mock-shaped PatcherClient for tests that exercise process_reports.
 
-    api_client.get_policies.return_value = mock_policy_response
-    api_client.get_summaries.return_value = mock_patch_title_response
+    Wires a mock ``jamf`` (with canned policy + summary responses), a mock
+    ``data`` (with mocked export), the mock installomator, and a real
+    ``ReportManager`` so its helpers (_validate_directory, _sort, _omit,
+    _ios, calculate_ios_on_latest) execute against the mock collaborators.
+    """
+    jamf = AsyncMock()
+    jamf.get_policies.return_value = mock_policy_response
+    jamf.get_summaries.return_value = mock_patch_title_response
 
-    data_manager = AsyncMock()
+    data = AsyncMock()
 
-    return ReportManager(
-        api_client=api_client,
-        data_manager=data_manager,
+    report = ReportManager(
+        api_client=jamf,
+        data_manager=data,
         debug=True,
         installomator=mock_installomator,
     )
+
+    patcher = MagicMock()
+    patcher.jamf = jamf
+    patcher.data = data
+    patcher.installomator = mock_installomator
+    patcher.report = report
+    patcher.ui_config = {"header_text": "", "header_color": ""}
+    return patcher
 
 
 @pytest.fixture
@@ -401,9 +414,9 @@ def mock_plist(mock_font_paths):
 
 
 @pytest.fixture
-def mock_ui_config_manager():
-    mock_ui = MagicMock(spec=UIConfigManager)
-    mock_ui.config = {
+def mock_ui_config_dict():
+    """Plain dict matching the shape PDFReport expects (post-Phase 6 refactor)."""
+    return {
         "header_text": "Default header text",
         "footer_text": "Default footer text",
         "font_name": "Helvetica",
@@ -411,14 +424,13 @@ def mock_ui_config_manager():
         "bold_font_path": "",
         "logo_path": "",
     }
-    return mock_ui
 
 
 @pytest.fixture
-def mock_pdf_report(mock_ui_config_manager, monkeypatch):
+def mock_pdf_report(mock_ui_config_dict, monkeypatch):
     with monkeypatch.context() as m:
         m.setattr(FPDF, "add_font", lambda *args, **kwargs: None)
-        return PDFReport(ui_config=mock_ui_config_manager)
+        return PDFReport(ui_config=mock_ui_config_dict)
 
 
 @pytest.fixture

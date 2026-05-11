@@ -1,23 +1,15 @@
 import shutil
-import ssl
 from functools import cached_property
 from pathlib import Path
 
-import httpx
-import truststore
-
-from .exceptions import PatcherError
-from .logger import LogMe
-from .models.ui import UIConfigKeys, UIDefaults
+from ..core.exceptions import PatcherError
+from ..core.fonts import ensure_default_fonts
+from ..core.logger import LogMe
+from ..core.models.ui import UIConfigKeys, UIDefaults
 from .plist_manager import PropertylistManager
 
 
 class UIConfigManager:
-    _FONT_URLS = {
-        "regular": "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Regular.ttf",
-        "bold": "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Bold.ttf",
-    }
-
     def __init__(self):
         """
         Manages the user interface configuration settings.
@@ -105,29 +97,15 @@ class UIConfigManager:
                 )
 
     def _download_fonts(self):
-        """Downloads the Assistant font family to Patcher's font directory."""
+        """Ensure the Assistant fonts live in Patcher's font directory.
+
+        Delegates to :func:`patcher.core.fonts.ensure_default_fonts` so the
+        same download logic is available to library callers without
+        instantiating UIConfigManager.
+        """
         if self.fonts_present:
             return
-
-        self._ensure_directory(self.font_dir)
-        # truststore-backed SSL context mirrors HTTPClient's TLS handling
-        # so font downloads work behind the same TLS-inspecting corporate
-        # proxies that Jamf API calls do.
-        ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        for font_type, url in self._FONT_URLS.items():
-            dest = self._get_font_paths()[font_type]
-            try:
-                response = httpx.get(url, verify=ctx, follow_redirects=True, timeout=30.0)
-                response.raise_for_status()
-                dest.write_bytes(response.content)
-                self.log.info(f"Font saved: {dest}")
-            except (httpx.HTTPError, OSError) as e:
-                self.log.error(f"Unable to download font from {url}: {e}")
-                raise PatcherError(
-                    "Failed to download default font family.",
-                    url=url,
-                    error_msg=str(e),
-                )
+        ensure_default_fonts(self.font_dir)
 
     def _copy_file(self, src: Path, dest: Path):
         """Safely copy a file, handling exceptions."""

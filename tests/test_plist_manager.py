@@ -3,8 +3,8 @@ from pathlib import Path
 from unittest.mock import mock_open
 
 import pytest
+from src.patcher.cli.plist_manager import PropertylistManager
 from src.patcher.core.exceptions import PatcherError
-from src.patcher.core.plist_manager import PropertylistManager
 
 
 def test_get_existing_section(mock_plist_manager):

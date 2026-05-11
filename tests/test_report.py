@@ -10,7 +10,7 @@ from src.patcher.core.exceptions import PatcherError
 async def test_process_reports_success(
     stop_event_fixture, patcher_instance, mock_policy_response, mock_summary_response
 ):
-    with patch.object(patcher_instance.data_manager, "export") as mock_export_to_excel:
+    with patch.object(patcher_instance.data, "export") as mock_export_to_excel:
         await process_reports(
             patcher_instance,
             path="~/",
@@ -37,7 +37,7 @@ async def test_process_reports_invalid_path(
     mock_summary_response,
 ):
     mock_isfile.return_value = True
-    with patch.object(patcher_instance.data_manager, "export") as mock_error:
+    with patch.object(patcher_instance.data, "export") as mock_error:
         await process_reports(
             patcher_instance,
             path="/invalid/path",
@@ -59,7 +59,7 @@ async def test_invalid_sort(
     patcher_instance,
 ):
     with pytest.raises(PatcherError):
-        with patch.object(patcher_instance.data_manager, "export") as mock_error:
+        with patch.object(patcher_instance.data, "export") as mock_error:
             await process_reports(
                 patcher_instance,
                 path="~/",

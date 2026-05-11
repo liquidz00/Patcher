@@ -1,15 +1,14 @@
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import mock_open, patch
 
-import httpx
 import pytest
+from src.patcher.cli.ui_manager import UIConfigKeys, UIConfigManager
 from src.patcher.core.exceptions import PatcherError
-from src.patcher.core.ui_manager import UIConfigKeys, UIConfigManager
 
 
 @pytest.fixture
 def ui_manager(mock_plist_manager, monkeypatch):
-    with patch("src.patcher.core.ui_manager.PropertylistManager", return_value=mock_plist_manager):
+    with patch("src.patcher.cli.ui_manager.PropertylistManager", return_value=mock_plist_manager):
         manager = UIConfigManager()
 
         monkeypatch.setattr(
@@ -67,38 +66,30 @@ def test_config_load_default(ui_manager, mock_plist_manager):
         assert config == expected_config
 
 
-def test_download_font_success(ui_manager, monkeypatch):
+def test_download_font_delegates_to_core_fonts(ui_manager, monkeypatch):
+    """UIConfigManager._download_fonts delegates to core.fonts.ensure_default_fonts."""
     monkeypatch.setattr(
         ui_manager, "_download_fonts", UIConfigManager._download_fonts.__get__(ui_manager)
     )
 
-    mock_response = MagicMock(content=b"FontBinaryData")
-    mock_response.raise_for_status = MagicMock()
-
     with (
         patch.object(ui_manager, "fonts_present", new_callable=lambda: False),
-        patch("src.patcher.core.ui_manager.httpx.get", return_value=mock_response) as mock_get,
-        patch.object(Path, "write_bytes") as mock_write,
+        patch("src.patcher.cli.ui_manager.ensure_default_fonts") as mock_ensure,
     ):
         ui_manager._download_fonts()
-
-        assert mock_get.call_count == 2  # regular, bold
-        assert mock_write.call_count == 2
-        # Verify both font URLs were fetched
-        called_urls = {call.args[0] for call in mock_get.call_args_list}
-        assert ui_manager._FONT_URLS["regular"] in called_urls
-        assert ui_manager._FONT_URLS["bold"] in called_urls
+        mock_ensure.assert_called_once_with(ui_manager.font_dir)
 
 
-def test_download_font_failure(ui_manager, monkeypatch):
+def test_download_font_failure_propagates(ui_manager, monkeypatch):
+    """A PatcherError from ensure_default_fonts propagates through _download_fonts."""
     monkeypatch.setattr(
         ui_manager, "_download_fonts", UIConfigManager._download_fonts.__get__(ui_manager)
     )
     with (
         patch.object(ui_manager, "fonts_present", new_callable=lambda: False),
         patch(
-            "src.patcher.core.ui_manager.httpx.get",
-            side_effect=httpx.ConnectError("connect failed"),
+            "src.patcher.cli.ui_manager.ensure_default_fonts",
+            side_effect=PatcherError("Failed to download default font family."),
         ),
     ):
         with pytest.raises(PatcherError, match="Failed to download default font family"):

@@ -4,6 +4,8 @@ from pathlib import Path
 import asyncclick as click
 from PIL import Image
 
+from ..cli.plist_manager import PropertylistManager
+from ..cli.ui_manager import UIConfigManager
 from ..client import HTTPClient
 from ..client.token_manager import TokenManager
 from ..core.config_manager import ConfigManager
@@ -11,8 +13,6 @@ from ..core.exceptions import APIResponseError, PatcherError, SetupError, TokenE
 from ..core.logger import LogMe
 from ..core.models.token import AccessToken
 from ..core.models.ui import UIConfigKeys, UIDefaults
-from ..core.plist_manager import PropertylistManager
-from ..core.ui_manager import UIConfigManager
 from .animation import Animation
 
 # Welcome messages
@@ -56,9 +56,9 @@ class Setup:
         :param config: Manages application configuration, including credential storage.
         :type config: :class:`~patcher.core.config_manager.ConfigManager`
         :param ui_config: Handles UI-related configurations for the setup process.
-        :type ui_config: :class:`~patcher.core.ui_manager.UIConfigManager`
+        :type ui_config: :class:`~patcher.cli.ui_manager.UIConfigManager`
         :param plist_manager: Handles read/write operations to project property list.
-        :type plist_manager: :class:`~patcher.core.plist_manager.PropertylistManager`
+        :type plist_manager: :class:`~patcher.cli.plist_manager.PropertylistManager`
         """
         self.config = config
         self.ui_config = ui_config
@@ -131,7 +131,7 @@ class Setup:
         """
         Drive the interactive UI configuration prompts (header/footer text,
         font, logo, header color) and persist them via the
-        :class:`~patcher.core.ui_manager.UIConfigManager`. Triggers font
+        :class:`~patcher.cli.ui_manager.UIConfigManager`. Triggers font
         downloads on first run.
 
         Replaces the legacy ``UIConfigManager.setup_ui`` method, moved to the

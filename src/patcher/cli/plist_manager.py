@@ -3,9 +3,9 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from .exceptions import PatcherError
-from .logger import LogMe
-from .models.ui import UIConfigKeys
+from ..core.exceptions import PatcherError
+from ..core.logger import LogMe
+from ..core.models.ui import UIConfigKeys
 
 
 class PropertylistManager:

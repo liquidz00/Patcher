@@ -2,42 +2,56 @@
 
 For CLI usage, install with ``pip install patcherctl`` and run ``patcherctl --help``.
 
-For library usage, the headline entry point is :class:`JamfClient`:
+For library usage, the headline entry point is :class:`PatcherClient`:
 
 .. code-block:: python
 
-    from patcher import JamfClient
+    from patcher import PatcherClient
 
-    client = JamfClient.from_credentials(
+    patcher = PatcherClient(
         client_id="...",
         client_secret="...",
         server="https://myorg.jamfcloud.com",
     )
-    summaries = await client.get_summaries(await client.get_policies())
+
+    # Talk to Jamf:
+    summaries = await patcher.jamf.get_summaries(
+        await patcher.jamf.get_policies()
+    )
+
+    # Match against Installomator labels:
+    await patcher.installomator.match(summaries)
+
+    # Export to disk:
+    await patcher.data.export(
+        patch_titles=summaries,
+        output_dir=Path("~/reports").expanduser(),
+        formats={"pdf", "html"},
+        ...
+    )
 
 **Public surface:**
 
-- HTTP clients per service: :class:`JamfClient` (Jamf Pro). Future per-service
-  clients (Homebrew, AutoPkg, Jamf App Installer, the Patcher API itself)
-  will land here too.
-- :class:`InstallomatorClient` — InstallomatorClient label matching against patch
-  titles. Same naming pattern; expect siblings for other patching ecosystems
-  in future releases.
+- :class:`PatcherClient` — the unified facade. Holds ``jamf``,
+  ``installomator``, ``data``, and ``report`` collaborators as attributes.
+- :class:`JamfClient` — Jamf Pro API client, available standalone for
+  callers who only want the Jamf endpoints.
+- :class:`InstallomatorClient` — Installomator label matching service.
+  Naming pattern reserved for future siblings (Homebrew, AutoPkg, Jamf
+  App Installer, the Patcher API service).
 - Return shapes: :class:`PatchTitle`, :class:`PatchDevice` — useful for
   type-hinting your own code that consumes Patcher's responses.
 - Exceptions: :class:`PatcherError`, :class:`APIResponseError`,
   :class:`CredentialError`, :class:`TokenError`, :class:`InstallomatorWarning`.
 
 Submodules under :mod:`patcher.cli`, :mod:`patcher.core`, and
-:mod:`patcher.client` remain importable for advanced use cases (e.g.,
-:class:`patcher.client.HTTPClient` for generic httpx-with-truststore
-requests, :class:`patcher.core.data_manager.DataManager` for raw export
-workflows), but those paths are not part of the stable public surface.
+:mod:`patcher.client` remain importable for advanced use cases — for
+example :class:`patcher.client.HTTPClient` for generic
+httpx-with-truststore requests — but those paths are not part of the
+stable public surface.
 
-CLI-only objects (``Setup``, ``SetupError``, ``Animation``,
-``UIConfigManager``, ``PropertylistManager``) are deliberately not
-re-exported here — library callers go through :class:`JamfClient` and
-its collaborators instead.
+CLI-only objects (``Setup``, ``UIConfigManager``, ``PropertylistManager``,
+``Animation``) are deliberately not re-exported here.
 """
 
 from .__about__ import __version__
@@ -51,9 +65,12 @@ from .core.exceptions import (
 )
 from .core.installomator import InstallomatorClient
 from .core.models.patch import PatchDevice, PatchTitle
+from .core.patcher_client import PatcherClient
 
 __all__ = [
     "__version__",
+    # Headline facade
+    "PatcherClient",
     # Per-service clients
     "JamfClient",
     "InstallomatorClient",

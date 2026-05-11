@@ -11,6 +11,14 @@ from src.patcher.core.exceptions import PatcherError as _PatcherErr
 from src.patcher.core.installomator import InstallomatorClient as _IomCanonical
 from src.patcher.core.models.patch import PatchDevice as _DeviceFromCore
 from src.patcher.core.models.patch import PatchTitle as _TitleFromCore
+from src.patcher.core.patcher_client import PatcherClient as _PatcherCanonical
+
+
+def test_facade_exposes_patcher_client():
+    """PatcherClient is the headline library entry point."""
+    from src.patcher import PatcherClient
+
+    assert PatcherClient is _PatcherCanonical
 
 
 def test_facade_exposes_jamf_client():

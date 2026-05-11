@@ -7,19 +7,18 @@ from pathlib import Path
 import asyncclick as click
 
 from ..__about__ import __version__
-from ..client.jamf import JamfClient
 from ..core.analyze import Analyzer, FilterCriteria, TrendCriteria
 from ..core.config_manager import ConfigManager
 from ..core.data_manager import DataManager
 from ..core.exceptions import APIResponseError, InstallomatorWarning, PatcherError, SetupError
 from ..core.logger import LogMe, PatcherLog
-from ..core.plist_manager import PropertylistManager
-from ..core.report_manager import ReportManager
-from ..core.ui_manager import UIConfigManager
+from ..core.patcher_client import PatcherClient
 from .animation import Animation
+from .plist_manager import PropertylistManager
 from .report import process_reports
 from .setup import Setup
 from .terminal_logger import install_terminal_excepthook, install_terminal_handler
+from .ui_manager import UIConfigManager
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -463,21 +462,20 @@ async def export(
     :param device_details: If True, includes per-title device detail sheets in Excel export.
     :type device_details: bool
     """
-    data_manager = DataManager(disable_cache=ctx.obj.get("disable_cache"))
-    ctx.obj["data_manager"] = data_manager  # Store in context for analyze
+    ui_config, plist_manager = ctx.obj.get("ui_config"), ctx.obj.get("plist_manager")
 
-    api_client = JamfClient(config=ctx.obj.get("config"), concurrency=concurrency)
-
-    patcher = ReportManager(
-        api_client=api_client,
-        data_manager=data_manager,
+    patcher = PatcherClient(
+        config=ctx.obj.get("config"),
+        concurrency=concurrency,
+        disable_cache=ctx.obj.get("disable_cache"),
         debug=ctx.obj.get("debug"),
+        enable_installomator=bool(plist_manager.get("enable_installomator")),
+        ui_config=ui_config.config,
     )
+    ctx.obj["data_manager"] = patcher.data  # Store in context for analyze
 
     selected_formats = set(formats) if formats else {"excel", "html", "pdf", "json"}
     actual_format = DATE_FORMATS[date_format]
-
-    ui_config, plist_manager = ctx.obj.get("ui_config"), ctx.obj.get("plist_manager")
 
     # Animation + error handling are scoped inside process_reports
     await process_reports(
@@ -488,9 +486,9 @@ async def export(
         omit=omit,
         ios=ios,
         date_format=actual_format,
-        report_title=ui_config.config.get("header_text"),
-        enable_iom=plist_manager.get("enable_installomator"),
-        header_color=ui_config.config.get("header_color"),
+        report_title=patcher.ui_config.get("header_text"),
+        enable_iom=patcher.installomator is not None,
+        header_color=patcher.ui_config.get("header_color"),
         device_details=device_details,
     )
 
