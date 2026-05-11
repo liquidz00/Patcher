@@ -155,6 +155,24 @@ html_title = f"{release}"
 
 html_css_files = ["css/custom.css"]
 
+# -- RTD version awareness ---------------------------------------------------
+# READTHEDOCS_VERSION_NAME is set by Read the Docs at build time (e.g. "latest",
+# "develop", or a tag like "v2.4.0"). Used to pick a branch-appropriate banner
+# and to feed the pydata-sphinx-theme version switcher.
+rtd_version = os.environ.get("READTHEDOCS_VERSION_NAME", "")
+
+if rtd_version == "develop":
+    _announcement = (
+        '<strong>You are reading the development docs.</strong> '
+        'These cover unreleased changes on the <code>develop</code> branch. '
+        '<a href="https://patcher.readthedocs.io/en/latest/">'
+        'Switch to the latest stable docs &rarr;</a>'
+    )
+else:
+    _announcement = (
+        "https://raw.githubusercontent.com/liquidz00/Patcher/main/docs/_templates/custom-template.html"
+    )
+
 html_theme_options = {
     "external_links": [
         {"url": "https://github.com/liquidz00/Patcher/blob/main/CHANGELOG.md", "name": "Changelog"},
@@ -168,11 +186,19 @@ html_theme_options = {
     ],
     "header_links_before_dropdown": 3,
     "navbar_align": "left",
-    "announcement": "https://raw.githubusercontent.com/liquidz00/Patcher/main/docs/_templates/custom-template.html",
+    "announcement": _announcement,
+    "switcher": {
+        "json_url": "https://patcher.readthedocs.io/en/latest/_static/switcher.json",
+        "version_match": rtd_version or "latest",
+    },
+    # Don't fetch switcher.json at build time — RTD's develop build runs before
+    # main has the file, which would otherwise produce a 404 warning and fail
+    # the build under fail_on_warning. The browser validates at view time.
+    "check_switcher": False,
     "show_prev_next": False,
     "navbar_start": ["navbar-logo"],
     "navbar_center": ["navbar-nav"],
-    "navbar_end": ["theme-switcher", "navbar-icon-links"],
+    "navbar_end": ["version-switcher", "theme-switcher", "navbar-icon-links"],
     "icon_links": [
         {
             "name": "GitHub",
