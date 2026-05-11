@@ -25,6 +25,7 @@ dependencies = [
   "pyarrow>=15.0.0",
   "pydantic>=2.7.4",
   "rapidfuzz>=3.12.1",
+  "truststore>=0.10",
 ]
 
 classifiers = [

@@ -1,10 +1,12 @@
 import asyncio
 import json
+import ssl
 import subprocess
 from typing import Any
 from urllib.parse import urlencode
 
 import httpx
+import truststore
 
 from ..models.jamf_client import ApiClientModel, ApiRoleModel
 from ..utils.exceptions import APIResponseError, PatcherError, ShellCommandError
@@ -84,10 +86,15 @@ class BaseAPIClient:
             also applies at the HTTP layer.
         """
         if self._http_client is None:
+            # truststore.SSLContext bridges Python's ssl module to the OS's
+            # native trust store. Corporate CAs installed via MDM are trusted
+            # automatically — no certifi-modification dance required.
+            ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             self._http_client = httpx.AsyncClient(
                 timeout=httpx.Timeout(30.0),
                 limits=httpx.Limits(max_connections=self.max_concurrency),
                 follow_redirects=True,
+                verify=ctx,
             )
         return self._http_client
 

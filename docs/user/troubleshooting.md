@@ -2,7 +2,7 @@
 
 # Troubleshooting
 
-For a list of Patcher exit codes and viewing help, visit the {ref}`usage <exit-codes>` page. 
+For a list of Patcher exit codes and viewing help, visit the {ref}`usage <exit-codes>` page.
 
 ## Debugging
 
@@ -19,10 +19,10 @@ $ patcherctl <command> <options> --debug
 Patcher's log(s) are stored in the Application Support directory of the user library: ``~/Library/Application Support/Patcher/logs``. There are three potential log files depending on configuration:
 
 1. **``patcher.log``**: The primary log file used when any Patcher command is invoked.
-2. **``patcher-agent.out.log``**: Standard out (``stdout``) log used by the {ref}`LaunchAgent <launch_agent>`. 
+2. **``patcher-agent.out.log``**: Standard out (``stdout``) log used by the {ref}`LaunchAgent <launch_agent>`.
 3. **``patcher-agent.err.log``**: Errors (``stderr``) logged by the {ref}`LaunchAgent <launch_agent>`.
 
-Each log entry contains a timestamp, the {ref}`child logger <child-logger>` writing the log, and log level. 
+Each log entry contains a timestamp, the {ref}`child logger <child-logger>` writing the log, and log level.
 
 ### Sample log
 
@@ -33,7 +33,7 @@ Each log entry contains a timestamp, the {ref}`child logger <child-logger>` writ
 2024-12-30 21:19:35,423 - Patcher.ApiClient - ERROR - Client error (401): [{'code': 'INVALID_TOKEN', 'description': 'Unauthorized', 'id': '0', 'field': None}]
 ```
 
-The child logger in this case was the {class}`~patcher.client.api_client.ApiClient` class. This is helpful information to include in bug reports/issues. 
+The child logger in this case was the {class}`~patcher.client.api_client.ApiClient` class. This is helpful information to include in bug reports/issues.
 :::
 
 :::{card} Debug & Info
@@ -47,11 +47,11 @@ The child logger in this case was the {class}`~patcher.client.api_client.ApiClie
 
 ## Potential Solutions
 
-When encountering an issue, it is beneficial to separate environment issues (API credentials, network timeouts, etc.) versus configuration issues with Patcher (bug, property list issue, etc.). 
+When encountering an issue, it is beneficial to separate environment issues (API credentials, network timeouts, etc.) versus configuration issues with Patcher (bug, property list issue, etc.).
 
 ### Update Patcher
 
-Ensure you are running the latest version of Patcher before proceeding. This is the least invasive and most straightforward method of resolving issues relating to Patcher: 
+Ensure you are running the latest version of Patcher before proceeding. This is the least invasive and most straightforward method of resolving issues relating to Patcher:
 
 ```{code-block} console
 $ python3 -m pip install --upgrade patcherctl
@@ -69,13 +69,13 @@ During the setup process, if an API Role or Client already exists for Patcher, t
 
 ### Reinstalling Patcher
 
-As Patcher is distributed via PyPI, ``pip`` can be leveraged to uninstall and reinstall Patcher: 
+As Patcher is distributed via PyPI, ``pip`` can be leveraged to uninstall and reinstall Patcher:
 
 ```{code-block} console
 $ python3 -m pip uninstall patcherctl
 ```
 
-A prompt will show asking for confirmation to proceed. Enter ``Y`` to confirm uninstallation. 
+A prompt will show asking for confirmation to proceed. Enter ``Y`` to confirm uninstallation.
 
 ```{code-block} console
 Found existing installation: patcherctl <version>
@@ -84,7 +84,7 @@ Uninstalling patcherctl-<version>:
     /Library/Frameworks/Python.framework/Versions/3.12/bin/patcherctl
     /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/patcher/*
     /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/patcherctl-<version>.dist-info/*
-Proceed (Y/n)? 
+Proceed (Y/n)?
 ```
 
 :::{admonition} Optional
@@ -93,11 +93,36 @@ Proceed (Y/n)?
 Before reinstalling Patcher, remove all contents from Patcher's Application Support directory **except** the ``logs`` directory. The logs should be kept to assist in troubleshooting the issue(s). The directory can be found at the following path: ``~/Library/Application Support/Patcher/``.
 :::
 
-Reinstall Patcher with ``python3 -m pip install patcherctl``. For detailed instructions, see {ref}`our install page <install>`. 
+Reinstall Patcher with ``python3 -m pip install patcherctl``. For detailed instructions, see {ref}`our install page <install>`.
+
+## TLS / Corporate Proxies
+
+If your organization runs a TLS-inspecting proxy (Zscaler, Netskope, Cloudflare Gateway, Palo Alto GlobalProtect, etc.), Patcher should "just work" provided your corporate CA is installed in your operating system's native trust store. Most enterprise MDM deployments push this CA automatically.
+
+Patcher uses the [`truststore`](https://github.com/sethmlarson/truststore) library to bridge Python's TLS stack to your OS's trust store:
+
+| Platform | Trust source |
+|---|---|
+| macOS | Keychain (System and Login) |
+| Windows | Certificate Store |
+| Linux | ``/etc/ssl/certs/ca-certificates.crt`` |
+
+You do **not** need to manually concatenate certificates into ``certifi``'s ``cacert.pem`` file, edit Python's ssl settings, or set ``SSL_CERT_FILE``. If your browser can reach your Jamf Pro instance without a TLS warning, Patcher can too.
+
+### Diagnosing TLS errors
+
+If Patcher fails with an ``APIResponseError: Network error fetching URL`` and the underlying message mentions certificate verification:
+
+1. Verify the corporate CA is installed in your OS trust store:
+   - **macOS**: open Keychain Access → System keychain → Certificates. Look for your company's root CA.
+   - **Windows**: ``certmgr.msc`` → Trusted Root Certification Authorities → Certificates.
+   - **Linux**: ``ls /etc/ssl/certs/`` or ``trust list --filter=ca-anchors``.
+2. Confirm your IT team's MDM profile is fully applied — sometimes new machines don't have all the certificates pushed until a refresh.
+3. If the CA is installed but the error persists, contact IT or the MacAdmins Slack ``#patcher`` channel with the full error output.
 
 ## Resources
 
-If you're still running into issues with Patcher, there are a couple of ways to get in touch. 
+If you're still running into issues with Patcher, there are a couple of ways to get in touch.
 
 ### 1. Submit an Issue
 
@@ -105,5 +130,4 @@ Submitting an [issue](https://github.com/liquidz00/Patcher/issues/new/choose) on
 
 ### 2. Reach out on the MacAdmins Slack
 
-Despite having full-time jobs, we try to stay as active as possible on the MacAdmins Slack. Find us in the ``#patcher`` channel by clicking the banner at the top of the page. For other details on how to contribute, see {ref}`our contributing page <contributing_index>`. 
-
+Despite having full-time jobs, we try to stay as active as possible on the MacAdmins Slack. Find us in the ``#patcher`` channel by clicking the banner at the top of the page. For other details on how to contribute, see {ref}`our contributing page <contributing_index>`.

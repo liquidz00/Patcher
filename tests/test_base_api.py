@@ -178,6 +178,27 @@ async def test_http_property_lazy_init(base_api_client):
 
 
 @pytest.mark.asyncio
+async def test_http_property_uses_truststore_ssl_context(base_api_client):
+    """The lazy http client is configured with a truststore-backed SSLContext.
+
+    Asserts the wire-in, not truststore itself — we trust the library to do
+    its job; we just verify Patcher hands httpx an OS-trust-store SSL context
+    rather than relying on httpx's certifi default.
+    """
+    import ssl
+
+    import truststore
+
+    client = base_api_client.http
+    # httpx stores the verify argument; we check that we passed an SSLContext
+    # constructed via truststore, not the default True (certifi).
+    assert isinstance(client._transport._pool._ssl_context, ssl.SSLContext)
+    # truststore subclasses ssl.SSLContext, so identity check via class:
+    assert isinstance(client._transport._pool._ssl_context, truststore.SSLContext)
+    await base_api_client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_aclose_is_idempotent(base_api_client):
     """aclose() is safe to call multiple times and resets the lazy-init state."""
     # Force construction
