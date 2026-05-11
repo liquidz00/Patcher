@@ -10,7 +10,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- `Installomator.list_available_labels()`, `get_label(name)`, and reshaped `get_labels(names=None)` as public methods. Suitable as library entry points for callers that want to enumerate or fetch labels without going through the full matching flow.
+- Comprehensive test coverage for the Installomator matching pipeline (`tests/test_installomator.py`, 26 tests) covering Labels.txt discovery, single-label fetch, batch fetch, team-ID filtering, fuzzy matching thresholds, and the full `match()` pipeline including the second-pass + unmatched-apps persistence path.
 - Integration test scaffolding under `tests/integration/`. Opt-in via `make test-integration`; default `make test` continues to run unit tests only. Defaults to Jamf's published dummy instance (`dummy.jamfcloud.com`) with credential overrides via `PATCHER_INTEGRATION_URL`, `PATCHER_INTEGRATION_CLIENT_ID`, `PATCHER_INTEGRATION_CLIENT_SECRET`. Documented in the contributing guide.
+- `httpx>=0.28.1` dependency in preparation for the upcoming transport migration away from `/usr/bin/curl` subprocess calls.
+- GitHub issue templates migrated to YAML forms: `bug_report.yml`, `feature_request.yml`, `feedback.yml`, plus `config.yml` controlling the picker behavior and contact links.
+- `.cursor/rules/` domain rules for Jamf Pro API, Installomator, Jamf App Installers, AutoPkg, and Homebrew — referenced by AI coding assistants for accurate, schema-grounded suggestions when editing related code.
+- `.claude/skills/check-app-match/` — a Claude skill that enumerates which patching methods (Installomator, Homebrew Cask, AutoPkg) cover a given Mac application, surfacing matches per ecosystem with confidence flags.
+- Read the Docs versioned documentation: the `develop` branch builds independently with a navbar version switcher between `latest` (stable, from `main`) and `develop` (unreleased). Develop builds also surface a banner indicating users are reading unreleased docs.
+
+### Changed
+- **Installomator matching pipeline rewritten** to use the upstream `Labels.txt` file at the repository root for fast discovery, fetching individual `.sh` fragments lazily and only for matched titles. First-run HTTP calls drop from ~700 to ~(1 + matched_count) — first-run matching time drops from minutes to seconds. Public `Installomator.match()` API unchanged; on-disk cache layout at `~/Library/Application Support/Patcher/.labels/` preserved.
+- Project version bumped to `2.5.0.dev0` on the `develop` branch to surface the in-development state. Stable releases continue from `main`.
+
+### Fixed
+- `PatcherError` instances now expose their constructor kwargs as instance attributes (e.g. `err.not_found`, `err.status_code`). Restores the intended 404 short-circuit in `Installomator.match()`, which previously always fell through to the generic re-raise because `getattr(e, "not_found", False)` evaluated against `self.context["not_found"]` (a dict entry) instead of an attribute, returning `False` even on 404 responses.
+- Sphinx documentation builds no longer fail under Read the Docs' `-W` flag: the custom `styled_params` extension now declares its parallel-read/write safety, matching the pattern already used by the `ghwiki` extension.
+- Integration test fixture (`iom`) now patches `ApiClient` before `Installomator` construction, so the Linux CI runners (which lack a keyring backend) no longer fail with `NoKeyringError` when constructing the test target.
 
 ## [v2.4.0] - 2026-05-04
 ### Added
