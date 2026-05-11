@@ -2,6 +2,7 @@ import asyncio
 import fnmatch
 import json
 import re
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,6 @@ from rapidfuzz import fuzz, process
 
 from ..client.api_client import ApiClient
 from ..client.config_manager import ConfigManager
-from ..models.fragment import Fragment
 from ..models.label import Label
 from ..models.patch import PatchTitle
 from .exceptions import APIResponseError, PatcherError, ShellCommandError
@@ -18,13 +18,23 @@ from .logger import LogMe
 
 IGNORED_TEAMS = ["Frydendal", "Media", "LL3KBL2M3A"]  # "LL3KBL2M3A" - lcadvancedvpnclient
 
+# Installomator hosts a flat list of every label name in Labels.txt at the
+# repo root. Parsing this file before fetching individual fragments lets us
+# avoid the ~700-call directory-listing + mass-download fan-out that the
+# previous implementation performed on first run.
+_INSTALLOMATOR_RAW_BASE = (
+    "https://raw.githubusercontent.com/Installomator/Installomator/refs/heads/main"
+)
+_LABELS_TXT_URL = f"{_INSTALLOMATOR_RAW_BASE}/Labels.txt"
+_FRAGMENT_URL_TEMPLATE = f"{_INSTALLOMATOR_RAW_BASE}/fragments/labels/{{name}}.sh"
+
 
 class Installomator:
     def __init__(self, concurrency: int | None = 5):
         """
         The Installomator class interacts with `Installomator <https://github.com/Installomator/Installomator>`_, a script used for automated software installations on macOS.
 
-        This class provides methods for fetching, parsing, and matching Installomator labels to ``PatchTitle`` objects using direct or fuzzy matching.
+        This class provides methods for discovering, fetching, and matching Installomator labels to ``PatchTitle`` objects. Discovery uses the lightweight ``Labels.txt`` file at the Installomator repo root; individual ``.sh`` fragments are fetched lazily and only for matches.
 
         :param concurrency: Number of concurrent requests allowed for API operations. See :ref:`concurrency <concurrency>` in Usage docs.
         :type concurrency: int | None
@@ -36,39 +46,15 @@ class Installomator:
         self.threshold = 85
         self.review_file = Path.home() / "Library/Application Support/Patcher/unmatched_apps.json"
 
-        self._labels: list[Label] | None = None
-        self._fragments: list[Fragment] | None = None
+        # Session-scoped caches. `_available_names` holds the parsed Labels.txt
+        # contents (a set of script names). `_labels_by_name` holds Label
+        # objects keyed by script name as they are fetched.
+        self._available_names: set[str] | None = None
+        self._labels_by_name: dict[str, Label] = {}
 
-    @staticmethod
-    def _validate_labels(value: list[Any]) -> list[Label]:
-        """Validates the provided value is a list of ``Label`` objects."""
-        if not isinstance(value, list):
-            raise PatcherError("Value provided is not a list of Label objects.", value=value)
-
-        validated_labels = [item for item in value if isinstance(item, Label)]
-        if not validated_labels:
-            raise PatcherError("list provided does not contain any valid Label objects.")
-
-        return validated_labels
-
-    async def _save(self, file_name: str, download_url: str, file_path: Path) -> bool:
-        """Saves raw Installomator fragments to specified file path. Defaults to ``self.label_path`` if no path is provided."""
-        file_path = file_path or self.label_path
-        self.log.debug(f"Attempting to download Installomator fragments to {file_path}")
-        try:
-            file_content = await self.api.execute(["/usr/bin/curl", "-s", download_url])
-        except ShellCommandError as e:
-            self.log.error(f"Unable to download Installomator fragment as expected. Details: {e}")
-            return False
-
-        try:
-            with open(file_path, "w") as f:
-                f.write(file_content)
-            self.log.info(f"Downloaded {file_name} to {file_path} successfully.")
-            return True
-        except OSError as e:
-            self.log.error(f"Could not write to {file_path}. Details: {e}")
-            return False
+    # ------------------------------------------------------------------ #
+    # Parsing & label construction
+    # ------------------------------------------------------------------ #
 
     @staticmethod
     def _parse(fragment: str) -> dict[str, Any]:
@@ -109,134 +95,216 @@ class Installomator:
 
         return data
 
-    async def _fetch_fragments(self) -> list[Fragment]:
-        """Fetches Installomator fragments via GitHub API."""
-        installomator_url = (
-            "https://api.github.com/repos/Installomator/Installomator/contents/fragments/labels"
-        )
+    def _build_label_from_content(self, content: str, script_name: str) -> Label | None:
+        """Parse a fragment's raw .sh content into a ``Label`` object.
+
+        Returns ``None`` if the fragment's expected Team ID is in
+        :data:`IGNORED_TEAMS` or if Pydantic validation fails.
+        """
+        fragment_dict = self._parse(content)
+
+        expected_team_id = fragment_dict.get("expectedTeamID")
+        if expected_team_id in IGNORED_TEAMS:
+            self.log.warning(f"Skipping label {script_name} (ignored Team ID: {expected_team_id})")
+            return None
+
         try:
-            response = await self.api.fetch_json(installomator_url)
-            # Cache fragments locally
-            fragments = [Fragment(**item) for item in response]
-            self._fragments = fragments
-            return fragments
-        except (APIResponseError, ValidationError) as e:
-            raise PatcherError(
-                "Unable to retrieve Installomator fragments as expected.", error_msg=str(e)
+            return Label.from_dict(fragment_dict, installomatorLabel=script_name)
+        except ValidationError as e:
+            self.log.warning(
+                f"Skipping invalid Installomator label: {script_name} due to validation error: {e}"
             )
+            return None
 
-    async def _create_label_dir(self, fragments: list[Fragment]) -> bool:
-        """Creates label directory to save raw Installomator fragments locally."""
-        if not self.label_path.exists():
-            self.label_path.mkdir(parents=True, exist_ok=True)
+    # ------------------------------------------------------------------ #
+    # Discovery + fetch (public API)
+    # ------------------------------------------------------------------ #
 
-        tasks = []
-        for fragment in fragments:
-            save_path = self.label_path / fragment.name
-            if not save_path.exists():
-                tasks.append(
-                    self._save(
-                        file_name=fragment.name,
-                        download_url=fragment.download_url,
-                        file_path=save_path,
-                    )
-                )
+    async def list_available_labels(self) -> set[str]:
+        """
+        Return the set of every label name currently available in Installomator.
 
-        results = await asyncio.gather(*tasks)
-        return all(result is True for result in results)
+        Fetches and parses :data:`_LABELS_TXT_URL`. The result is cached on the instance for the session; subsequent calls do not re-fetch.
 
-    async def _build_labels(self) -> list[Label]:
-        """Builds list of ``Label`` objects from parsing ``self.label_path``."""
-        labels = []
-        for file_path in self.label_path.glob("*.sh"):
-            content = file_path.read_text()
-            fragment_dict = self._parse(content)
+        :return: A set of label script names (e.g. ``{"googlechrome", "1password8", ...}``).
+        :rtype: set[str]
+        :raises PatcherError: If the labels file cannot be fetched.
+        """
+        if self._available_names is not None:
+            return self._available_names
 
-            expected_team_id = fragment_dict.get("expectedTeamID")
-            if expected_team_id in IGNORED_TEAMS:
-                self.log.warning(
-                    f"Skipping label {file_path.stem} (ignored Team ID: {expected_team_id})"
-                )
-                continue  # skip this label entirely
+        self.log.debug(f"Fetching Installomator Labels.txt from {_LABELS_TXT_URL}")
+        try:
+            content = await self.api.execute(["/usr/bin/curl", "-fsSL", _LABELS_TXT_URL])
+        except ShellCommandError as e:
+            raise PatcherError("Unable to retrieve Installomator Labels.txt", error_msg=str(e))
 
+        # Labels.txt is one label name per line. Strip whitespace, drop blanks
+        # and comments (lines starting with '#'), normalize to lowercase to
+        # match the rest of the matching pipeline.
+        names = {
+            line.strip().lower()
+            for line in content.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        }
+        self._available_names = names
+        self.log.info(f"Discovered {len(names)} Installomator labels.")
+        return names
+
+    async def get_label(self, name: str) -> Label | None:
+        """
+        Fetch and parse a single Installomator label by script name.
+
+        Lookup order:
+
+        1. Instance cache (``self._labels_by_name``)
+        2. On-disk cache (``~/Library/Application Support/Patcher/.labels/<name>.sh``)
+        3. HTTP fetch from :data:`_FRAGMENT_URL_TEMPLATE`
+
+        :param name: The Installomator script name (e.g. ``"googlechrome"``).
+            Case-insensitive; normalized to lowercase before lookup.
+        :type name: str
+        :return: The constructed ``Label`` object, or ``None`` if the fragment
+            cannot be fetched, is ignored by Team ID, or fails validation.
+        :rtype: :class:`~patcher.models.label.Label` | None
+        """
+        key = name.lower()
+        if key in self._labels_by_name:
+            return self._labels_by_name[key]
+
+        # On-disk cache
+        cache_path = self.label_path / f"{key}.sh"
+        if cache_path.exists():
             try:
-                label = Label.from_dict(
-                    fragment_dict, installomatorLabel=file_path.stem.split(".")[0]
-                )
-                labels.append(label)
-            except ValidationError as e:
+                content = cache_path.read_text()
+                label = self._build_label_from_content(content, key)
+                if label is not None:
+                    self._labels_by_name[key] = label
+                return label
+            except OSError as e:
                 self.log.warning(
-                    f"Skipping invalid Installomator label: {file_path.name} due to validation error: {e}"
+                    f"Could not read cached fragment {cache_path}; will refetch. Details: {e}"
                 )
-                continue  # Skip problematic label but continue
 
-        return labels
+        # HTTP fetch — `-f` makes curl exit non-zero on 4xx/5xx so we don't
+        # silently parse "404: Not Found" bodies as labels.
+        url = _FRAGMENT_URL_TEMPLATE.format(name=key)
+        self.log.debug(f"Fetching Installomator fragment from {url}")
+        try:
+            content = await self.api.execute(["/usr/bin/curl", "-fsSL", url])
+        except ShellCommandError as e:
+            self.log.warning(f"Failed to fetch Installomator fragment for '{name}': {e}")
+            return None
+
+        if not content:
+            return None
+
+        # Best-effort cache write — failure here doesn't prevent returning the label
+        try:
+            self.label_path.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text(content)
+        except OSError as e:
+            self.log.warning(f"Could not write fragment cache to {cache_path}: {e}")
+
+        label = self._build_label_from_content(content, key)
+        if label is not None:
+            self._labels_by_name[key] = label
+        return label
+
+    async def get_labels(self, names: Iterable[str] | None = None) -> list[Label]:
+        """
+        Fetch and parse multiple Installomator labels in parallel.
+
+        :param names: Specific label script names to fetch. If ``None`` (the
+            default), fetches **every** label listed in :data:`_LABELS_TXT_URL`
+            — typically ~700 HTTP calls on first run, served from disk cache
+            on subsequent runs. Prefer passing a concrete name list when you
+            know what you need.
+        :type names: Iterable[str] | None
+        :return: List of successfully parsed ``Label`` objects. Labels that
+            fail to fetch, hit an ignored Team ID, or fail validation are
+            silently omitted (warnings are logged).
+        :rtype: list[:class:`~patcher.models.label.Label`]
+        """
+        if names is None:
+            names_iter = await self.list_available_labels()
+        else:
+            names_iter = {n.lower() for n in names}
+
+        if not names_iter:
+            return []
+
+        tasks = [self.get_label(name) for name in names_iter]
+        results = await asyncio.gather(*tasks)
+        return [label for label in results if label is not None]
+
+    # ------------------------------------------------------------------ #
+    # Matching helpers (mostly unchanged from the prior implementation)
+    # ------------------------------------------------------------------ #
 
     @staticmethod
     def _normalize(app_name: str) -> str:
         """Normalizes app names to better match Installomator labels (e.g. nodejs)."""
         return app_name.lower().replace(" ", "").replace(".", "")
 
-    def _match_directly(self, app_names: list[str], label_lookup: dict[str, Label]) -> list[Label]:
-        """Attempts direct and normalized name matching."""
-        matched_labels = []
+    def _match_directly(self, app_names: list[str], available: set[str]) -> list[str]:
+        """Direct and normalized name matching against the available script-name set."""
+        matched: list[str] = []
         for app_name in app_names:
-            normalized_name = self._normalize(app_name)
-            if app_name.lower() in label_lookup:
-                matched_labels.append(label_lookup[app_name.lower()])
-            if normalized_name in label_lookup:
-                matched_labels.append(label_lookup[normalized_name])
-        return matched_labels
+            lower = app_name.lower()
+            if lower in available and lower not in matched:
+                matched.append(lower)
+            normalized = self._normalize(app_name)
+            if normalized in available and normalized not in matched:
+                matched.append(normalized)
+        return matched
 
-    def _match_fuzzy(self, app_names: list[str], label_lookup: dict[str, Label]) -> list[Label]:
-        """Attempts fuzzy matching if no direct match is found."""
-        matched_labels = []
+    def _match_fuzzy(self, app_names: list[str], available: set[str]) -> list[str]:
+        """Fuzzy match (rapidfuzz ratio) against the available script-name set."""
+        matched: list[str] = []
+        choices = list(available)
         for app_name in app_names:
-            result = process.extractOne(
-                app_name.lower(), list(label_lookup.keys()), scorer=fuzz.ratio
-            )  # type: ignore
+            result = process.extractOne(app_name.lower(), choices, scorer=fuzz.ratio)  # type: ignore
             if result:
                 best_match, score, _ = result
-                if best_match and score >= self.threshold:
-                    matched_labels.append(label_lookup[best_match])
-        return matched_labels
+                if best_match and score >= self.threshold and best_match not in matched:
+                    matched.append(best_match)
+        return matched
 
-    def _second_pass(
+    async def _second_pass(
         self,
         unmatched_apps: list[dict[str, Any]],
-        label_lookup: dict[str, Label],
+        available: set[str],
         patch_titles: list[PatchTitle],
     ) -> int:
-        """Attempts to match previously unmatched apps by normalized ``PatchTitle.title`` and fuzzy search."""
+        """Retry unmatched apps using normalized + fuzzy matching on the patch title itself."""
         matched_count = 0
-        still_unmatched = []
+        still_unmatched: list[dict[str, Any]] = []
 
         for entry in unmatched_apps:
             patch_name = entry["Patch"]
             normalized_patch = self._normalize(patch_name)
             patch_title = next((pt for pt in patch_titles if pt.title == patch_name), None)
 
-            if normalized_patch in label_lookup:
-                if patch_title:
-                    patch_title.install_label.append(label_lookup[normalized_patch])
-                    self.log.debug(
-                        f"Second-pass normalized match for {patch_name} → {normalized_patch}"
-                    )
-                    matched_count += 1
-                continue
-
-            result = process.extractOne(
-                normalized_patch, list(label_lookup.keys()), scorer=fuzz.ratio
-            )  # type: ignore
-            if result:
-                best_match, score, _ = result
-                if best_match and score >= self.threshold:
-                    if patch_title:
-                        patch_title.install_label.append(label_lookup[best_match])
+            target_name: str | None = None
+            if normalized_patch in available:
+                target_name = normalized_patch
+                self.log.debug(f"Second-pass normalized match for {patch_name} → {target_name}")
+            else:
+                result = process.extractOne(normalized_patch, list(available), scorer=fuzz.ratio)  # type: ignore
+                if result:
+                    best_match, score, _ = result
+                    if best_match and score >= self.threshold:
+                        target_name = best_match
                         self.log.debug(
-                            f"Second-pass fuzzy match for {patch_name} → {best_match} (Score: {score})"
+                            f"Second-pass fuzzy match for {patch_name} → {target_name} (score {score})"
                         )
-                        matched_count += 1
+
+            if target_name and patch_title is not None:
+                label = await self.get_label(target_name)
+                if label is not None:
+                    patch_title.install_label.append(label)
+                    matched_count += 1
                     continue
 
             still_unmatched.append(entry)
@@ -250,30 +318,27 @@ class Installomator:
         with open(self.review_file, "w") as file:
             json.dump(unmatched_apps, file, indent=4)  # type: ignore
 
-    async def get_labels(self) -> list[Label]:
-        """
-        Builds ``Label`` objects after collecting ``Fragment`` objects from GitHub API.
-
-        :return: The compiled list of ``Label`` objects.
-        :rtype: list [:class:`~patcher.models.label.Label`]
-        """
-        if self._labels is None:
-            fragments = await self._fetch_fragments()
-            await self._create_label_dir(fragments)
-            self._labels = await self._build_labels()
-        return self._labels
+    # ------------------------------------------------------------------ #
+    # match() — orchestrator
+    # ------------------------------------------------------------------ #
 
     async def match(self, patch_titles: list[PatchTitle]) -> None:
         """
-        Matches Installomator labels to ``PatchTitle`` objects using direct mapping and fuzzy matching.
+        Match Jamf patch titles to Installomator labels.
 
-        - Uses multiple app names from :meth:`~patcher.client.api_client.ApiClient.get_app_names`
-        - Matches labels directly by name by default
-        - Applies fuzzy matching as a fallback if direct matching fails
-        - Updates :attr:`~patcher.models.patch.PatchTitle.install_label` with matched labels
+        Flow:
 
-        :param patch_titles: The list of ``PatchTitle`` objects to match with ``Label`` objects.
-        :type patch_titles: list [:class:`~patcher.models.patch.PatchTitle`]
+        1. Fetch the set of available label script names via :meth:`list_available_labels` (one HTTP call).
+        2. Pull each patch title's associated app names via :meth:`~patcher.client.api_client.ApiClient.get_app_names`.
+        3. Match each title's app names against the available script names — direct, then normalized, then fuzzy.
+        4. Fetch the matched label fragments in parallel via :meth:`get_labels` and attach them to ``PatchTitle.install_label``.
+        5. Run a second-pass attempt on still-unmatched titles, keyed on the patch title text itself.
+        6. Persist any remaining unmatched apps to ``unmatched_apps.json`` for manual review.
+
+        :param patch_titles: The list of ``PatchTitle`` objects to match. Each
+            successfully matched title has its ``install_label`` attribute
+            extended in place.
+        :type patch_titles: list[:class:`~patcher.models.patch.PatchTitle`]
         """
         self.log.debug("Starting label-patch title matching process.")
 
@@ -291,13 +356,13 @@ class Installomator:
         except APIResponseError as e:
             if getattr(e, "not_found", False):
                 return  # Exit early, do not stop process
-            raise  # Non 404 errors get re-raised
+            raise  # Non-404 errors get re-raised
 
-        labels = self._labels or await self.get_labels()
-        label_lookup = {label.name.lower(): label for label in labels}
+        available = await self.list_available_labels()
 
-        matched_count = 0
-        unmatched_apps = []
+        # Compute matches per patch title, gathering all unique script names we'll need
+        per_title_matches: dict[str, list[str]] = {}
+        unmatched_apps: list[dict[str, Any]] = []
 
         for patch_title in patch_titles:
             if any(fnmatch.fnmatch(patch_title.title, pattern) for pattern in IGNORED_TITLES):
@@ -314,23 +379,39 @@ class Installomator:
                 unmatched_apps.append({"Patch": patch_title.title, "App Names": []})
                 continue
 
-            matched_labels = self._match_directly(app_names, label_lookup) or self._match_fuzzy(
-                app_names, label_lookup
+            matched_names = self._match_directly(app_names, available) or self._match_fuzzy(
+                app_names, available
             )
 
-            if matched_labels:
-                patch_title.install_label.extend(matched_labels)
-                matched_count += 1
+            if matched_names:
+                per_title_matches[patch_title.title] = matched_names
             else:
                 unmatched_apps.append({"Patch": patch_title.title, "App Names": app_names})
 
-        matched_count += self._second_pass(unmatched_apps, label_lookup, patch_titles)
+        # Single batched fetch for every distinct matched script name
+        all_matched_names: set[str] = {n for names in per_title_matches.values() for n in names}
+        if all_matched_names:
+            await self.get_labels(all_matched_names)
+
+        matched_count = 0
+        for patch_title in patch_titles:
+            names = per_title_matches.get(patch_title.title)
+            if not names:
+                continue
+            labels_for_title = [self._labels_by_name[n] for n in names if n in self._labels_by_name]
+            if labels_for_title:
+                patch_title.install_label.extend(labels_for_title)
+                matched_count += 1
+
+        # Second pass on unmatched: try normalized patch title + fuzzy
+        matched_count += await self._second_pass(unmatched_apps, available, patch_titles)
 
         self._save_unmatched_apps(unmatched_apps)
 
         self.log.info(
             f"Matching process finished. {matched_count} PatchTitle objects were updated."
         )
-        self.log.warning(
-            f"{len(unmatched_apps)} PatchTitle objects had no matches. Review: {self.review_file}"
-        )
+        if unmatched_apps:
+            self.log.warning(
+                f"{len(unmatched_apps)} PatchTitle objects had no matches. Review: {self.review_file}"
+            )
