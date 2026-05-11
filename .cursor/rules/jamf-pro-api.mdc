@@ -1,0 +1,69 @@
+---
+description: Always reference the Jamf Pro OpenAPI schema as the source of truth when working with the Jamf Pro API. Endpoint shapes, payload contracts, error codes, and versioning all live in the schema.
+globs: ["**/*.py"]
+alwaysApply: true
+---
+
+# Jamf Pro API rules
+
+## Source of truth: developer.jamf.com
+
+When in doubt about an endpoint's shape — request body, response envelope, query params, error codes — **consult the public developer portal first**. Don't infer from Patcher's existing code; the upstream contract updates with each Jamf Pro release and is the canonical reference.
+
+**Primary references** (public, no authentication required):
+
+- https://developer.jamf.com/jamf-pro/reference — rendered Swagger UI for the Jamf Pro API (every endpoint, request/response shapes, parameter docs)
+- https://developer.jamf.com/developer-guide — the top-level developer guide hub
+- https://developer.jamf.com/developer-guide/docs/api-style-guide — Jamf's own conventions for API design (useful for predicting how new endpoints will be shaped)
+- https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices — concurrency, rate limits, throttling guidance
+
+> **TODO**: more developer.jamf.com pages worth pinning here (auth flow, pagination, changelog, deprecation policy, classic-vs-modern endpoint guidance, etc.). Add when verified.
+
+## Instance-hosted schema
+
+Every Jamf Pro tenant exposes its own OpenAPI 3.0 schema at:
+
+- `<jamf-url>/api/schema/` — Swagger UI (authenticated)
+- `<jamf-url>/api/openapi.json` — raw OpenAPI 3.0 JSON (authenticated)
+
+This is the **most precise** source of truth (it matches the exact Pro version running on that tenant), but requires tenant access. When working offline:
+
+- A locally-saved copy of `openapi.json` is acceptable for quick lookups.
+- **Do not commit the local copy to version control** — it goes stale fast as Jamf ships new versions, and we don't want stale schema masquerading as canonical.
+- When the local copy and `developer.jamf.com` diverge, prefer `developer.jamf.com` for design decisions; use the local copy only to verify behavior on the specific Pro version it was pulled from.
+
+## Endpoint versioning
+
+- **Modern** endpoints: `/api/v1/...`, `/api/v2/...`, `/api/v3/...`. Versioning is per-resource, not API-wide — the same release ships v1, v2, and v3 endpoints depending on resource maturity.
+- **Classic** (legacy XML): `/JSSResource/...`. Avoid for new code unless no modern equivalent exists.
+- Some endpoints accept both `/v1/...` and `/api/v1/...` paths. **Prefer `/api/v1/`** for consistency with the rest of Patcher's code and Jamf's formal documentation.
+
+## Authentication
+
+- OAuth 2.0 client credentials flow → bearer token via `POST /api/v1/auth/token` (Patcher's `TokenManager` handles this).
+- Tokens expire per the API integration's `accessTokenLifetimeSeconds` setting. Never bypass `TokenManager` for one-off calls — token refresh logic + the `@check_token` decorator are how reliability is maintained.
+- Basic auth at `POST /api/v1/auth/token` works **only for initial setup** (admin creates API role + integration). After that, use the client-credentials flow exclusively.
+
+## Pagination & filtering
+
+Most `/api/v1/...` collection endpoints support:
+
+- `page` (zero-indexed) + `page-size` (default and max are endpoint-specific)
+- `sort` — RSQL-style: `sort=name:asc` or `sort=lastContactTime:desc`
+- `filter` — RSQL-style: `filter=name=="Google Chrome"`, `filter=osVersion>=10.15`
+
+Verify per-endpoint via the schema — not every endpoint supports every modifier, and the supported operator set varies.
+
+## Concurrency
+
+Jamf documents **≤5 concurrent connections** as the safety ceiling for the Pro API. `BaseAPIClient.max_concurrency` defaults to 5. **Don't raise it without explicit cause** — the warning in `BaseAPIClient`'s docstring is load-bearing.
+
+Reference: https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices
+
+## Patcher-specific patterns
+
+These aren't in the schema but are how Patcher uses the API:
+
+- **Credential sanitization** before logging: see `BaseAPIClient._sanitize_command`. Redacts `client_id`, `client_secret`, and Bearer tokens.
+- **404 short-circuit**: `APIResponseError` carries `not_found=True` when status is 404 (now exposed as an attribute, not just `e.context["not_found"]`). Callers like `Installomator.match()` use `getattr(e, "not_found", False)` to gracefully no-op rather than failing the whole flow.
+- **Curl-based transport** (current): all HTTP goes through `BaseAPIClient.execute` which shells out to `/usr/bin/curl`. The httpx migration is planned (see develop branch roadmap).

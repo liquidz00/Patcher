@@ -1,0 +1,97 @@
+---
+description: Reference for working with Installomator labels, the labels.txt discovery file, and Patcher's matching pipeline.
+globs:
+  - "src/patcher/utils/installomator.py"
+  - "src/patcher/models/label.py"
+  - "src/patcher/models/fragment.py"
+  - "tests/test_installomator.py"
+alwaysApply: false
+---
+
+# Installomator rules
+
+## Sources of truth
+
+- **Repository**: https://github.com/Installomator/Installomator
+- **Wiki** (label variable reference): https://github.com/Installomator/Installomator/wiki
+- **Label variables reference**: https://github.com/Installomator/Installomator/wiki/Label-Variables-Reference
+
+When citing the wiki in docstrings, use the `:ghwiki:` Sphinx role configured in `docs/conf.py` rather than raw URLs.
+
+## Files in the upstream repo
+
+- `Labels.txt` (repo root) — flat list of every available label script name, one per line. **Use this for discovery** before fetching individual fragments.
+- `fragments/labels/<name>.sh` — individual label scripts. Each contains a single bash case block.
+- `MDM/`, `utils/` — Installomator's own helper scripts; generally not relevant to Patcher's matching pipeline.
+
+## Raw URLs (use these, not the GitHub Contents API)
+
+The Contents API has aggressive rate limits for unauthenticated requests. Always fetch raw:
+
+```
+https://raw.githubusercontent.com/Installomator/Installomator/refs/heads/main/Labels.txt
+https://raw.githubusercontent.com/Installomator/Installomator/refs/heads/main/fragments/labels/<name>.sh
+```
+
+The explicit `refs/heads/main` form is preferred over the shorthand `/main/` form for stability.
+
+## Label format
+
+Each fragment is a bash case block. Keys that Patcher's `Label` model parses:
+
+| Key | Type | Notes |
+|-----|------|-------|
+| `name` | str | Display name (e.g. `"Google Chrome"`) |
+| `type` | str | Package format — see allowed values below |
+| `downloadURL` | str | May use `$(...)` shell-eval; Patcher stores it raw |
+| `expectedTeamID` | str | Apple Developer Team ID, exactly 10 chars. Exception: `"Software Update"` is accepted for Apple-shipped software/tools |
+
+Allowed `type` values: `dmg`, `pkg`, `zip`, `tbz`, `pkgInDmg`, `pkgInZip`, `appInDmgInZip`, `appindmg`, `bz2`.
+
+Optional fields documented in the wiki but **not currently parsed**:
+`appNewVersion`, `versionKey`, `packageID`, `archiveName`, `appName`, `appCustomVersion`, `targetDir`, `blockingProcesses`, `pkgName`, `updateTool`, `updateToolArguments`, `updateToolRunAsCurrentUser`, `CLIInstaller`, `CLIArguments`, `installerTool`, `curlOptions`.
+
+If you need any of these, extend `Label` in `src/patcher/models/label.py` (the model's commented section is a roadmap).
+
+## IGNORED_TEAMS
+
+`utils/installomator.py:IGNORED_TEAMS` filters fragments whose `expectedTeamID` is in the list. Current entries:
+
+- `"Frydendal"` — non-standard team value, skipped to avoid validation errors
+- `"Media"` — same
+- `"LL3KBL2M3A"` — `lcadvancedvpnclient`, label data is broken
+
+Adding to this list is tactical — only when a label consistently fails validation and the upstream fragment can't be relied on. Open an upstream issue when adding.
+
+## Matching pipeline
+
+`Installomator.match()` flow:
+
+1. Fetch `Labels.txt` (1 HTTP call, instance-cached for the session)
+2. Pull Jamf app names per patch title via `ApiClient.get_app_names()`
+3. Match script names: direct → normalized (lowercase + strip spaces + strip dots) → fuzzy (`rapidfuzz.fuzz.ratio`, threshold `85`)
+4. Fetch matched fragments in parallel via `get_labels(names)`
+5. Attach `Label` objects to `PatchTitle.install_label` (list, supports multiple matches per app)
+6. Second-pass for unmatched titles: retry against the normalized `PatchTitle.title`
+7. Persist final unmatched to `~/Library/Application Support/Patcher/unmatched_apps.json` for manual review
+
+**Don't reintroduce eager-everything fetching.** The lazy/targeted pattern was specifically chosen for first-run UX (multi-minute → sub-second).
+
+## Caches
+
+Three layers, consulted in order:
+
+1. **Instance cache** (`self._labels_by_name`) — process-lifetime, dict keyed by script name.
+2. **On-disk cache** (`~/Library/Application Support/Patcher/.labels/<name>.sh`) — survives process exit. Written by `get_label()` after a successful HTTP fetch.
+3. **HTTP fetch** — only when both caches miss.
+
+## Public API
+
+The three methods that consumers should rely on:
+
+- `list_available_labels() -> set[str]` — fast discovery (~1 HTTP call).
+- `get_label(name) -> Label | None` — single label, non-raising on 404 / ignored Team ID / validation failure.
+- `get_labels(names=None) -> list[Label]` — batch fetch. `names=None` is the eager "give me everything" path for library users.
+- `match(patch_titles)` — orchestrator, used by `ReportManager`.
+
+`_fetch_fragments`, `_create_label_dir`, `_build_labels`, `_save`, `_validate_labels` were removed in the labels.txt refactor — don't reintroduce them.

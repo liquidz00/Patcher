@@ -83,3 +83,14 @@ alwaysApply: true
 - Not a web app. There are no routes, sessions, or user-input sanitization in the OWASP sense. Don't suggest Flask/Django/FastAPI patterns.
 - Not a library yet (but designed to become one — see "Library readiness").
 - Not a service. It's a CLI that exits after each invocation.
+
+## See also (domain rules)
+
+When working on code that touches an external system, the relevant domain rule is the authority:
+
+- **Jamf Pro API** → `.cursor/rules/jamf-pro-api.mdc` (always referenced — OpenAPI schema is the source of truth)
+- **Installomator labels + matching** → `.cursor/rules/installomator.mdc`
+- **Jamf App Installers** → `.cursor/rules/jamf-app-installers.mdc` (includes the undocumented endpoint)
+- **AutoPkg recipes** → `.cursor/rules/autopkg.mdc`
+- **Homebrew Cask** → `.cursor/rules/homebrew.mdc`
+- **Sphinx docstrings** → `.cursor/rules/sphinx-style-docstrings.mdc`

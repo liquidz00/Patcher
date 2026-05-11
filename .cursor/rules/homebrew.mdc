@@ -1,0 +1,84 @@
+---
+description: Reference for Homebrew Cask data — JSON API, schema, identity matching for the canonical apps DB.
+globs: ["**/*.py"]
+alwaysApply: false
+---
+
+# Homebrew Cask rules
+
+## Source of truth
+
+- **JSON API**: https://formulae.brew.sh/api/cask.json — full catalog of every cask (~7,000 entries). Single endpoint, public, no auth, stable contract.
+- **Per-cask endpoint**: `https://formulae.brew.sh/api/cask/<token>.json` — single cask by token.
+- **Repo**: https://github.com/Homebrew/homebrew-cask (the actual `.rb` cask files — avoid parsing these; use the JSON API)
+
+For non-Mac-app stuff (CLI tools, libraries), there's a parallel `formula.json` endpoint — but for app patching workflows, **casks are what you want**.
+
+## Token convention
+
+Tokens are lowercase, hyphenated, derived from the app name:
+
+```
+google-chrome, 1password, microsoft-edge, zoom, slack
+```
+
+Variants of the same app get separate tokens:
+
+```
+google-chrome
+google-chrome-beta
+google-chrome-dev
+google-chrome-canary
+```
+
+Treat each variant as a distinct entry in the canonical apps DB unless explicitly merging them.
+
+## Schema (the subset you'll actually use)
+
+```json
+{
+  "token": "google-chrome",
+  "name": ["Google Chrome"],
+  "desc": "Web browser",
+  "homepage": "https://www.google.com/chrome/",
+  "url": "https://dl.google.com/chrome/mac/...",
+  "version": "138.0.7204.184",
+  "sha256": "...",
+  "app": ["Google Chrome.app"],
+  "pkg": [],
+  "installer": [],
+  "depends_on": {...},
+  "conflicts_with": {...},
+  "tap": "homebrew/cask",
+  "ruby_source_path": "Casks/g/google-chrome.rb",
+  "deprecated": false,
+  "disabled": false
+}
+```
+
+Notes:
+
+- `name` is an **array** — casks may have multiple display names. The first entry is canonical.
+- `app` lists `.app` bundle names installed by the cask — useful for app-bundle-name matching.
+- `pkg` lists embedded `.pkg` installers (often empty for casks).
+- `deprecated: true` / `disabled: true` → deprioritize in your DB but don't delete (history matters).
+
+## Stability
+
+The JSON API has been backward-compatible for years and is generally additive. The `url` field can drift frequently (vendor URL changes); **don't rely on it as a stable join key**. The `token` is the stable identifier.
+
+## Identity / matching for the canonical apps DB
+
+In order of reliability:
+
+1. **Bundle ID** if extractable from the cask metadata (sometimes present in `installer.cask.uninstall.quit` arrays or `pkgutil` references — not always).
+2. **App bundle name** from `app[0]` with `.app` suffix stripped.
+3. **Display name** from `name[0]`.
+4. **Homepage URL** as a tiebreaker (vendor-stable across reorganizations).
+
+## What NOT to do
+
+- Don't scrape `brew.sh` web pages — use the JSON API.
+- Don't parse `.rb` cask files directly — the JSON API exposes the same fields with type guarantees.
+- Don't depend on Homebrew being installed on the host that consumes this data — the JSON API is HTTP-fetchable from anywhere.
+- Don't use the `url` field as a primary key. Vendor URLs drift; `token` is what you join on.

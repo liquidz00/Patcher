@@ -1,0 +1,50 @@
+---
+description: Reference for Jamf App Installers — the curated, Jamf-hosted catalog distinct from patch management. Includes the public catalog page and the undocumented API endpoints.
+globs: ["**/*.py"]
+alwaysApply: false
+---
+
+# Jamf App Installers rules
+
+## What it is (and isn't)
+
+Jamf App Installers is a **separate system** from Jamf Patch Management:
+
+- **Patch management** (what Patcher CLI surfaces today) — Jamf hosts patch *definitions*; customers provide their own installers. Surfaced via `/api/v2/patch-software-title-configurations` and related endpoints.
+- **App Installers** — Jamf hosts curated, fully packaged installers for ~300+ common Mac apps. Customers consume them as deployments; no installer hosting on the customer's side.
+
+**Don't conflate the two in code or docs.** They have different APIs, different update cadences, different scopes. The patching-methods DB in the Patcher API project tracks both as separate columns/methods per canonical app.
+
+## Public catalog reference
+
+The catalog of available App Installer titles:
+
+https://learn.jamf.com/r/en-US/jamf-app-catalog/App_Installers_Software_Titles
+
+This is the authoritative human-readable list of *which apps* are available. Updates happen on Jamf's own cadence — there is no public JSON feed for diff'ing.
+
+## Undocumented but working API endpoints
+
+Per https://www.lambdasandlapdogs.com/blog/automating-jamf-pro-app-installers, the App Installers API endpoints work end-to-end on real Jamf Pro instances despite not appearing in the official `developer.jamf.com` reference:
+
+```
+GET  /api/v1/app-installers/titles
+GET  /api/v1/app-installers/deployments
+POST /api/v1/app-installers/deployments
+GET  /api/v1/app-installers/deployments/{deployment_id}
+POST /api/v1/app-installers/deployments/{deployment_id}/computers/installation-retry
+```
+
+The blog shows some paths as `/v1/...` (no `/api/` prefix). **Use `/api/v1/...`** for consistency with the rest of Patcher's code and the formal Jamf path convention.
+
+## Stability caveat
+
+Because these endpoints aren't formally documented, Jamf could change them between Pro versions without notice. Any code that depends on them should:
+
+1. **Defensively handle 404** — endpoint moved, removed, or renamed.
+2. **Defensively handle schema drift** — validate responses via Pydantic, log+skip unexpected fields rather than crash.
+3. **Note the undocumented nature in code comments and docstrings** so future maintainers know to verify against the latest Jamf Pro version before relying on the behavior.
+
+## Where this fits in the Patcher roadmap
+
+The Patcher API project (separate from the CLI) tracks patching methods per canonical app — including which apps are covered by Jamf App Installers. The undocumented endpoint is how that data gets enumerated programmatically. Manual curation from the public catalog page is the fallback if/when the endpoint changes shape.
