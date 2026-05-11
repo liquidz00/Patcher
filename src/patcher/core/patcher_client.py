@@ -19,7 +19,6 @@ from .exceptions import PatcherError
 from .installomator import InstallomatorClient
 from .logger import LogMe
 from .models.ui import UIDefaults
-from .report_manager import ReportManager
 
 
 class PatcherClient:
@@ -112,17 +111,12 @@ class PatcherClient:
             )
 
         self._config = config
+        self.debug = debug
         self.jamf = JamfClient(config=config, concurrency=concurrency)
         self.data = DataManager(disable_cache=disable_cache)
         self.installomator = (
             InstallomatorClient(concurrency=concurrency, api=self.jamf)
             if enable_installomator
             else None
-        )
-        self.report = ReportManager(
-            api_client=self.jamf,
-            data_manager=self.data,
-            debug=debug,
-            installomator=self.installomator,
         )
         self.ui_config = ui_config if ui_config is not None else UIDefaults().model_dump()

@@ -13,7 +13,6 @@ jamf_client
 analyze
 config_manager
 plist_manager
-report_manager
 setup
 token_manager
 ui_manager

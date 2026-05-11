@@ -1,14 +1,193 @@
+import asyncio
 import pickle
+from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Callable
 
 import pandas as pd
 
+from ..client.jamf import JamfClient
 from .data_manager import DataManager
-from .exceptions import PatcherError
+from .exceptions import APIResponseError, PatcherError
 from .logger import LogMe
 from .models.patch import PatchTitle
+
+_log = LogMe("analyze")
+
+
+# --------------------------------------------------------------------------- #
+# Patch-title list transforms
+#
+# These were methods on the legacy ``ReportManager`` class until that class was
+# retired in favor of the :class:`PatcherClient` facade. They're pure(-ish)
+# transforms over ``list[PatchTitle]`` — useful both for the CLI export
+# workflow (called by ``cli/report.py::process_reports``) and for library
+# callers building their own pipelines.
+# --------------------------------------------------------------------------- #
+
+
+async def sort_titles(titles: list[PatchTitle], sort_key: str) -> list[PatchTitle]:
+    """Sort ``titles`` by the named attribute (case-insensitive, spaces tolerated).
+
+    Offloads the sort to a thread so the event loop stays responsive on
+    large lists.
+
+    :param titles: PatchTitle objects to sort.
+    :type titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
+    :param sort_key: Attribute name to sort by (e.g. ``"released"``,
+        ``"completion percent"``). Normalized to lowercase + underscores.
+    :type sort_key: str
+    :raises PatcherError: If the attribute does not exist on PatchTitle.
+    """
+    _log.debug(f"Detected sorting option '{sort_key}'")
+    key = sort_key.lower().replace(" ", "_")
+    try:
+        sorted_reports = await asyncio.to_thread(
+            lambda: sorted(titles, key=lambda x: getattr(x, key))
+        )
+        _log.info(f"Patch reports sorted successfully by '{key}'.")
+        return sorted_reports
+    except (KeyError, AttributeError) as e:
+        column = key.title().replace("_", " ")
+        _log.error(f"Invalid column name for sorting: {column}. Details: {e}")
+        raise PatcherError(
+            "Unable to sort patch reports due to invalid column name.",
+            column=column,
+            error_msg=str(e),
+        )
+
+
+async def omit_recent(titles: list[PatchTitle], hours: int = 48) -> list[PatchTitle]:
+    """Return ``titles`` with any released within the past ``hours`` hours dropped.
+
+    :param titles: PatchTitle objects to filter.
+    :type titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
+    :param hours: Lookback window in hours. Defaults to 48.
+    :type hours: int
+    """
+    cutoff = datetime.now() - timedelta(hours=hours)
+    _log.debug(f"Omitting reports with patches released since {cutoff}.")
+    original_count = len(titles)
+    filtered = await asyncio.to_thread(
+        lambda: [t for t in titles if datetime.strptime(t.released, "%b %d %Y") < cutoff]
+    )
+    _log.info(f"Omitted {original_count - len(filtered)} policies with recent patches.")
+    return filtered
+
+
+async def append_ios_status(titles: list[PatchTitle], api: JamfClient) -> list[PatchTitle]:
+    """Fetch iOS device/version data via ``api`` + the SOFA feed and append per-iOS-version
+    :class:`PatchTitle` summaries to ``titles``.
+
+    :param titles: Existing PatchTitle list to extend.
+    :type titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
+    :param api: Configured ``JamfClient`` used for the device/version
+        and SOFA feed calls.
+    :type api: :class:`~patcher.client.jamf.JamfClient`
+    :raises PatcherError: If the device list, OS versions, or SOFA feed cannot be fetched.
+    """
+    _log.debug("Attempting to fetch iOS device IDs.")
+    try:
+        device_ids = await api.get_device_ids()
+        _log.info(f"Received {len(device_ids)} device IDs successfully.")
+    except APIResponseError as e:
+        _log.error(f"Unable to obtain iOS Device IDs from Jamf instance. Details: {e}")
+        raise PatcherError("Unable to obtain iOS Device IDs from Jamf instance.", error_msg=str(e))
+
+    _log.debug("Attempting to fetch iOS version data for enrolled devices.")
+    try:
+        device_versions = await api.get_device_os_versions(device_ids=device_ids)
+        _log.info(f"Successfully obtained OS versions for {len(device_versions)} devices.")
+    except APIResponseError as e:
+        _log.error(
+            f"Received empty response obtaining device OS versions from Jamf instance. Details: {e}"
+        )
+        raise PatcherError(
+            "Failed retrieving iOS Device versions from Jamf instance.",
+            ids=device_ids,
+            error_msg=str(e),
+        )
+
+    _log.debug("Attempting to retrieve SOFA feed.")
+    try:
+        latest_versions = await api.get_sofa_feed()
+        _log.info("Obtained latest version information from SOFA feed successfully.")
+    except APIResponseError as e:
+        _log.error(f"Failed to fetch data from SOFA feed. Details: {e}")
+        raise PatcherError("Error fetching data from SOFA feed.", error_msg=str(e))
+
+    ios_data = calculate_ios_on_latest(
+        device_versions=device_versions, latest_versions=latest_versions
+    )
+    titles.extend(ios_data)
+    _log.info("iOS information successfully appended to patch reports.")
+    return titles
+
+
+def calculate_ios_on_latest(
+    device_versions: list[dict[str, str]],
+    latest_versions: list[dict[str, str]],
+) -> list[PatchTitle]:
+    """Per-major-iOS-version, count devices on the latest release and produce :class:`PatchTitle` summaries.
+
+    Pure data transform — no I/O.
+
+    :param device_versions: Per-device dicts containing ``"OS"`` and ``"DeviceID"``.
+    :type device_versions: list[dict[str, str]]
+    :param latest_versions: SOFA-feed entries containing ``"OSVersion"``,
+        ``"ProductVersion"``, ``"ReleaseDate"``.
+    :type latest_versions: list[dict[str, str]]
+    :raises PatcherError: On unexpected key/zero-division errors during counting.
+    """
+    _log.debug("Attempting to calculate iOS devices on latest version.")
+
+    try:
+        latest_versions_dict = {lv.get("OSVersion"): lv for lv in latest_versions}
+        version_counts = {
+            version: {"count": 0, "total": 0} for version in latest_versions_dict.keys()
+        }
+        for device in device_versions:
+            device_os = device.get("OS")
+            if not device_os:
+                _log.warning(f"Device missing OS information: {device}")
+            major_version = device_os.split(".")[0]
+            if major_version in version_counts:
+                version_counts[major_version]["total"] += 1
+                if device_os == latest_versions_dict[major_version]["ProductVersion"]:
+                    version_counts[major_version]["count"] += 1
+
+        mapped = [
+            PatchTitle(
+                title=f"iOS {latest_versions_dict[version]['ProductVersion']}",
+                title_id="iOS",
+                released=latest_versions_dict[version]["ReleaseDate"],
+                hosts_patched=counts["count"],
+                missing_patch=counts["total"] - counts["count"],
+                latest_version=latest_versions_dict[version]["ProductVersion"],
+                completion_percent=round((counts["count"] / counts["total"]) * 100, 2),
+                total_hosts=counts["total"],
+            )
+            for version, counts in version_counts.items()
+            if counts["total"] > 0
+        ]
+        _log.info(f"iOS version analysis completed with {len(mapped)} summaries generated.")
+        return mapped
+    except KeyError as e:
+        raise PatcherError(
+            "Encountered KeyError while calculating iOS devices on latest version.",
+            error_msg=str(e),
+        )
+    except ZeroDivisionError as e:
+        raise PatcherError(
+            "Division by zero encountered during iOS Device percentage calculation.",
+            error_msg=str(e),
+        )
+
+
+# --------------------------------------------------------------------------- #
+# Analyzer class + Filter/TrendCriteria enums (unchanged)
+# --------------------------------------------------------------------------- #
 
 
 class BaseEnum(Enum):

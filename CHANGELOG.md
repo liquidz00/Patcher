@@ -39,6 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`Animation` moved back to `cli/`** (where it originally belonged per the layer plan) now that `core/report_manager.py` no longer needs it. The circular import that forced it to `core/` in Phase 1a is gone with `process_reports` out.
 - **Module-level `sys.excepthook` and `warnings` mutations in `cli/__init__.py` moved into `cli()`.** They no longer fire on `import patcher.cli` — only on actual CLI invocation. Library callers that touch `patcher.cli.setup` for any reason no longer get a process-wide excepthook swap as a side effect.
 
+### Removed
+- **`ReportManager` class and `core/report_manager.py`.** Once `PatcherClient` became the facade holding `jamf`, `data`, and `installomator`, `ReportManager` was a redundant helper-bag wrapping the same references. Its remaining methods moved to module-level functions in :mod:`patcher.core.analyze`:
+  - `_sort` → :func:`sort_titles`
+  - `_omit` → :func:`omit_recent`
+  - `_ios` → :func:`append_ios_status` (now takes the ``JamfClient`` as an explicit parameter)
+  - `calculate_ios_on_latest` (underscore dropped; public)
+  `_validate_directory` was inlined into ``cli/report.py::_validate_output_dir`` (its only caller).
+- :attr:`PatcherClient.report` attribute — removed. Library callers use the analyze functions directly.
+
 ### Added (Phase 6 — PatcherClient facade + cli/library separation)
 - **`PatcherClient`** at `patcher.PatcherClient` — the headline library entry point. Wraps `JamfClient`, `DataManager`, `InstallomatorClient`, and `ReportManager` as attributes, plus carries the UI config dict. Constructible two ways: direct credentials (`PatcherClient(client_id=..., client_secret=..., server=...)`) for library use, or with an existing `ConfigManager` (`PatcherClient(config=existing_config)`) for the CLI's keyring-backed path.
 - **`patcher.core.fonts.ensure_default_fonts(target_dir)`** — standalone helper that downloads the Assistant Regular and Bold fonts via httpx with truststore. Library callers generating PDF reports can ensure the default fonts are available without instantiating `UIConfigManager`. Idempotent.

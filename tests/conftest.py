@@ -15,7 +15,6 @@ from src.patcher.core.models.jamf import JamfCredentials
 from src.patcher.core.models.patch import PatchTitle
 from src.patcher.core.models.token import AccessToken
 from src.patcher.core.pdf_report import PDFReport
-from src.patcher.core.report_manager import ReportManager
 
 
 @pytest.fixture
@@ -301,29 +300,20 @@ def patcher_instance(
     """Mock-shaped PatcherClient for tests that exercise process_reports.
 
     Wires a mock ``jamf`` (with canned policy + summary responses), a mock
-    ``data`` (with mocked export), the mock installomator, and a real
-    ``ReportManager`` so its helpers (_validate_directory, _sort, _omit,
-    _ios, calculate_ios_on_latest) execute against the mock collaborators.
+    ``data`` (with mocked export), and the mock installomator. No legacy
+    ReportManager — the helpers it once held now live as standalone
+    functions in :mod:`patcher.core.analyze`.
     """
     jamf = AsyncMock()
     jamf.get_policies.return_value = mock_policy_response
     jamf.get_summaries.return_value = mock_patch_title_response
 
-    data = AsyncMock()
-
-    report = ReportManager(
-        api_client=jamf,
-        data_manager=data,
-        debug=True,
-        installomator=mock_installomator,
-    )
-
     patcher = MagicMock()
     patcher.jamf = jamf
-    patcher.data = data
+    patcher.data = AsyncMock()
     patcher.installomator = mock_installomator
-    patcher.report = report
     patcher.ui_config = {"header_text": "", "header_color": ""}
+    patcher.debug = True
     return patcher
 
 

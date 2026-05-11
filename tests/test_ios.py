@@ -1,7 +1,8 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from src.patcher.core import exceptions
+from src.patcher.core.analyze import calculate_ios_on_latest
 from src.patcher.core.models.patch import PatchTitle
 
 
@@ -77,8 +78,7 @@ async def test_calculate_ios_on_latest_success(patcher_instance):
             "ReleaseDate": "2024-05-13T00:00:00Z",
         },
     ]
-    with patch.object(patcher_instance.report, "log", MagicMock()):
-        result = patcher_instance.report.calculate_ios_on_latest(device_versions, latest_versions)
+    result = calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
         PatchTitle(
             title="iOS 17.5.1",
@@ -124,8 +124,7 @@ async def test_calculate_ios_on_latest_no_devices_on_latest(patcher_instance):
             "ReleaseDate": "2024-05-13T00:00:00Z",
         },
     ]
-    with patch.object(patcher_instance.report, "log", MagicMock()):
-        result = patcher_instance.report.calculate_ios_on_latest(device_versions, latest_versions)
+    result = calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
         PatchTitle(
             title="iOS 17.5.1",
@@ -167,8 +166,7 @@ async def test_calculate_ios_on_latest_all_devices_on_latest(patcher_instance):
         },
     ]
 
-    with patch.object(patcher_instance.report, "log", MagicMock()):
-        result = patcher_instance.report.calculate_ios_on_latest(device_versions, latest_versions)
+    result = calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
         PatchTitle(
             title="iOS 17.5.1",
@@ -200,8 +198,7 @@ async def test_calculate_ios_on_latest_some_devices_on_latest(patcher_instance):
         },
     ]
 
-    with patch.object(patcher_instance.report, "log", MagicMock()):
-        result = patcher_instance.report.calculate_ios_on_latest(device_versions, latest_versions)
+    result = calculate_ios_on_latest(device_versions, latest_versions)
     expected_result = [
         PatchTitle(
             title="iOS 17.5.1",
