@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Installomator matching pipeline rewritten** to use the upstream `Labels.txt` file at the repository root for fast discovery, fetching individual `.sh` fragments lazily and only for matched titles. First-run HTTP calls drop from ~700 to ~(1 + matched_count) — first-run matching time drops from minutes to seconds. Public `Installomator.match()` API unchanged; on-disk cache layout at `~/Library/Application Support/Patcher/.labels/` preserved.
+- **Installomator's HTTP transport migrated from curl to httpx.** `list_available_labels()` and `get_label()` now call `BaseAPIClient.fetch_text()` instead of shelling out to `/usr/bin/curl`. No subprocess fork per request, fewer string-parsing trapdoors, and connection pooling between fragment fetches. The exception contract is preserved: a 404 still surfaces as `APIResponseError(not_found=True)` and is silently absorbed in `get_label()`'s best-effort path; other API errors still propagate as `PatcherError` for `Labels.txt` fetch failures.
 - Project version bumped to `2.5.0.dev0` on the `develop` branch to surface the in-development state. Stable releases continue from `main`.
 
 ### Fixed

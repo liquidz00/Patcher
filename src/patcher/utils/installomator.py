@@ -13,7 +13,7 @@ from ..client.api_client import ApiClient
 from ..client.config_manager import ConfigManager
 from ..models.label import Label
 from ..models.patch import PatchTitle
-from .exceptions import APIResponseError, PatcherError, ShellCommandError
+from .exceptions import APIResponseError, PatcherError
 from .logger import LogMe
 
 IGNORED_TEAMS = ["Frydendal", "Media", "LL3KBL2M3A"]  # "LL3KBL2M3A" - lcadvancedvpnclient
@@ -135,8 +135,8 @@ class Installomator:
 
         self.log.debug(f"Fetching Installomator Labels.txt from {_LABELS_TXT_URL}")
         try:
-            content = await self.api.execute(["/usr/bin/curl", "-fsSL", _LABELS_TXT_URL])
-        except ShellCommandError as e:
+            content = await self.api.fetch_text(_LABELS_TXT_URL)
+        except APIResponseError as e:
             raise PatcherError("Unable to retrieve Installomator Labels.txt", error_msg=str(e))
 
         # Labels.txt is one label name per line. Strip whitespace, drop blanks
@@ -186,13 +186,16 @@ class Installomator:
                     f"Could not read cached fragment {cache_path}; will refetch. Details: {e}"
                 )
 
-        # HTTP fetch — `-f` makes curl exit non-zero on 4xx/5xx so we don't
-        # silently parse "404: Not Found" bodies as labels.
+        # HTTP fetch — `fetch_text` raises `APIResponseError` on non-2xx
+        # (with `not_found=True` on 404) so we don't silently parse "404:
+        # Not Found" bodies as labels. Treat any fetch failure as
+        # best-effort: log and return None so a single broken label
+        # doesn't kill the batch.
         url = _FRAGMENT_URL_TEMPLATE.format(name=key)
         self.log.debug(f"Fetching Installomator fragment from {url}")
         try:
-            content = await self.api.execute(["/usr/bin/curl", "-fsSL", url])
-        except ShellCommandError as e:
+            content = await self.api.fetch_text(url)
+        except APIResponseError as e:
             self.log.warning(f"Failed to fetch Installomator fragment for '{name}': {e}")
             return None
 
