@@ -1,5 +1,6 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
+import httpx
 import pytest
 from src.patcher.utils import exceptions
 
@@ -136,3 +137,102 @@ async def test_create_client(base_api_client):
         result = await base_api_client.create_client("token", "https://example.com")
         assert result == ("123", "secret")
         assert mock_execute.call_count == 2
+
+
+# ---------------------------------------------------------------------- #
+# httpx transport: `http` property, `aclose`, `fetch_text`
+#
+# These tests cover the new httpx-backed surface added alongside the
+# existing curl-based methods. Existing tests above are unchanged: the
+# curl path is still in place during the migration.
+# ---------------------------------------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_http_property_lazy_init(base_api_client):
+    """First access constructs the AsyncClient; second access returns the same instance."""
+    assert base_api_client._http_client is None
+    first = base_api_client.http
+    assert isinstance(first, httpx.AsyncClient)
+    second = base_api_client.http
+    assert first is second  # cached on the instance
+    await base_api_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_aclose_is_idempotent(base_api_client):
+    """aclose() is safe to call multiple times and resets the lazy-init state."""
+    # Force construction
+    _ = base_api_client.http
+    assert base_api_client._http_client is not None
+    await base_api_client.aclose()
+    assert base_api_client._http_client is None
+    # Second call no-ops
+    await base_api_client.aclose()
+    assert base_api_client._http_client is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_text_returns_body_on_2xx(base_api_client):
+    """A 2xx response returns the response body as text."""
+    mock_response = Mock(status_code=200, is_success=True, text="hello world")
+    mock_http = AsyncMock()
+    mock_http.get = AsyncMock(return_value=mock_response)
+    base_api_client._http_client = mock_http
+
+    result = await base_api_client.fetch_text("https://example.com")
+
+    assert result == "hello world"
+    mock_http.get.assert_called_once_with("https://example.com", headers=None)
+
+
+@pytest.mark.asyncio
+async def test_fetch_text_passes_headers_through(base_api_client):
+    """Custom headers are forwarded verbatim to httpx.get."""
+    mock_response = Mock(status_code=200, is_success=True, text="ok")
+    mock_http = AsyncMock()
+    mock_http.get = AsyncMock(return_value=mock_response)
+    base_api_client._http_client = mock_http
+
+    headers = {"Authorization": "Bearer abc"}
+    await base_api_client.fetch_text("https://example.com", headers=headers)
+    mock_http.get.assert_called_once_with("https://example.com", headers=headers)
+
+
+@pytest.mark.asyncio
+async def test_fetch_text_raises_with_not_found_flag_on_404(base_api_client):
+    """404 → APIResponseError with not_found=True, matching fetch_json's contract."""
+    mock_response = Mock(status_code=404, is_success=False)
+    mock_http = AsyncMock()
+    mock_http.get = AsyncMock(return_value=mock_response)
+    base_api_client._http_client = mock_http
+
+    with pytest.raises(exceptions.APIResponseError) as exc_info:
+        await base_api_client.fetch_text("https://example.com/missing")
+
+    assert getattr(exc_info.value, "not_found", False) is True
+
+
+@pytest.mark.asyncio
+async def test_fetch_text_raises_on_5xx(base_api_client):
+    """5xx → APIResponseError without the not_found flag."""
+    mock_response = Mock(status_code=503, is_success=False)
+    mock_http = AsyncMock()
+    mock_http.get = AsyncMock(return_value=mock_response)
+    base_api_client._http_client = mock_http
+
+    with pytest.raises(exceptions.APIResponseError) as exc_info:
+        await base_api_client.fetch_text("https://example.com")
+
+    assert getattr(exc_info.value, "not_found", False) is False
+
+
+@pytest.mark.asyncio
+async def test_fetch_text_raises_on_network_error(base_api_client):
+    """httpx.RequestError → APIResponseError with a 'Network error' message."""
+    mock_http = AsyncMock()
+    mock_http.get = AsyncMock(side_effect=httpx.ConnectError("connect failed"))
+    base_api_client._http_client = mock_http
+
+    with pytest.raises(exceptions.APIResponseError, match="Network error"):
+        await base_api_client.fetch_text("https://unreachable.example.com")

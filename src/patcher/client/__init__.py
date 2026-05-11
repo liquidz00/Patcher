@@ -3,6 +3,8 @@ import json
 import subprocess
 from urllib.parse import urlencode
 
+import httpx
+
 from ..models.jamf_client import ApiClientModel, ApiRoleModel
 from ..utils.exceptions import APIResponseError, PatcherError, ShellCommandError
 from ..utils.logger import LogMe
@@ -29,6 +31,8 @@ class BaseAPIClient:
         self.semaphore = asyncio.Semaphore(max_concurrency)
         self.default_headers = {"accept": "application/json", "Content-Type": "application/json"}
         self.log = LogMe(self.__class__.__name__)
+        # Lazily-constructed httpx.AsyncClient. See the ``http`` property.
+        self._http_client: httpx.AsyncClient | None = None
         self.log.debug(f"BaseAPIClient initialized with max_concurrency: {max_concurrency}")
 
     @property
@@ -57,6 +61,98 @@ class BaseAPIClient:
         if concurrency < 1:
             raise PatcherError("Concurrency level must be at least 1.")
         self.max_concurrency = concurrency
+
+    @property
+    def http(self) -> httpx.AsyncClient:
+        """
+        Lazily-constructed :class:`httpx.AsyncClient` bound to this BaseAPIClient instance.
+
+        First access constructs the client; subsequent accesses return the same
+        instance. Call :meth:`aclose` to release the underlying connection pool
+        when this BaseAPIClient is no longer needed. The CLI doesn't strictly
+        need to call ``aclose`` (process exit reclaims resources), but library
+        consumers should for clean shutdown.
+
+        :return: The shared ``httpx.AsyncClient`` for this instance.
+        :rtype: httpx.AsyncClient
+
+        .. note::
+            Not thread-safe. BaseAPIClient is intended for single-event-loop use.
+            ``max_connections`` is bound to ``self.max_concurrency`` so the same
+            ceiling that gates ``self.semaphore`` (used by curl-based methods)
+            also applies at the HTTP layer.
+        """
+        if self._http_client is None:
+            self._http_client = httpx.AsyncClient(
+                timeout=httpx.Timeout(30.0),
+                limits=httpx.Limits(max_connections=self.max_concurrency),
+                follow_redirects=True,
+            )
+        return self._http_client
+
+    async def aclose(self) -> None:
+        """
+        Release the underlying httpx connection pool, if one was created.
+
+        Idempotent: safe to call multiple times. After calling, the next
+        access to :attr:`http` will construct a fresh client.
+        """
+        if self._http_client is not None:
+            await self._http_client.aclose()
+            self._http_client = None
+
+    async def fetch_text(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+    ) -> str:
+        """
+        Fetch the body of a URL as text via httpx.
+
+        Translates httpx-native errors to Patcher's :class:`APIResponseError`
+        so callers see the same exception contract as the existing
+        :meth:`fetch_json` path — notably the ``not_found=True`` flag on 404
+        responses, which :meth:`patcher.utils.installomator.Installomator.match`
+        uses to short-circuit gracefully.
+
+        :param url: The URL to fetch.
+        :type url: str
+        :param headers: Optional request headers. If omitted, only httpx
+            defaults are sent.
+        :type headers: dict[str, str] | None
+        :return: The response body as a string.
+        :rtype: str
+        :raises APIResponseError: If the response is non-2xx, or if a
+            network-level error (connect, DNS, timeout) prevents the
+            request from completing. ``not_found=True`` is set on 404.
+        """
+        self.log.debug(f"Fetching text from {url}")
+        try:
+            async with self.semaphore:
+                response = await self.http.get(url, headers=headers)
+        except httpx.RequestError as e:
+            raise APIResponseError(
+                "Network error fetching URL",
+                url=url,
+                error_msg=str(e),
+            )
+
+        if response.status_code == 404:
+            raise APIResponseError(
+                "Requested resource was not found.",
+                url=url,
+                status_code=response.status_code,
+                not_found=True,
+            )
+        if not response.is_success:
+            raise APIResponseError(
+                "Non-success HTTP status received.",
+                url=url,
+                status_code=response.status_code,
+            )
+
+        return response.text
 
     @staticmethod
     def _format_headers(headers: dict[str, str]) -> list[str]:
