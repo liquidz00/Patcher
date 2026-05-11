@@ -1,0 +1,12 @@
+[
+  {
+    "name": "latest (stable)",
+    "version": "latest",
+    "url": "https://patcher.readthedocs.io/en/latest/"
+  },
+  {
+    "name": "develop (unreleased)",
+    "version": "develop",
+    "url": "https://patcher.readthedocs.io/en/develop/"
+  }
+]
