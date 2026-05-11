@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pandas as pd
 import pytest
 from fpdf import FPDF
-from src.patcher.client import BaseAPIClient
-from src.patcher.client.api_client import ApiClient
+from src.patcher.client import HTTPClient
+from src.patcher.client.jamf import JamfClient
 from src.patcher.client.token_manager import TokenManager
 from src.patcher.core.data_manager import DataManager
-from src.patcher.core.models.jamf_client import JamfClient
+from src.patcher.core.models.jamf import JamfCredentials
 from src.patcher.core.models.patch import PatchTitle
 from src.patcher.core.models.token import AccessToken
 from src.patcher.core.pdf_report import PDFReport
@@ -267,8 +267,8 @@ def mock_access_token():
 
 
 @pytest.fixture
-def mock_jamf_client():
-    return JamfClient(
+def mock_jamf_credentials():
+    return JamfCredentials(
         client_id="mocked_client_id",
         client_secret="mocked_client_secret",
         server="https://mocked.url",
@@ -329,8 +329,8 @@ def token_manager(config_manager, mock_access_token):
 
 
 @pytest.fixture
-def base_api_client():
-    return BaseAPIClient(max_concurrency=3)
+def http_client():
+    return HTTPClient(max_concurrency=3)
 
 
 @pytest.fixture
@@ -423,7 +423,7 @@ def mock_pdf_report(mock_ui_config_manager, monkeypatch):
 
 @pytest.fixture
 def api_client(config_manager):
-    return ApiClient(
+    return JamfClient(
         config=config_manager,
         concurrency=10,
     )

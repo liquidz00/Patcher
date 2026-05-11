@@ -110,7 +110,7 @@ class UIConfigManager:
             return
 
         self._ensure_directory(self.font_dir)
-        # truststore-backed SSL context mirrors BaseAPIClient's TLS handling
+        # truststore-backed SSL context mirrors HTTPClient's TLS handling
         # so font downloads work behind the same TLS-inspecting corporate
         # proxies that Jamf API calls do.
         ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)

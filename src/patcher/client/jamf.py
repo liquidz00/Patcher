@@ -9,17 +9,17 @@ from ..core.config_manager import ConfigManager
 from ..core.exceptions import APIResponseError, PatcherError
 from ..core.logger import LogMe
 from ..core.models.patch import PatchDevice, PatchTitle
-from . import BaseAPIClient
+from . import HTTPClient
 from .token_manager import TokenManager
 
 
-class ApiClient(BaseAPIClient):
+class JamfClient(HTTPClient):
     def __init__(self, config: ConfigManager, concurrency: int):
         """
         Provides methods for interacting with the Jamf API, specifically fetching patch data, device information, and OS versions.
 
         .. note::
-            All methods of the ApiClient class will raise an :exc:`~patcher.core.exceptions.APIResponseError` if the API call is unsuccessful.
+            All methods of the JamfClient class will raise an :exc:`~patcher.core.exceptions.APIResponseError` if the API call is unsuccessful.
 
         :param config: Instance of ``ConfigManager`` for loading and storing credentials.
         :type config: :class:`~patcher.core.config_manager.ConfigManager`
@@ -30,11 +30,60 @@ class ApiClient(BaseAPIClient):
         self.config = config
         self.token_manager = TokenManager(config)
 
-        # Creds can be loaded here as ApiClient objects can only exist after successful JamfClient creation.
-        self.jamf_client = self.token_manager.attach_client()
-        self.jamf_url = self.jamf_client.base_url
+        # Creds can be loaded here as JamfClient objects can only exist after successful JamfClient creation.
+        self.jamf_credentials = self.token_manager.attach_client()
+        self.jamf_url = self.jamf_credentials.base_url
 
         super().__init__(max_concurrency=concurrency)
+
+    @classmethod
+    def from_credentials(
+        cls,
+        client_id: str,
+        client_secret: str,
+        server: str,
+        concurrency: int = 5,
+    ) -> "JamfClient":
+        """
+        Construct an :class:`JamfClient` directly from credentials, bypassing
+        the macOS keychain. Intended for library and CI/CD use.
+
+        Wraps the inputs in an in-memory :class:`~patcher.core.config_manager.ConfigManager`
+        (the same path the CLI uses for non-interactive mode) so no keyring
+        backend is required and nothing is persisted to disk.
+
+        .. code-block:: python
+
+            from patcher import JamfClient
+
+            client = JamfClient.from_credentials(
+                client_id="...",
+                client_secret="...",
+                server="https://myorg.jamfcloud.com",
+            )
+            summaries = await client.get_summaries(await client.get_policies())
+
+        :param client_id: Jamf Pro API client ID.
+        :type client_id: str
+        :param client_secret: Jamf Pro API client secret.
+        :type client_secret: str
+        :param server: Jamf Pro instance URL (e.g. ``https://myorg.jamfcloud.com``).
+        :type server: str
+        :param concurrency: Maximum concurrent API requests. Defaults to 5,
+            the recommended ceiling per the
+            `Jamf Developer Guide <https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices>`_.
+        :type concurrency: int
+        :return: A constructed ``JamfClient`` ready for use.
+        :rtype: :class:`JamfClient`
+        """
+        config = ConfigManager(
+            in_memory_credentials={
+                "CLIENT_ID": client_id,
+                "CLIENT_SECRET": client_secret,
+                "URL": server,
+            }
+        )
+        return cls(config=config, concurrency=concurrency)
 
     def _convert_tz(self, utc_time_str: str) -> str:
         """

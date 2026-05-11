@@ -1,7 +1,33 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from src.patcher.client.jamf import JamfClient
 from src.patcher.core import exceptions
+
+
+# Test the from_credentials factory (library entry point)
+def test_from_credentials_constructs_apiclient_without_keyring():
+    """JamfClient.from_credentials wires up an in-memory ConfigManager so library
+    callers don't need a keyring backend."""
+    client = JamfClient.from_credentials(
+        client_id="cid",
+        client_secret="csec",
+        server="https://example.com",
+    )
+    assert isinstance(client, JamfClient)
+    assert client.jamf_url == "https://example.com"
+    assert client.config.in_memory_mode is True
+    assert client.max_concurrency == 5  # default
+
+
+def test_from_credentials_honors_concurrency():
+    client = JamfClient.from_credentials(
+        client_id="cid",
+        client_secret="csec",
+        server="https://example.com",
+        concurrency=3,
+    )
+    assert client.max_concurrency == 3
 
 
 # Test getting policies (success, error)

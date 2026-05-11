@@ -7,7 +7,7 @@ from pathlib import Path
 import asyncclick as click
 
 from ..__about__ import __version__
-from ..client.api_client import ApiClient
+from ..client.jamf import JamfClient
 from ..core.analyze import Analyzer, FilterCriteria, TrendCriteria
 from ..core.config_manager import ConfigManager
 from ..core.data_manager import DataManager
@@ -441,7 +441,7 @@ async def export(
     .. seealso::
 
         - :meth:`~patcher.cli.report.process_reports`
-        - :attr:`~patcher.client.BaseAPIClient.max_concurrency`
+        - :attr:`~patcher.client.HTTPClient.max_concurrency`
         - :ref:`export`
 
     :param ctx: The context object, providing access to shared state between commands.
@@ -466,7 +466,7 @@ async def export(
     data_manager = DataManager(disable_cache=ctx.obj.get("disable_cache"))
     ctx.obj["data_manager"] = data_manager  # Store in context for analyze
 
-    api_client = ApiClient(config=ctx.obj.get("config"), concurrency=concurrency)
+    api_client = JamfClient(config=ctx.obj.get("config"), concurrency=concurrency)
 
     patcher = ReportManager(
         api_client=api_client,

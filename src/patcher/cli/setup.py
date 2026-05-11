@@ -4,12 +4,11 @@ from pathlib import Path
 import asyncclick as click
 from PIL import Image
 
-from ..client import BaseAPIClient
+from ..client import HTTPClient
 from ..client.token_manager import TokenManager
 from ..core.config_manager import ConfigManager
 from ..core.exceptions import APIResponseError, PatcherError, SetupError, TokenError
 from ..core.logger import LogMe
-from ..core.models.jamf_client import JamfClient
 from ..core.models.token import AccessToken
 from ..core.models.ui import UIConfigKeys, UIDefaults
 from ..core.plist_manager import PropertylistManager
@@ -264,13 +263,13 @@ class Setup:
 
     def prompt_installomator(self) -> None:
         """
-        Prompts user to enable or disable Installomator support.
+        Prompts user to enable or disable InstallomatorClient support.
 
-        If enabled, assists in identifying :class:`~patcher.core.models.patch.PatchTitle` objects with Installomator support,
+        If enabled, assists in identifying :class:`~patcher.core.models.patch.PatchTitle` objects with InstallomatorClient support,
         used during :ref:`analyze <analyze>` commands.
         """
         use_installomator = click.confirm(
-            "Would you like to enable Installomator support?", default=True
+            "Would you like to enable InstallomatorClient support?", default=True
         )
         self.plist_manager.set("enable_installomator", use_installomator)
 
@@ -300,7 +299,7 @@ class Setup:
                     error_msg=str(e),
                 )
         elif setup_type == SetupType.STANDARD:
-            api_client = BaseAPIClient()
+            api_client = HTTPClient()
             try:
                 return await api_client.fetch_basic_token(
                     username=creds.get("USERNAME"),
@@ -328,7 +327,7 @@ class Setup:
         :return: The client ID and client secret of the created API Client and Role.
         :rtype: tuple[str, str]
         """
-        api_client = BaseAPIClient()
+        api_client = HTTPClient()
         if not await api_client.create_roles(token=basic_token, jamf_url=jamf_url):
             self.log.error(
                 "Failed to create API role as expected during setup. Verify SSO is not being used in Jamf instance."
@@ -355,7 +354,7 @@ class Setup:
         """
         Non-interactive setup path for CI/CD environments.
 
-        Skips all prompts (setup type, Installomator, UI configuration). The provided
+        Skips all prompts (setup type, InstallomatorClient, UI configuration). The provided
         credentials are stored via the configured :class:`ConfigManager` — when that
         manager is in in-memory mode (the typical CI/CD setup) the macOS keychain is
         not touched. An access token is then fetched so subsequent API calls succeed.

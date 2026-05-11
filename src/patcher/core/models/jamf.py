@@ -6,24 +6,22 @@ from ..exceptions import PatcherError
 from . import Model
 
 
-class JamfClient(Model):
+class JamfCredentials(Model):
     """
-    Represents a Jamf client configuration.
+    Pydantic model carrying the credentials needed to authenticate against
+    a Jamf Pro instance: client ID, client secret, and server URL.
 
-    This class is responsible for holding the configuration necessary to interact with the Jamf API,
-    including client credentials, server information, and :class:`~patcher.core.models.token.AccessToken` objects.
+    Constructed by :class:`~patcher.client.token_manager.TokenManager.attach_client`
+    from values held in a :class:`~patcher.core.config_manager.ConfigManager` and
+    handed to :class:`~patcher.client.jamf.JamfClient` (the API client) at
+    instantiation time.
 
     :ivar client_id: The client ID used for authentication with the Jamf API.
     :type client_id: str
     :ivar client_secret: The client secret used for authentication with the Jamf API.
     :type client_secret: str
-    :ivar server: The server URL for the Jamf API.
+    :ivar server: The server URL for the Jamf instance.
     :type server: str
-
-    .. admonition:: Removed in version 2.0
-        :class: danger
-
-        :class:`~patcher.core.models.token.AccessToken` objects are handled exclusively by the :class:`~patcher.client.token_manager.TokenManager` class. This ensures 'stale' tokens are not used, causing 401 responses.
     """
 
     client_id: str
@@ -84,8 +82,8 @@ class JamfClient(Model):
     @field_validator("server", mode="before")
     def validate_url(cls, v):
         """
-        Validates that the `~patcher.core.models.jamf_client.JamfClient.server` field contains a valid and properly
-        formatted URL by calling the `~patcher.core.models.jamf_client.JamfClient.valid_url` method.
+        Validates that the `~patcher.core.models.jamf.JamfCredentials.server` field contains a valid and properly
+        formatted URL by calling the `~patcher.core.models.jamf.JamfCredentials.valid_url` method.
 
         :param v: The server URL to validate.
         :type v: str
@@ -127,7 +125,7 @@ class ApiRoleModel(Model):
 
 class ApiClientModel(Model):
     """
-    The ``ApiClient`` class defines the configuration for an API client, including its
+    The ``JamfClient`` class defines the configuration for an API client, including its
     authentication scopes, display name, whether it is enabled, and the token lifetime.
 
     :ivar auth_scopes: A list of authentication scopes assigned to the API client. These

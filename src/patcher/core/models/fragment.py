@@ -21,7 +21,7 @@ class Fragment(Model):
     @field_validator("name")
     def validate_name(cls, value: str) -> str:
         """
-        Ensures the fragment name ends in ``.sh`` as expected for an Installomator label file.
+        Ensures the fragment name ends in ``.sh`` as expected for an InstallomatorClient label file.
 
         :param value: The candidate name string.
         :type value: str
@@ -30,7 +30,7 @@ class Fragment(Model):
         :raises PatcherError: If ``value`` does not end with ``.sh``.
         """
         if not value.endswith(".sh"):
-            raise PatcherError("Installomator name must end in '.sh'", received=value)
+            raise PatcherError("InstallomatorClient name must end in '.sh'", received=value)
         return value
 
     @field_validator("sha")

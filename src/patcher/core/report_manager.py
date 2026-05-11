@@ -3,10 +3,10 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from ..client.api_client import ApiClient
+from ..client.jamf import JamfClient
 from .data_manager import DataManager
 from .exceptions import APIResponseError, PatcherError
-from .installomator import Installomator
+from .installomator import InstallomatorClient
 from .logger import LogMe
 from .models.patch import PatchTitle
 
@@ -14,28 +14,28 @@ from .models.patch import PatchTitle
 class ReportManager:
     def __init__(
         self,
-        api_client: ApiClient,
+        api_client: JamfClient,
         data_manager: DataManager,
         debug: bool = False,
-        installomator: Installomator | None = None,
+        installomator: InstallomatorClient | None = None,
     ):
         """
         Handles the generation and management of patch reports.
 
         :param api_client: Interacts with the Jamf API to retrieve data needed for reporting.
-        :type api_client: :class:`~patcher.client.api_client.ApiClient`
+        :type api_client: :class:`~patcher.client.jamf.JamfClient`
         :param data_manager: Generates Excel reports from collected patch data.
         :type data_manager: :class:`~patcher.core.data_manager.DataManager`
         :param debug: Overrides animation of `~patcher.core.report_manager.ReportManager.process_reports` method if True.
         :type debug: bool
-        :param installomator: An optional :class:`~patcher.core.installomator.Installomator` object for matching. Defaults to creating a new object during init.
-        :type installomator: :class:`~patcher.core.installomator.Installomator`
+        :param installomator: An optional :class:`~patcher.core.installomator.InstallomatorClient` object for matching. Defaults to creating a new object during init.
+        :type installomator: :class:`~patcher.core.installomator.InstallomatorClient`
         """
         self.api_client = api_client
         self.data_manager = data_manager
         self.debug = debug
         self.log = LogMe(self.__class__.__name__)
-        self.iom = installomator or Installomator()
+        self.iom = installomator or InstallomatorClient()
 
     def _validate_directory(self, path: str | Path) -> str:
         """Validates or creates the reports directory."""

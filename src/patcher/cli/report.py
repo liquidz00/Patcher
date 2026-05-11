@@ -3,8 +3,8 @@
 Holds the animation-driven workflow that drives the ``patcherctl export``
 command. Pulled out of :class:`patcher.core.report_manager.ReportManager` so
 the core class stays free of ``asyncclick`` and the animation spinner;
-library callers wire the building blocks (``ApiClient``, ``DataManager``,
-``Installomator``, the ``ReportManager`` helpers) themselves and skip the
+library callers wire the building blocks (``JamfClient``, ``DataManager``,
+``InstallomatorClient``, the ``ReportManager`` helpers) themselves and skip the
 terminal presentation entirely.
 """
 
@@ -40,8 +40,8 @@ async def process_reports(
     concerns that don't belong in the core layer. Library callers should call
     the ``ReportManager`` building blocks directly instead.
 
-    :param report_manager: Pre-configured manager carrying the ``ApiClient``,
-        ``DataManager``, and ``Installomator`` collaborators.
+    :param report_manager: Pre-configured manager carrying the ``JamfClient``,
+        ``DataManager``, and ``InstallomatorClient`` collaborators.
     :type report_manager: :class:`~patcher.core.report_manager.ReportManager`
     :param path: Output directory for the generated reports.
     :type path: str | Path
@@ -59,7 +59,7 @@ async def process_reports(
     :type header_color: str
     :param date_format: ``datetime.strftime`` format string for date columns.
     :type date_format: str
-    :param enable_iom: If False, skip Installomator label matching.
+    :param enable_iom: If False, skip InstallomatorClient label matching.
     :type enable_iom: bool
     :param device_details: If True, include per-title device sheets in Excel export.
     :type device_details: bool
@@ -106,7 +106,7 @@ async def process_reports(
             patch_reports = await report_manager._ios(patch_reports)
 
         if enable_iom:
-            await animation.update_msg("Identifying Installomator support for titles...")
+            await animation.update_msg("Identifying InstallomatorClient support for titles...")
             try:
                 await report_manager.iom.match(patch_reports)
             except APIResponseError as e:

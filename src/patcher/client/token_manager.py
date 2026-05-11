@@ -6,9 +6,9 @@ from pydantic import ValidationError
 from ..core.config_manager import ConfigManager
 from ..core.exceptions import APIResponseError, CredentialError, PatcherError, TokenError
 from ..core.logger import LogMe
-from ..core.models.jamf_client import JamfClient
+from ..core.models.jamf import JamfCredentials
 from ..core.models.token import AccessToken
-from . import BaseAPIClient
+from . import HTTPClient
 
 
 class TokenManager:
@@ -25,7 +25,7 @@ class TokenManager:
         """
         self.log = LogMe(self.__class__.__name__)
         self.config = config
-        self.api_client = BaseAPIClient()
+        self.api_client = HTTPClient()
         self._client = None  # lazy load creds
         self._token = None
         self.lock = asyncio.Lock()
@@ -33,9 +33,9 @@ class TokenManager:
     @property
     def client(self):
         if not self._client:
-            self.log.debug("Attempting to attach JamfClient.")
+            self.log.debug("Attempting to attach JamfCredentials.")
             self._client = self.attach_client()
-            self.log.info(f"JamfClient initialized with base URL: {self._client.base_url}")
+            self.log.info(f"JamfCredentials initialized with base URL: {self._client.base_url}")
         return self._client
 
     @property
@@ -47,7 +47,7 @@ class TokenManager:
             except CredentialError:
                 self.log.warning("Failed to load token from keychain.")
             self.log.info(
-                f"Token ending in {self._token.token[-4:]}  loaded successfully from JamfClient."
+                f"Token ending in {self._token.token[-4:]}  loaded successfully from JamfCredentials."
             )
         return self._token
 
@@ -74,27 +74,31 @@ class TokenManager:
             self.log.error("Token or expiration is missing, loading failed.")
             raise TokenError("Unable to load token from keychain.", error_msg=str(e))
 
-    def attach_client(self) -> JamfClient:
+    def attach_client(self) -> JamfCredentials:
         """
-        Creates and returns a ``JamfClient`` object using the stored credentials.
+        Creates and returns a ``JamfCredentials`` object using the stored credentials.
 
-        :return: The ``JamfClient`` object if validation is successful.
-        :rtype: :class:`~patcher.core.models.jamf_client.JamfClient`
-        :raises PatcherError: If ``JamfClient`` object fails pydantic validation.
+        :return: The ``JamfCredentials`` object if validation is successful.
+        :rtype: :class:`~patcher.core.models.jamf.JamfCredentials`
+        :raises PatcherError: If ``JamfCredentials`` object fails pydantic validation.
         """
-        self.log.debug("Attempting to attach JamfClient with stored credentials")
+        self.log.debug("Attempting to attach JamfCredentials with stored credentials")
         try:
-            client = JamfClient(
+            client = JamfCredentials(
                 client_id=self.config.get_credential("CLIENT_ID"),
                 client_secret=self.config.get_credential("CLIENT_SECRET"),
                 server=self.config.get_credential("URL"),
             )
-            self.log.info(f"JamfClient ending in {client.client_id[-4:]} attached successfully")
+            self.log.info(
+                f"JamfCredentials ending in {client.client_id[-4:]} attached successfully"
+            )
             return client
         except ValidationError as e:
-            self.log.error(f"Failed attaching JamfClient due to validation error. Details: {e}")
+            self.log.error(
+                f"Failed attaching JamfCredentials due to validation error. Details: {e}"
+            )
             raise PatcherError(
-                "Unable to attach JamfClient due to invalid configuration",
+                "Unable to attach JamfCredentials due to invalid configuration",
                 error_msg=str(e),
             )
 
@@ -156,7 +160,7 @@ class TokenManager:
     def save_token(self, token: AccessToken):
         """
         This method stores the access token and its expiration date in the keyring
-        for later retrieval. It also updates the ``JamfClient`` instance with the new token.
+        for later retrieval.
 
         :param token: The ``AccessToken`` instance containing the token and its expiration date.
         :type token: :class:`~patcher.core.models.token.AccessToken`
@@ -181,8 +185,8 @@ class TokenManager:
         :class:`TokenError` so callers see a single, consistent exception
         type for token-validation failures.
 
-        Called by :meth:`~patcher.client.api_client.ApiClient._headers` on
-        every Jamf request. Every API method on ``ApiClient`` builds its
+        Called by :meth:`~patcher.client.jamf.JamfClient._headers` on
+        every Jamf request. Every API method on ``JamfClient`` builds its
         headers via that method, so token validation runs exactly once per
         request without a separate decorator.
 

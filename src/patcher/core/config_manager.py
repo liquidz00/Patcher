@@ -3,7 +3,7 @@ from keyring.errors import KeyringError
 
 from .exceptions import CredentialError
 from .logger import LogMe
-from .models.jamf_client import JamfClient
+from .models.jamf import JamfCredentials
 from .models.token import AccessToken
 
 
@@ -130,22 +130,23 @@ class ConfigManager:
             self.log.warning(f"Failed to delete credential for '{key}'. Details: {e}")
             return False
 
-    def create_client(self, client: JamfClient, token: AccessToken) -> None:
+    def create_client(self, client: JamfCredentials, token: AccessToken) -> None:
         """
-        Stores a ``JamfClient`` object's credentials in the keyring.
+        Persist a ``JamfCredentials`` object plus its bearer token into the
+        configured credential backend (keyring or in-memory).
 
-        This method is typically used during the setup process to save the credentials and token of a ``JamfClient``
-        object into the keyring for secure storage and later use.
+        Used during setup once a JamfCredentials has been validated and a
+        token has been fetched. Stores ``CLIENT_ID``, ``CLIENT_SECRET``,
+        ``URL``, ``TOKEN``, ``TOKEN_EXPIRATION``.
 
-        If any of the client credentials could not be saved, a :exc:`~patcher.core.exceptions.CredentialError`
-        is raised via the :meth:`~patcher.core.config_manager.ConfigManager.set_credential` method.
-
-        :param client: The ``JamfClient`` object whose credentials will be stored.
-        :type client: :class:`~patcher.core.models.jamf_client.JamfClient`
+        :param client: The ``JamfCredentials`` object whose values will be stored.
+        :type client: :class:`~patcher.core.models.jamf.JamfCredentials`
         :param token: The ``AccessToken`` object to save.
         :type token: :class:`~patcher.core.models.token.AccessToken`
+        :raises CredentialError: If any individual credential write fails (propagated from
+            :meth:`~patcher.core.config_manager.ConfigManager.set_credential`).
         """
-        self.log.debug(f"Storing credentials for JamfClient ending in: {(client.client_id[-4:])}")
+        self.log.debug(f"Storing credentials for client ending in: {(client.client_id[-4:])}")
         credentials = {
             "CLIENT_ID": client.client_id,
             "CLIENT_SECRET": client.client_secret,
@@ -157,7 +158,7 @@ class ConfigManager:
             self.set_credential(k, v)
 
         self.log.info(
-            f"Credentials for JamfClient ending in '{(client.client_id[-4:])}' stored successfully."
+            f"Credentials for client ending in '{(client.client_id[-4:])}' stored successfully."
         )
 
     def reset_config(self) -> bool:

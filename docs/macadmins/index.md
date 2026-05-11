@@ -4,7 +4,7 @@ html_theme.sidebar_secondary.remove: True
 
 # Additional MacAdmin Tools
 
-Other open-source tools to assist in the management of Apple devices (mainly computers, but not limited to). 
+Other open-source tools to assist in the management of Apple devices (mainly computers, but not limited to).
 
 :::{admonition} Some, but certainly not all
 :class: note
@@ -30,14 +30,14 @@ Track information on updates for macOS and iOS through a machine-readable feed.
 [GitHub](https://github.com/macadmins/sofa) | [Website](https://sofa.macadmins.io)
 :::
 
-:::{grid-item-card} Installomator
+:::{grid-item-card} InstallomatorClient
 :class-card: sd-card
 :shadow: md
 
 Installation script to deploy standard software on Macs.
 
 +++
-[GitHub](https://github.com/Installomator/Installomator)
+[GitHub](https://github.com/InstallomatorClient/InstallomatorClient)
 :::
 
 :::{grid-item-card} Jamf Pro Python SDK

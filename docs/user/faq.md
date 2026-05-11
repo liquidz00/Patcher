@@ -77,7 +77,7 @@ For MacAdmins, this means:
 2. **TLS-Inspecting Proxies Supported**: Zscaler, Netskope, Cloudflare Gateway, Palo Alto GlobalProtect, and similar tools work transparently because the CAs they issue are typically deployed via MDM into the same OS trust store ``truststore`` reads from.
 3. **Resilient to ``certifi`` Upgrades**: previous SSL workarounds required modifying the static ``certifi`` bundle, which was wiped on every ``pip install --upgrade certifi``. The OS trust store doesn't have this fragility.
 
-If you encounter certificate errors anyway, see the {ref}`TLS / Corporate Proxies <support>` section of the Troubleshooting page. Curious how the wire-in works? Check out the {class}`~patcher.client.__init__.BaseAPIClient` class.
+If you encounter certificate errors anyway, see the {ref}`TLS / Corporate Proxies <support>` section of the Troubleshooting page. Curious how the wire-in works? Check out the {class}`~patcher.client.__init__.HTTPClient` class.
 
 :::
 ::::

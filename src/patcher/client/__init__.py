@@ -9,13 +9,13 @@ import truststore
 
 from ..core.exceptions import APIResponseError, PatcherError
 from ..core.logger import LogMe
-from ..core.models.jamf_client import ApiClientModel, ApiRoleModel
+from ..core.models.jamf import ApiClientModel, ApiRoleModel
 
 
-class BaseAPIClient:
+class HTTPClient:
     def __init__(self, max_concurrency: int = 5):
         """
-        The BaseAPIClient class controls concurrency settings and secure connections for *all* API calls.
+        The HTTPClient class controls concurrency settings and secure connections for *all* API calls.
 
         This class forms the backbone of Patcher's ability to interact with external APIs.
         It manages the number of API requests that can be made simultaneously, ensuring the tool is both
@@ -35,7 +35,7 @@ class BaseAPIClient:
         self.log = LogMe(self.__class__.__name__)
         # Lazily-constructed httpx.AsyncClient. See the ``http`` property.
         self._http_client: httpx.AsyncClient | None = None
-        self.log.debug(f"BaseAPIClient initialized with max_concurrency: {max_concurrency}")
+        self.log.debug(f"HTTPClient initialized with max_concurrency: {max_concurrency}")
 
     def set_concurrency(self, value: int) -> None:
         """
@@ -57,11 +57,11 @@ class BaseAPIClient:
     @property
     def http(self) -> httpx.AsyncClient:
         """
-        Lazily-constructed :class:`httpx.AsyncClient` bound to this BaseAPIClient instance.
+        Lazily-constructed :class:`httpx.AsyncClient` bound to this HTTPClient instance.
 
         First access constructs the client; subsequent accesses return the same
         instance. Call :meth:`aclose` to release the underlying connection pool
-        when this BaseAPIClient is no longer needed. The CLI doesn't strictly
+        when this HTTPClient is no longer needed. The CLI doesn't strictly
         need to call ``aclose`` (process exit reclaims resources), but library
         consumers should for clean shutdown.
 
@@ -69,7 +69,7 @@ class BaseAPIClient:
         :rtype: httpx.AsyncClient
 
         .. note::
-            Not thread-safe. BaseAPIClient is intended for single-event-loop use.
+            Not thread-safe. HTTPClient is intended for single-event-loop use.
             ``max_connections`` is bound to ``self.max_concurrency`` so the same
             ceiling that gates ``self.semaphore`` also applies at the HTTP layer.
         """
@@ -110,7 +110,7 @@ class BaseAPIClient:
         Translates httpx-native errors to Patcher's :class:`APIResponseError`
         so callers see the same exception contract as the existing
         :meth:`fetch_json` path — notably the ``not_found=True`` flag on 404
-        responses, which :meth:`patcher.core.installomator.Installomator.match`
+        responses, which :meth:`patcher.core.installomator.InstallomatorClient.match`
         uses to short-circuit gracefully.
 
         :param url: The URL to fetch.
@@ -333,7 +333,7 @@ class BaseAPIClient:
         :type username: str
         :param password: Password of admin Jamf Pro account. Not permanently stored, only used for initial token retrieval.
         :type password: str
-        :param jamf_url: Jamf Server URL (See :attr:`~patcher.core.models.jamf_client.JamfClient.server`).
+        :param jamf_url: Jamf Server URL (See :attr:`~patcher.core.models.jamf.JamfCredentials.server`).
         :type jamf_url: str
         :returns: The BasicToken string.
         :rtype: str
@@ -384,7 +384,7 @@ class BaseAPIClient:
         Creates the necessary API roles using the provided basic token.
 
         .. seealso::
-            :class:`~patcher.core.models.jamf_client.ApiRoleModel`
+            :class:`~patcher.core.models.jamf.ApiRoleModel`
 
         :param token: The basic token to use for authentication.
         :type token: str
@@ -420,7 +420,7 @@ class BaseAPIClient:
         Creates an API client and retrieves its client ID and client secret.
 
         .. seealso::
-            :class:`~patcher.core.models.jamf_client.ApiClientModel`
+            :class:`~patcher.core.models.jamf.ApiClientModel`
 
         :param token: The basic token to use for authentication.
         :type token: str

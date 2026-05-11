@@ -9,7 +9,7 @@ class PatcherError(Exception):
         **Each keyword in ``**kwargs`` is also set as an instance attribute**
         (see the loop below). This is load-bearing — multiple callers rely
         on ``getattr(err, "not_found", False)`` to short-circuit on 404
-        responses (notably :meth:`patcher.core.installomator.Installomator.match`).
+        responses (notably :meth:`patcher.core.installomator.InstallomatorClient.match`).
         Removing the ``setattr`` loop in favor of "just storing kwargs in
         ``self.context``" looks like cleanup but silently breaks the 404
         short-circuit. The context dict is preserved separately for the
@@ -65,6 +65,6 @@ class TokenError(PatcherError):
 
 
 class InstallomatorWarning(Warning):
-    """Custom warning to indicate Installomator-related issues."""
+    """Custom warning to indicate InstallomatorClient-related issues."""
 
     pass

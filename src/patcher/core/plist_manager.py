@@ -88,7 +88,7 @@ class PropertylistManager:
         :rtype: bool
         """
         data = self._load_plist_file()
-        return any(key in data for key in ["Setup", "UI", "Installomator"])
+        return any(key in data for key in ["Setup", "UI", "InstallomatorClient"])
 
     def migrate_plist(self) -> None:
         """
@@ -109,7 +109,7 @@ class PropertylistManager:
         ui_dict = data.get("UI")
         new_data = {
             "setup_completed": data.get("Setup", {}).get("first_run_done", False),
-            "enable_installomator": data.get("Installomator", {}).get("enabled", True),
+            "enable_installomator": data.get("InstallomatorClient", {}).get("enabled", True),
             "enable_caching": True,
             "UserInterfaceSettings": {
                 UIConfigKeys.HEADER.value: ui_dict.get("HEADER_TEXT"),

@@ -24,7 +24,7 @@ async def test_can_fetch_token_from_dummy_instance(integration_token_manager) ->
     Validates the full chain:
       ConfigManager (in-memory) →
         TokenManager.fetch_token() →
-          BaseAPIClient.fetch_json() →
+          HTTPClient.fetch_json() →
             POST /api/oauth/token →
               AccessToken parsed and returned.
     """

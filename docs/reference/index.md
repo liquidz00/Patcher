@@ -8,8 +8,8 @@ html_theme.sidebar_secondary.remove: True
 :caption: Client Modules
 :maxdepth: 3
 
-base_api_client
-api_client
+http_client
+jamf_client
 analyze
 config_manager
 plist_manager
@@ -23,7 +23,7 @@ ui_manager
 :caption: Data Models
 :maxdepth: 2
 
-jamf_client
+jamf
 patch
 token
 ```

@@ -102,7 +102,7 @@ By default, ``make test`` and ``make test-cov`` **exclude** integration tests so
 What gets exercised
 ^^^^^^^^^^^^^^^^^^^
 
-Integration tests use real :class:`~patcher.core.config_manager.ConfigManager`, :class:`~patcher.client.token_manager.TokenManager`, and :class:`~patcher.client.api_client.ApiClient` objects — no mocks at the HTTP boundary. This validates the full chain: credential loading, OAuth token flow, real HTTP calls, response parsing, and error handling against actual Jamf Pro responses.
+Integration tests use real :class:`~patcher.core.config_manager.ConfigManager`, :class:`~patcher.client.token_manager.TokenManager`, and :class:`~patcher.client.jamf.JamfClient` objects — no mocks at the HTTP boundary. This validates the full chain: credential loading, OAuth token flow, real HTTP calls, response parsing, and error handling against actual Jamf Pro responses.
 
 This is particularly useful when:
 

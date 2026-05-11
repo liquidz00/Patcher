@@ -207,7 +207,7 @@ class Analyzer:
                 - 'high_missing': Titles where missing patches are greater than 50% of total hosts.
                 - 'zero_completion': Titles with zero completion percentage.
                 - 'top_performers': Titles with completion percentage greater than 90%.
-                - 'installomator': Titles that have Installomator labels. See :ref:`Installomator <installomator>`
+                - 'installomator': Titles that have InstallomatorClient labels. See :ref:`InstallomatorClient <installomator>`
 
         :type criteria: :class:`~patcher.core.analyze.FilterCriteria`
         :param threshold: The threshold for filtering completion percentages, default is 70.0.

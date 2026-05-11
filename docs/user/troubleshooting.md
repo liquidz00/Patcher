@@ -30,10 +30,10 @@ Each log entry contains a timestamp, the {ref}`child logger <child-logger>` writ
 :class-card: sd-card
 
 ```{code-block} text
-2024-12-30 21:19:35,423 - Patcher.ApiClient - ERROR - Client error (401): [{'code': 'INVALID_TOKEN', 'description': 'Unauthorized', 'id': '0', 'field': None}]
+2024-12-30 21:19:35,423 - Patcher.JamfClient - ERROR - Client error (401): [{'code': 'INVALID_TOKEN', 'description': 'Unauthorized', 'id': '0', 'field': None}]
 ```
 
-The child logger in this case was the {class}`~patcher.client.api_client.ApiClient` class. This is helpful information to include in bug reports/issues.
+The child logger in this case was the {class}`~patcher.client.jamf.JamfClient` class. This is helpful information to include in bug reports/issues.
 :::
 
 :::{card} Debug & Info

@@ -8,11 +8,11 @@ from . import Model
 
 class Label(Model):
     """
-    Represents an Installomator label.
+    Represents an InstallomatorClient label.
 
-    Installomator labels define metadata required for software installation using the Installomator tool. This includes information such as the download URL, expected Team ID, and type of installation package.
+    InstallomatorClient labels define metadata required for software installation using the InstallomatorClient tool. This includes information such as the download URL, expected Team ID, and type of installation package.
 
-    For detailed reference on Installomator Labels, see :ref:`Installomator <installomator>` in the project docs, or visit the :ghwiki:`Labels reference <Installomator:Label Variables Reference>` in the Installomator wiki.
+    For detailed reference on InstallomatorClient Labels, see :ref:`InstallomatorClient <installomator>` in the project docs, or visit the :ghwiki:`Labels reference <InstallomatorClient:Label Variables Reference>` in the InstallomatorClient wiki.
 
     :param name: The name of the Application the label is tied to (e.g., 'Google Chrome')
     :type name: str
