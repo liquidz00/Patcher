@@ -427,10 +427,14 @@ class BaseAPIClient:
     # API calls for client setup
     async def fetch_basic_token(self, username: str, password: str, jamf_url: str) -> str:
         """
-        Asynchronously retrieves a basic token using basic authentication.
+        Asynchronously retrieves a basic token using HTTP Basic authentication.
 
-        This method is intended for initial setup to obtain client credentials for API clients and roles.
-        It should not be used for regular token retrieval after setup.
+        This method is intended for initial setup to obtain client credentials for API
+        clients and roles. It should not be used for regular token retrieval after setup.
+
+        The password is passed via httpx's ``auth=`` tuple parameter, which encodes it
+        in the ``Authorization`` header — it never appears in the URL, request body, or
+        log output, so no credential-sanitization step is required on the error path.
 
         :param username: Username of admin Jamf Pro account for authentication. Not permanently stored, only used for initial token retrieval.
         :type username: str
@@ -440,35 +444,47 @@ class BaseAPIClient:
         :type jamf_url: str
         :returns: The BasicToken string.
         :rtype: str
-        :raises APIResponseError: If the call is unauthorized or unsuccessful.
+        :raises APIResponseError: If the call is unauthorized, unsuccessful, or the response body doesn't contain a ``token`` field.
         """
         self.log.debug("Attempting to retrieve Basic Token with provided credentials.")
         token_url = f"{jamf_url}/api/v1/auth/token"
-        command = [
-            "/usr/bin/curl",
-            "-s",
-            "-u",
-            f"{username}:{password}",
-            "-H",
-            "accept: application/json",
-            "-X",
-            "POST",
-            token_url,
-        ]
-        async with self.semaphore:
-            resp = await self.execute(command)
-            response = json.loads(resp)
-            if response and "token" in response:
-                self.log.info("Basic Token retrieved successfully.")
-                return response.get("token")
-            else:
-                sanitized = self._sanitize_command(command)
-                raise APIResponseError(
-                    "Unable to retrieve basic token with provided username and password",
-                    username=username,
-                    url=jamf_url,
-                    command=sanitized,
+
+        try:
+            async with self.semaphore:
+                response = await self.http.post(
+                    token_url,
+                    auth=(username, password),
+                    headers={"accept": "application/json"},
                 )
+        except httpx.RequestError as e:
+            raise APIResponseError(
+                "Network error fetching basic token",
+                username=username,
+                url=jamf_url,
+                error_msg=str(e),
+            )
+
+        try:
+            data = response.json()
+        except (json.JSONDecodeError, ValueError) as e:
+            raise APIResponseError(
+                "Failed parsing basic token response",
+                username=username,
+                url=jamf_url,
+                status_code=response.status_code,
+                error_msg=str(e),
+            )
+
+        if response.is_success and data and "token" in data:
+            self.log.info("Basic Token retrieved successfully.")
+            return data["token"]
+
+        raise APIResponseError(
+            "Unable to retrieve basic token with provided username and password",
+            username=username,
+            url=jamf_url,
+            status_code=response.status_code,
+        )
 
     async def create_roles(self, token: str, jamf_url: str) -> bool:
         """

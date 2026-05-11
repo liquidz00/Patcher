@@ -110,12 +110,20 @@ async def test_fetch_batch(base_api_client):
 # Test setup calls
 @pytest.mark.asyncio
 async def test_fetch_basic_token(base_api_client):
-    with patch.object(
-        base_api_client, "execute", AsyncMock(return_value='{"token": "abc123"}')
-    ) as mock_execute:
-        result = await base_api_client.fetch_basic_token("user", "pass", "https://example.com")
-        assert result == "abc123"
-        mock_execute.assert_called_once()
+    """fetch_basic_token POSTs with Basic auth and extracts the token from the response."""
+    mock_response = Mock(status_code=200, is_success=True)
+    mock_response.json.return_value = {"token": "abc123"}
+    mock_http = AsyncMock()
+    mock_http.post = AsyncMock(return_value=mock_response)
+    base_api_client._http_client = mock_http
+
+    result = await base_api_client.fetch_basic_token("user", "pass", "https://example.com")
+
+    assert result == "abc123"
+    mock_http.post.assert_called_once()
+    # Verify Basic auth was sent via httpx's auth= kwarg (not in URL/body)
+    call_kwargs = mock_http.post.call_args.kwargs
+    assert call_kwargs["auth"] == ("user", "pass")
 
 
 @pytest.mark.asyncio

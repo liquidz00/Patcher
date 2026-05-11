@@ -66,6 +66,4 @@ These aren't in the schema but are how Patcher uses the API:
 
 - **Credential sanitization** before logging: see `BaseAPIClient._sanitize_command`. Redacts `client_id`, `client_secret`, and Bearer tokens.
 - **404 short-circuit**: `APIResponseError` carries `not_found=True` when status is 404 (now exposed as an attribute, not just `e.context["not_found"]`). Callers like `Installomator.match()` use `getattr(e, "not_found", False)` to gracefully no-op rather than failing the whole flow.
-- **Transport** (mid-migration): two paths currently coexist on `BaseAPIClient`.
-  - **httpx** (`BaseAPIClient.http`, `fetch_text`, `fetch_json`) — Installomator and every Jamf-API call routed through `fetch_json` now use this path.
-  - **curl-via-subprocess** (`BaseAPIClient.execute`, `fetch_basic_token`, `create_roles`, `create_client`) — only the OAuth setup flows (basic-token → API role → API client creation) still shell out to curl. They migrate in an upcoming commit.
+- **Transport**: every HTTP-touching method on `BaseAPIClient` now runs on httpx via the lazy `BaseAPIClient.http` property — `fetch_text`, `fetch_json`, `fetch_basic_token`, `create_roles`, `create_client`. The `execute()` / `execute_sync()` curl-subprocess helpers still exist but no longer have internal callers in BaseAPIClient (cleanup landing in a follow-up commit). New HTTP code MUST use the httpx surface; do not reintroduce subprocess-based HTTP.
