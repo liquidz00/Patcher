@@ -29,7 +29,7 @@ All pull requests should be made against the ``main`` branch of the repository. 
 Environment Setup
 -----------------
 
-Patcher uses both ``ruff`` and ``black`` to format and lint code before any changes are merged to main. The ``Makefile`` document included with the repository assists in automating this process on your behalf. Settings for both ``black`` and ``ruff`` can be found in the `pyproject.toml <https://github.com/liquidz00/Patcher/blob/main/pyproject.toml>`_ file for reference.
+Patcher uses ``ruff`` for both formatting and linting before any changes are merged to ``main``. The ``Makefile`` automates the lint + format invocations. Configuration for ``ruff`` lives in the `pyproject.toml <https://github.com/liquidz00/Patcher/blob/main/pyproject.toml>`_ file under ``[tool.ruff]``.
 
 Virtual Environment
 ^^^^^^^^^^^^^^^^^^^
