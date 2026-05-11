@@ -1,5 +1,6 @@
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
+from sphinx.application import Sphinx
 
 
 class ParameterDirective(Directive):
@@ -16,7 +17,7 @@ class ParameterDirective(Directive):
 
         container = nodes.container()
         container["classes"].append("patcher-parameter")
-        
+
         header = nodes.container()
         header["classes"].append("patcher-param-header")
 
@@ -45,6 +46,11 @@ class ParameterDirective(Directive):
         return [container]
 
 
-def setup(app):
+def setup(app: Sphinx) -> dict[str, object]:
     app.add_directive("param", ParameterDirective)
     app.add_css_file("custom.css")
+    return {
+        "version": "0.1",
+        "parallel_read_safe": True,
+        "parallel_write_safe": True,
+    }
