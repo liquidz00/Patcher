@@ -1,0 +1,25 @@
+name: Feedback
+description: Share your thoughts about Patcher
+title: "[FEEDBACK] "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing! All feedback is welcome — what's working, what's not, what's confusing.
+
+  - type: textarea
+    id: feedback
+    attributes:
+      label: Your feedback
+      description: A clear and concise description of your feedback.
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Any other context or screenshots related to your feedback.
+    validations:
+      required: false

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://patcher.readthedocs.io/
+    about: Browse the user guide and API reference before opening an issue.
+  - name: MacAdmins Slack
+    url: https://macadmins.slack.com/archives/C07EH1R7LB0
+    about: Quick questions or general community discussion.

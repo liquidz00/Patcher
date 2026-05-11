@@ -1,0 +1,82 @@
+name: Bug report
+description: Report a defect in Patcher
+title: "[ISSUE] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. The more details you can provide, the faster the fix.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the issue
+      description: What is not working as expected?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: How can this issue be replicated? Provide the steps to reproduce, OR what arguments you passed to the tool.
+      render: shell
+      placeholder: patcherctl ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior / error message
+      description: |
+        What happened instead? Please copy and paste the exact error message or stack trace, especially anything shown in `stderr`.
+      render: text
+      placeholder: "APIResponseError: Client error received. (status_code: 401 | error: [{'code': None, 'description': 'Unauthorized'}])"
+    validations:
+      required: true
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: "26.4.1"
+    validations:
+      required: true
+
+  - type: input
+    id: patcher-version
+    attributes:
+      label: Patcher version
+      description: 'Output of `patcherctl --version`'
+      placeholder: "2.4.0"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ### Patcher logs
+
+        Logs are incredibly useful for debugging. **They may include sensitive information** such as local file paths, usernames, and machine-specific identifiers — please review before sharing publicly.
+
+        - **Preferred (private)**: DM the maintainer in the [MacAdmins Slack](https://macadmins.slack.com/team/U04EC7ZN4SJ).
+        - **Public**: paste below, but only after removing sensitive data.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (optional, public)
+      description: Paste here only if you're comfortable. Redact sensitive info first.
+      render: text
+    validations:
+      required: false
