@@ -20,14 +20,30 @@ class Fragment(Model):
 
     @field_validator("name")
     def validate_name(cls, value: str) -> str:
-        """Ensures name ends in '.sh' as expected."""
+        """
+        Ensures the fragment name ends in ``.sh`` as expected for an Installomator label file.
+
+        :param value: The candidate name string.
+        :type value: str
+        :return: The validated name, unchanged.
+        :rtype: str
+        :raises PatcherError: If ``value`` does not end with ``.sh``.
+        """
         if not value.endswith(".sh"):
             raise PatcherError("Installomator name must end in '.sh'", received=value)
         return value
 
     @field_validator("sha")
     def validate_sha(cls, value: str) -> str:
-        """Ensure the SHA is a valid SHA-1 hash."""
+        """
+        Ensure the SHA is a valid lowercase SHA-1 hash (40 hexadecimal characters).
+
+        :param value: The candidate SHA string.
+        :type value: str
+        :return: The validated SHA, unchanged.
+        :rtype: str
+        :raises PatcherError: If ``value`` is not exactly 40 lowercase hex characters.
+        """
         if len(value) != 40 or not all(c in "0123456789abcdef" for c in value.lower()):
             raise PatcherError("Invalid SHA-1 hash received in Fragment object.", received=value)
         return value
