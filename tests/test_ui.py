@@ -1,22 +1,18 @@
 from pathlib import Path
-from unittest.mock import mock_open, patch
+from unittest.mock import MagicMock, mock_open, patch
 
+import httpx
 import pytest
 from src.patcher.client.ui_manager import UIConfigKeys, UIConfigManager
-from src.patcher.utils.exceptions import PatcherError, ShellCommandError
+from src.patcher.utils.exceptions import PatcherError
 
 
 @pytest.fixture
 def ui_manager(mock_plist_manager, monkeypatch):
-    with (
-        patch("src.patcher.client.ui_manager.BaseAPIClient") as mock_api_client,
-        patch("src.patcher.client.ui_manager.PropertylistManager", return_value=mock_plist_manager),
+    with patch(
+        "src.patcher.client.ui_manager.PropertylistManager", return_value=mock_plist_manager
     ):
-        mock_api = mock_api_client.return_value
-        mock_api.execute_sync.return_value = b"Mock response"
-
         manager = UIConfigManager()
-        manager.api = mock_api
 
         monkeypatch.setattr(
             manager,
@@ -78,35 +74,22 @@ def test_download_font_success(ui_manager, monkeypatch):
         ui_manager, "_download_fonts", UIConfigManager._download_fonts.__get__(ui_manager)
     )
 
+    mock_response = MagicMock(content=b"FontBinaryData")
+    mock_response.raise_for_status = MagicMock()
+
     with (
         patch.object(ui_manager, "fonts_present", new_callable=lambda: False),
-        patch.object(ui_manager.api, "execute_sync", return_value=b"Success") as mock_exec,
+        patch("src.patcher.client.ui_manager.httpx.get", return_value=mock_response) as mock_get,
+        patch.object(Path, "write_bytes") as mock_write,
     ):
         ui_manager._download_fonts()
-        assert mock_exec.call_count == 2  # regular, bold
 
-        expected_calls = [
-            (
-                [
-                    "/usr/bin/curl",
-                    "-sL",
-                    ui_manager._FONT_URLS["regular"],
-                    "-o",
-                    str(ui_manager._get_font_paths()["regular"]),
-                ]
-            ),
-            (
-                [
-                    "/usr/bin/curl",
-                    "-sL",
-                    ui_manager._FONT_URLS["bold"],
-                    "-o",
-                    str(ui_manager._get_font_paths()["bold"]),
-                ]
-            ),
-        ]
-        mock_exec.assert_any_call(expected_calls[0])
-        mock_exec.assert_any_call(expected_calls[1])
+        assert mock_get.call_count == 2  # regular, bold
+        assert mock_write.call_count == 2
+        # Verify both font URLs were fetched
+        called_urls = {call.args[0] for call in mock_get.call_args_list}
+        assert ui_manager._FONT_URLS["regular"] in called_urls
+        assert ui_manager._FONT_URLS["bold"] in called_urls
 
 
 def test_download_font_failure(ui_manager, monkeypatch):
@@ -115,10 +98,9 @@ def test_download_font_failure(ui_manager, monkeypatch):
     )
     with (
         patch.object(ui_manager, "fonts_present", new_callable=lambda: False),
-        patch.object(
-            ui_manager.api,
-            "execute_sync",
-            side_effect=ShellCommandError("Command execution failed"),
+        patch(
+            "src.patcher.client.ui_manager.httpx.get",
+            side_effect=httpx.ConnectError("connect failed"),
         ),
     ):
         with pytest.raises(PatcherError, match="Failed to download default font family"):

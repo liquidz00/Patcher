@@ -42,7 +42,7 @@ The CLI is **async-first** — `cli.py` uses `asyncclick` and the entry point is
 
 ### Layered API client
 
-`patcher.client.BaseAPIClient` (in `client/__init__.py`) is the foundation: it owns `asyncio.Semaphore`-bounded concurrency (default 5; **do not raise without cause** — Jamf scalability guidance), shells out to `/usr/bin/curl` via `asyncio.create_subprocess_exec`, sanitizes credentials in logs, and centralizes HTTP status handling (4xx/5xx → `APIResponseError`, with a `not_found=True` flag for 404).
+`patcher.client.BaseAPIClient` (in `client/__init__.py`) is the foundation: it owns `asyncio.Semaphore`-bounded concurrency (default 5; **do not raise without cause** — Jamf scalability guidance), wraps a lazily-constructed `httpx.AsyncClient` exposed via the `http` property (TLS via `truststore.SSLContext` so OS-installed CAs are honored automatically), and centralizes HTTP status handling (4xx/5xx → `APIResponseError`, with a `not_found=True` flag for 404). The three async entry points are `fetch_json`, `fetch_text`, and `fetch_basic_token`; one-shot sync downloads (default fonts) use `httpx.get` directly with the same truststore context.
 
 `ApiClient` extends it with Jamf-specific endpoints. `TokenManager` (used inside `ApiClient`) handles bearer token lifecycle and is decorated via `utils/decorators.check_token`. **Never instantiate `ApiClient` before setup completes** — its constructor calls `token_manager.attach_client()` which expects a saved `JamfClient`.
 

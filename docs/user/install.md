@@ -77,14 +77,15 @@ If ``zsh`` is not your default shell, adjust the command to reflect the proper s
 (ssl-verify)=
 ## SSL Verification
 
-As of version 1.4.1, Patcher no longer modifies SSL configurations. SSL handling for custom certificates required some additional TLC by end users and would often cause SSL verification errors at runtime. This is compounded when taking into account our end users are likely on managed systems with security policies and third-party certificates (e.g., Zscaler).  
+Patcher uses [``httpx``](https://www.python-httpx.org/) for HTTP requests, paired with [``truststore``](https://github.com/sethmlarson/truststore) to bridge TLS verification to your operating system's native trust store (macOS Keychain, Windows Certificate Store, Linux's ``/etc/ssl/certs/``). Any CA your MDM installs at the OS level is automatically trusted — no Python-specific configuration required.
 
-With the current version, SSL handling is no longer required by the end user. We've integrated ``curl`` with ``asyncio`` within Patcher's functionality to automatically handle SSL verification as part of API requests. This design choice removes the need for manual SSL configurations, streamlining the setup for MacAdmins on managed computers.
+This handles the most common reasons SSL verification fails for MacAdmins:
 
-:::{note}
-While the current integration between `curl` and `asyncio` gets the job done for handling SSL verification, there's room for refinement. Community contributions to enhance this functionality are welcome and encouraged. If you're interested in exploring ways to solidify this process further, check out the relevant code in the {ref}`BaseAPIClient <base_api_client>` class.
-:::
+- TLS-inspecting proxies (Zscaler, Netskope, Cloudflare Gateway, Palo Alto GlobalProtect) that issue dynamically-rotated corporate CAs
+- Internal Jamf Pro instances signed by a company root not present in the public CA bundle
 
-This update makes it easier for Patcher to run smoothly in secure environments, without the hassle of adjusting system certificates or tinkering with Python’s SSL settings.
+You should **not** need to modify ``certifi``'s ``cacert.pem``, set ``SSL_CERT_FILE``, or otherwise tinker with Python's SSL settings. If your browser can reach your Jamf Pro instance without a TLS warning, Patcher can too.
 
-**If none of the above steps worked to resolve the issue**, please reach out to us and let us know what (if any) security software is installed on your machine. This will help us troubleshoot issues in the future. Additionally, get in touch with someone from your security team for next steps as they may have a solution in place.
+For deeper diagnostics if SSL errors persist (the CA isn't installed at the OS level, MDM profile not fully applied, etc.), see the {ref}`TLS / Corporate Proxies <support>` section of the Troubleshooting page.
+
+**If none of the above resolved the issue**, please reach out and let us know what (if any) security software is installed on the machine — it helps us improve diagnostics. Also loop in your security team; they may have a known workaround for the proxy in question.

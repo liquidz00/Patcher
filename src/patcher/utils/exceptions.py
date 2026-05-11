@@ -45,12 +45,6 @@ class APIResponseError(PatcherError):
     pass
 
 
-class ShellCommandError(PatcherError):
-    """Raised when the return code of a subprocess exec call is non-zero."""
-
-    pass
-
-
 class TokenError(PatcherError):
     """Raised when there is an error fetching, saving or retrieving a bearer token from Jamf API."""
 

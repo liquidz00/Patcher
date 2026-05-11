@@ -1,14 +1,16 @@
 import shutil
+import ssl
 from functools import cached_property
 from pathlib import Path
 
 import asyncclick as click
+import httpx
+import truststore
 from PIL import Image
 
 from ..models.ui import UIConfigKeys, UIDefaults
-from ..utils.exceptions import PatcherError, SetupError, ShellCommandError
+from ..utils.exceptions import PatcherError, SetupError
 from ..utils.logger import LogMe
-from . import BaseAPIClient
 from .plist_manager import PropertylistManager
 
 
@@ -28,7 +30,6 @@ class UIConfigManager:
         """
         self.log = LogMe(self.__class__.__name__)
         self.plist_manager = PropertylistManager()
-        self.api = BaseAPIClient()
         self.font_dir = self.plist_manager.plist_path.parent / "fonts"
         self._config = None  # Lazy-loaded
 
@@ -111,12 +112,18 @@ class UIConfigManager:
             return
 
         self._ensure_directory(self.font_dir)
+        # truststore-backed SSL context mirrors BaseAPIClient's TLS handling
+        # so font downloads work behind the same TLS-inspecting corporate
+        # proxies that Jamf API calls do.
+        ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         for font_type, url in self._FONT_URLS.items():
             dest = self._get_font_paths()[font_type]
             try:
-                self.api.execute_sync(["/usr/bin/curl", "-sL", url, "-o", str(dest)])
+                response = httpx.get(url, verify=ctx, follow_redirects=True, timeout=30.0)
+                response.raise_for_status()
+                dest.write_bytes(response.content)
                 self.log.info(f"Font saved: {dest}")
-            except ShellCommandError as e:
+            except (httpx.HTTPError, OSError) as e:
                 self.log.error(f"Unable to download font from {url}: {e}")
                 raise PatcherError(
                     "Failed to download default font family.",

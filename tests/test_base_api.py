@@ -25,32 +25,6 @@ async def test_set_concurrency(base_api_client):
         base_api_client.concurrency = 0
 
 
-# Test command execution
-@pytest.mark.asyncio
-async def test_execute(base_api_client):
-    command = ["echo", "test"]
-    mock_process = AsyncMock()
-    mock_process.communicate.return_value = (b"output", b"")
-    mock_process.returncode = 0
-
-    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-        result = await base_api_client.execute(command)
-
-        assert result == "output"
-
-
-@pytest.mark.asyncio
-async def test_execute_failure(base_api_client):
-    command = ["invalid_command"]
-    mock_process = AsyncMock()
-    mock_process.communicate.return_value = (b"", b"error")
-    mock_process.returncode = 1
-
-    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-        with pytest.raises(exceptions.ShellCommandError):
-            await base_api_client.execute(command)
-
-
 # Test HTTP Status code handling
 def test_handle_status_code_success(base_api_client):
     response_json = {"data": "test"}
@@ -159,10 +133,6 @@ async def test_create_client(base_api_client):
 
 # ---------------------------------------------------------------------- #
 # httpx transport: `http` property, `aclose`, `fetch_text`
-#
-# These tests cover the new httpx-backed surface added alongside the
-# existing curl-based methods. Existing tests above are unchanged: the
-# curl path is still in place during the migration.
 # ---------------------------------------------------------------------- #
 
 
@@ -222,7 +192,7 @@ async def test_fetch_text_returns_body_on_2xx(base_api_client):
     result = await base_api_client.fetch_text("https://example.com")
 
     assert result == "hello world"
-    mock_http.get.assert_called_once_with("https://example.com", headers=None)
+    mock_http.get.assert_called_once_with("https://example.com", headers=None, params=None)
 
 
 @pytest.mark.asyncio
@@ -235,7 +205,22 @@ async def test_fetch_text_passes_headers_through(base_api_client):
 
     headers = {"Authorization": "Bearer abc"}
     await base_api_client.fetch_text("https://example.com", headers=headers)
-    mock_http.get.assert_called_once_with("https://example.com", headers=headers)
+    mock_http.get.assert_called_once_with("https://example.com", headers=headers, params=None)
+
+
+@pytest.mark.asyncio
+async def test_fetch_text_passes_params_through(base_api_client):
+    """Query params (dict and list-of-tuples) are forwarded verbatim to httpx.get."""
+    mock_response = Mock(status_code=200, is_success=True, text="ok")
+    mock_http = AsyncMock()
+    mock_http.get = AsyncMock(return_value=mock_response)
+    base_api_client._http_client = mock_http
+
+    # list-of-tuples form is required by Jamf's CSV export endpoint, which
+    # repeats the same `columns-to-export` key for each desired column.
+    params = [("columns-to-export", "computerName"), ("columns-to-export", "deviceId")]
+    await base_api_client.fetch_text("https://example.com", params=params)
+    mock_http.get.assert_called_once_with("https://example.com", headers=None, params=params)
 
 
 @pytest.mark.asyncio

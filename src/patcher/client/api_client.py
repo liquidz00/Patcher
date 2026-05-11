@@ -1,13 +1,11 @@
 import csv
 import io
-import json
 from datetime import datetime
 from typing import Any
-from urllib.parse import urlencode
 
 from ..models.patch import PatchDevice, PatchTitle
 from ..utils.decorators import check_token
-from ..utils.exceptions import APIResponseError, PatcherError, ShellCommandError
+from ..utils.exceptions import APIResponseError, PatcherError
 from ..utils.logger import LogMe
 from . import BaseAPIClient
 from .config_manager import ConfigManager
@@ -131,7 +129,7 @@ class ApiClient(BaseAPIClient):
         """
         headers = await self._headers()
         headers["accept"] = "text/csv"
-        base_url = (
+        export_url = (
             f"{self.jamf_url}/api/v2/patch-software-title-configurations/{title_id}/export-report"
         )
 
@@ -146,29 +144,13 @@ class ApiClient(BaseAPIClient):
             "siteName",
             "version",
         ]
+        # list-of-tuples form preserves repeated `columns-to-export` keys;
+        # httpx URL-encodes each pair on its own.
         query_params = [("columns-to-export", col) for col in csv_columns]
-        query_string = urlencode(query_params)
-        export_url = f"{base_url}?{query_string}"
 
-        header_string = self._format_headers(headers)
-        command = [
-            "/usr/bin/curl",
-            "-s",
-            "-X",
-            "GET",
-            export_url,
-            *header_string,
-            "-w",
-            "\nSTATUS:%{http_code}",
-        ]
         try:
-            async with self.semaphore:
-                output = await self.execute(command)
-            csv_body, status_line = output.rsplit("\nSTATUS:", 1)
-            status_code = int(status_line.strip())
-            if status_code < 200 or status_code >= 300:
-                self._handle_status_code(status_code, None)
-        except (ShellCommandError, ValueError) as e:
+            csv_body = await self.fetch_text(export_url, headers=headers, params=query_params)
+        except APIResponseError as e:
             self.log.error(f"Failed to fetch CSV export for title {title_id}: {e}")
             raise APIResponseError(
                 "Failed to export patch report for title.", title_id=title_id, error_msg=str(e)
@@ -318,31 +300,24 @@ class ApiClient(BaseAPIClient):
         """
         Fetches iOS Data feeds from SOFA and extracts latest OS version information.
 
-        To limit the amount of possible SSL verification checks, this method utilizes a subprocess call instead.
-
         .. note::
             This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
 
         :return: A list of dictionaries containing base OS versions, latest iOS versions, and release dates.
         :rtype: list[dict[str, str]]
-        :raises APIResponseError: If return code from SOFA is non-zero.
+        :raises APIResponseError: If the SOFA feed cannot be fetched or parsed.
         """
-        # Call can be made directly as no additional headers or payloads need to be added
-        command = ["/usr/bin/curl", "-s", "https://sofafeed.macadmins.io/v1/ios_data_feed.json"]
+        sofa_url = "https://sofafeed.macadmins.io/v1/ios_data_feed.json"
 
         try:
-            result = await self.execute(command)
-        except ShellCommandError as e:
+            result_json = await self.fetch_json(url=sofa_url)
+        except APIResponseError as e:
             raise APIResponseError(
                 "Unable to retrieve SOFA feed",
-                command=command,
+                url=sofa_url,
                 error_msg=str(e),
             )
 
-        # Convert to JSON for proper parsing
-        result_json = json.loads(result)
-
-        # Get OS version from response
         os_versions = result_json.get("OSVersions", [])
 
         # Iterate over versions to obtain iOS 16 & iOS 17 datasets

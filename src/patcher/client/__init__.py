@@ -1,7 +1,6 @@
 import asyncio
 import json
 import ssl
-import subprocess
 from typing import Any
 from urllib.parse import urlencode
 
@@ -9,7 +8,7 @@ import httpx
 import truststore
 
 from ..models.jamf_client import ApiClientModel, ApiRoleModel
-from ..utils.exceptions import APIResponseError, PatcherError, ShellCommandError
+from ..utils.exceptions import APIResponseError, PatcherError
 from ..utils.logger import LogMe
 
 
@@ -82,8 +81,7 @@ class BaseAPIClient:
         .. note::
             Not thread-safe. BaseAPIClient is intended for single-event-loop use.
             ``max_connections`` is bound to ``self.max_concurrency`` so the same
-            ceiling that gates ``self.semaphore`` (used by curl-based methods)
-            also applies at the HTTP layer.
+            ceiling that gates ``self.semaphore`` also applies at the HTTP layer.
         """
         if self._http_client is None:
             # truststore.SSLContext bridges Python's ssl module to the OS's
@@ -114,6 +112,7 @@ class BaseAPIClient:
         url: str,
         *,
         headers: dict[str, str] | None = None,
+        params: dict[str, Any] | list[tuple[str, Any]] | None = None,
     ) -> str:
         """
         Fetch the body of a URL as text via httpx.
@@ -129,6 +128,12 @@ class BaseAPIClient:
         :param headers: Optional request headers. If omitted, only httpx
             defaults are sent.
         :type headers: dict[str, str] | None
+        :param params: Optional query parameters. Accepts a mapping for
+            unique keys, or a list of ``(key, value)`` tuples when the same
+            key needs to repeat (e.g., ``columns-to-export`` on the Jamf
+            CSV export endpoint). Forwarded to httpx, which handles URL
+            encoding.
+        :type params: dict[str, Any] | list[tuple[str, Any]] | None
         :return: The response body as a string.
         :rtype: str
         :raises APIResponseError: If the response is non-2xx, or if a
@@ -138,7 +143,7 @@ class BaseAPIClient:
         self.log.debug(f"Fetching text from {url}")
         try:
             async with self.semaphore:
-                response = await self.http.get(url, headers=headers)
+                response = await self.http.get(url, headers=headers, params=params)
         except httpx.RequestError as e:
             raise APIResponseError(
                 "Network error fetching URL",
@@ -161,14 +166,6 @@ class BaseAPIClient:
             )
 
         return response.text
-
-    @staticmethod
-    def _format_headers(headers: dict[str, str]) -> list[str]:
-        """Formats headers properly for curl commands."""
-        formatted_headers = []
-        for k, v in headers.items():
-            formatted_headers.extend(["-H", f"{k}: {v}"])
-        return formatted_headers
 
     def _handle_status_code(self, status_code: int, response_json: dict | None) -> dict:
         """Handles HTTP status codes and returns the appropriate response or raises errors."""
@@ -202,116 +199,6 @@ class BaseAPIClient:
                 "Unexpected HTTP status code received.",
                 status_code=status_code,
                 error=error_message,
-            )
-
-    @staticmethod
-    def _sanitize_command(command: list[str]) -> list[str]:
-        """Sanitizes sensitive data in the command list."""
-        sensitive_keys = {"client_id", "client_secret", "password", "username"}
-        sanitized = []
-        skip_next = False  # Handle values immediately following specific flags (e.g., -u)
-
-        for _, part in enumerate(command):
-            if skip_next:
-                sanitized.append("<REDACTED_CREDENTIAL>")
-                skip_next = False
-                continue
-
-            if part == "-u":
-                sanitized.append(part)
-                skip_next = True
-            elif "Bearer" in part:
-                sanitized.append("<REDACTED_TOKEN>")
-            elif any(f"{key}=" in part for key in sensitive_keys):
-                key, value = part.split("=", 1)
-                sanitized.append(f"{key}=<REDACTED_CREDENTIAL>")
-            else:
-                sanitized.append(part)
-
-        return sanitized
-
-    async def execute(self, command: list[str]) -> dict | str:
-        """
-        Asynchronously executes a shell command using subprocess and returns the output.
-
-        This method leverages asyncio to run a command in a new subprocess. If the
-        command execution is unsuccessful (non-zero return code), an exception is raised.
-
-        .. note::
-            This method should be used for executing shell commands that are essential to the
-            functionality of the API client, such as invoking cURL commands for API calls.
-
-        :param command: A list representing the command and its arguments to be executed in the shell.
-        :type command: list[str]
-        :return: The standard output of the executed command decoded as a string.
-        :rtype: dict | str
-        :raises ShellCommandError: If the command execution fails (returns a non-zero exit code).
-        """
-        sanitized_command = self._sanitize_command(command)
-        sanitized_command_str = " ".join(sanitized_command).replace("\n", "")
-        self.log.debug(f"Attempting to execute {sanitized_command_str} command asynchronously")
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-            )
-            stdout, stderr = await process.communicate()
-            if process.returncode != 0:
-                error_msg = stderr.decode().strip()
-                raise ShellCommandError(
-                    "Command execution failed.",
-                    command=command,
-                    error=error_msg,
-                    return_code=process.returncode,
-                )
-            self.log.info("Command executed as expected with zero exit code status.")
-            return stdout.decode().strip()
-        except OSError as e:
-            raise ShellCommandError(
-                "OSError encountered executing command.",
-                command=sanitized_command_str,
-                error_msg=str(e),
-            )
-
-    def execute_sync(self, command: list[str]) -> bytes | str:
-        """
-        Identical to ``execute`` method, but does not leverage async functionality.
-
-        Method is primarily intended for :class:`~patcher.client.ui_manager.UIConfigManager` to ensure default font files are downloaded properly. See :meth:`~patcher.client.ui_manager.UIConfigManager._download_font` for details.
-
-        .. important::
-
-            If used in separate context from downloading font files, output **needs to be decoded from bytes**:
-
-            .. code-block:: python
-
-                b = BaseAPIClient()
-                result = b.execute_sync(["/usr/bin/curl", "-s", "-L", "https://ifconfig.co"])  # Returns <class 'bytes'>
-                decoded = result.decode().strip()  # Returns <class 'str'>
-
-        :param command: A list representing the command and its arguments to be executed in the shell.
-        :type command: list[str]
-        :return: The standard output of the executed command decoded as a string.
-        :rtype: bytes | str
-        :raises ShellCommandError: If the command execution fails (returns a non-zero exit code).
-        """
-        sanitized_command = self._sanitize_command(command)
-        sanitized_command_str = " ".join(sanitized_command).replace("\n", "")
-        self.log.debug(f"Attempting to execute {sanitized_command_str} command (no async).")
-        try:
-            result = subprocess.run(
-                command,  # subprocess expects unpacked list
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=True,
-            )
-            return result.stdout
-        except (subprocess.CalledProcessError, OSError) as e:
-            error_msg = e.stderr.decode("utf-8", errors="replace").strip()
-            raise ShellCommandError(
-                "Command execution failed.",
-                return_code=e.returncode,
-                error_msg=error_msg,
-                command=sanitized_command_str,
             )
 
     async def fetch_json(
