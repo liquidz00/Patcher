@@ -43,49 +43,28 @@ Once setup is completed successfully, the ``setup_completed`` key will automatic
 
 .. _starting_fresh:
 
-Resumable Setup
----------------
+Re-running Setup
+----------------
 
-.. versionadded:: 2.2.0
+Patcher tracks setup completion with a single ``setup_completed`` boolean in its property list. Once that flag is true, Patcher skips the setup assistant on subsequent invocations.
 
-The setup assistant has been enhanced with **staged progress tracking**. This means that if setup fails or is interrupted (e.g., file issues, API errors, network loss), Patcher will resume where it left off the next time it is run.
-
-This is accomplished using a hidden JSON file stored at:
-
-.. code-block:: console
-
-    ~/Library/Application Support/Patcher/.setup_stage.json.
-
-The file self-destructs (deletes) when setup is marked as completed and automatically managed by Patcher. It stores a stage marker that allows the tool to intelligently resume from the last successful step.
-
-The stages are:
-
-- ``not_started``: Initial stage
-- ``api_created``: API Role & Client has been saved to Keychain
-- ``has_token``: Bearer Token has been fetched
-- ``jamfclient_saved``: A :class:`~patcher.core.models.jamf_client.JamfClient` object has been created and saved to Keychain
-- ``completed``: Setup has been completed as expected.
-
-.. note::
-
-    This workflow ensures you **don't lose your progress** if setup fails. Simply relaunch the CLI and Patcher will continue setup automatically.
-
-Forcing Setup to Start Over
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-There are circumstances in which you may want to rerun the setup process *from scratch*, even if some steps were already completed. For example:
+There are circumstances in which you may want to rerun the setup process — for example:
 
 - You want to create a new API Client
 - You entered incorrect credentials and want a clean slate
 - You're testing Patcher out in a development environment
 
-You can do this by passing the ``--fresh`` flag to Patcher:
+Pass the ``--fresh`` flag to force the setup assistant to re-run regardless of the saved completion state:
 
 .. code-block:: console
 
     $ patcherctl --fresh
 
-This tells Patcher to **ignore the saved setup stage** and begin from ``not_started`` again. This does not affect any cached data, it only resets the setup flow itself.
+This does not affect any cached data, it only re-triggers the setup flow.
+
+.. note::
+
+    If a previous setup attempt failed after the Jamf API role and client were created on the Jamf side, a Standard re-run will fail with a ``400`` because those objects already exist. Either delete them manually in Jamf and retry, or switch to :ref:`SSO setup <setup_type>` to reuse the existing client credentials.
 
 .. _setup_type:
 

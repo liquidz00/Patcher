@@ -1,4 +1,3 @@
-import json
 from enum import Enum
 from pathlib import Path
 
@@ -41,74 +40,6 @@ class SetupType(str, Enum):
     SSO = "sso"
 
 
-class SetupStage(str, Enum):
-    """
-    Represents the sequential stages in the setup process.
-
-    Used to track progress and allow resuming setup from the last completed step.
-    """
-
-    NOT_STARTED = "not_started"
-    API_CREATED = "api_created"
-    HAS_TOKEN = "has_token"
-    JAMFCLIENT_SAVED = "jamfclient_saved"
-    COMPLETED = "completed"
-
-
-class SetupStateManager:
-    def __init__(self, state_path: Path):
-        """
-        Manages reading, writing, and resetting the current setup stage.
-
-        This class is responsible for persisting setup progress to a JSON file,
-        allowing the setup process to be resumed from the last known stage.
-
-        :param state_path: Filesystem path to the JSON file used to persist setup stage.
-        :type state_path: Path
-        """
-        self.state_path = state_path
-
-    def load_stage(self) -> SetupStage:
-        """
-        Loads the saved setup stage from disk. If the file does not exist or is invalid,
-        defaults to :attr:`~patcher.cli.setup.SetupStage.NOT_STARTED`.
-
-        Creates the stage file if it doesn't already exist.
-
-        :return: The current saved setup stage.
-        :rtype: :class:`~patcher.cli.setup.SetupStage`
-        """
-        if not self.state_path.exists():
-            self.state_path.touch()
-            return SetupStage.NOT_STARTED
-        try:
-            with open(self.state_path, "r") as f:
-                data = json.load(f)
-                return SetupStage(data.get("setup_stage", SetupStage.NOT_STARTED))
-        except Exception:  # intentional, using as fail-safe
-            return SetupStage.NOT_STARTED
-
-    def save_stage(self, stage: SetupStage) -> None:
-        """
-        Persists the provided setup stage to disk.
-
-        Creates the parent directory if it does not exist.
-
-        :param stage: The setup stage to persist.
-        :type stage: :class:`~patcher.cli.setup.SetupStage`
-        """
-        self.state_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.state_path, "w") as f:
-            json.dump({"setup_stage": stage.value}, f)
-
-    def destroy(self) -> None:
-        """
-        Deletes the persisted setup stage file if it exists.
-        """
-        if self.state_path.exists():
-            self.state_path.unlink()
-
-
 class Setup:
     def __init__(
         self,
@@ -136,16 +67,6 @@ class Setup:
         self.log = LogMe(self.__class__.__name__)
         self.animator = Animation()
         self._completed = None
-        self.state_manager = SetupStateManager(
-            Path.home() / "Library/Application Support/Patcher/.setup_stage.json"
-        )
-        self._stage = None
-        self.stage_map = {
-            SetupStage.NOT_STARTED: self.not_started,
-            SetupStage.API_CREATED: self.api_created,
-            SetupStage.HAS_TOKEN: self.has_token,
-            SetupStage.JAMFCLIENT_SAVED: self.jamfclient_saved,
-        }
 
     @property
     def completed(self) -> bool:
@@ -160,28 +81,6 @@ class Setup:
             self._completed = self.plist_manager.get("setup_completed") or False
         return self._completed
 
-    @property
-    def stage(self) -> SetupStage:
-        """
-        Returns the current ``SetupStage`` value used to determine setup state.
-
-        :return: The ``SetupStage`` value.
-        :rtype: :class:`~patcher.cli.setup.SetupStage`
-        """
-        if self._stage is None:
-            self._stage = self.state_manager.load_stage()
-        return self._stage
-
-    @stage.setter
-    def stage(self, value: SetupStage) -> None:
-        """
-        Assigns a ``SetupStage`` value to the stage property.
-
-        :param value: The value to assign to ``self.stage``.
-        :type value: SetupStage
-        """
-        self._stage = value
-
     @staticmethod
     def _greet() -> None:
         """Displays the greeting and welcome messages."""
@@ -190,14 +89,9 @@ class Setup:
         click.echo(click.style(DOC, fg="bright_magenta", bold=True))
 
     def _mark_completion(self, value: bool = False) -> None:
-        """
-        Updates the plist file to reflect the completion status of the setup.
-        Additionally deletes the setup stage file if ``value`` is ``True``.
-        """
+        """Update the ``setup_completed`` plist key and the in-memory cache."""
         self.plist_manager.set("setup_completed", value)
         self._completed = value
-        if value:
-            self.state_manager.destroy()
 
     def _get_creds(self, include_token: bool = False) -> dict:
         """Retrieves all stored credentials from keychain."""
@@ -452,99 +346,6 @@ class Setup:
                     "Failed to create Patcher API Client as expected.", error_msg=str(e)
                 )
 
-    async def not_started(self, animator: Animation, setup_type: SetupType) -> None:
-        """
-        Handles the initial setup stage based on the selected setup type.
-
-        For ``STANDARD`` setup, prompts the user for username/password, creates a new API client,
-        and saves credentials. For ``SSO``, stores the provided client credentials.
-
-        :param animator: The animation instance to update messages.
-        :type animator: :class:`~patcher.cli.animation.Animation`
-        :param setup_type: The selected setup type (Standard or SSO).
-        :type setup_type: :class:`~patcher.cli.setup.SetupType`
-        :raises SetupError: If credentials are missing or a token cannot be obtained.
-        """
-        creds = self.prompt_credentials(setup_type)
-        self.prompt_installomator()
-        if setup_type == SetupType.STANDARD:
-            self.validate_creds(creds, ("USERNAME", "PASSWORD", "URL"), SetupType.STANDARD)
-            await animator.update_msg("Retrieving basic token")
-            basic_token = await self.get_token(setup_type=setup_type, creds=creds)
-            await animator.update_msg("Creating API integrations")
-            client_id, client_secret = await self.create_api_client(basic_token, creds.get("URL"))
-            self._save_creds(
-                {"URL": creds.get("URL"), "CLIENT_ID": client_id, "CLIENT_SECRET": client_secret}
-            )
-            self.state_manager.save_stage(SetupStage.API_CREATED)
-            self.stage = SetupStage.API_CREATED
-        elif setup_type == SetupType.SSO:
-            self.validate_creds(creds, ("CLIENT_ID", "CLIENT_SECRET", "URL"), SetupType.SSO)
-            await animator.update_msg("Saving credentials...")
-            self._save_creds(creds)
-            self.state_manager.save_stage(SetupStage.API_CREATED)
-            self.stage = SetupStage.API_CREATED
-
-    async def api_created(self, animator: Animation, _setup_type: SetupType) -> None:
-        """
-        Handles the stage after API credentials have been created or provided.
-
-        Attempts to fetch and persist an ``AccessToken`` using stored credentials.
-
-        :param animator: The animation instance to update messages.
-        :type animator: :class:`~patcher.cli.animation.Animation`
-        :param _setup_type: Placeholder to satisfy stage dispatch signature. Not used in this stage.
-        :type _setup_type: :class:`~patcher.cli.setup.SetupType`
-        :raises SetupError: If an :class:`~patcher.core.models.token.AccessToken` cannot be retrieved
-        """
-        await animator.update_msg("Fetching AccessToken")
-        client_creds = self._get_creds()
-        await self.get_token(setup_type=SetupType.SSO, creds=client_creds)
-        self.state_manager.save_stage(SetupStage.HAS_TOKEN)
-        self.stage = SetupStage.HAS_TOKEN
-
-    async def has_token(self, animator: Animation, _setup_type: SetupType) -> None:
-        """
-        Handles the stage after a token has been obtained.
-
-        Uses stored credentials and token to instantiate and store a ``JamfClient`` object.
-
-        :param animator: The animation instance to update messages.
-        :type animator: :class:`~patcher.cli.animation.Animation`
-        :param _setup_type: Placeholder to satisfy stage dispatch signature. Not used in this stage.
-        :type _setup_type: :class:`~patcher.cli.setup.SetupType`
-        """
-        await animator.update_msg("Creating JamfClient...")
-        client_creds = self._get_creds(include_token=True)
-        token = AccessToken(
-            token=client_creds.get("TOKEN"), expires=client_creds.get("TOKEN_EXPIRATION")
-        )
-        self.config.create_client(
-            JamfClient(
-                client_id=client_creds.get("CLIENT_ID"),
-                client_secret=client_creds.get("CLIENT_SECRET"),
-                server=client_creds.get("URL"),
-            ),
-            token=token,
-        )
-        self.state_manager.save_stage(SetupStage.JAMFCLIENT_SAVED)
-        self.stage = SetupStage.JAMFCLIENT_SAVED
-
-    async def jamfclient_saved(self, animator: Animation, _setup_type: SetupType) -> None:
-        """
-        Final stage in setup: configures user interface settings and marks setup as complete.
-
-        :param animator: The animation instance to update messages.
-        :type animator: :class:`~patcher.cli.animation.Animation`
-        :param _setup_type: Placeholder to satisfy stage dispatch signature. Not used in this stage.
-        :type _setup_type: :class:`~patcher.cli.setup.SetupType`
-        """
-        await animator.stop()
-        self.prompt_ui_settings()
-        self.state_manager.save_stage(SetupStage.COMPLETED)
-        self.stage = SetupStage.COMPLETED
-        self._mark_completion(value=True)
-
     async def bootstrap_noninteractive(
         self,
         client_id: str,
@@ -594,58 +395,94 @@ class Setup:
 
     async def start(self, animator: Animation | None = None, fresh: bool = False) -> None:
         """
-        Allows the user to choose between different setup methods (Standard or SSO).
+        Run the interactive setup flow end-to-end.
 
-        An optional :class:`~patcher.cli.animation.Animation` object can be passed to update animation
-        messages at runtime. Defaults to ``self.animator``.
+        Returns early if setup has already completed unless ``fresh=True`` is
+        passed (which re-runs the full flow regardless of previous completion).
+        Prompts for setup type, then walks the full path: credentials → API
+        role + client creation (Standard only) → bearer token fetch →
+        ``JamfClient`` save → UI configuration → mark complete.
 
         **Options**:
 
-        - :attr:`~patcher.cli.setup.SetupType.STANDARD` prompts for basic credentials, obtains basic token, creates API integration, saves client credentials and obtains an AccessToken.
-        - :attr:`~patcher.cli.setup.SetupType.SSO` prompts for existing API credentials, obtains AccessToken and saves credentials.
+        - :attr:`~patcher.cli.setup.SetupType.STANDARD` prompts for admin
+          username/password, fetches a basic token, creates the API role +
+          client on the Jamf side, and saves the resulting client credentials.
+        - :attr:`~patcher.cli.setup.SetupType.SSO` prompts for an existing
+          API client ID + secret and saves them directly.
 
         .. seealso::
-            For SSO users, reference our :ref:`handling-sso` page for assistance creating an API integration.
+            For SSO users, reference our :ref:`handling-sso` page for
+            assistance creating an API integration.
 
-        :param animator: The animation instance to update messages. Defaults to ``self.animator``.
+        .. note::
+            If a previous attempt failed after the Jamf API role + client
+            were created, a Standard re-run will fail with a ``400`` because
+            those objects already exist. Either delete them from Jamf and
+            retry, or switch to SSO setup and reuse them.
+
+        :param animator: The animation instance to update messages. Defaults
+            to ``self.animator``.
         :type animator: Animation | None
-        :param fresh: If ``True``, starts setup from scratch regardless of previous stage saved.
+        :param fresh: If True, re-run setup even when already completed.
         :type fresh: bool
-        :raises SetupError: If a token could not be fetched, credentials are missing or setup could not be marked complete.
+        :raises SetupError: If a token cannot be fetched, credentials are
+            missing, or any other setup step fails.
         """
-        if self.completed:
+        if self.completed and not fresh:
             return
 
         animator = animator or self.animator
+        self._greet()
+
         setup_type_map = {1: SetupType.STANDARD, 2: SetupType.SSO}
-
-        if fresh:
-            self.stage = SetupStage.NOT_STARTED
-
-        current_stage = self.stage
-
-        # Prevent greeting from showing upon every invocation of setup assistant
-        # Greeting should only show after reset or on first run
-        if current_stage == SetupStage.COMPLETED:
-            self.state_manager.destroy()  # Clean up stale state
-        elif current_stage == SetupStage.NOT_STARTED:
-            self._greet()
-        elif not self.state_manager.state_path.exists():
-            self._greet()
-
         choice = click.prompt(
             "Choose setup method (1: Standard setup, 2: SSO setup)", type=int, default=1
         )
-
-        if choice in setup_type_map:
-            while self.stage != SetupStage.COMPLETED:
-                handler = self.stage_map.get(self.stage)
-                if handler is None:
-                    raise SetupError("Missing handler for saved stage", stage=self.stage)
-                await handler(animator, setup_type_map[choice])
-        else:
+        if choice not in setup_type_map:
             click.echo(click.style("Invalid choice, please choose 1 or 2", fg="red"))
-            await self.start()
+            await self.start(animator=animator, fresh=fresh)
+            return
+        setup_type = setup_type_map[choice]
+
+        creds = self.prompt_credentials(setup_type)
+        self.prompt_installomator()
+
+        if setup_type == SetupType.STANDARD:
+            self.validate_creds(creds, ("USERNAME", "PASSWORD", "URL"), SetupType.STANDARD)
+            await animator.update_msg("Retrieving basic token")
+            basic_token = await self.get_token(setup_type=setup_type, creds=creds)
+            await animator.update_msg("Creating API integrations")
+            client_id, client_secret = await self.create_api_client(basic_token, creds.get("URL"))
+            self._save_creds(
+                {"URL": creds.get("URL"), "CLIENT_ID": client_id, "CLIENT_SECRET": client_secret}
+            )
+        else:  # SSO
+            self.validate_creds(creds, ("CLIENT_ID", "CLIENT_SECRET", "URL"), SetupType.SSO)
+            await animator.update_msg("Saving credentials...")
+            self._save_creds(creds)
+
+        await animator.update_msg("Fetching AccessToken")
+        client_creds = self._get_creds()
+        await self.get_token(setup_type=SetupType.SSO, creds=client_creds)
+
+        await animator.update_msg("Creating JamfClient...")
+        client_creds = self._get_creds(include_token=True)
+        token = AccessToken(
+            token=client_creds.get("TOKEN"), expires=client_creds.get("TOKEN_EXPIRATION")
+        )
+        self.config.create_client(
+            JamfClient(
+                client_id=client_creds.get("CLIENT_ID"),
+                client_secret=client_creds.get("CLIENT_SECRET"),
+                server=client_creds.get("URL"),
+            ),
+            token=token,
+        )
+
+        await animator.stop()
+        self.prompt_ui_settings()
+        self._mark_completion(value=True)
 
     def reset_setup(self) -> bool:
         """

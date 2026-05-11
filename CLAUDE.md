@@ -36,7 +36,7 @@ The CLI is **async-first** — `cli/__init__.py` uses `asyncclick` and the entry
 - `ConfigManager` — credential storage. **Two modes**: keychain-backed (default, via `keyring`) or `in_memory_credentials` (set when `--client-id/--client-secret/--url` or `PATCHER_*` env vars are all present). The in-memory mode is the **non-interactive / CI mode** — it bypasses keychain and skips every prompt. Reads fall through memory → keyring; writes in memory mode never touch keyring.
 - `PropertylistManager` — reads/writes `~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist` for UI/branding settings.
 - `UIConfigManager` — PDF header/footer, fonts, logo, header color.
-- `Setup` — drives first-run flow; tracks progress through `SetupStage` (NOT_STARTED → API_CREATED → HAS_TOKEN → JAMFCLIENT_SAVED → COMPLETED) so an aborted setup can resume. Non-interactive runs go through `Setup.bootstrap_noninteractive` instead of `Setup.start`.
+- `Setup` — drives first-run flow as a linear sequence (prompt creds → create API role/client on Jamf side for Standard / save existing creds for SSO → fetch token → save `JamfClient` → prompt UI settings → mark complete). Completion tracked by the `setup_completed` plist boolean; `--fresh` re-runs regardless. Non-interactive runs go through `Setup.bootstrap_noninteractive` instead of `Setup.start`.
 - `DataManager` — patch data caching, validation, export (Excel/PDF/HTML/JSON). Initialized **lazily** via `get_data_manager(ctx)`; cache disabled when `--disable-cache` is set. Cache lives at `~/Library/Caches/Patcher`.
 - `Animation` — terminal spinner; commands run inside `animation.error_handling()` async context manager which translates exceptions into formatted CLI errors.
 
