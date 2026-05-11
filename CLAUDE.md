@@ -27,11 +27,11 @@ CLI entry point during development: `uv run patcherctl ...` (script defined in `
 
 ## Architecture
 
-The CLI is **async-first** — `cli.py` uses `asyncclick` and the entry point is `asyncio.run(cli())`. Treat every command callback as a coroutine.
+The CLI is **async-first** — `cli/__init__.py` uses `asyncclick` and the entry point is `asyncio.run(cli())`. Treat every command callback as a coroutine.
 
 ### Dependency wiring
 
-`cli.py` is the composition root. On every invocation it builds a context dict (`ctx.obj`) containing the long-lived collaborators that subcommands pull from:
+`cli/__init__.py` is the composition root. On every invocation it builds a context dict (`ctx.obj`) containing the long-lived collaborators that subcommands pull from:
 
 - `ConfigManager` — credential storage. **Two modes**: keychain-backed (default, via `keyring`) or `in_memory_credentials` (set when `--client-id/--client-secret/--url` or `PATCHER_*` env vars are all present). The in-memory mode is the **non-interactive / CI mode** — it bypasses keychain and skips every prompt. Reads fall through memory → keyring; writes in memory mode never touch keyring.
 - `PropertylistManager` — reads/writes `~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist` for UI/branding settings.
@@ -44,14 +44,21 @@ The CLI is **async-first** — `cli.py` uses `asyncclick` and the entry point is
 
 `patcher.client.BaseAPIClient` (in `client/__init__.py`) is the foundation: it owns `asyncio.Semaphore`-bounded concurrency (default 5; **do not raise without cause** — Jamf scalability guidance), wraps a lazily-constructed `httpx.AsyncClient` exposed via the `http` property (TLS via `truststore.SSLContext` so OS-installed CAs are honored automatically), and centralizes HTTP status handling (4xx/5xx → `APIResponseError`, with a `not_found=True` flag for 404). The three async entry points are `fetch_json`, `fetch_text`, and `fetch_basic_token`; one-shot sync downloads (default fonts) use `httpx.get` directly with the same truststore context.
 
-`ApiClient` extends it with Jamf-specific endpoints. `TokenManager` (used inside `ApiClient`) handles bearer token lifecycle and is decorated via `utils/decorators.check_token`. **Never instantiate `ApiClient` before setup completes** — its constructor calls `token_manager.attach_client()` which expects a saved `JamfClient`.
+`ApiClient` extends it with Jamf-specific endpoints. `TokenManager` (used inside `ApiClient`) handles bearer token lifecycle and is decorated via `client/decorators.check_token`. **Never instantiate `ApiClient` before setup completes** — its constructor calls `token_manager.attach_client()` which expects a saved `JamfClient`.
 
-### Models vs utils
+### Directory layout
 
-- `models/` — Pydantic models (`JamfClient`, `AccessToken`, `PatchTitle`, `PatchDevice`, `ApiClientModel`, `ApiRoleModel`, UI/Label/Fragment types). These are the validated wire/storage shapes.
-- `utils/` — leaf helpers: `logger.LogMe` (preferred over stdlib logging — wraps `PatcherLog`), `exceptions.PatcherError` and subclasses (all carry `**kwargs` context that gets formatted into the message), `data_manager`, `pdf_report`, `installomator`, `animation`, `decorators`.
+Source is organized into three layers under `src/patcher/`:
 
-### Exit codes (defined in `cli.py` docstring)
+- **`client/`** — HTTP transport, no CLI/keyring deps. `BaseAPIClient` (in `client/__init__.py`), `ApiClient` (Jamf endpoints), `TokenManager`, `decorators` (`check_token`).
+- **`core/`** — domain logic and managers. `exceptions`, `logger`, `plist_manager`, `config_manager` (keyring lives here), `ui_manager`, `data_manager`, `pdf_report`, `report_manager`, `analyze`, `installomator`, `animation`, and the Pydantic `models/` subpackage.
+- **`cli/`** — CLI surface only. `cli/__init__.py` is the click entry point and composition root; `cli/setup.py` is the interactive setup flow. Anything that prompts the user or pulls in `asyncclick`-specific behavior lives here.
+
+The repo root also reserves an `api/` directory (sibling to `src/`) for the future Patcher API service — the canonical apps/patching-methods database. It is a separate deliverable and is **not** packaged into the Python distribution.
+
+Old import paths (`patcher.utils.X`, `patcher.client.X` for moved managers, `patcher.models.X`) currently resolve via re-export shims for backward compatibility during the restructure. New code should use the canonical paths above.
+
+### Exit codes (defined in `cli/__init__.py` docstring)
 
 `0` success · `1` `PatcherError` · `2` unhandled · `3` `SetupError` · `4` `APIResponseError` · `130` Ctrl+C. Custom exceptions inherit from `PatcherError` and carry context kwargs (e.g. `raise APIResponseError("...", status_code=..., url=...)`); the formatter renders them as `message (key1: val1 | key2: val2)`.
 

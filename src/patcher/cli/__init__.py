@@ -6,18 +6,18 @@ from pathlib import Path
 
 import asyncclick as click
 
-from .__about__ import __version__
-from .client.analyze import Analyzer, FilterCriteria, TrendCriteria
-from .client.api_client import ApiClient
-from .client.config_manager import ConfigManager
-from .client.plist_manager import PropertylistManager
-from .client.report_manager import ReportManager
-from .client.setup import Setup
-from .client.ui_manager import UIConfigManager
-from .utils.animation import Animation
-from .utils.data_manager import DataManager
-from .utils.exceptions import APIResponseError, InstallomatorWarning, PatcherError, SetupError
-from .utils.logger import LogMe, PatcherLog
+from ..__about__ import __version__
+from ..client.api_client import ApiClient
+from ..core.analyze import Analyzer, FilterCriteria, TrendCriteria
+from ..core.animation import Animation
+from ..core.config_manager import ConfigManager
+from ..core.data_manager import DataManager
+from ..core.exceptions import APIResponseError, InstallomatorWarning, PatcherError, SetupError
+from ..core.logger import LogMe, PatcherLog
+from ..core.plist_manager import PropertylistManager
+from ..core.report_manager import ReportManager
+from ..core.ui_manager import UIConfigManager
+from .setup import Setup
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024

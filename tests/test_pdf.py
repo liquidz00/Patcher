@@ -28,7 +28,7 @@ def test_get_image_ratio_invalid():
 def test_trim_transparency_valid():
     with (
         patch(
-            "src.patcher.utils.pdf_report.NamedTemporaryFile", new_callable=MagicMock
+            "src.patcher.core.pdf_report.NamedTemporaryFile", new_callable=MagicMock
         ) as mock_temp,
         patch("PIL.Image.open") as mock_pillow_open,
     ):

@@ -28,19 +28,19 @@ Patcher matches software titles to Installomator labels using multiple methods t
 
 - **Direct Matching**: Compares application names directly against Installomator label names.
 
-.. literalinclude:: ../../src/patcher/utils/installomator.py
+.. literalinclude:: ../../src/patcher/core/installomator.py
     :lines: 174-183
     :language: python
 
 - **Fuzzy Matching**: Uses similarity scoring (via `rapidfuzz <https://rapidfuzz.github.io/RapidFuzz/>`_) to find the best-matching label when a direct match isn't found.
 
-.. literalinclude:: ../../src/patcher/utils/installomator.py
+.. literalinclude:: ../../src/patcher/core/installomator.py
     :lines: 185-194
     :language: python
 
 - **Normalized Matching**: In the event a match is not found via a direct or fuzzy match, the software titles name is 'normalized' and checked against all labels (e.g., ``Node.js`` → ``nodejs``).
 
-.. literalinclude:: ../../src/patcher/utils/installomator.py
+.. literalinclude:: ../../src/patcher/core/installomator.py
     :lines: 196-235
     :language: python
 
@@ -167,13 +167,13 @@ Currently, Patcher only provides a **Y/N** response indicating whether an Instal
 Disabling Installomator
 -----------------------
 
-Installomator support can be disabled entirely if it does not meet the requirements of your environment. To disable Installomator, set the ``enable_installomator`` key to ``false`` in Patcher's :ref:`property list <property_list_file>` file: 
+Installomator support can be disabled entirely if it does not meet the requirements of your environment. To disable Installomator, set the ``enable_installomator`` key to ``false`` in Patcher's :ref:`property list <property_list_file>` file:
 
 .. code-block:: console
 
     $ defaults write ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist enable_installomator -bool false
 
-When this key is set to ``false``, Patcher will bypass Installomator functionality entirely: 
+When this key is set to ``false``, Patcher will bypass Installomator functionality entirely:
 
 - Labels will not be downloaded or fetched
 - Software title matching will not occur
@@ -185,4 +185,3 @@ Installomator features are currently in beta as we build onto this base function
 
 - Policy creation in Jamf for supported titles with available :ghwiki:`script options <Installomator:Configuration and Variables>`
 - Integration with `AutoPkg <https://github.com/autopkg/autopkg>`_ to expand package deployment capabilities
-

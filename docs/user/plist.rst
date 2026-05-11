@@ -65,7 +65,7 @@ Automatic Conversion
 
 For existing users, Patcher will **automatically migrate to the new format** if the previous format is detected. A backup file is also created in the event the migration fails so settings can be revived if necessary.
 
-.. literalinclude:: ../../src/patcher/client/plist_manager.py
+.. literalinclude:: ../../src/patcher/core/plist_manager.py
     :lines: 93-127
     :language: python
 

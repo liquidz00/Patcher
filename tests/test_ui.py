@@ -9,9 +9,7 @@ from src.patcher.utils.exceptions import PatcherError
 
 @pytest.fixture
 def ui_manager(mock_plist_manager, monkeypatch):
-    with patch(
-        "src.patcher.client.ui_manager.PropertylistManager", return_value=mock_plist_manager
-    ):
+    with patch("src.patcher.core.ui_manager.PropertylistManager", return_value=mock_plist_manager):
         manager = UIConfigManager()
 
         monkeypatch.setattr(
@@ -79,7 +77,7 @@ def test_download_font_success(ui_manager, monkeypatch):
 
     with (
         patch.object(ui_manager, "fonts_present", new_callable=lambda: False),
-        patch("src.patcher.client.ui_manager.httpx.get", return_value=mock_response) as mock_get,
+        patch("src.patcher.core.ui_manager.httpx.get", return_value=mock_response) as mock_get,
         patch.object(Path, "write_bytes") as mock_write,
     ):
         ui_manager._download_fonts()
@@ -99,7 +97,7 @@ def test_download_font_failure(ui_manager, monkeypatch):
     with (
         patch.object(ui_manager, "fonts_present", new_callable=lambda: False),
         patch(
-            "src.patcher.client.ui_manager.httpx.get",
+            "src.patcher.core.ui_manager.httpx.get",
             side_effect=httpx.ConnectError("connect failed"),
         ),
     ):

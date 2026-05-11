@@ -229,7 +229,7 @@ async def test_bootstrap_noninteractive_success(setup_instance):
     """Bootstrap saves creds, fetches a token, and marks completion in memory."""
     setup_instance.config.set_credential.reset_mock()
 
-    with patch("src.patcher.client.setup.TokenManager") as MockTokenManager:
+    with patch("src.patcher.cli.setup.TokenManager") as MockTokenManager:
         mock_tm = MagicMock()
         mock_tm.fetch_token = MagicMock()
 
@@ -263,7 +263,7 @@ async def test_bootstrap_noninteractive_token_failure_raises_setuperror(setup_in
     """If the token fetch fails, a SetupError is raised with a clear message."""
     from src.patcher.utils.exceptions import TokenError
 
-    with patch("src.patcher.client.setup.TokenManager") as MockTokenManager:
+    with patch("src.patcher.cli.setup.TokenManager") as MockTokenManager:
         mock_tm = MagicMock()
 
         async def boom():
