@@ -11,6 +11,3 @@ class Model(BaseModel):
     ``model_config`` settings, computed-field policy) easier to apply in
     one place.
     """
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)

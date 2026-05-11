@@ -37,32 +37,22 @@ class BaseAPIClient:
         self._http_client: httpx.AsyncClient | None = None
         self.log.debug(f"BaseAPIClient initialized with max_concurrency: {max_concurrency}")
 
-    @property
-    def concurrency(self) -> int:
+    def set_concurrency(self, value: int) -> None:
         """
-        Gets the current concurrency setting used by Patcher.
+        Set the maximum concurrency level for outbound API requests, with validation.
 
-        :return: The maximum number of concurrent API requests that can be made.
-        :rtype: int
+        Read access is via the :attr:`max_concurrency` attribute directly;
+        this method exists specifically for validated writes. It is recommended
+        to keep the value at no more than 5 to avoid overloading Jamf — see
+        the class docstring for the upstream guidance.
+
+        :param value: The new maximum concurrency level.
+        :type value: int
+        :raises PatcherError: If ``value`` is less than 1.
         """
-        return self.max_concurrency
-
-    @concurrency.setter
-    def concurrency(self, concurrency: int) -> None:
-        """
-        Sets the maximum concurrency level for API calls.
-
-        This method allows you to set the maximum number of concurrent API calls
-        that can be made by the Jamf client. It is recommended to limit this value
-        to 5 connections to avoid overloading the Jamf server.
-
-        :param concurrency: The new maximum concurrency level.
-        :type concurrency: int
-        :raises PatcherError: If the concurrency level is less than 1.
-        """
-        if concurrency < 1:
+        if value < 1:
             raise PatcherError("Concurrency level must be at least 1.")
-        self.max_concurrency = concurrency
+        self.max_concurrency = value
 
     @property
     def http(self) -> httpx.AsyncClient:
@@ -167,15 +157,23 @@ class BaseAPIClient:
 
         return response.text
 
-    def _handle_status_code(self, status_code: int, response_json: dict | None) -> dict:
-        """Handles HTTP status codes and returns the appropriate response or raises errors."""
+    def _raise_for_status(self, status_code: int, response_json: dict | None) -> None:
+        """Raise :class:`APIResponseError` if ``status_code`` is non-2xx.
+
+        2xx is a no-op (control returns to the caller, which uses
+        ``response_json`` directly). 404 carries ``not_found=True`` so callers
+        can distinguish missing-resource from other client errors. 4xx, 5xx,
+        and anything outside 200-599 each get a distinct error message.
+
+        Pulls a human-readable ``error`` field from the JSON body's
+        ``"errors"`` key when present; otherwise reports ``"No details"``.
+        """
         self.log.debug(f"Parsing API response. (status code: {status_code})")
 
         if 200 <= status_code < 300:
             self.log.info("API call successful.")
-            return response_json
+            return
 
-        # Propagate logs to caller
         error_message = (
             response_json.get("errors", "Unknown error") if response_json else "No details"
         )
@@ -184,7 +182,7 @@ class BaseAPIClient:
                 "Requested resource was not found.",
                 status_code=status_code,
                 error=error_message,
-                not_found=True,  # distinguish 404 errors
+                not_found=True,
             )
         elif 400 <= status_code < 500:
             raise APIResponseError(
@@ -216,7 +214,7 @@ class BaseAPIClient:
         :attr:`http`). Form-encoded vs JSON request bodies are selected based
         on the ``Content-Type`` header of the merged request headers — the
         same routing logic the prior curl-based implementation used. Non-2xx
-        responses are translated via :meth:`_handle_status_code` into
+        responses are translated via :meth:`_raise_for_status` into
         :class:`APIResponseError` (with ``not_found=True`` on 404), preserving
         the public exception contract for callers.
 
@@ -282,7 +280,8 @@ class BaseAPIClient:
             )
 
         self.log.info("Retrieved valid JSON response API call.")
-        return self._handle_status_code(response.status_code, response_json)
+        self._raise_for_status(response.status_code, response_json)
+        return response_json
 
     async def fetch_batch(
         self,

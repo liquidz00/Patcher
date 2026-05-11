@@ -9,7 +9,6 @@ from src.patcher.core import exceptions
 @pytest.mark.asyncio
 async def test_constructor_and_property(base_api_client):
     assert base_api_client.max_concurrency == 3
-    assert base_api_client.concurrency == 3
     assert base_api_client.default_headers == {
         "accept": "application/json",
         "Content-Type": "application/json",
@@ -18,28 +17,33 @@ async def test_constructor_and_property(base_api_client):
 
 @pytest.mark.asyncio
 async def test_set_concurrency(base_api_client):
-    base_api_client.concurrency = 2
-    assert base_api_client.concurrency == 2
+    base_api_client.set_concurrency(2)
+    assert base_api_client.max_concurrency == 2
 
     with pytest.raises(exceptions.PatcherError):
-        base_api_client.concurrency = 0
+        base_api_client.set_concurrency(0)
 
 
 # Test HTTP Status code handling
-def test_handle_status_code_success(base_api_client):
-    response_json = {"data": "test"}
-    result = base_api_client._handle_status_code(200, response_json)
-    assert result == response_json
+def test_raise_for_status_success_is_noop(base_api_client):
+    """2xx responses do not raise; the caller is responsible for returning the body."""
+    assert base_api_client._raise_for_status(200, {"data": "test"}) is None
 
 
-def test_handle_status_code_client_error(base_api_client):
+def test_raise_for_status_404_sets_not_found_flag(base_api_client):
+    with pytest.raises(exceptions.APIResponseError) as exc_info:
+        base_api_client._raise_for_status(404, {"errors": "Not Found"})
+    assert getattr(exc_info.value, "not_found", False) is True
+
+
+def test_raise_for_status_client_error(base_api_client):
     with pytest.raises(exceptions.APIResponseError):
-        base_api_client._handle_status_code(404, {"errors": "Not Found"})
+        base_api_client._raise_for_status(400, {"errors": "Bad Request"})
 
 
-def test_handle_status_code_server_error(base_api_client):
+def test_raise_for_status_server_error(base_api_client):
     with pytest.raises(exceptions.APIResponseError):
-        base_api_client._handle_status_code(500, {"errors": "Server Error"})
+        base_api_client._raise_for_status(500, {"errors": "Server Error"})
 
 
 # Test JSON fetching
@@ -59,7 +63,7 @@ async def test_fetch_json(base_api_client):
 
 @pytest.mark.asyncio
 async def test_fetch_json_failure(base_api_client):
-    """A 5xx response is translated to APIResponseError via _handle_status_code."""
+    """A 5xx response is translated to APIResponseError via _raise_for_status."""
     mock_response = Mock(status_code=500)
     mock_response.json.return_value = {"errors": "error"}
     mock_http = AsyncMock()

@@ -3,6 +3,8 @@ import io
 from datetime import datetime
 from typing import Any
 
+from pydantic import ValidationError
+
 from ..core.config_manager import ConfigManager
 from ..core.exceptions import APIResponseError, PatcherError
 from ..core.logger import LogMe
@@ -159,7 +161,7 @@ class ApiClient(BaseAPIClient):
             try:
                 device = PatchDevice(**row)
                 devices.append(device)
-            except Exception as e:  # intentional
+            except (ValidationError, TypeError) as e:
                 self.log.warning(f"Failed to parse device row: {e}")
                 continue
 

@@ -1,15 +1,28 @@
 class PatcherError(Exception):
-    """Base exception class for exceptions with automatic traceback logging and concise error display."""
+    """Base exception class for Patcher exceptions.
+
+    Carries arbitrary keyword context (e.g. ``status_code=401``, ``url=...``,
+    ``not_found=True``) and renders it into the formatted message as
+    ``message (key1: val1 | key2: val2)``.
+
+    .. important::
+        **Each keyword in ``**kwargs`` is also set as an instance attribute**
+        (see the loop below). This is load-bearing — multiple callers rely
+        on ``getattr(err, "not_found", False)`` to short-circuit on 404
+        responses (notably :meth:`patcher.core.installomator.Installomator.match`).
+        Removing the ``setattr`` loop in favor of "just storing kwargs in
+        ``self.context``" looks like cleanup but silently breaks the 404
+        short-circuit. The context dict is preserved separately for the
+        message formatter.
+    """
 
     default_message = "An error occurred"
 
     def __init__(self, message: str = None, **kwargs):
         self.message = message or self.default_message
         self.context = kwargs
-        # Expose context entries as attributes so callers can do
-        # `getattr(err, "not_found", False)` or `err.status_code` directly.
-        # Without this, the 404 short-circuit in Installomator.match() (which
-        # uses `getattr(e, "not_found", False)`) silently never fires.
+        # Expose context entries as attributes — see the class docstring's
+        # `.. important::` note. Load-bearing for the 404 short-circuit.
         for key, value in kwargs.items():
             if not hasattr(self, key):
                 setattr(self, key, value)

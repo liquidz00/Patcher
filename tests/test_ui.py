@@ -116,6 +116,6 @@ def test_reset_config_success(ui_manager):
 
 def test_reset_config_failure(ui_manager):
     with patch.object(
-        ui_manager.plist_manager, "remove", side_effect=Exception("Unexpected error")
+        ui_manager.plist_manager, "remove", side_effect=PatcherError("Unexpected error")
     ):
         assert ui_manager.reset_config() is False

@@ -53,7 +53,7 @@ class PropertylistManager:
         try:
             with self.plist_path.open("rb") as plistfile:
                 return plistlib.load(plistfile)
-        except Exception as e:
+        except (plistlib.InvalidFileException, OSError) as e:
             self.log.debug(
                 f"Failed to load plist file. Returning an empty dictionary. Details: {e}"
             )
@@ -74,7 +74,7 @@ class PropertylistManager:
             with self.plist_path.open("wb") as plistfile:
                 plistlib.dump(plist_data, plistfile)
             self.log.info(f"Configuration saved to {self.plist_path}")
-        except Exception as e:
+        except (plistlib.InvalidFileException, OSError) as e:
             self.log.error(f"Failed to write plist file. Details: {e}")
             raise PatcherError(
                 "Could not write to plist file.", path=self.plist_path, error_msg=str(e)
@@ -238,7 +238,7 @@ class PropertylistManager:
                 self.plist_path.unlink()
                 self.log.info(f"Property list file '{self.plist_path}' has been removed.")
                 return True
-            except Exception as e:  # using intentionally
+            except OSError as e:
                 self.log.error(f"Failed to delete plist file. Details: {e}")
                 return False
         else:

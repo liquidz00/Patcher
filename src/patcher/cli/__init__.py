@@ -440,8 +440,8 @@ async def export(
 
     .. seealso::
 
-        - :meth:`~patcher.core.report_manager.ReportManager.process_reports`
-        - :meth:`~patcher.client.BaseAPIClient.concurrency`
+        - :meth:`~patcher.cli.report.process_reports`
+        - :attr:`~patcher.client.BaseAPIClient.max_concurrency`
         - :ref:`export`
 
     :param ctx: The context object, providing access to shared state between commands.

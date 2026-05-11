@@ -569,9 +569,8 @@ class DataManager:
         try:
             [file.unlink() for file in self.get_cached_files()]
             return True
-        except Exception as e:  # Using intentionally
-            exception_name = type(e).__name__
-            self.log.warning(f"Encountered {exception_name} during cache reset. Details: {e}")
+        except OSError as e:
+            self.log.warning(f"Encountered {type(e).__name__} during cache reset. Details: {e}")
             return False
 
     def load_cached_data(self) -> list[pd.DataFrame]:

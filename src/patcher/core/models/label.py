@@ -105,7 +105,6 @@ class Label(Model):
         :return: The configured ``Label`` object.
         :rtype: :class:`~patcher.core.models.label.Label`
         """
-        # noinspection PyUnresolvedReferences
         field_names = cls.model_fields.keys()
         filtered_data = {k: v for k, v in data.items() if k in field_names}
         return cls(**filtered_data, **kwargs)

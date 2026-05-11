@@ -176,7 +176,7 @@ class UIConfigManager:
         self.log.debug("Resetting UI-configuration settings.")
         try:
             return self.plist_manager.remove("UserInterfaceSettings")
-        except Exception as e:  # intentional
+        except PatcherError as e:
             self.log.error(f"Failed resetting UI-config settings. Details: {e}")
             return False
 
