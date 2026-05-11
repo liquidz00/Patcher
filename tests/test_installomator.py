@@ -46,8 +46,22 @@ def _sample_fragment(
 
 
 @pytest.fixture
-def iom(tmp_path: Path) -> Installomator:
-    """Return an Installomator instance with isolated cache paths and a mocked api."""
+def iom(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Installomator:
+    """Return an Installomator instance with isolated cache paths and a mocked api.
+
+    Installomator's constructor builds its own ApiClient internally, which
+    triggers TokenManager.attach_client() → keyring.get_password(). On Linux
+    CI runners there's no keyring backend available, so the chain raises
+    NoKeyringError before the test can swap in a mock.
+
+    Patching ApiClient at the installomator module level intercepts the chain
+    at construction time, leaving us free to set `instance.api = AsyncMock()`
+    in the body below as the actual test surface.
+    """
+    monkeypatch.setattr(
+        "src.patcher.utils.installomator.ApiClient",
+        lambda **kwargs: AsyncMock(),
+    )
     instance = Installomator()
     instance.label_path = tmp_path / ".labels"
     instance.review_file = tmp_path / "unmatched_apps.json"
