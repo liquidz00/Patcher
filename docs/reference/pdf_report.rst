@@ -4,6 +4,6 @@
 PDF Report
 ============
 
-.. autoclass:: patcher.utils.pdf_report.PDFReport
+.. autoclass:: patcher.core.pdf_report.PDFReport
     :members:
     :show-inheritance:

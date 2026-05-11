@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from src.patcher.utils.pdf_report import PDFReport
+from src.patcher.core.pdf_report import PDFReport
 
 
 def test_pdf_init(mock_pdf_report):

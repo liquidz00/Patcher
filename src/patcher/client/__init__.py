@@ -7,9 +7,9 @@ from urllib.parse import urlencode
 import httpx
 import truststore
 
-from ..models.jamf_client import ApiClientModel, ApiRoleModel
-from ..utils.exceptions import APIResponseError, PatcherError
-from ..utils.logger import LogMe
+from ..core.exceptions import APIResponseError, PatcherError
+from ..core.logger import LogMe
+from ..core.models.jamf_client import ApiClientModel, ApiRoleModel
 
 
 class BaseAPIClient:
@@ -120,7 +120,7 @@ class BaseAPIClient:
         Translates httpx-native errors to Patcher's :class:`APIResponseError`
         so callers see the same exception contract as the existing
         :meth:`fetch_json` path — notably the ``not_found=True`` flag on 404
-        responses, which :meth:`patcher.utils.installomator.Installomator.match`
+        responses, which :meth:`patcher.core.installomator.Installomator.match`
         uses to short-circuit gracefully.
 
         :param url: The URL to fetch.
@@ -334,7 +334,7 @@ class BaseAPIClient:
         :type username: str
         :param password: Password of admin Jamf Pro account. Not permanently stored, only used for initial token retrieval.
         :type password: str
-        :param jamf_url: Jamf Server URL (See :attr:`~patcher.models.jamf_client.JamfClient.server`).
+        :param jamf_url: Jamf Server URL (See :attr:`~patcher.core.models.jamf_client.JamfClient.server`).
         :type jamf_url: str
         :returns: The BasicToken string.
         :rtype: str
@@ -385,7 +385,7 @@ class BaseAPIClient:
         Creates the necessary API roles using the provided basic token.
 
         .. seealso::
-            :class:`~patcher.models.jamf_client.ApiRoleModel`
+            :class:`~patcher.core.models.jamf_client.ApiRoleModel`
 
         :param token: The basic token to use for authentication.
         :type token: str
@@ -421,7 +421,7 @@ class BaseAPIClient:
         Creates an API client and retrieves its client ID and client secret.
 
         .. seealso::
-            :class:`~patcher.models.jamf_client.ApiClientModel`
+            :class:`~patcher.core.models.jamf_client.ApiClientModel`
 
         :param token: The basic token to use for authentication.
         :type token: str

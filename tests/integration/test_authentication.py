@@ -13,7 +13,7 @@ runs first by virtue of being the smallest meaningful smoke check.
 from __future__ import annotations
 
 import pytest
-from src.patcher.models.token import AccessToken
+from src.patcher.core.models.token import AccessToken
 
 
 @pytest.mark.integration

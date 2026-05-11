@@ -18,9 +18,9 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
-from src.patcher.models.patch import PatchTitle
-from src.patcher.utils.exceptions import APIResponseError
-from src.patcher.utils.installomator import Installomator
+from src.patcher.core.exceptions import APIResponseError
+from src.patcher.core.installomator import Installomator
+from src.patcher.core.models.patch import PatchTitle
 
 # ---------------------------------------------------------------------- #
 # Fixtures
@@ -59,7 +59,7 @@ def iom(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Installomator:
     in the body below as the actual test surface.
     """
     monkeypatch.setattr(
-        "src.patcher.utils.installomator.ApiClient",
+        "src.patcher.core.installomator.ApiClient",
         lambda **kwargs: AsyncMock(),
     )
     instance = Installomator()
@@ -110,7 +110,7 @@ async def test_list_available_labels_caches_result(iom: Installomator) -> None:
 
 @pytest.mark.asyncio
 async def test_list_available_labels_raises_on_fetch_failure(iom: Installomator) -> None:
-    from src.patcher.utils.exceptions import PatcherError
+    from src.patcher.core.exceptions import PatcherError
 
     iom.api.fetch_text.side_effect = APIResponseError(
         "Server error", url="https://example.com/Labels.txt", status_code=500
@@ -403,7 +403,7 @@ async def test_match_second_pass_finds_normalized_title(iom: Installomator) -> N
 @pytest.mark.asyncio
 async def test_match_does_nothing_on_404_from_get_app_names(iom: Installomator) -> None:
     """If get_app_names raises a 404 APIResponseError, match returns silently."""
-    from src.patcher.utils.exceptions import APIResponseError
+    from src.patcher.core.exceptions import APIResponseError
 
     err = APIResponseError("not found", status_code=404, error="404", not_found=True)
     iom.api.get_app_names = AsyncMock(side_effect=err)

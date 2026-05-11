@@ -34,7 +34,7 @@ class PDFReport(FPDF):
         :param date_format: Date format string for the PDF report header, default is "%B %d %Y".
         :type date_format: str
         :param ui_config: Optional UIConfigManager object to pass, defaults to initializing new object.
-        :type ui_config: :class:`~patcher.client.ui_manager.UIConfigManager`
+        :type ui_config: :class:`~patcher.core.ui_manager.UIConfigManager`
         """
         self.log = LogMe(self.__class__.__name__)
         super().__init__(orientation=orientation, unit=unit, format=format)  # type: ignore

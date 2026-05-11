@@ -28,11 +28,11 @@ class ReportManager:
         :param api_client: Interacts with the Jamf API to retrieve data needed for reporting.
         :type api_client: :class:`~patcher.client.api_client.ApiClient`
         :param data_manager: Generates Excel reports from collected patch data.
-        :type data_manager: :class:`~patcher.utils.data_manager.DataManager`
-        :param debug: Overrides animation of `~patcher.client.report_manager.ReportManager.process_reports` method if True.
+        :type data_manager: :class:`~patcher.core.data_manager.DataManager`
+        :param debug: Overrides animation of `~patcher.core.report_manager.ReportManager.process_reports` method if True.
         :type debug: bool
-        :param installomator: An optional :class:`~patcher.utils.installomator.Installomator` object for matching. Defaults to creating a new object during init.
-        :type installomator: :class:`~patcher.utils.installomator.Installomator`
+        :param installomator: An optional :class:`~patcher.core.installomator.Installomator` object for matching. Defaults to creating a new object during init.
+        :type installomator: :class:`~patcher.core.installomator.Installomator`
         """
         self.api_client = api_client
         self.data_manager = data_manager
@@ -168,7 +168,7 @@ class ReportManager:
         :param latest_versions: A list of the most recent iOS versions available.
         :type latest_versions: list[dict[str, str]]
         :return: A list of ``PatchTitle`` objects, each representing a summary of the patch status for an iOS version.
-        :rtype: list[:class:`~patcher.models.patch.PatchTitle`]
+        :rtype: list[:class:`~patcher.core.models.patch.PatchTitle`]
         :raises PatcherError: If a KeyError or ZeroDivisionError is encountered.
         """
         self.log.debug("Attempting to calculate iOS devices on latest version.")

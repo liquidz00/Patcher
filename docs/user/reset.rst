@@ -9,8 +9,8 @@ Reset
 The ``reset`` command restores specific configurations in Patcher, allowing users to reset **credentials, UI settings, or cached data**. By default, a **full reset** clears all configurations and triggers the setup process. Users can reset individual components without affecting other settings.
 
 .. seealso::
-    For more on resuming or forcing a fresh setup, see :ref:`Resumable Setup <starting_fresh>`. 
- 
+    For more on resuming or forcing a fresh setup, see :ref:`Resumable Setup <starting_fresh>`.
+
 Parameters
 ----------
 
@@ -29,14 +29,14 @@ Parameters
             * - Option
               - Description
             * - ``full``
-              - Resets credentials, UI elements, and property list file. Subsequently triggers :class:`~patcher.client.setup.Setup` to start setup
+              - Resets credentials, UI elements, and property list file. Subsequently triggers :class:`~patcher.cli.setup.Setup` to start setup
             * - ``UI``
               - Resets UI elements of PDF reports (header & footer text, custom font and optional logo)
             * - ``creds``
               - Resets credentials stored in Keychain. Useful for testing Patcher in a non-production environment first. Allows specifying which credential to reset using the ``--credential`` option
             * - ``cache``
               - Removes all cached data from the cache directory stored in ``~/Library/Caches/Patcher``
-    
+
     .. note::
         Options are not case-sensitive and are converted to lowercase automatically at runtime
 
@@ -54,7 +54,7 @@ Usage
     **Do not use this method** unless you are confident you have access to these credentials, especially if:
 
     - Your environment does **not** use SSO.
-    - You relied on the automatic setup of Patcher (:attr:`~patcher.client.setup.SetupType.STANDARD`)
+    - You relied on the automatic setup of Patcher (:attr:`~patcher.cli.setup.SetupType.STANDARD`)
 
 .. note::
 
@@ -67,7 +67,7 @@ Usage
 .. _full_reset:
 
 .. tab-set::
-    
+
     .. tab-item:: All (Full)
 
         .. code-block:: console

@@ -4,6 +4,6 @@
 Decorators
 ==========
 
-.. automodule:: patcher.utils.decorators
+.. automodule:: patcher.client.decorators
    :members:
    :undoc-members:

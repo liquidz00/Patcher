@@ -2,10 +2,10 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, call, patch
 
 import pytest
-from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.token_manager import TokenManager
-from src.patcher.models.token import AccessToken
-from src.patcher.utils.exceptions import TokenError
+from src.patcher.core.config_manager import ConfigManager
+from src.patcher.core.exceptions import TokenError
+from src.patcher.core.models.token import AccessToken
 
 
 @patch.object(TokenManager, "token", new_callable=PropertyMock)

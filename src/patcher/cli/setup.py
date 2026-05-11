@@ -69,12 +69,12 @@ class SetupStateManager:
     def load_stage(self) -> SetupStage:
         """
         Loads the saved setup stage from disk. If the file does not exist or is invalid,
-        defaults to :attr:`~patcher.client.setup.SetupStage.NOT_STARTED`.
+        defaults to :attr:`~patcher.cli.setup.SetupStage.NOT_STARTED`.
 
         Creates the stage file if it doesn't already exist.
 
         :return: The current saved setup stage.
-        :rtype: :class:`~patcher.client.setup.SetupStage`
+        :rtype: :class:`~patcher.cli.setup.SetupStage`
         """
         if not self.state_path.exists():
             self.state_path.touch()
@@ -93,7 +93,7 @@ class SetupStateManager:
         Creates the parent directory if it does not exist.
 
         :param stage: The setup stage to persist.
-        :type stage: :class:`~patcher.client.setup.SetupStage`
+        :type stage: :class:`~patcher.cli.setup.SetupStage`
         """
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.state_path, "w") as f:
@@ -122,11 +122,11 @@ class Setup:
         user interface settings for PDF reports.
 
         :param config: Manages application configuration, including credential storage.
-        :type config: :class:`~patcher.client.config_manager.ConfigManager`
+        :type config: :class:`~patcher.core.config_manager.ConfigManager`
         :param ui_config: Handles UI-related configurations for the setup process.
-        :type ui_config: :class:`~patcher.client.ui_manager.UIConfigManager`
+        :type ui_config: :class:`~patcher.core.ui_manager.UIConfigManager`
         :param plist_manager: Handles read/write operations to project property list.
-        :type plist_manager: :class:`~patcher.client.plist_manager.PropertylistManager`
+        :type plist_manager: :class:`~patcher.core.plist_manager.PropertylistManager`
         """
         self.config = config
         self.ui_config = ui_config
@@ -164,7 +164,7 @@ class Setup:
         Returns the current ``SetupStage`` value used to determine setup state.
 
         :return: The ``SetupStage`` value.
-        :rtype: :class:`~patcher.client.setup.SetupStage`
+        :rtype: :class:`~patcher.cli.setup.SetupStage`
         """
         if self._stage is None:
             self._stage = self.state_manager.load_stage()
@@ -262,7 +262,7 @@ class Setup:
         """
         Prompts user to enable or disable Installomator support.
 
-        If enabled, assists in identifying :class:`~patcher.models.patch.PatchTitle` objects with Installomator support,
+        If enabled, assists in identifying :class:`~patcher.core.models.patch.PatchTitle` objects with Installomator support,
         used during :ref:`analyze <analyze>` commands.
         """
         use_installomator = click.confirm(
@@ -350,9 +350,9 @@ class Setup:
         and saves credentials. For ``SSO``, stores the provided client credentials.
 
         :param animator: The animation instance to update messages.
-        :type animator: :class:`~patcher.utils.animation.Animation`
+        :type animator: :class:`~patcher.core.animation.Animation`
         :param setup_type: The selected setup type (Standard or SSO).
-        :type setup_type: :class:`~patcher.client.setup.SetupType`
+        :type setup_type: :class:`~patcher.cli.setup.SetupType`
         :raises SetupError: If credentials are missing or a token cannot be obtained.
         """
         creds = self.prompt_credentials(setup_type)
@@ -382,10 +382,10 @@ class Setup:
         Attempts to fetch and persist an ``AccessToken`` using stored credentials.
 
         :param animator: The animation instance to update messages.
-        :type animator: :class:`~patcher.utils.animation.Animation`
+        :type animator: :class:`~patcher.core.animation.Animation`
         :param _setup_type: Placeholder to satisfy stage dispatch signature. Not used in this stage.
-        :type _setup_type: :class:`~patcher.client.setup.SetupType`
-        :raises SetupError: If an :class:`~patcher.models.token.AccessToken` cannot be retrieved
+        :type _setup_type: :class:`~patcher.cli.setup.SetupType`
+        :raises SetupError: If an :class:`~patcher.core.models.token.AccessToken` cannot be retrieved
         """
         await animator.update_msg("Fetching AccessToken")
         client_creds = self._get_creds()
@@ -400,9 +400,9 @@ class Setup:
         Uses stored credentials and token to instantiate and store a ``JamfClient`` object.
 
         :param animator: The animation instance to update messages.
-        :type animator: :class:`~patcher.utils.animation.Animation`
+        :type animator: :class:`~patcher.core.animation.Animation`
         :param _setup_type: Placeholder to satisfy stage dispatch signature. Not used in this stage.
-        :type _setup_type: :class:`~patcher.client.setup.SetupType`
+        :type _setup_type: :class:`~patcher.cli.setup.SetupType`
         """
         await animator.update_msg("Creating JamfClient...")
         client_creds = self._get_creds(include_token=True)
@@ -425,9 +425,9 @@ class Setup:
         Final stage in setup: configures user interface settings and marks setup as complete.
 
         :param animator: The animation instance to update messages.
-        :type animator: :class:`~patcher.utils.animation.Animation`
+        :type animator: :class:`~patcher.core.animation.Animation`
         :param _setup_type: Placeholder to satisfy stage dispatch signature. Not used in this stage.
-        :type _setup_type: :class:`~patcher.client.setup.SetupType`
+        :type _setup_type: :class:`~patcher.cli.setup.SetupType`
         """
         await animator.stop()
         self.ui_config.setup_ui()
@@ -486,13 +486,13 @@ class Setup:
         """
         Allows the user to choose between different setup methods (Standard or SSO).
 
-        An optional :class:`~patcher.utils.animation.Animation` object can be passed to update animation
+        An optional :class:`~patcher.core.animation.Animation` object can be passed to update animation
         messages at runtime. Defaults to ``self.animator``.
 
         **Options**:
 
-        - :attr:`~patcher.client.setup.SetupType.STANDARD` prompts for basic credentials, obtains basic token, creates API integration, saves client credentials and obtains an AccessToken.
-        - :attr:`~patcher.client.setup.SetupType.SSO` prompts for existing API credentials, obtains AccessToken and saves credentials.
+        - :attr:`~patcher.cli.setup.SetupType.STANDARD` prompts for basic credentials, obtains basic token, creates API integration, saves client credentials and obtains an AccessToken.
+        - :attr:`~patcher.cli.setup.SetupType.SSO` prompts for existing API credentials, obtains AccessToken and saves credentials.
 
         .. seealso::
             For SSO users, reference our :ref:`handling-sso` page for assistance creating an API integration.

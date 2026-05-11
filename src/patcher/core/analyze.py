@@ -22,7 +22,7 @@ class BaseEnum(Enum):
         :param value: CLI-friendly string.
         :type value: str
         :return: Corresponding Enum value
-        :rtype: :class:`~patcher.client.analyze.FilterCriteria` | :class:`~patcher.client.analyze.TrendCriteria`
+        :rtype: :class:`~patcher.core.analyze.FilterCriteria` | :class:`~patcher.core.analyze.TrendCriteria`
         :raises PatcherError: If the input is invalid
         """
         formatted_value = value.replace("-", "_")
@@ -65,12 +65,12 @@ class Analyzer:
         excel_path: Path | str | None = None,
     ):
         """
-        Performs analysis on patch data retrieved via :class:`~patcher.utils.data_manager.DataManager`.
+        Performs analysis on patch data retrieved via :class:`~patcher.core.data_manager.DataManager`.
 
-        ``Analyzer`` class objects are initialized with a :class:`~patcher.utils.data_manager.DataManager` instance and optional Excel file path.
+        ``Analyzer`` class objects are initialized with a :class:`~patcher.core.data_manager.DataManager` instance and optional Excel file path.
 
         :param data_manager: The ``DataManager`` instance for retrieving and managing patch data.
-        :type data_manager: :class:`~patcher.utils.data_manager.DataManager`
+        :type data_manager: :class:`~patcher.core.data_manager.DataManager`
         :param excel_path: Path to the Excel file.
         :type excel_path: Path | str | None
         """
@@ -209,13 +209,13 @@ class Analyzer:
                 - 'top_performers': Titles with completion percentage greater than 90%.
                 - 'installomator': Titles that have Installomator labels. See :ref:`Installomator <installomator>`
 
-        :type criteria: :class:`~patcher.client.analyze.FilterCriteria`
+        :type criteria: :class:`~patcher.core.analyze.FilterCriteria`
         :param threshold: The threshold for filtering completion percentages, default is 70.0.
         :type threshold: float | None
         :param top_n: Number of results to return. If None (default), return all matching results.
         :type top_n: int | None
         :return: Filtered and sorted list of ``PatchTitle`` objects.
-        :rtype: list[:class:`~patcher.models.patch.PatchTitle`]
+        :rtype: list[:class:`~patcher.core.models.patch.PatchTitle`]
         """
         self.log.debug(f"Attempting to filter titles by {criteria}.")
 
@@ -290,7 +290,7 @@ class Analyzer:
         Analyzes trends across multiple datasets based on specified criteria.
 
         :param criteria: The trend analysis criteria to use.
-        :type criteria: :class:`~patcher.client.analyze.TrendCriteria`
+        :type criteria: :class:`~patcher.core.analyze.TrendCriteria`
         :param datasets: A list of DataFrames or file paths to analyze. If None, uses cached data.
         :type datasets: list[Path | str | pd.DataFrame] | None
         :param sort_by: A column to sort the results by.

@@ -3,12 +3,12 @@ from datetime import datetime, timedelta, timezone
 
 from pydantic import ValidationError
 
-from ..models.jamf_client import JamfClient
-from ..models.token import AccessToken
-from ..utils.exceptions import APIResponseError, CredentialError, PatcherError, TokenError
-from ..utils.logger import LogMe
+from ..core.config_manager import ConfigManager
+from ..core.exceptions import APIResponseError, CredentialError, PatcherError, TokenError
+from ..core.logger import LogMe
+from ..core.models.jamf_client import JamfClient
+from ..core.models.token import AccessToken
 from . import BaseAPIClient
-from .config_manager import ConfigManager
 
 
 class TokenManager:
@@ -17,11 +17,11 @@ class TokenManager:
         The ``TokenManager`` class handles all operations related to the token lifecycle, including fetching,
         saving, and validating the access token.
 
-        It is initialized with a :class:`~patcher.client.config_manager.ConfigManager` instance, which
+        It is initialized with a :class:`~patcher.core.config_manager.ConfigManager` instance, which
         provides the necessary credentials.
 
         :param config: A ``ConfigManager`` instance for managing credentials and configurations.
-        :type config: :class:`~patcher.client.config_manager.ConfigManager`
+        :type config: :class:`~patcher.core.config_manager.ConfigManager`
         """
         self.log = LogMe(self.__class__.__name__)
         self.config = config
@@ -56,10 +56,10 @@ class TokenManager:
         Loads the ``AccessToken`` and its expiration from the keyring.
 
         If either the AccessToken string or AccessToken expiration cannot
-        be retrieved, a :exc:`~patcher.utils.exceptions.CredentialError` is raised.
+        be retrieved, a :exc:`~patcher.core.exceptions.CredentialError` is raised.
 
         :return: An AccessToken object containing the token and its expiration date.
-        :rtype: :class:`~patcher.models.token.AccessToken`
+        :rtype: :class:`~patcher.core.models.token.AccessToken`
         """
         self.log.debug("Attempting to load token and expiration from keychain.")
         try:
@@ -79,7 +79,7 @@ class TokenManager:
         Creates and returns a ``JamfClient`` object using the stored credentials.
 
         :return: The ``JamfClient`` object if validation is successful.
-        :rtype: :class:`~patcher.models.jamf_client.JamfClient`
+        :rtype: :class:`~patcher.core.models.jamf_client.JamfClient`
         :raises PatcherError: If ``JamfClient`` object fails pydantic validation.
         """
         self.log.debug("Attempting to attach JamfClient with stored credentials")
@@ -104,7 +104,7 @@ class TokenManager:
         saved and returned for use.
 
         :return: The fetched ``AccessToken`` instance.
-        :rtype: :class:`~patcher.models.token.AccessToken`
+        :rtype: :class:`~patcher.core.models.token.AccessToken`
         :raises TokenError: If a token cannot be retrieved from the Jamf API.
         """
         self.log.debug("Attempting to fetch new AccessToken.")
@@ -140,7 +140,7 @@ class TokenManager:
         :param response: The API response payload from Jamf.
         :type response: dict
         :return: The extracted ``AccessToken`` object.
-        :rtype: :class:`~patcher.models.token.AccessToken`
+        :rtype: :class:`~patcher.core.models.token.AccessToken`
         """
         self.log.debug("Attempting to parse API response for AccessToken.")
         token = response.get("access_token")
@@ -159,7 +159,7 @@ class TokenManager:
         for later retrieval. It also updates the ``JamfClient`` instance with the new token.
 
         :param token: The ``AccessToken`` instance containing the token and its expiration date.
-        :type token: :class:`~patcher.models.token.AccessToken`
+        :type token: :class:`~patcher.core.models.token.AccessToken`
         :raises TokenError: If either the token string or expiration could not be saved.
         """
         self.log.debug("Attempting to save retrieved AccessToken object.")
@@ -179,11 +179,11 @@ class TokenManager:
         If the token is found to be invalid, a new token is requested and refreshed.
 
         .. seealso::
-            The :meth:`~patcher.utils.decorators.check_token` decorator leverages
+            The :meth:`~patcher.client.decorators.check_token` decorator leverages
             this method with thread locking to ensure tokens are valid before API calls.
 
         :return: The ``AccessToken`` object by way of ``self.token`` property.
-        :rtype: :class:`~patcher.models.token.AccessToken`
+        :rtype: :class:`~patcher.core.models.token.AccessToken`
         """
         async with self.lock:
             if self.token.is_expired:

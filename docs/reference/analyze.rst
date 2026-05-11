@@ -6,14 +6,14 @@
 Analyzer
 ========
 
-.. autoclass:: patcher.client.analyze.Analyzer
+.. autoclass:: patcher.core.analyze.Analyzer
     :members:
 
-.. autoclass:: patcher.client.analyze.BaseEnum
+.. autoclass:: patcher.core.analyze.BaseEnum
     :members:
 
-.. autoclass:: patcher.client.analyze.FilterCriteria
+.. autoclass:: patcher.core.analyze.FilterCriteria
     :members:
 
-.. autoclass:: patcher.client.analyze.TrendCriteria
+.. autoclass:: patcher.core.analyze.TrendCriteria
     :members:

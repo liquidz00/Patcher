@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import httpx
 import pytest
-from src.patcher.client.ui_manager import UIConfigKeys, UIConfigManager
-from src.patcher.utils.exceptions import PatcherError
+from src.patcher.core.exceptions import PatcherError
+from src.patcher.core.ui_manager import UIConfigKeys, UIConfigManager
 
 
 @pytest.fixture

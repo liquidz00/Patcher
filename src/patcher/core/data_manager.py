@@ -83,7 +83,7 @@ class DataManager:
         If titles are not already loaded, they are fetched from the latest available dataset.
 
         :return: The validated list of ``PatchTitle`` objects.
-        :rtype: list[:class:`~patcher.models.patch.PatchTitle`]
+        :rtype: list[:class:`~patcher.core.models.patch.PatchTitle`]
         :raises PatcherError: If validation fails.
         """
         if self._titles is None:
@@ -273,7 +273,7 @@ class DataManager:
     ):
         """Generates an HTML report from a given DataFrame."""
         if not header_color:
-            from ..models.ui import UIDefaults
+            from .models.ui import UIDefaults
 
             header_color = UIDefaults().header_color
 
@@ -364,7 +364,7 @@ class DataManager:
         :param patch_data_df: DataFrame containing patch title data (from PatchTitle objects).
         :type patch_data_df: pd.DataFrame
         :param device_reports: Dictionary mapping title IDs to lists of PatchDevice objects.
-        :type device_reports: dict[str, list[:class:`~patcher.models.patch.PatchDevice`]]
+        :type device_reports: dict[str, list[:class:`~patcher.core.models.patch.PatchDevice`]]
         """
         title_lookup = {pt.title_id: pt.title for pt in patch_titles}
 
@@ -425,9 +425,9 @@ class DataManager:
         :param analysis: Whether this is an analysis report.
         :type analysis: bool
         :param patch_titles:
-        :type patch_titles: list[:class:`~patcher.models.patch.PatchTitle`]
+        :type patch_titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
         :param device_reports: Optional dictionary mapping title IDs to device lists.
-        :type device_reports: dict[str, list[:class:`~patcher.models.patch.PatchDevice`]] | None
+        :type device_reports: dict[str, list[:class:`~patcher.core.models.patch.PatchDevice`]] | None
         :return: Path to the exported Excel file.
         :rtype: Path
         """
@@ -466,7 +466,7 @@ class DataManager:
         Exports patch data to the specified formats.
 
         :param patch_titles: A list of ``PatchTitle`` objects to include in the report. Defaults to ``self.titles`` if not provided
-        :type patch_titles: list [:class:`~patcher.models.patch.PatchTitle`]
+        :type patch_titles: list [:class:`~patcher.core.models.patch.PatchTitle`]
         :param output_dir: The directory in which to save the exported report(s).
         :type output_dir: str | Path
         :param report_title: The title to use for the header in exported report(s). Defaults to ``HEADER_TEXT`` key in ``com.liquidzoo.patcher.plist`` file.
@@ -480,7 +480,7 @@ class DataManager:
         :param header_color: Hex color to use for HTML header table background (defaults to "#6432bdff")
         :type header_color: str | None
         :param device_reports: Optional dictionary mapping title IDs to device lists for per-title detail sheets.
-        :type device_reports: dict[str, list[:class:`~patcher.models.patch.PatchDevice`]] | None
+        :type device_reports: dict[str, list[:class:`~patcher.core.models.patch.PatchDevice`]] | None
         :return: A dictionary containing paths to generated reports.
         :rtype: dict[str, str]
         """

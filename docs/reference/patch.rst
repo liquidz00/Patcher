@@ -4,13 +4,13 @@
 Patch Title
 ============
 
-.. autoclass:: patcher.models.patch.PatchTitle
+.. autoclass:: patcher.core.models.patch.PatchTitle
     :members:
     :exclude-members: model_computed_fields, model_config, model_fields
 
 Patch Device
 ------------
 
-.. autoclass:: patcher.models.patch.PatchDevice
+.. autoclass:: patcher.core.models.patch.PatchDevice
     :members:
     :exclude-members: model_computed_fields, model_config, model_fields

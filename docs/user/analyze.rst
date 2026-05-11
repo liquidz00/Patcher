@@ -4,7 +4,7 @@
 Analyze
 =======
 
-Analyzes an exported patch report in Excel format and outputs analyzed results. The Analyzer class works in conjunction with :class:`~patcher.utils.data_manager.DataManager` objects to retrieve cached data and stored :class:`~patcher.models.patch.PatchTitle` objects.
+Analyzes an exported patch report in Excel format and outputs analyzed results. The Analyzer class works in conjunction with :class:`~patcher.core.data_manager.DataManager` objects to retrieve cached data and stored :class:`~patcher.core.models.patch.PatchTitle` objects.
 
 
 Parameters
@@ -12,13 +12,13 @@ Parameters
 
 .. param:: excel_file
     :type: str
-  
+
     Path to the Excel file containing patch management data.
 
 .. param:: all_time
     :type: bool
 
-    Allows for analyzation of patch report trends across all cached data instead of a single dataset. See :class:`~patcher.client.analyze.TrendCriteria`.
+    Allows for analyzation of patch report trends across all cached data instead of a single dataset. See :class:`~patcher.core.analyze.TrendCriteria`.
 
 .. param:: threshold
     :type: float
@@ -28,12 +28,12 @@ Parameters
 .. param:: criteria
     :type: str
 
-    Specifies the criteria for filtering patches. See :class:`~patcher.client.analyze.FilterCriteria`.
+    Specifies the criteria for filtering patches. See :class:`~patcher.core.analyze.FilterCriteria`.
 
-    Additional criteria can be passed when using the ``--all-time`` flag. See :class:`~patcher.client.analyze.TrendCriteria`. Trend criteria options are: 
+    Additional criteria can be passed when using the ``--all-time`` flag. See :class:`~patcher.core.analyze.TrendCriteria`. Trend criteria options are:
 
     - ``patch_adoption``: Calculates completion rates over time for different software titles.
-    - ``release_frequency``: Analyzes the release frequency of updates for software titles. 
+    - ``release_frequency``: Analyzes the release frequency of updates for software titles.
     - ``completion_trends``: Evaluates the correlation between release dates and completion percentages.
 
 .. param:: top_n
@@ -60,8 +60,8 @@ Criteria
 
 Two types of criteria can be specified when leveraging the ``analyze`` command, however they are used in different contexts.
 
-- :class:`~patcher.client.analyze.FilterCriteria` is used when analyzing a **single** patch report.
-- :class:`~patcher.client.analyze.TrendCriteria` is used when analyzing patch reports over time.
+- :class:`~patcher.core.analyze.FilterCriteria` is used when analyzing a **single** patch report.
+- :class:`~patcher.core.analyze.TrendCriteria` is used when analyzing patch reports over time.
 
 .. note::
 

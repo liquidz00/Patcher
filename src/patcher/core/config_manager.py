@@ -112,7 +112,7 @@ class ConfigManager:
     def delete_credential(self, key: str) -> bool:
         """
         Deletes the provided credential in the keyring under the specified key. Primarily intended for
-        use with the ``--reset`` flag (See :meth:`~patcher.client.config_manager.ConfigManager.reset`).
+        use with the ``--reset`` flag (See :meth:`~patcher.core.config_manager.ConfigManager.reset`).
 
         If the specified credential could not be deleted, an error is logged.
 
@@ -137,13 +137,13 @@ class ConfigManager:
         This method is typically used during the setup process to save the credentials and token of a ``JamfClient``
         object into the keyring for secure storage and later use.
 
-        If any of the client credentials could not be saved, a :exc:`~patcher.utils.exceptions.CredentialError`
-        is raised via the :meth:`~patcher.client.config_manager.ConfigManager.set_credential` method.
+        If any of the client credentials could not be saved, a :exc:`~patcher.core.exceptions.CredentialError`
+        is raised via the :meth:`~patcher.core.config_manager.ConfigManager.set_credential` method.
 
         :param client: The ``JamfClient`` object whose credentials will be stored.
-        :type client: :class:`~patcher.models.jamf_client.JamfClient`
+        :type client: :class:`~patcher.core.models.jamf_client.JamfClient`
         :param token: The ``AccessToken`` object to save.
-        :type token: :class:`~patcher.models.token.AccessToken`
+        :type token: :class:`~patcher.core.models.token.AccessToken`
         """
         self.log.debug(f"Storing credentials for JamfClient ending in: {(client.client_id[-4:])}")
         credentials = {

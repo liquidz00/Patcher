@@ -4,6 +4,5 @@
 Animation
 =========
 
-.. autoclass:: patcher.utils.animation.Animation
+.. autoclass:: patcher.core.animation.Animation
     :members:
-

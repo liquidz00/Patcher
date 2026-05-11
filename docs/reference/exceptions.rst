@@ -4,5 +4,5 @@
 Exceptions
 ==========
 
-.. automodule:: patcher.utils.exceptions
+.. automodule:: patcher.core.exceptions
     :members:

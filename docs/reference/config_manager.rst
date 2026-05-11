@@ -4,6 +4,5 @@
 Config Manager
 ==============
 
-.. autoclass:: patcher.client.config_manager.ConfigManager
+.. autoclass:: patcher.core.config_manager.ConfigManager
     :members:
-

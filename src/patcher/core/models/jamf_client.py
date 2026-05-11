@@ -11,7 +11,7 @@ class JamfClient(Model):
     Represents a Jamf client configuration.
 
     This class is responsible for holding the configuration necessary to interact with the Jamf API,
-    including client credentials, server information, and :class:`~patcher.models.token.AccessToken` objects.
+    including client credentials, server information, and :class:`~patcher.core.models.token.AccessToken` objects.
 
     :ivar client_id: The client ID used for authentication with the Jamf API.
     :type client_id: str
@@ -23,7 +23,7 @@ class JamfClient(Model):
     .. admonition:: Removed in version 2.0
         :class: danger
 
-        :class:`~patcher.models.token.AccessToken` objects are handled exclusively by the :class:`~patcher.client.token_manager.TokenManager` class. This ensures 'stale' tokens are not used, causing 401 responses.
+        :class:`~patcher.core.models.token.AccessToken` objects are handled exclusively by the :class:`~patcher.client.token_manager.TokenManager` class. This ensures 'stale' tokens are not used, causing 401 responses.
     """
 
     client_id: str
@@ -84,8 +84,8 @@ class JamfClient(Model):
     @field_validator("server", mode="before")
     def validate_url(cls, v):
         """
-        Validates that the `~patcher.models.jamf_client.JamfClient.server` field contains a valid and properly
-        formatted URL by calling the `~patcher.models.jamf_client.JamfClient.valid_url` method.
+        Validates that the `~patcher.core.models.jamf_client.JamfClient.server` field contains a valid and properly
+        formatted URL by calling the `~patcher.core.models.jamf_client.JamfClient.valid_url` method.
 
         :param v: The server URL to validate.
         :type v: str

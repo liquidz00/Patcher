@@ -56,8 +56,6 @@ Source is organized into three layers under `src/patcher/`:
 
 The repo root also reserves an `api/` directory (sibling to `src/`) for the future Patcher API service — the canonical apps/patching-methods database. It is a separate deliverable and is **not** packaged into the Python distribution.
 
-Old import paths (`patcher.utils.X`, `patcher.client.X` for moved managers, `patcher.models.X`) currently resolve via re-export shims for backward compatibility during the restructure. New code should use the canonical paths above.
-
 ### Exit codes (defined in `cli/__init__.py` docstring)
 
 `0` success · `1` `PatcherError` · `2` unhandled · `3` `SetupError` · `4` `APIResponseError` · `130` Ctrl+C. Custom exceptions inherit from `PatcherError` and carry context kwargs (e.g. `raise APIResponseError("...", status_code=..., url=...)`); the formatter renders them as `message (key1: val1 | key2: val2)`.

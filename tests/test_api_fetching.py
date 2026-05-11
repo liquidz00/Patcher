@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from src.patcher.utils import exceptions
+from src.patcher.core import exceptions
 
 
 # Test getting policies (success, error)

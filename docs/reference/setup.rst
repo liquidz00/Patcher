@@ -5,13 +5,13 @@ Setup
 Setup State Manager
 -------------------
 
-.. autoclass:: patcher.client.setup.SetupStateManager
+.. autoclass:: patcher.cli.setup.SetupStateManager
     :members:
 
 Setup Class
 -----------
 
-.. autoclass:: patcher.client.setup.Setup
+.. autoclass:: patcher.cli.setup.Setup
     :members:
 
 Module Enums
@@ -20,13 +20,13 @@ Module Enums
 Setup Type
 ^^^^^^^^^^
 
-.. autoclass:: patcher.client.setup.SetupType
+.. autoclass:: patcher.cli.setup.SetupType
     :members:
     :undoc-members:
 
 Setup Stage
 ^^^^^^^^^^^
 
-.. autoclass:: patcher.client.setup.SetupStage
+.. autoclass:: patcher.cli.setup.SetupStage
     :members:
     :undoc-members:

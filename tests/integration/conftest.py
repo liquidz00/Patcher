@@ -18,8 +18,8 @@ from __future__ import annotations
 import os
 
 import pytest
-from src.patcher.client.config_manager import ConfigManager
 from src.patcher.client.token_manager import TokenManager
+from src.patcher.core.config_manager import ConfigManager
 
 # Jamf's published, world-readable test instance. Safe to commit — these
 # credentials are intentionally public and documented as such by Jamf.

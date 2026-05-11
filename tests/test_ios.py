@@ -1,8 +1,8 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from src.patcher.models.patch import PatchTitle
-from src.patcher.utils import exceptions
+from src.patcher.core import exceptions
+from src.patcher.core.models.patch import PatchTitle
 
 
 # Test valid response - iOS device IDs

@@ -2,8 +2,8 @@ from unittest.mock import patch
 
 import pytest
 from keyring.errors import KeyringError
-from src.patcher.client.config_manager import ConfigManager
-from src.patcher.utils.exceptions import CredentialError
+from src.patcher.core.config_manager import ConfigManager
+from src.patcher.core.exceptions import CredentialError
 
 
 @pytest.fixture

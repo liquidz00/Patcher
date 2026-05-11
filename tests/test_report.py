@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from src.patcher.utils.exceptions import PatcherError
+from src.patcher.core.exceptions import PatcherError
 
 
 # Test successful report processing

@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from src.patcher.client.setup import Setup, SetupStage, SetupType
-from src.patcher.utils.exceptions import SetupError
+from src.patcher.cli.setup import Setup, SetupStage, SetupType
+from src.patcher.core.exceptions import SetupError
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
@@ -261,7 +261,7 @@ async def test_bootstrap_noninteractive_success(setup_instance):
 @pytest.mark.asyncio
 async def test_bootstrap_noninteractive_token_failure_raises_setuperror(setup_instance):
     """If the token fetch fails, a SetupError is raised with a clear message."""
-    from src.patcher.utils.exceptions import TokenError
+    from src.patcher.core.exceptions import TokenError
 
     with patch("src.patcher.cli.setup.TokenManager") as MockTokenManager:
         mock_tm = MagicMock()

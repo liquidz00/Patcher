@@ -8,5 +8,5 @@ Installomator
 
     :ref:`Installomator Usage Docs <installomator>`
 
-.. autoclass:: patcher.utils.installomator.Installomator
+.. autoclass:: patcher.core.installomator.Installomator
     :members:

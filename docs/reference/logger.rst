@@ -6,8 +6,8 @@ Logging
 
 .. _child-logger:
 
-.. autoclass:: patcher.utils.logger.PatcherLog
+.. autoclass:: patcher.core.logger.PatcherLog
     :members:
 
-.. autoclass:: patcher.utils.logger.LogMe
+.. autoclass:: patcher.core.logger.LogMe
     :members:

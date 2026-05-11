@@ -64,7 +64,7 @@ def get_data_manager(ctx: click.Context) -> DataManager:
     :param ctx: Click context object.
     :type ctx: `click.Context <https://click.palletsprojects.com/en/stable/api/#click.Context>`_
     :return: The initialized ``DataManager`` instance.
-    :rtype: :class:`~patcher.utils.data_manager.DataManager`
+    :rtype: :class:`~patcher.core.data_manager.DataManager`
     """
     if "data_manager" not in ctx.obj or ctx.obj.get("data_manager") is None:
         ctx.obj["data_manager"] = DataManager(disable_cache=ctx.obj.get("disable_cache", False))
@@ -248,7 +248,7 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
     \f
     **Options**:
 
-    - ``full``: Resets credentials, UI elements, and property list file. Subsequently triggers :class:`~patcher.client.setup.Setup` to start setup.
+    - ``full``: Resets credentials, UI elements, and property list file. Subsequently triggers :class:`~patcher.cli.setup.Setup` to start setup.
     - ``UI``: Resets UI elements of PDF reports (header & footer text, custom font and optional logo).
     - ``creds``: Resets credentials stored in Keychain. Useful for testing Patcher in a non-production environment first. Allows specifying which credential to reset using the ``--credential`` option.
     - ``cache``: Removes all cached data from the cache directory stored in ``~/Library/Caches/Patcher``
@@ -424,7 +424,7 @@ async def export(
 
     .. seealso::
 
-        - :meth:`~patcher.client.report_manager.ReportManager.process_reports`
+        - :meth:`~patcher.core.report_manager.ReportManager.process_reports`
         - :meth:`~patcher.client.BaseAPIClient.concurrency`
         - :ref:`export`
 

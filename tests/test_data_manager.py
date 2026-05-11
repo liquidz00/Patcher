@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
-from src.patcher.models.patch import PatchTitle
-from src.patcher.utils.data_manager import DataManager, serialize_titles_to_dict
-from src.patcher.utils.exceptions import PatcherError
+from src.patcher.core.data_manager import DataManager, serialize_titles_to_dict
+from src.patcher.core.exceptions import PatcherError
+from src.patcher.core.models.patch import PatchTitle
 
 
 @pytest.fixture

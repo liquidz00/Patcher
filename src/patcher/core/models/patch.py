@@ -58,7 +58,7 @@ class PatchTitle(Model):
     @model_validator(mode="after")
     def calculate_completion_percent(self):
         """
-        Calculates the completion percentage and total hosts of a :class:`~patcher.models.patch.PatchTitle` object based on hosts patched and missing patch.
+        Calculates the completion percentage and total hosts of a :class:`~patcher.core.models.patch.PatchTitle` object based on hosts patched and missing patch.
 
         See :meth:`~patcher.client.api_client.ApiClient.get_summaries`
         """

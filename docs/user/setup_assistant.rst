@@ -48,23 +48,23 @@ Resumable Setup
 
 .. versionadded:: 2.2.0
 
-The setup assistant has been enhanced with **staged progress tracking**. This means that if setup fails or is interrupted (e.g., file issues, API errors, network loss), Patcher will resume where it left off the next time it is run. 
+The setup assistant has been enhanced with **staged progress tracking**. This means that if setup fails or is interrupted (e.g., file issues, API errors, network loss), Patcher will resume where it left off the next time it is run.
 
 This is accomplished using a hidden JSON file stored at:
 
 .. code-block:: console
 
     ~/Library/Application Support/Patcher/.setup_stage.json.
- 
-The file self-destructs (deletes) when setup is marked as completed and automatically managed by Patcher. It stores a stage marker that allows the tool to intelligently resume from the last successful step. 
 
-The stages are: 
+The file self-destructs (deletes) when setup is marked as completed and automatically managed by Patcher. It stores a stage marker that allows the tool to intelligently resume from the last successful step.
+
+The stages are:
 
 - ``not_started``: Initial stage
 - ``api_created``: API Role & Client has been saved to Keychain
 - ``has_token``: Bearer Token has been fetched
-- ``jamfclient_saved``: A :class:`~patcher.models.jamf_client.JamfClient` object has been created and saved to Keychain
-- ``completed``: Setup has been completed as expected. 
+- ``jamfclient_saved``: A :class:`~patcher.core.models.jamf_client.JamfClient` object has been created and saved to Keychain
+- ``completed``: Setup has been completed as expected.
 
 .. note::
 
@@ -73,13 +73,13 @@ The stages are:
 Forcing Setup to Start Over
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-There are circumstances in which you may want to rerun the setup process *from scratch*, even if some steps were already completed. For example: 
+There are circumstances in which you may want to rerun the setup process *from scratch*, even if some steps were already completed. For example:
 
 - You want to create a new API Client
 - You entered incorrect credentials and want a clean slate
 - You're testing Patcher out in a development environment
 
-You can do this by passing the ``--fresh`` flag to Patcher: 
+You can do this by passing the ``--fresh`` flag to Patcher:
 
 .. code-block:: console
 
@@ -105,8 +105,8 @@ The setup assistant will show a greeting message and then prompt you which setup
 Which Method to Use
 ^^^^^^^^^^^^^^^^^^^
 
-- **Select SSO** if you use Single Sign On (SSO) to sign into Jamf. This is due to the Jamf Pro API `not supporting the use of SSO <https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#authentication-and-authorization>`_ for authorization. Both an API role and API client will need to be created manually to pass credentials to the setup assistant. See :ref:`the Jamf Deployment Guide <api-creation>` for instructions on completing this. 
-- **Select Standard** if you'd like Patcher to automatically create an API Role & Client on your behalf. You will be prompted for your username and password during setup, but **these values are never stored permanently by Patcher**. They are *solely* used to obtain a basic token to create the API integration as expected. 
+- **Select SSO** if you use Single Sign On (SSO) to sign into Jamf. This is due to the Jamf Pro API `not supporting the use of SSO <https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#authentication-and-authorization>`_ for authorization. Both an API role and API client will need to be created manually to pass credentials to the setup assistant. See :ref:`the Jamf Deployment Guide <api-creation>` for instructions on completing this.
+- **Select Standard** if you'd like Patcher to automatically create an API Role & Client on your behalf. You will be prompted for your username and password during setup, but **these values are never stored permanently by Patcher**. They are *solely* used to obtain a basic token to create the API integration as expected.
 
 
 Storing Credentials

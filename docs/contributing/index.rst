@@ -102,7 +102,7 @@ By default, ``make test`` and ``make test-cov`` **exclude** integration tests so
 What gets exercised
 ^^^^^^^^^^^^^^^^^^^
 
-Integration tests use real :class:`~patcher.client.config_manager.ConfigManager`, :class:`~patcher.client.token_manager.TokenManager`, and :class:`~patcher.client.api_client.ApiClient` objects — no mocks at the HTTP boundary. This validates the full chain: credential loading, OAuth token flow, real HTTP calls, response parsing, and error handling against actual Jamf Pro responses.
+Integration tests use real :class:`~patcher.core.config_manager.ConfigManager`, :class:`~patcher.client.token_manager.TokenManager`, and :class:`~patcher.client.api_client.ApiClient` objects — no mocks at the HTTP boundary. This validates the full chain: credential loading, OAuth token flow, real HTTP calls, response parsing, and error handling against actual Jamf Pro responses.
 
 This is particularly useful when:
 
@@ -117,7 +117,7 @@ By default, integration tests target Jamf's `publicly-published dummy instance <
 
 .. note::
 
-    Jamf documents that the dummy instance data "is not comprehensive nor does it truly mirror a production Jamf Pro environment." Treat it as smoke-test coverage, not exhaustive validation. Tokens issued by the dummy instance are also short-lived, which is why ``seconds_remaining > 0`` is the test idiom for verifying token freshness rather than the more strict :attr:`~patcher.models.token.AccessToken.is_expired`.
+    Jamf documents that the dummy instance data "is not comprehensive nor does it truly mirror a production Jamf Pro environment." Treat it as smoke-test coverage, not exhaustive validation. Tokens issued by the dummy instance are also short-lived, which is why ``seconds_remaining > 0`` is the test idiom for verifying token freshness rather than the more strict :attr:`~patcher.core.models.token.AccessToken.is_expired`.
 
 Pointing at your own test tenant
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

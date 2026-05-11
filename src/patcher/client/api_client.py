@@ -3,12 +3,12 @@ import io
 from datetime import datetime
 from typing import Any
 
-from ..models.patch import PatchDevice, PatchTitle
-from ..utils.decorators import check_token
-from ..utils.exceptions import APIResponseError, PatcherError
-from ..utils.logger import LogMe
+from ..core.config_manager import ConfigManager
+from ..core.exceptions import APIResponseError, PatcherError
+from ..core.logger import LogMe
+from ..core.models.patch import PatchDevice, PatchTitle
 from . import BaseAPIClient
-from .config_manager import ConfigManager
+from .decorators import check_token
 from .token_manager import TokenManager
 
 
@@ -18,10 +18,10 @@ class ApiClient(BaseAPIClient):
         Provides methods for interacting with the Jamf API, specifically fetching patch data, device information, and OS versions.
 
         .. note::
-            All methods of the ApiClient class will raise an :exc:`~patcher.utils.exceptions.APIResponseError` if the API call is unsuccessful.
+            All methods of the ApiClient class will raise an :exc:`~patcher.core.exceptions.APIResponseError` if the API call is unsuccessful.
 
         :param config: Instance of ``ConfigManager`` for loading and storing credentials.
-        :type config: :class:`~patcher.client.config_manager.ConfigManager`
+        :type config: :class:`~patcher.core.config_manager.ConfigManager`
         :param concurrency: Maximum number of concurrent API requests. See :ref:`concurrency <concurrency>` in Usage docs.
         :type concurrency: int
         """
@@ -88,7 +88,7 @@ class ApiClient(BaseAPIClient):
         :param policy_ids: list of policy IDs to retrieve summaries for.
         :type policy_ids: list[str]
         :return: list of ``PatchTitle`` objects containing patch summaries.
-        :rtype: list[:class:`~patcher.models.patch.PatchTitle`]
+        :rtype: list[:class:`~patcher.core.models.patch.PatchTitle`]
         """
         urls = [
             f"{self.jamf_url}/api/v2/patch-software-title-configurations/{policy}/patch-summary"
@@ -124,7 +124,7 @@ class ApiClient(BaseAPIClient):
         :param title_id: The software title ID to retrieve the patch report for.
         :type title_id: str
         :return: List of all PatchDevice objects for the title.
-        :rtype: list[:class:`~patcher.models.patch.PatchDevice`]
+        :rtype: list[:class:`~patcher.core.models.patch.PatchDevice`]
         :raises APIResponseError: If the CSV export fails or returns non-200 status.
         """
         headers = await self._headers()
@@ -181,7 +181,7 @@ class ApiClient(BaseAPIClient):
         :param title_ids: List of software title IDs to retrieve reports for.
         :type title_ids: list[str]
         :return: Dictionary mapping title IDs to lists of PatchDevice objects.
-        :rtype: dict[str, list[:class:`~patcher.models.patch.PatchDevice`]]
+        :rtype: dict[str, list[:class:`~patcher.core.models.patch.PatchDevice`]]
         """
         self.log.debug(f"Fetching patch reports for {len(title_ids)} titles")
         results = {}
@@ -256,7 +256,7 @@ class ApiClient(BaseAPIClient):
         Fetches all possible app names for each ``PatchTitle`` object provided.
 
         :param patch_titles: list of ``PatchTitle`` objects.
-        :type patch_titles: list[:class:`~patcher.models.patch.PatchTitle`]
+        :type patch_titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
         :return: list of dictionaries containing the ``PatchTitle`` title and corresponding ``appName``
         :rtype: list[dict[str, Any]]
         """

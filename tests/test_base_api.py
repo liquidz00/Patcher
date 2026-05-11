@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 import pytest
-from src.patcher.utils import exceptions
+from src.patcher.core import exceptions
 
 
 # Tests for constructors and property getters

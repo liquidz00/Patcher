@@ -8,15 +8,15 @@ import pytest
 from fpdf import FPDF
 from src.patcher.client import BaseAPIClient
 from src.patcher.client.api_client import ApiClient
-from src.patcher.client.plist_manager import PropertylistManager
-from src.patcher.client.report_manager import ReportManager
 from src.patcher.client.token_manager import TokenManager
-from src.patcher.client.ui_manager import UIConfigManager
-from src.patcher.models.jamf_client import JamfClient
-from src.patcher.models.patch import PatchTitle
-from src.patcher.models.token import AccessToken
-from src.patcher.utils.data_manager import DataManager
-from src.patcher.utils.pdf_report import PDFReport
+from src.patcher.core.data_manager import DataManager
+from src.patcher.core.models.jamf_client import JamfClient
+from src.patcher.core.models.patch import PatchTitle
+from src.patcher.core.models.token import AccessToken
+from src.patcher.core.pdf_report import PDFReport
+from src.patcher.core.plist_manager import PropertylistManager
+from src.patcher.core.report_manager import ReportManager
+from src.patcher.core.ui_manager import UIConfigManager
 
 
 @pytest.fixture

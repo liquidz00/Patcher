@@ -2,11 +2,11 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
-from src.patcher.client.analyze import Analyzer, FilterCriteria
+from src.patcher.core.analyze import Analyzer, FilterCriteria
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
-from src.patcher.models.patch import PatchTitle
+from src.patcher.core.models.patch import PatchTitle
 
 # Mock DataFrame for testing
 mock_data = {

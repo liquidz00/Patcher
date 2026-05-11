@@ -4,5 +4,5 @@
 Data Manager
 =============
 
-.. autoclass:: patcher.utils.data_manager.DataManager
+.. autoclass:: patcher.core.data_manager.DataManager
     :members:

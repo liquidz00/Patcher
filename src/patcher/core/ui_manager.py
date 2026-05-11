@@ -188,7 +188,7 @@ class UIConfigManager:
         font choices, and an optional branding logo.
 
         .. note::
-            This function is used solely by the :class:`~patcher.client.setup.Setup` class during initial setup.
+            This function is used solely by the :class:`~patcher.cli.setup.Setup` class during initial setup.
 
         """
         self.log.debug("Prompting user for UI setup.")
@@ -260,8 +260,8 @@ class UIConfigManager:
         Configures the logo file for PDF reports based on user input.
 
         If a logo file is specified, it is validated and copied to Patcher's Application Support directory.
-        Similar to :meth:`~patcher.client.ui_manager.UIConfigManager.configure_font` this method is
-        solely used in conjunction with the :class:`~patcher.client.setup.Setup` class.
+        Similar to :meth:`~patcher.core.ui_manager.UIConfigManager.configure_font` this method is
+        solely used in conjunction with the :class:`~patcher.cli.setup.Setup` class.
 
         :return: The path to the saved logo file, or None if no logo is configured.
         :rtype: str

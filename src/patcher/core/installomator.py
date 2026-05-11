@@ -166,7 +166,7 @@ class Installomator:
         :type name: str
         :return: The constructed ``Label`` object, or ``None`` if the fragment
             cannot be fetched, is ignored by Team ID, or fails validation.
-        :rtype: :class:`~patcher.models.label.Label` | None
+        :rtype: :class:`~patcher.core.models.label.Label` | None
         """
         key = name.lower()
         if key in self._labels_by_name:
@@ -227,7 +227,7 @@ class Installomator:
         :return: List of successfully parsed ``Label`` objects. Labels that
             fail to fetch, hit an ignored Team ID, or fail validation are
             silently omitted (warnings are logged).
-        :rtype: list[:class:`~patcher.models.label.Label`]
+        :rtype: list[:class:`~patcher.core.models.label.Label`]
         """
         if names is None:
             names_iter = await self.list_available_labels()
@@ -341,7 +341,7 @@ class Installomator:
         :param patch_titles: The list of ``PatchTitle`` objects to match. Each
             successfully matched title has its ``install_label`` attribute
             extended in place.
-        :type patch_titles: list[:class:`~patcher.models.patch.PatchTitle`]
+        :type patch_titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
         """
         self.log.debug("Starting label-patch title matching process.")
 

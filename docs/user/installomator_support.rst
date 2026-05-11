@@ -81,7 +81,7 @@ To retrieve corresponding Application names for Software Titles, a separate call
       ]
     }
 
-When present, all ``appName`` values are appended to a list and returned along with the software title (:class:`~patcher.models.patch.PatchTitle`) name. This mapping is then normalized and used to intelligently match titles across different naming formats.
+When present, all ``appName`` values are appended to a list and returned along with the software title (:class:`~patcher.core.models.patch.PatchTitle`) name. This mapping is then normalized and used to intelligently match titles across different naming formats.
 
 Unmatched Applications
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -112,14 +112,14 @@ Understanding the JSON Format
 
 The JSON file will consist of a list of objects, where each object represents a software title that could not be matched with an Installomator label. Each object contains the following keys:
 
-- ``"Patch"`` (*string*): The ``title`` attribute of the :class:`~patcher.models.patch.PatchTitle` in question.
+- ``"Patch"`` (*string*): The ``title`` attribute of the :class:`~patcher.core.models.patch.PatchTitle` in question.
 - ``"App Names"`` (*list of strings*): The application names extracted from the :ref:`Jamf API response <app_name_response>` (if present), corresponding to that software title.
 
 How This Data Is Used
 ~~~~~~~~~~~~~~~~~~~~~~
 
 - If an Installomator label is later added for an application, it will be removed from ``unmatched_apps.json`` during the next match attempt.
-- The presence of ``App Names`` helps identify applications with multiple labels (e.g., ``zulujdk8``, ``zulujdk9``). :class:`~patcher.models.patch.PatchTitle` objects store these labels in the ``install_label`` list attribute.
+- The presence of ``App Names`` helps identify applications with multiple labels (e.g., ``zulujdk8``, ``zulujdk9``). :class:`~patcher.core.models.patch.PatchTitle` objects store these labels in the ``install_label`` list attribute.
 - Users can use this file to :ghwiki:`manually create labels <Installomator:Label Variables Reference#building a new label>` or report missing mappings.
 
 Ignored Software Titles

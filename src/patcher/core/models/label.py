@@ -103,7 +103,7 @@ class Label(Model):
         :param data: API response payload to parse for object creation.
         :type data: dict[str, Any]
         :return: The configured ``Label`` object.
-        :rtype: :class:`~patcher.models.label.Label`
+        :rtype: :class:`~patcher.core.models.label.Label`
         """
         # noinspection PyUnresolvedReferences
         field_names = cls.model_fields.keys()

@@ -6,5 +6,5 @@
 Report Manager
 ==============
 
-.. autoclass:: patcher.client.report_manager.ReportManager
+.. autoclass:: patcher.core.report_manager.ReportManager
     :members:
