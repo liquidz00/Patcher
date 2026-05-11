@@ -93,8 +93,8 @@ upgrade:
 	$(UV) sync --extra dev
 
 test:
-	@echo "Running all tests..."
-	$(UV) run pytest tests/ -v
+	@echo "Running unit tests (default; excludes integration)..."
+	$(UV) run pytest tests/ -v -m "not integration"
 
 test-unit:
 	@echo "Running unit tests only..."
@@ -113,8 +113,8 @@ test-quick:
 	$(UV) run pytest tests/ -q
 
 test-cov:
-	@echo "Running unit tests with coverage..."
-	$(UV) run pytest tests/ --cov=src --cov-report=term-missing
+	@echo "Running unit tests with coverage (excludes integration)..."
+	$(UV) run pytest tests/ --cov=src --cov-report=term-missing -m "not integration"
 
 test-cov-html:
 	@echo "Generating HTML coverage report..."
