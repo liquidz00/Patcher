@@ -71,7 +71,10 @@ Other command options available are:
     Removes all generated documentation files from the ``docs/_build`` directory.
 
 ``test``
-    Runs the unit tests using the ``pytest`` library.
+    Runs the unit tests using the ``pytest`` library. **Integration tests are excluded** by default — see :ref:`integration_tests` below.
+
+``test-integration``
+    Runs the integration test suite against a real Jamf Pro instance. See :ref:`integration_tests` below for details and credential overrides.
 
 ``lint``
     Checks the code in both the ``src`` and ``tests`` directories for formatting and style issues.
@@ -82,6 +85,58 @@ Other command options available are:
 .. tip::
 
     It is not required to run the ``make format`` command as the GitHub runner will do this automatically. However, it is encouraged to run the ``make lint`` command before submitting your PR.
+
+.. _integration_tests:
+
+Integration Tests
+-----------------
+
+Patcher includes an opt-in integration test suite that exercises a real Jamf Pro API instance instead of mocked components. Integration tests live in ``tests/integration/`` and are marked with the ``integration`` pytest marker.
+
+By default, ``make test`` and ``make test-cov`` **exclude** integration tests so the standard development loop stays fast and offline. Run them explicitly via:
+
+.. code-block:: console
+
+    $ make test-integration
+
+What gets exercised
+^^^^^^^^^^^^^^^^^^^
+
+Integration tests use real :class:`~patcher.client.config_manager.ConfigManager`, :class:`~patcher.client.token_manager.TokenManager`, and :class:`~patcher.client.api_client.ApiClient` objects — no mocks at the HTTP boundary. This validates the full chain: credential loading, OAuth token flow, real HTTP calls, response parsing, and error handling against actual Jamf Pro responses.
+
+This is particularly useful when:
+
+- Verifying that a refactor (e.g. the httpx transport migration) hasn't changed observable behavior
+- Reproducing a bug that only surfaces against real API responses
+- Smoke-testing before a release
+
+Default target instance
+^^^^^^^^^^^^^^^^^^^^^^^
+
+By default, integration tests target Jamf's `publicly-published dummy instance <https://developer.jamf.com/jamf-pro/docs/populating-dummy-data>`_ at ``https://dummy.jamfcloud.com``. The credentials are public and intentionally shareable. No setup is required to run the suite against this default.
+
+.. note::
+
+    Jamf documents that the dummy instance data "is not comprehensive nor does it truly mirror a production Jamf Pro environment." Treat it as smoke-test coverage, not exhaustive validation. Tokens issued by the dummy instance are also short-lived, which is why ``seconds_remaining > 0`` is the test idiom for verifying token freshness rather than the more strict :attr:`~patcher.models.token.AccessToken.is_expired`.
+
+Pointing at your own test tenant
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To run the suite against your own Jamf Pro tenant (e.g. a Jamf Technology Partner test instance), set these environment variables before invoking the suite:
+
+.. code-block:: console
+
+    $ export PATCHER_INTEGRATION_URL="https://your-tenant.jamfcloud.com"
+    $ export PATCHER_INTEGRATION_CLIENT_ID="..."
+    $ export PATCHER_INTEGRATION_CLIENT_SECRET="..."
+    $ make test-integration
+
+Each environment variable falls back independently — you can override just the URL while keeping the dummy credentials, for example.
+
+Not in CI
+^^^^^^^^^
+
+The integration suite does **not** run in the default GitHub Actions workflow. Hitting a shared dummy instance on every PR would be discourteous and slow CI considerably. Run integration tests locally before pushing significant changes, or trigger them through a manual workflow when wanted.
 
 Next Steps
 ----------

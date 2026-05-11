@@ -118,13 +118,21 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`,
 ## Testing
 
 - `pytest` + `pytest-asyncio` + `pytest-mock`. `unittest.mock` for patching.
-- Tests are in `tests/` (flat layout — no nested directories). Shared
-  fixtures in `tests/conftest.py`.
+- Tests are in `tests/` — unit tests are flat at the top level; integration
+  tests live in `tests/integration/`. Shared unit-test fixtures in
+  `tests/conftest.py`; integration-specific fixtures in
+  `tests/integration/conftest.py`.
 - All async tests must be decorated with `@pytest.mark.asyncio`.
-- **No live Jamf Pro instance** is available for testing. Every test that
-  touches the API surface must mock the relevant client (`ApiClient`,
-  `BaseAPIClient`, `TokenManager`). End-to-end smoke testing against a real
-  instance is a release-time concern, not a per-PR concern.
+- **No dedicated live Jamf Pro instance** is available for testing. Every
+  unit test that touches the API surface must mock the relevant client
+  (`ApiClient`, `BaseAPIClient`, `TokenManager`). Mock-based tests are the
+  primary safety net.
+- **Integration tests against `dummy.jamfcloud.com`** (Jamf's published
+  public test instance) are available via `make test-integration`, opt-in
+  and excluded from the default `make test`. Use them as a smoke layer for
+  significant changes (e.g. transport migrations) — but they are NOT a
+  substitute for mocked unit tests, since the dummy instance data isn't
+  comprehensive. See `docs/contributing/index.rst` for details.
 - **Mock-friendly design**: when adding new API-touching code, isolate the
   HTTP call in a method that's easy to mock at the test boundary. Don't mix
   business logic and HTTP construction in one place.
