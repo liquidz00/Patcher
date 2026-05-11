@@ -6,6 +6,13 @@ class PatcherError(Exception):
     def __init__(self, message: str = None, **kwargs):
         self.message = message or self.default_message
         self.context = kwargs
+        # Expose context entries as attributes so callers can do
+        # `getattr(err, "not_found", False)` or `err.status_code` directly.
+        # Without this, the 404 short-circuit in Installomator.match() (which
+        # uses `getattr(e, "not_found", False)`) silently never fires.
+        for key, value in kwargs.items():
+            if not hasattr(self, key):
+                setattr(self, key, value)
         self.formatted_message = self.format_message()
         super().__init__(self.formatted_message)
 
