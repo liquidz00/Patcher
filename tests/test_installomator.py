@@ -22,10 +22,6 @@ from src.patcher.core.exceptions import APIResponseError
 from src.patcher.core.installomator import InstallomatorClient
 from src.patcher.core.models.patch import PatchTitle
 
-# ---------------------------------------------------------------------- #
-# Fixtures
-# ---------------------------------------------------------------------- #
-
 
 def _sample_fragment(
     *,
@@ -67,11 +63,6 @@ def iom(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> InstallomatorClient:
     instance.review_file = tmp_path / "unmatched_apps.json"
     instance.api = AsyncMock()
     return instance
-
-
-# ---------------------------------------------------------------------- #
-# list_available_labels
-# ---------------------------------------------------------------------- #
 
 
 @pytest.mark.asyncio
@@ -120,11 +111,6 @@ async def test_list_available_labels_raises_on_fetch_failure(iom: InstallomatorC
 
     with pytest.raises(PatcherError, match="Labels.txt"):
         await iom.list_available_labels()
-
-
-# ---------------------------------------------------------------------- #
-# get_label
-# ---------------------------------------------------------------------- #
 
 
 @pytest.mark.asyncio
@@ -196,11 +182,6 @@ async def test_get_label_is_case_insensitive(iom: InstallomatorClient) -> None:
     assert label_lower is label_upper  # same cached instance
 
 
-# ---------------------------------------------------------------------- #
-# get_labels
-# ---------------------------------------------------------------------- #
-
-
 @pytest.mark.asyncio
 async def test_get_labels_with_explicit_names(iom: InstallomatorClient) -> None:
     iom.api.fetch_text.return_value = _sample_fragment()
@@ -254,11 +235,6 @@ async def test_get_labels_skips_failed_fetches(iom: InstallomatorClient) -> None
     assert labels[0].name == "Google Chrome"
 
 
-# ---------------------------------------------------------------------- #
-# Matching helpers
-# ---------------------------------------------------------------------- #
-
-
 def test_normalize_lowercases_strips_spaces_and_dots() -> None:
     assert InstallomatorClient._normalize("Google Chrome") == "googlechrome"
     assert InstallomatorClient._normalize("Node.js") == "nodejs"
@@ -295,11 +271,6 @@ def test_match_fuzzy_hits_above_threshold(iom: InstallomatorClient) -> None:
 def test_match_fuzzy_misses_below_threshold(iom: InstallomatorClient) -> None:
     matched = iom._match_fuzzy(["zzz-unrelated"], {"googlechrome"})
     assert matched == []
-
-
-# ---------------------------------------------------------------------- #
-# match() — full pipeline
-# ---------------------------------------------------------------------- #
 
 
 def _make_patch_title(title: str, title_id: str = "1") -> PatchTitle:

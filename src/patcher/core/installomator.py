@@ -65,10 +65,6 @@ class InstallomatorClient:
         self._available_names: set[str] | None = None
         self._labels_by_name: dict[str, Label] = {}
 
-    # ------------------------------------------------------------------ #
-    # Parsing & label construction
-    # ------------------------------------------------------------------ #
-
     @staticmethod
     def _parse(fragment: str) -> dict[str, Any]:
         """Parses the passed fragment string and returns dictionary of formatted key-values."""
@@ -128,10 +124,6 @@ class InstallomatorClient:
                 f"Skipping invalid Installomator label: {script_name} due to validation error: {e}"
             )
             return None
-
-    # ------------------------------------------------------------------ #
-    # Discovery + fetch (public API)
-    # ------------------------------------------------------------------ #
 
     async def list_available_labels(self) -> set[str]:
         """
@@ -254,10 +246,6 @@ class InstallomatorClient:
         results = await asyncio.gather(*tasks)
         return [label for label in results if label is not None]
 
-    # ------------------------------------------------------------------ #
-    # Matching helpers (mostly unchanged from the prior implementation)
-    # ------------------------------------------------------------------ #
-
     @staticmethod
     def _normalize(app_name: str) -> str:
         """Normalizes app names to better match Installomator labels (e.g. nodejs)."""
@@ -333,10 +321,6 @@ class InstallomatorClient:
         self.review_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.review_file, "w") as file:
             json.dump(unmatched_apps, file, indent=4)  # type: ignore
-
-    # ------------------------------------------------------------------ #
-    # match() — orchestrator
-    # ------------------------------------------------------------------ #
 
     async def match(self, patch_titles: list[PatchTitle]) -> None:
         """

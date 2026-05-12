@@ -133,11 +133,6 @@ async def test_create_client(http_client):
         assert mock_fetch.call_count == 2
 
 
-# ---------------------------------------------------------------------- #
-# httpx transport: `http` property, `aclose`, `fetch_text`
-# ---------------------------------------------------------------------- #
-
-
 @pytest.mark.asyncio
 async def test_http_property_lazy_init(http_client):
     """First access constructs the AsyncClient; second access returns the same instance."""

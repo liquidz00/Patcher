@@ -16,17 +16,6 @@ from .models.patch import PatchTitle
 _log = LogMe("analyze")
 
 
-# --------------------------------------------------------------------------- #
-# Patch-title list transforms
-#
-# These were methods on the legacy ``ReportManager`` class until that class was
-# retired in favor of the :class:`PatcherClient` facade. They're pure(-ish)
-# transforms over ``list[PatchTitle]`` — useful both for the CLI export
-# workflow (called by ``cli/report.py::process_reports``) and for library
-# callers building their own pipelines.
-# --------------------------------------------------------------------------- #
-
-
 async def sort_titles(titles: list[PatchTitle], sort_key: str) -> list[PatchTitle]:
     """Sort ``titles`` by the named attribute (case-insensitive, spaces tolerated).
 
@@ -183,11 +172,6 @@ def calculate_ios_on_latest(
             "Division by zero encountered during iOS Device percentage calculation.",
             error_msg=str(e),
         )
-
-
-# --------------------------------------------------------------------------- #
-# Analyzer class + Filter/TrendCriteria enums (unchanged)
-# --------------------------------------------------------------------------- #
 
 
 class BaseEnum(Enum):
