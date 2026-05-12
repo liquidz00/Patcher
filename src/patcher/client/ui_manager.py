@@ -175,7 +175,7 @@ class UIConfigManager:
             self.log.error(f"Failed resetting UI-config settings. Details: {e}")
             return False
 
-    def setup_ui(self):
+    async def setup_ui(self):
         """
         Guides the user through configuring UI settings for PDF reports, including header/footer text,
         font choices, and an optional branding logo.
@@ -188,17 +188,20 @@ class UIConfigManager:
         defaults = UIDefaults()
         self._download_fonts()
 
+        header_text = await click.prompt(
+            "Enter Header Text for PDF reports",
+            default=self.config.get(UIConfigKeys.HEADER.value, defaults.header_text),
+            show_default=True,
+        )
+        footer_text = await click.prompt(
+            "Enter Footer Text for PDF reports",
+            default=self.config.get(UIConfigKeys.FOOTER.value, defaults.footer_text),
+            show_default=True,
+        )
+
         settings = {
-            UIConfigKeys.HEADER.value: click.prompt(
-                "Enter Header Text for PDF reports",
-                default=self.config.get(UIConfigKeys.HEADER.value, defaults.header_text),
-                show_default=True,
-            ),
-            UIConfigKeys.FOOTER.value: click.prompt(
-                "Enter Footer Text for PDF reports",
-                default=self.config.get(UIConfigKeys.FOOTER.value, defaults.footer_text),
-                show_default=True,
-            ),
+            UIConfigKeys.HEADER.value: header_text,
+            UIConfigKeys.FOOTER.value: footer_text,
             UIConfigKeys.FONT_NAME.value: "Assistant",
             UIConfigKeys.REG_FONT_PATH.value: str(self._get_font_paths()["regular"]),
             UIConfigKeys.BOLD_FONT_PATH.value: str(self._get_font_paths()["bold"]),
@@ -206,19 +209,19 @@ class UIConfigManager:
         }
 
         if click.confirm("Would you like to use a custom font?", default=False):
-            settings.update(self.configure_font())
+            settings.update(await self.configure_font())
 
         if click.confirm(
             "Would you like to use a custom logo in your exported PDF reports?", default=False
         ):
-            settings[UIConfigKeys.LOGO_PATH.value] = self.configure_logo()
+            settings[UIConfigKeys.LOGO_PATH.value] = await self.configure_logo()
 
         if click.confirm(
             "Would you like to use a custom header color in your exported HTML reports?",
             default=False,
         ):
             header_color = str(
-                click.prompt("Enter header color value (Hex format)")
+                await click.prompt("Enter header color value (Hex format)")
             )  # default set at model level
             if not header_color.startswith("#"):
                 header_color = f"#{header_color}"
@@ -226,7 +229,7 @@ class UIConfigManager:
 
         self.config = settings
 
-    def configure_font(self) -> dict[str, str]:
+    async def configure_font(self) -> dict[str, str]:
         """
         Allows the user to specify a custom font or use the default provided by the application.
         The chosen fonts are copied to the appropriate directory for use in PDF report generation.
@@ -234,9 +237,9 @@ class UIConfigManager:
         :return: A dictionary containing the font name, regular font path, and bold font path.
         :rtype: dict[str, str]
         """
-        font_name = click.prompt("Enter custom font name", default="CustomFont")
-        regular_src = Path(click.prompt("Enter the path to the regular font file"))
-        bold_src = Path(click.prompt("Enter the path to the bold font file"))
+        font_name = await click.prompt("Enter custom font name", default="CustomFont")
+        regular_src = Path(await click.prompt("Enter the path to the regular font file"))
+        bold_src = Path(await click.prompt("Enter the path to the bold font file"))
 
         regular_dest, bold_dest = self._get_font_paths()["regular"], self._get_font_paths()["bold"]
         self._copy_file(regular_src, regular_dest)
@@ -248,7 +251,7 @@ class UIConfigManager:
             UIConfigKeys.BOLD_FONT_PATH.value: str(bold_dest),
         }
 
-    def configure_logo(self) -> str:
+    async def configure_logo(self) -> str:
         """
         Configures the logo file for PDF reports based on user input.
 
@@ -262,7 +265,7 @@ class UIConfigManager:
         :raises PatcherError: If the provided logo fails pillow validation.
         :raises PatcherError: If the logo file could not be copied to the destination path.
         """
-        logo_src = Path(click.prompt("Enter the path to the logo file"))
+        logo_src = Path(await click.prompt("Enter the path to the logo file"))
         if not logo_src.exists():
             raise SetupError(
                 "The specified logo path does not exist, please check the path and try again.",

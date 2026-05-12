@@ -209,7 +209,7 @@ class Setup:
         for key, value in creds.items():
             self.config.set_credential(key, value)
 
-    def prompt_credentials(self, setup_type: SetupType) -> dict:
+    async def prompt_credentials(self, setup_type: SetupType) -> dict:
         """
         Prompt for credentials based on the credential type.
 
@@ -221,15 +221,15 @@ class Setup:
         self.log.info(f"Prompting user for {setup_type.value} credentials.")
         if setup_type == SetupType.STANDARD:
             return {
-                "URL": click.prompt("Enter your Jamf Pro URL"),
-                "USERNAME": click.prompt("Enter your Jamf Pro username"),
-                "PASSWORD": click.prompt("Enter your Jamf Pro password", hide_input=True),
+                "URL": await click.prompt("Enter your Jamf Pro URL"),
+                "USERNAME": await click.prompt("Enter your Jamf Pro username"),
+                "PASSWORD": await click.prompt("Enter your Jamf Pro password", hide_input=True),
             }
         elif setup_type == SetupType.SSO:
             return {
-                "URL": click.prompt("Enter your Jamf Pro URL"),
-                "CLIENT_ID": click.prompt("Enter your API Client ID"),
-                "CLIENT_SECRET": click.prompt("Enter your API Client Secret"),
+                "URL": await click.prompt("Enter your Jamf Pro URL"),
+                "CLIENT_ID": await click.prompt("Enter your API Client ID"),
+                "CLIENT_SECRET": await click.prompt("Enter your API Client Secret"),
             }
 
     def validate_creds(
@@ -355,7 +355,7 @@ class Setup:
         :type setup_type: :class:`~patcher.client.setup.SetupType`
         :raises SetupError: If credentials are missing or a token cannot be obtained.
         """
-        creds = self.prompt_credentials(setup_type)
+        creds = await self.prompt_credentials(setup_type)
         self.prompt_installomator()
         if setup_type == SetupType.STANDARD:
             self.validate_creds(creds, ("USERNAME", "PASSWORD", "URL"), SetupType.STANDARD)
@@ -430,7 +430,7 @@ class Setup:
         :type _setup_type: :class:`~patcher.client.setup.SetupType`
         """
         await animator.stop()
-        self.ui_config.setup_ui()
+        await self.ui_config.setup_ui()
         self.state_manager.save_stage(SetupStage.COMPLETED)
         self.stage = SetupStage.COMPLETED
         self._mark_completion(value=True)
@@ -523,19 +523,27 @@ class Setup:
         elif not self.state_manager.state_path.exists():
             self._greet()
 
-        choice = click.prompt(
-            "Choose setup method (1: Standard setup, 2: SSO setup)", type=int, default=1
-        )
-
-        if choice in setup_type_map:
-            while self.stage != SetupStage.COMPLETED:
-                handler = self.stage_map.get(self.stage)
-                if handler is None:
-                    raise SetupError("Missing handler for saved stage", stage=self.stage)
-                await handler(animator, setup_type_map[choice])
-        else:
+        # Loop until a valid setup type is chosen. Previously this branch
+        # recursively called ``self.start()`` on invalid input, which both lost
+        # the ``animator``/``fresh`` arguments and blew the Python stack with
+        # ~1000 frames if the prompt produced a non-int (e.g. asyncclick's
+        # async-aware ``prompt`` returning a coroutine instead of the value
+        # because the caller didn't ``await`` it).
+        while True:
+            choice = await click.prompt(
+                "Choose setup method (1: Standard setup, 2: SSO setup)",
+                type=int,
+                default=1,
+            )
+            if choice in setup_type_map:
+                break
             click.echo(click.style("Invalid choice, please choose 1 or 2", fg="red"))
-            await self.start()
+
+        while self.stage != SetupStage.COMPLETED:
+            handler = self.stage_map.get(self.stage)
+            if handler is None:
+                raise SetupError("Missing handler for saved stage", stage=self.stage)
+            await handler(animator, setup_type_map[choice])
 
     def reset_setup(self) -> bool:
         """
