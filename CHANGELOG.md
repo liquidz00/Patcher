@@ -100,6 +100,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sphinx documentation builds no longer fail under Read the Docs' `-W` flag: the custom `styled_params` extension now declares its parallel-read/write safety, matching the pattern already used by the `ghwiki` extension.
 - Integration test fixture (`iom`) now patches `ApiClient` before `Installomator` construction, so the Linux CI runners (which lack a keyring backend) no longer fail with `NoKeyringError` when constructing the test target.
 
+## [v2.4.1] - 2026-05-12
+### Fixed
+- **`RecursionError` during setup on Python 3.14 / asyncclick 8.2+** ([#58](https://github.com/liquidz00/Patcher/issues/58)). `click.prompt` became an `async def` in asyncclick 8.2; calling it without `await` returns an un-awaited coroutine that never matches the expected setup-type choice, falls into the "Invalid choice" branch, and recursively re-invokes `Setup.start()` until the Python stack is exhausted. Every `click.prompt` call site in `Setup`, `UIConfigManager`, and the `reset` command now uses `await`. `Setup.prompt_credentials`, `UIConfigManager.setup_ui`/`configure_font`/`configure_logo` are now `async def` to support the awaitable prompts. The invalid-choice path in `Setup.start()` is also refactored from recursive retry to a `while True` loop so the same recursion footgun can't recur from any future input-validation regression.
+
 ## [v2.4.0] - 2026-05-04
 ### Added
 - JSON output format for exported patch reports (`--format=json`). Suitable for machine-consumable pipelines and downstream automation.

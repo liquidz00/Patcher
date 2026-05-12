@@ -314,7 +314,7 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
             log.info("Resetting UI elements...")
             if ui_config.reset_config():
                 # Only prompt to setup UI if reset_config was successful
-                setup.prompt_ui_settings()
+                await setup.prompt_ui_settings()
         elif kind.lower() == "creds":
             log.info(f"Resetting credentials... (specific: {credential if credential else 'all'})")
 
@@ -323,20 +323,20 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
             # entries first.
             match credential:
                 case "url":
-                    new_url = click.prompt("Enter your Jamf Pro URL")
+                    new_url = await click.prompt("Enter your Jamf Pro URL")
                     config.set_credential("URL", new_url)
                 case "client_id":
-                    new_client_id = click.prompt("Enter your API Client ID")
+                    new_client_id = await click.prompt("Enter your API Client ID")
                     config.set_credential("CLIENT_ID", new_client_id)
                 case "client_secret":
-                    new_client_secret = click.prompt("Enter your API Client Secret")
+                    new_client_secret = await click.prompt("Enter your API Client Secret")
                     config.set_credential("CLIENT_SECRET", new_client_secret)
                 case None:
                     log.info("Attempting to delete all credentials from keychain...")
                     cred_map = {
-                        "URL": click.prompt("Enter your Jamf Pro URL"),
-                        "CLIENT_ID": click.prompt("Enter your API Client ID"),
-                        "CLIENT_SECRET": click.prompt("Enter your API Client Secret"),
+                        "URL": await click.prompt("Enter your Jamf Pro URL"),
+                        "CLIENT_ID": await click.prompt("Enter your API Client ID"),
+                        "CLIENT_SECRET": await click.prompt("Enter your API Client Secret"),
                     }
                     for k, v in cred_map.items():
                         config.set_credential(k, v)

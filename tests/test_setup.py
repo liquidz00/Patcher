@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from src.patcher.cli.setup import Setup, SetupType
@@ -47,28 +47,67 @@ def test_setup_type_enum():
     assert SetupType.SSO.value == "sso"
 
 
-def testprompt_credentials_standard(setup_instance):
-    # Mock the entire prompt_credentials method to avoid asyncclick complexity
+@pytest.mark.asyncio
+async def testprompt_credentials_standard(setup_instance):
+    # ``prompt_credentials`` is async because it awaits ``click.prompt`` (which
+    # is an ``async def`` in asyncclick 8.2+). See #58.
     expected_creds = {
         "URL": "https://example.com",
         "USERNAME": "username",
         "PASSWORD": "password",
     }
-    with patch.object(setup_instance, "prompt_credentials", return_value=expected_creds):
-        creds = setup_instance.prompt_credentials(SetupType.STANDARD)
+    with patch.object(setup_instance, "prompt_credentials", AsyncMock(return_value=expected_creds)):
+        creds = await setup_instance.prompt_credentials(SetupType.STANDARD)
         assert creds == expected_creds
 
 
-def testprompt_credentials_sso(setup_instance):
-    # Mock the entire prompt_credentials method to avoid asyncclick complexity
+@pytest.mark.asyncio
+async def testprompt_credentials_sso(setup_instance):
     expected_creds = {
         "URL": "https://example.com",
         "CLIENT_ID": "client_id",
         "CLIENT_SECRET": "client_secret",
     }
-    with patch.object(setup_instance, "prompt_credentials", return_value=expected_creds):
-        creds = setup_instance.prompt_credentials(SetupType.SSO)
+    with patch.object(setup_instance, "prompt_credentials", AsyncMock(return_value=expected_creds)):
+        creds = await setup_instance.prompt_credentials(SetupType.SSO)
         assert creds == expected_creds
+
+
+def test_methods_with_click_prompt_are_async():
+    """Regression for #58 — ``click.prompt`` is ``async def`` in asyncclick 8.2+;
+    methods that call it must be ``async def`` so they can ``await`` it.
+
+    The original bug was that ``Setup.prompt_credentials``,
+    ``prompt_ui_settings``, ``prompt_font_config``, and ``prompt_logo_config``
+    called ``click.prompt`` synchronously, producing un-awaited coroutines
+    that silently broke setup with ``RuntimeWarning`` and then
+    ``RecursionError``.
+    """
+    import inspect
+
+    for method in (
+        Setup.prompt_credentials,
+        Setup.prompt_ui_settings,
+        Setup.prompt_font_config,
+        Setup.prompt_logo_config,
+    ):
+        assert inspect.iscoroutinefunction(method), (
+            f"{method.__qualname__} calls click.prompt and must be async. See issue #58."
+        )
+
+
+def test_setup_start_does_not_self_recurse():
+    """Regression for #58 — ``Setup.start()`` must retry invalid input via a loop,
+    not by calling itself recursively. The recursion was the mechanism that
+    turned the unawaited-coroutine bug into a stack-exhausting RecursionError.
+    """
+    import inspect
+
+    source = inspect.getsource(Setup.start)
+    assert "await self.start(" not in source, (
+        "Setup.start() must not recursively call itself on invalid input — "
+        "use a `while True` loop instead. See issue #58."
+    )
 
 
 def testvalidate_creds_success(setup_instance):

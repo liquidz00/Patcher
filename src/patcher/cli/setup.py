@@ -104,7 +104,7 @@ class Setup:
         for key, value in creds.items():
             self.config.set_credential(key, value)
 
-    def prompt_credentials(self, setup_type: SetupType) -> dict:
+    async def prompt_credentials(self, setup_type: SetupType) -> dict:
         """
         Prompt for credentials based on the credential type.
 
@@ -116,18 +116,18 @@ class Setup:
         self.log.info(f"Prompting user for {setup_type.value} credentials.")
         if setup_type == SetupType.STANDARD:
             return {
-                "URL": click.prompt("Enter your Jamf Pro URL"),
-                "USERNAME": click.prompt("Enter your Jamf Pro username"),
-                "PASSWORD": click.prompt("Enter your Jamf Pro password", hide_input=True),
+                "URL": await click.prompt("Enter your Jamf Pro URL"),
+                "USERNAME": await click.prompt("Enter your Jamf Pro username"),
+                "PASSWORD": await click.prompt("Enter your Jamf Pro password", hide_input=True),
             }
         elif setup_type == SetupType.SSO:
             return {
-                "URL": click.prompt("Enter your Jamf Pro URL"),
-                "CLIENT_ID": click.prompt("Enter your API Client ID"),
-                "CLIENT_SECRET": click.prompt("Enter your API Client Secret"),
+                "URL": await click.prompt("Enter your Jamf Pro URL"),
+                "CLIENT_ID": await click.prompt("Enter your API Client ID"),
+                "CLIENT_SECRET": await click.prompt("Enter your API Client Secret"),
             }
 
-    def prompt_ui_settings(self) -> None:
+    async def prompt_ui_settings(self) -> None:
         """
         Drive the interactive UI configuration prompts (header/footer text,
         font, logo, header color) and persist them via the
@@ -142,17 +142,20 @@ class Setup:
         defaults = UIDefaults()
         self.ui_config._download_fonts()
 
+        header_text = await click.prompt(
+            "Enter Header Text for PDF reports",
+            default=self.ui_config.config.get(UIConfigKeys.HEADER.value, defaults.header_text),
+            show_default=True,
+        )
+        footer_text = await click.prompt(
+            "Enter Footer Text for PDF reports",
+            default=self.ui_config.config.get(UIConfigKeys.FOOTER.value, defaults.footer_text),
+            show_default=True,
+        )
+
         settings = {
-            UIConfigKeys.HEADER.value: click.prompt(
-                "Enter Header Text for PDF reports",
-                default=self.ui_config.config.get(UIConfigKeys.HEADER.value, defaults.header_text),
-                show_default=True,
-            ),
-            UIConfigKeys.FOOTER.value: click.prompt(
-                "Enter Footer Text for PDF reports",
-                default=self.ui_config.config.get(UIConfigKeys.FOOTER.value, defaults.footer_text),
-                show_default=True,
-            ),
+            UIConfigKeys.HEADER.value: header_text,
+            UIConfigKeys.FOOTER.value: footer_text,
             UIConfigKeys.FONT_NAME.value: "Assistant",
             UIConfigKeys.REG_FONT_PATH.value: str(self.ui_config._get_font_paths()["regular"]),
             UIConfigKeys.BOLD_FONT_PATH.value: str(self.ui_config._get_font_paths()["bold"]),
@@ -160,25 +163,25 @@ class Setup:
         }
 
         if click.confirm("Would you like to use a custom font?", default=False):
-            settings.update(self.prompt_font_config())
+            settings.update(await self.prompt_font_config())
 
         if click.confirm(
             "Would you like to use a custom logo in your exported PDF reports?", default=False
         ):
-            settings[UIConfigKeys.LOGO_PATH.value] = self.prompt_logo_config()
+            settings[UIConfigKeys.LOGO_PATH.value] = await self.prompt_logo_config()
 
         if click.confirm(
             "Would you like to use a custom header color in your exported HTML reports?",
             default=False,
         ):
-            header_color = str(click.prompt("Enter header color value (Hex format)"))
+            header_color = str(await click.prompt("Enter header color value (Hex format)"))
             if not header_color.startswith("#"):
                 header_color = f"#{header_color}"
             settings[UIConfigKeys.HEADER_COLOR.value] = header_color
 
         self.ui_config.config = settings
 
-    def prompt_font_config(self) -> dict[str, str]:
+    async def prompt_font_config(self) -> dict[str, str]:
         """
         Prompt for custom font paths and copy them into Patcher's font
         directory.
@@ -187,9 +190,9 @@ class Setup:
             and bold font path.
         :rtype: dict[str, str]
         """
-        font_name = click.prompt("Enter custom font name", default="CustomFont")
-        regular_src = Path(click.prompt("Enter the path to the regular font file"))
-        bold_src = Path(click.prompt("Enter the path to the bold font file"))
+        font_name = await click.prompt("Enter custom font name", default="CustomFont")
+        regular_src = Path(await click.prompt("Enter the path to the regular font file"))
+        bold_src = Path(await click.prompt("Enter the path to the bold font file"))
 
         font_paths = self.ui_config._get_font_paths()
         regular_dest, bold_dest = font_paths["regular"], font_paths["bold"]
@@ -202,7 +205,7 @@ class Setup:
             UIConfigKeys.BOLD_FONT_PATH.value: str(bold_dest),
         }
 
-    def prompt_logo_config(self) -> str:
+    async def prompt_logo_config(self) -> str:
         """
         Prompt for a logo file path, validate it as an image, and copy it
         into Patcher's Application Support directory.
@@ -212,7 +215,7 @@ class Setup:
         :raises SetupError: If the provided logo path does not exist.
         :raises PatcherError: If the file is not a valid image, or copying fails.
         """
-        logo_src = Path(click.prompt("Enter the path to the logo file"))
+        logo_src = Path(await click.prompt("Enter the path to the logo file"))
         if not logo_src.exists():
             raise SetupError(
                 "The specified logo path does not exist, please check the path and try again.",
@@ -435,16 +438,23 @@ class Setup:
         self._greet()
 
         setup_type_map = {1: SetupType.STANDARD, 2: SetupType.SSO}
-        choice = click.prompt(
-            "Choose setup method (1: Standard setup, 2: SSO setup)", type=int, default=1
-        )
-        if choice not in setup_type_map:
+        # Loop until a valid setup type is chosen. Previously this branch
+        # recursively called ``self.start()`` on invalid input, which blew the
+        # Python stack with ~1000 frames if the prompt produced a non-int
+        # (e.g. asyncclick's async-aware ``prompt`` returning a coroutine
+        # because the caller didn't ``await`` it). See issue #58.
+        while True:
+            choice = await click.prompt(
+                "Choose setup method (1: Standard setup, 2: SSO setup)",
+                type=int,
+                default=1,
+            )
+            if choice in setup_type_map:
+                break
             click.echo(click.style("Invalid choice, please choose 1 or 2", fg="red"))
-            await self.start(animator=animator, fresh=fresh)
-            return
         setup_type = setup_type_map[choice]
 
-        creds = self.prompt_credentials(setup_type)
+        creds = await self.prompt_credentials(setup_type)
         self.prompt_installomator()
 
         if setup_type == SetupType.STANDARD:
@@ -480,7 +490,7 @@ class Setup:
         )
 
         await animator.stop()
-        self.prompt_ui_settings()
+        await self.prompt_ui_settings()
         self._mark_completion(value=True)
 
     def reset_setup(self) -> bool:
