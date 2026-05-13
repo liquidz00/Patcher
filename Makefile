@@ -56,6 +56,9 @@ test-integration:  ## Run Patcher integration tests only
 test-api:  ## Run Patcher API tests
 	cd api && $(UV) run pytest
 
+serve-api:  ## Run Patcher API locally with hot-reload
+	cd api && $(UV) run uvicorn patcher_api.main:app --reload
+
 pre-commit:  ## Install pre-commit hooks
 	@if [ ! -d "$(VENV_DIR)" ]; then \
 		echo "Virtual environment not found. Creating and installing dev dependencies..."; \

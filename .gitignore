@@ -163,3 +163,7 @@ cython_debug/
 pytest.ini
 api/data/
 api/coverage/
+api/*.db
+api/*.db-journal
+api/*.db-wal
+api/*.db-shm
