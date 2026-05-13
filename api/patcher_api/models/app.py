@@ -31,7 +31,8 @@ class App(Base):
 
 
 class AppSourceDetail(Base):
-    """Per-source payloads for an app.
+    """
+    Per-source payloads for an app.
 
     Heterogeneous source shapes (Installomator labels, Homebrew Cask JSON,
     AutoPkg recipes) are stored as JSON columns rather than projected into a

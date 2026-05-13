@@ -102,7 +102,8 @@ class InstallomatorClient:
         return data
 
     def _build_label_from_content(self, content: str, script_name: str) -> Label | None:
-        """Parse a fragment's raw .sh content into a ``Label`` object.
+        """
+        Parse a fragment's raw .sh content into a ``Label`` object.
 
         Returns ``None`` if the fragment's expected Team ID is in
         :data:`IGNORED_TEAMS` or if Pydantic validation fails.

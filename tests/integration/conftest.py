@@ -1,4 +1,5 @@
-"""Fixtures for integration tests that exercise real Jamf API calls.
+"""
+Fixtures for integration tests that exercise real Jamf API calls.
 
 Integration tests default to Jamf's publicly published dummy instance
 (`dummy.jamfcloud.com`) so anyone running `make test-integration` gets
@@ -52,7 +53,8 @@ def integration_config(
     integration_client_id: str,
     integration_client_secret: str,
 ) -> ConfigManager:
-    """A real ConfigManager in in-memory mode pointed at the test Jamf instance.
+    """
+    A real ConfigManager in in-memory mode pointed at the test Jamf instance.
 
     Uses the CI/CD `in_memory_credentials` path so no keychain access is
     attempted (would fail on Linux CI / non-macOS environments anyway).

@@ -1,4 +1,5 @@
-"""Bearer-token auth tests.
+"""
+Bearer-token auth tests.
 
 Coverage for the three failure modes (missing, invalid, revoked) plus a
 positive case using the pre-authorized ``client`` fixture from conftest.

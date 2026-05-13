@@ -7,7 +7,8 @@ from patcher_api.db import Base
 
 
 class Token(Base):
-    """Bearer token issued to an authorized API consumer.
+    """
+    Bearer token issued to an authorized API consumer.
 
     Plaintext tokens are never stored — only their SHA-256 hash. The plaintext
     is shown once at grant time (via :mod:`scripts.grant_token`) and must be

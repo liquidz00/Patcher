@@ -104,7 +104,8 @@ def warning_format(message, category, filename, lineno, file=None, line=None):
 
 
 def _install_cli_process_hooks() -> None:
-    """Apply process-wide side effects scoped to a CLI invocation.
+    """
+    Apply process-wide side effects scoped to a CLI invocation.
 
     Kept inside the ``cli()`` callback rather than at module import time so
     importing ``patcher.cli.setup`` (or anything else under ``patcher.cli``)

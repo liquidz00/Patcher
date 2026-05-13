@@ -146,7 +146,8 @@ async def test_http_property_lazy_init(http_client):
 
 @pytest.mark.asyncio
 async def test_http_property_uses_truststore_ssl_context(http_client):
-    """The lazy http client is configured with a truststore-backed SSLContext.
+    """
+    The lazy http client is configured with a truststore-backed SSLContext.
 
     Asserts the wire-in, not truststore itself — we trust the library to do
     its job; we just verify Patcher hands httpx an OS-trust-store SSL context

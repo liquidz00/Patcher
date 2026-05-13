@@ -97,7 +97,8 @@ class UIConfigManager:
                 )
 
     def _download_fonts(self):
-        """Ensure the Assistant fonts live in Patcher's font directory.
+        """
+        Ensure the Assistant fonts live in Patcher's font directory.
 
         Delegates to :func:`patcher.core.fonts.ensure_default_fonts` so the
         same download logic is available to library callers without

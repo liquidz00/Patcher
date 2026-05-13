@@ -1,4 +1,5 @@
-"""Populate the database from the in-memory seed module.
+"""
+Populate the database from the in-memory seed module.
 
 Idempotent: if any apps already exist, the seed is skipped. This is what the
 FastAPI lifespan calls on startup; it also works standalone via

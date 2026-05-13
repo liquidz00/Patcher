@@ -1,4 +1,5 @@
-"""Smoke tests for the public ``patcher`` package surface.
+"""
+Smoke tests for the public ``patcher`` package surface.
 
 Verifies that the symbols exposed in ``patcher/__init__.py`` resolve to
 their canonical implementations, that internal classes stay internal, and
@@ -26,7 +27,8 @@ def test_package_exposes_patcher_client():
 
 @pytest.mark.asyncio
 async def test_patcher_client_async_context_manager_closes_jamf():
-    """``async with PatcherClient(...)`` releases the connection pool on exit.
+    """
+    ``async with PatcherClient(...)`` releases the connection pool on exit.
 
     Library callers should be able to wrap PatcherClient in ``async with`` to
     guarantee the underlying httpx connection pool is closed when the block
@@ -49,8 +51,10 @@ async def test_patcher_client_async_context_manager_closes_jamf():
 
 @pytest.mark.asyncio
 async def test_patcher_client_aclose_is_idempotent():
-    """Calling :meth:`PatcherClient.aclose` multiple times is safe — the
-    underlying :class:`HTTPClient.aclose` is itself idempotent."""
+    """
+    Calling :meth:`PatcherClient.aclose` multiple times is safe — the
+    underlying :class:`HTTPClient.aclose` is itself idempotent.
+    """
     from src.patcher import PatcherClient
 
     patcher = PatcherClient(

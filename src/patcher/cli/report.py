@@ -1,4 +1,5 @@
-"""CLI-side report orchestration.
+"""
+CLI-side report orchestration.
 
 Drives the ``patcherctl export`` workflow: wraps the patch-data pipeline
 (fetch policies → fetch summaries → filter/sort → match Installomator

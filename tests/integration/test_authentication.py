@@ -1,4 +1,5 @@
-"""Integration test: authenticate against a real Jamf Pro instance.
+"""
+Integration test: authenticate against a real Jamf Pro instance.
 
 This is the foundation of the integration test suite. If this test fails,
 either:
@@ -19,7 +20,8 @@ from src.patcher.core.models.token import AccessToken
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_can_fetch_token_from_dummy_instance(integration_token_manager) -> None:
-    """The basic→bearer OAuth flow succeeds against the configured Jamf instance.
+    """
+    The basic→bearer OAuth flow succeeds against the configured Jamf instance.
 
     Validates the full chain:
       ConfigManager (in-memory) →

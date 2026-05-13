@@ -1,4 +1,5 @@
-"""In-memory seed data for the Patcher API.
+"""
+In-memory seed data for the Patcher API.
 
 Stands in for the SQLite database during the vertical-slice phase. When
 persistence lands, this module is replaced (or repurposed as a seeding script

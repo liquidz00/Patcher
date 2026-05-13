@@ -74,7 +74,8 @@ async def testprompt_credentials_sso(setup_instance):
 
 
 def test_methods_with_click_prompt_are_async():
-    """Regression for #58 — ``click.prompt`` is ``async def`` in asyncclick 8.2+;
+    """
+    Regression for #58 — ``click.prompt`` is ``async def`` in asyncclick 8.2+;
     methods that call it must be ``async def`` so they can ``await`` it.
 
     The original bug was that ``Setup.prompt_credentials``,
@@ -97,7 +98,8 @@ def test_methods_with_click_prompt_are_async():
 
 
 def test_setup_start_does_not_self_recurse():
-    """Regression for #58 — ``Setup.start()`` must retry invalid input via a loop,
+    """
+    Regression for #58 — ``Setup.start()`` must retry invalid input via a loop,
     not by calling itself recursively. The recursion was the mechanism that
     turned the unawaited-coroutine bug into a stack-exhausting RecursionError.
     """

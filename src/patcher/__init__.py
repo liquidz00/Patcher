@@ -1,4 +1,5 @@
-"""Patcher — a Python library and CLI for Jamf Pro patch management reporting.
+"""
+Patcher — a Python library and CLI for Jamf Pro patch management reporting.
 
 For CLI usage, install with ``pip install patcherctl`` and run ``patcherctl --help``.
 

@@ -158,7 +158,8 @@ class HTTPClient:
         return response.text
 
     def _raise_for_status(self, status_code: int, response_json: dict | None) -> None:
-        """Raise :class:`APIResponseError` if ``status_code`` is non-2xx.
+        """
+        Raise :class:`APIResponseError` if ``status_code`` is non-2xx.
 
         2xx is a no-op (control returns to the caller, which uses
         ``response_json`` directly). 404 carries ``not_found=True`` so callers

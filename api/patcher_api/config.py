@@ -1,4 +1,5 @@
-"""Runtime configuration for the Patcher API.
+"""
+Runtime configuration for the Patcher API.
 
 Reads from environment variables prefixed with ``PATCHER_API_`` (also accepts a
 ``.env`` file alongside the working directory). Defaults are tuned for local

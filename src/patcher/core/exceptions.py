@@ -1,5 +1,6 @@
 class PatcherError(Exception):
-    """Base exception class for Patcher exceptions.
+    """
+    Base exception class for Patcher exceptions.
 
     Carries arbitrary keyword context (e.g. ``status_code=401``, ``url=...``,
     ``not_found=True``) and renders it into the formatted message as

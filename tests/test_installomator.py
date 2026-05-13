@@ -1,4 +1,5 @@
-"""Tests for src/patcher/utils/installomator.py.
+"""
+Tests for src/patcher/utils/installomator.py.
 
 The InstallomatorClient class can't be exercised against a live Jamf instance, so
 every test here mocks ``api.fetch_text`` (the httpx-based GET helper) and
@@ -44,7 +45,8 @@ def _sample_fragment(
 
 @pytest.fixture
 def iom(tmp_path: Path) -> InstallomatorClient:
-    """Return an InstallomatorClient with isolated cache paths and a mocked api.
+    """
+    Return an InstallomatorClient with isolated cache paths and a mocked api.
 
     Constructed bare — no Jamf credentials needed (the default ``HTTPClient``
     has no keyring touchpoint). The api attribute is then replaced with an
@@ -60,7 +62,8 @@ def iom(tmp_path: Path) -> InstallomatorClient:
 
 
 def test_bare_construction_does_not_require_jamf_creds() -> None:
-    """``InstallomatorClient()`` with no args must construct cleanly even when no
+    """
+    ``InstallomatorClient()`` with no args must construct cleanly even when no
     Jamf credentials exist anywhere (keyring, in-memory, env). Library callers
     using the client purely for label discovery / fetch shouldn't have to
     stand up Jamf auth they don't need.
@@ -73,7 +76,8 @@ def test_bare_construction_does_not_require_jamf_creds() -> None:
 
 @pytest.mark.asyncio
 async def test_match_raises_without_jamf_client() -> None:
-    """``match()`` requires a JamfClient (it calls ``get_app_names``). When the
+    """
+    ``match()`` requires a JamfClient (it calls ``get_app_names``). When the
     default ``HTTPClient`` is in place, surface a clear ``PatcherError``
     pointing the caller at the fix rather than a cryptic AttributeError.
     """

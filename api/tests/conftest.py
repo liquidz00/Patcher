@@ -1,4 +1,5 @@
-"""Shared test fixtures.
+"""
+Shared test fixtures.
 
 Each test gets a fresh in-memory SQLite database, seeded from
 :mod:`patcher_api.data`. The ``client`` fixture is pre-authorized with a

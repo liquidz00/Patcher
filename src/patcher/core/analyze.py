@@ -17,7 +17,8 @@ _log = LogMe("analyze")
 
 
 async def sort_titles(titles: list[PatchTitle], sort_key: str) -> list[PatchTitle]:
-    """Sort ``titles`` by the named attribute (case-insensitive, spaces tolerated).
+    """
+    Sort ``titles`` by the named attribute (case-insensitive, spaces tolerated).
 
     Offloads the sort to a thread so the event loop stays responsive on
     large lists.
@@ -48,7 +49,8 @@ async def sort_titles(titles: list[PatchTitle], sort_key: str) -> list[PatchTitl
 
 
 async def omit_recent(titles: list[PatchTitle], hours: int = 48) -> list[PatchTitle]:
-    """Return ``titles`` with any released within the past ``hours`` hours dropped.
+    """
+    Return ``titles`` with any released within the past ``hours`` hours dropped.
 
     :param titles: PatchTitle objects to filter.
     :type titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
@@ -66,8 +68,9 @@ async def omit_recent(titles: list[PatchTitle], hours: int = 48) -> list[PatchTi
 
 
 async def append_ios_status(titles: list[PatchTitle], api: JamfClient) -> list[PatchTitle]:
-    """Fetch iOS device/version data via ``api`` + the SOFA feed and append per-iOS-version
-    :class:`PatchTitle` summaries to ``titles``.
+    """
+    Fetch iOS device/version data via ``api`` + the SOFA feed and append
+    per-iOS-version :class:`PatchTitle` summaries to ``titles``.
 
     :param titles: Existing PatchTitle list to extend.
     :type titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
@@ -118,7 +121,9 @@ def calculate_ios_on_latest(
     device_versions: list[dict[str, str]],
     latest_versions: list[dict[str, str]],
 ) -> list[PatchTitle]:
-    """Per-major-iOS-version, count devices on the latest release and produce :class:`PatchTitle` summaries.
+    """
+    Per-major-iOS-version, count devices on the latest release and produce
+    :class:`PatchTitle` summaries.
 
     Pure data transform — no I/O.
 

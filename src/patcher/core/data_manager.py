@@ -20,7 +20,8 @@ from .pdf_report import PDFReport
 def serialize_titles_to_dict(
     patch_titles: list[PatchTitle], report_title: str | None = None
 ) -> dict:
-    """Convert a list of :class:`PatchTitle` into a JSON-serializable dict.
+    """
+    Convert a list of :class:`PatchTitle` into a JSON-serializable dict.
 
     Pure function with no I/O — safe to call from CLI export, library code,
     or anywhere a structured representation of the titles is useful.

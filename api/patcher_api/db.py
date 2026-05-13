@@ -1,4 +1,5 @@
-"""Async SQLAlchemy engine, session factory, and FastAPI session dependency.
+"""
+Async SQLAlchemy engine, session factory, and FastAPI session dependency.
 
 Engine and session-maker are lazily constructed (and cached) so test code can
 swap :func:`get_settings` before they're instantiated. Production code touches
@@ -34,10 +35,15 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 
 
 async def init_db() -> None:
-    """Create any missing tables. Idempotent — safe to call multiple times.
+    """
+    Create any missing tables. Idempotent — safe to call multiple times.
 
     Called by the FastAPI lifespan on server startup, and by standalone scripts
-    (``seed``, ``grant_token``) so they work regardless of DB state.
+    (``seed``, ``grant_token``, ``ingest_homebrew``) so they work regardless of
+    DB state. Imports :mod:`patcher_api.models` to guarantee every ORM model
+    is registered on ``Base.metadata`` before ``create_all`` runs.
     """
+    import patcher_api.models  # noqa: F401 — side-effect: register tables on Base
+
     async with get_engine().begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -5,7 +5,8 @@ from pydantic import BaseModel, ConfigDict, HttpUrl
 
 
 class InstallMethod(StrEnum):
-    """Mirrors Installomator's `type` variable.
+    """
+    Mirrors Installomator's `type` variable.
 
     See https://github.com/Installomator/Installomator/wiki/Label-Variables-Reference
     for the upstream definition.

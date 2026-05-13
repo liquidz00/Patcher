@@ -7,8 +7,10 @@ from src.patcher.core import exceptions
 
 # Test the from_credentials factory (library entry point)
 def test_from_credentials_constructs_apiclient_without_keyring():
-    """JamfClient.from_credentials wires up an in-memory ConfigManager so library
-    callers don't need a keyring backend."""
+    """
+    JamfClient.from_credentials wires up an in-memory ConfigManager so library
+    callers don't need a keyring backend.
+    """
     client = JamfClient.from_credentials(
         client_id="cid",
         client_secret="csec",

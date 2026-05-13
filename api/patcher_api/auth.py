@@ -1,4 +1,5 @@
-"""Bearer-token authentication for the Patcher API.
+"""
+Bearer-token authentication for the Patcher API.
 
 Tokens are hashed with SHA-256 at rest; only the hash is stored in the
 ``tokens`` table. The plaintext is shown once at grant time (see

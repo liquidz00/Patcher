@@ -1,4 +1,5 @@
-"""Mint a bearer token for an authorized API consumer.
+"""
+Mint a bearer token for an authorized API consumer.
 
 Usage::
 

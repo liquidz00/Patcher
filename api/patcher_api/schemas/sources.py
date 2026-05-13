@@ -1,4 +1,5 @@
-"""Source-specific detail schemas.
+"""
+Source-specific detail schemas.
 
 Each source's native payload is intentionally typed as ``dict`` rather than a
 projected/normalized model — consumers access the source's original shape

@@ -1,4 +1,5 @@
-"""Click-backed terminal output for the Patcher logger.
+"""
+Click-backed terminal output for the Patcher logger.
 
 This module is the CLI's adapter onto :class:`patcher.core.logger.PatcherLog`.
 Installing a :class:`TerminalHandler` adds colored level-prefixed output on top
@@ -25,7 +26,8 @@ from ..core.logger import PatcherLog
 
 
 class TerminalHandler(logging.Handler):
-    """Logging handler that emits records as click-styled lines on stdout.
+    """
+    Logging handler that emits records as click-styled lines on stdout.
 
     Maps each log level to a color so a debug run produces the same visual
     output the legacy in-class ``click.echo`` calls did — magenta DEBUG, blue
@@ -48,7 +50,8 @@ class TerminalHandler(logging.Handler):
 
 
 def install_terminal_handler(debug: bool) -> None:
-    """Attach a :class:`TerminalHandler` to the Patcher logger when in debug mode.
+    """
+    Attach a :class:`TerminalHandler` to the Patcher logger when in debug mode.
 
     Idempotent — calling twice will not add duplicate handlers. No-op when
     ``debug`` is False, so the standard CLI run (and any library import path)
@@ -70,7 +73,8 @@ def install_terminal_handler(debug: bool) -> None:
 
 
 def install_terminal_excepthook() -> None:
-    """Chain a terminal-styled excepthook onto :meth:`PatcherLog.custom_excepthook`.
+    """
+    Chain a terminal-styled excepthook onto :meth:`PatcherLog.custom_excepthook`.
 
     The core hook logs unhandled exceptions to file. This wrapper additionally
     emits a one-line red error message and a hint about the log file to

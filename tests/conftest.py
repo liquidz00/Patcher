@@ -297,7 +297,8 @@ def stop_event_fixture():
 def patcher_instance(
     mock_policy_response, mock_patch_title_response, config_manager, mock_installomator
 ):
-    """Mock-shaped PatcherClient for tests that exercise process_reports.
+    """
+    Mock-shaped PatcherClient for tests that exercise process_reports.
 
     Wires a mock ``jamf`` (with canned policy + summary responses), a mock
     ``data`` (with mocked export), and the mock installomator. No legacy

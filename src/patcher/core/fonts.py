@@ -1,4 +1,5 @@
-"""Default font download helper.
+"""
+Default font download helper.
 
 Pulled out of :class:`patcher.cli.ui_manager.UIConfigManager` so library
 callers generating PDF reports can ensure the bundled Assistant fonts
