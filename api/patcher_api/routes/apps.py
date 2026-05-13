@@ -2,13 +2,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher_api.auth import get_current_user
 from patcher_api.db import get_session
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.schemas.app import App
 from patcher_api.schemas.sources import AppSources
 
-router = APIRouter(prefix="/apps", tags=["apps"])
+router = APIRouter(
+    prefix="/apps",
+    tags=["apps"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.get("", response_model=list[App])

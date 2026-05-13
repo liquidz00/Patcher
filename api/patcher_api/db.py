@@ -31,3 +31,13 @@ def get_session_maker() -> async_sessionmaker[AsyncSession]:
 async def get_session() -> AsyncIterator[AsyncSession]:
     async with get_session_maker()() as session:
         yield session
+
+
+async def init_db() -> None:
+    """Create any missing tables. Idempotent — safe to call multiple times.
+
+    Called by the FastAPI lifespan on server startup, and by standalone scripts
+    (``seed``, ``grant_token``) so they work regardless of DB state.
+    """
+    async with get_engine().begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)

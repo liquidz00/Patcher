@@ -4,16 +4,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from patcher_api.config import get_settings
-from patcher_api.db import Base, get_engine, get_session_maker
+from patcher_api.db import get_engine, get_session_maker, init_db
 from patcher_api.routes import apps
 from patcher_api.seed import seed_database
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    engine = get_engine()
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    await init_db()
 
     if get_settings().seed_on_startup:
         async with get_session_maker()() as session:
@@ -21,7 +19,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     yield
 
-    await engine.dispose()
+    await get_engine().dispose()
 
 
 app = FastAPI(
