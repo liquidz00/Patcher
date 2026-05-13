@@ -121,6 +121,10 @@ test-cov-html:
 	$(UV) run pytest tests/ --cov=src --cov-report=html
 	@echo "Coverage report generated in htmlcov/index.html"
 
+test-api:
+	@echo "Running API tests..."
+	cd api && $(UV) run pytest
+
 pre-commit:
 	@echo "Installing pre-commit hooks..."
 	@if [ ! -d "$(VENV_DIR)" ]; then \
