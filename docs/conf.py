@@ -48,11 +48,11 @@ extensions = [
 
 # ghwiki
 github_wiki_repos = {
-    "InstallomatorClient": "https://github.com/InstallomatorClient/InstallomatorClient",
+    "Installomator": "https://github.com/Installomator/Installomator",
     "AutoPkg": "https://github.com/autopkg/autopkg",
 }
 
-github_wiki_default = "InstallomatorClient"
+github_wiki_default = "Installomator"
 
 # Intersphinx mapping
 intersphinx_mapping = {
