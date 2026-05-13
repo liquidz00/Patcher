@@ -9,7 +9,7 @@ async def test_list_apps_returns_seed_records(client):
     assert response.status_code == 200
     body = response.json()
     assert len(body) >= 2
-    assert all("bundle_id" in record for record in body)
+    assert all("slug" in record for record in body)
 
 
 @pytest.mark.asyncio
@@ -62,12 +62,12 @@ async def test_list_apps_filters_by_source_include(client):
 
     body = response.json()
     assert all("installomator" in record["sources"] for record in body)
-    assert {record["bundle_id"] for record in body} == {
-        "com.mozilla.firefox",
-        "com.google.Chrome",
-        "com.tinyspeck.slackmacgap",
-        "us.zoom.xos",
-        "com.microsoft.VSCode",
+    assert {record["slug"] for record in body} == {
+        "firefox",
+        "google-chrome",
+        "slack",
+        "zoom",
+        "vscode",
     }
 
 
@@ -77,7 +77,7 @@ async def test_list_apps_filters_by_source_exclude(client):
 
     body = response.json()
     assert all("installomator" not in record["sources"] for record in body)
-    assert {record["bundle_id"] for record in body} == {"com.microsoft.edgemac"}
+    assert {record["slug"] for record in body} == {"microsoft-edge"}
 
 
 @pytest.mark.asyncio
@@ -88,23 +88,24 @@ async def test_list_apps_source_and_exclude_compose(client):
     )
 
     body = response.json()
-    assert {record["bundle_id"] for record in body} == {"com.microsoft.edgemac"}
+    assert {record["slug"] for record in body} == {"microsoft-edge"}
 
 
 @pytest.mark.asyncio
-async def test_get_app_returns_record_for_known_bundle_id(client):
-    response = await client.get("/apps/com.mozilla.firefox")
+async def test_get_app_returns_record_for_known_slug(client):
+    response = await client.get("/apps/firefox")
 
     assert response.status_code == 200
     body = response.json()
+    assert body["slug"] == "firefox"
     assert body["bundle_id"] == "com.mozilla.firefox"
     assert body["name"] == "Firefox"
     assert body["vendor"] == "Mozilla"
 
 
 @pytest.mark.asyncio
-async def test_get_app_returns_404_for_unknown_bundle_id(client):
-    response = await client.get("/apps/com.nonexistent.app")
+async def test_get_app_returns_404_for_unknown_slug(client):
+    response = await client.get("/apps/nonexistent")
 
     assert response.status_code == 404
     assert "not found" in response.json()["detail"]
@@ -112,7 +113,7 @@ async def test_get_app_returns_404_for_unknown_bundle_id(client):
 
 @pytest.mark.asyncio
 async def test_get_app_sources_returns_populated_sources_for_firefox(client):
-    response = await client.get("/apps/com.mozilla.firefox/sources")
+    response = await client.get("/apps/firefox/sources")
 
     assert response.status_code == 200
     body = response.json()
@@ -124,7 +125,7 @@ async def test_get_app_sources_returns_populated_sources_for_firefox(client):
 
 @pytest.mark.asyncio
 async def test_get_app_sources_returns_homebrew_only_for_edge(client):
-    response = await client.get("/apps/com.microsoft.edgemac/sources")
+    response = await client.get("/apps/microsoft-edge/sources")
 
     body = response.json()
     assert body["installomator"] is None
@@ -133,15 +134,18 @@ async def test_get_app_sources_returns_homebrew_only_for_edge(client):
 
 @pytest.mark.asyncio
 async def test_get_app_sources_returns_empty_for_app_without_seed_sources(client):
-    """Slack has no entry in SEED_SOURCES — endpoint should still return 200 with all-None fields."""
-    response = await client.get("/apps/com.tinyspeck.slackmacgap/sources")
+    """
+    Slack has no entry in SEED_SOURCES — endpoint should still return 200
+    with all-None fields.
+    """
+    response = await client.get("/apps/slack/sources")
 
     assert response.status_code == 200
     assert response.json() == {"installomator": None, "homebrew_cask": None, "autopkg": None}
 
 
 @pytest.mark.asyncio
-async def test_get_app_sources_returns_404_for_unknown_bundle_id(client):
-    response = await client.get("/apps/com.nonexistent.app/sources")
+async def test_get_app_sources_returns_404_for_unknown_slug(client):
+    response = await client.get("/apps/nonexistent/sources")
 
     assert response.status_code == 404

@@ -6,4 +6,4 @@ Importing this package registers every model on ``Base.metadata`` — used by
 regardless of which module triggered it.
 """
 
-from patcher_api.models import app, homebrew, token  # noqa: F401
+from patcher_api.models import app, homebrew, installomator, token  # noqa: F401

@@ -25,6 +25,7 @@ async def seed_database(session: AsyncSession) -> int:
 
     for app in SEED_APPS:
         row = AppRow(
+            slug=app.slug,
             bundle_id=app.bundle_id,
             name=app.name,
             vendor=app.vendor,
@@ -36,20 +37,18 @@ async def seed_database(session: AsyncSession) -> int:
             sources=app.sources,
             cves=app.cves,
         )
+        if app.slug in SEED_SOURCES:
+            sources = SEED_SOURCES[app.slug]
+            row.source_detail = AppSourceDetailRow(
+                installomator=(
+                    sources.installomator.model_dump(mode="json") if sources.installomator else None
+                ),
+                homebrew_cask=(
+                    sources.homebrew_cask.model_dump(mode="json") if sources.homebrew_cask else None
+                ),
+                autopkg=(sources.autopkg.model_dump(mode="json") if sources.autopkg else None),
+            )
         session.add(row)
-
-    for bundle_id, sources in SEED_SOURCES.items():
-        detail = AppSourceDetailRow(
-            bundle_id=bundle_id,
-            installomator=(
-                sources.installomator.model_dump(mode="json") if sources.installomator else None
-            ),
-            homebrew_cask=(
-                sources.homebrew_cask.model_dump(mode="json") if sources.homebrew_cask else None
-            ),
-            autopkg=(sources.autopkg.model_dump(mode="json") if sources.autopkg else None),
-        )
-        session.add(detail)
 
     await session.commit()
     return len(SEED_APPS)

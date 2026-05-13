@@ -24,7 +24,8 @@ class InstallMethod(StrEnum):
 class App(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    bundle_id: str
+    slug: str
+    bundle_id: str | None = None
     name: str
     vendor: str
     current_version: str

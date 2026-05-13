@@ -7,11 +7,21 @@ from patcher_api.db import Base
 
 
 class App(Base):
-    """The canonical app record. One row per known macOS application."""
+    """
+    The canonical app record. One row per known macOS application.
+
+    Uses a synthetic integer ``id`` as primary key because most apps in the
+    catalog (those sourced from Installomator without a ``packageID``, or from
+    Homebrew Cask without an Info.plist crawl) don't have a known bundle_id.
+    ``slug`` is the URL-friendly public identifier used in routes; ``bundle_id``
+    is informational, indexed for joins, and unique-when-not-null.
+    """
 
     __tablename__ = "apps"
 
-    bundle_id: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    slug: Mapped[str] = mapped_column(String, unique=True, index=True)
+    bundle_id: Mapped[str | None] = mapped_column(String, nullable=True, unique=True, index=True)
     name: Mapped[str] = mapped_column(String)
     vendor: Mapped[str] = mapped_column(String, index=True)
     current_version: Mapped[str] = mapped_column(String)
@@ -41,8 +51,8 @@ class AppSourceDetail(Base):
 
     __tablename__ = "app_source_details"
 
-    bundle_id: Mapped[str] = mapped_column(
-        ForeignKey("apps.bundle_id", ondelete="CASCADE"),
+    app_id: Mapped[int] = mapped_column(
+        ForeignKey("apps.id", ondelete="CASCADE"),
         primary_key=True,
     )
     installomator: Mapped[dict | None] = mapped_column(JSON, nullable=True)

@@ -17,6 +17,7 @@ from patcher_api.schemas.sources import (
 
 SEED_APPS: list[App] = [
     App(
+        slug="firefox",
         bundle_id="com.mozilla.firefox",
         name="Firefox",
         vendor="Mozilla",
@@ -27,6 +28,7 @@ SEED_APPS: list[App] = [
         sources=["installomator", "homebrew_cask"],
     ),
     App(
+        slug="google-chrome",
         bundle_id="com.google.Chrome",
         name="Google Chrome",
         vendor="Google",
@@ -37,6 +39,7 @@ SEED_APPS: list[App] = [
         sources=["installomator", "homebrew_cask"],
     ),
     App(
+        slug="slack",
         bundle_id="com.tinyspeck.slackmacgap",
         name="Slack",
         vendor="Slack",
@@ -47,6 +50,7 @@ SEED_APPS: list[App] = [
         sources=["installomator"],
     ),
     App(
+        slug="zoom",
         bundle_id="us.zoom.xos",
         name="Zoom",
         vendor="Zoom",
@@ -57,6 +61,7 @@ SEED_APPS: list[App] = [
         sources=["installomator", "homebrew_cask"],
     ),
     App(
+        slug="vscode",
         bundle_id="com.microsoft.VSCode",
         name="Visual Studio Code",
         vendor="Microsoft",
@@ -67,6 +72,7 @@ SEED_APPS: list[App] = [
         sources=["installomator", "homebrew_cask"],
     ),
     App(
+        slug="microsoft-edge",
         bundle_id="com.microsoft.edgemac",
         name="Microsoft Edge",
         vendor="Microsoft",
@@ -80,7 +86,7 @@ SEED_APPS: list[App] = [
 
 
 SEED_SOURCES: dict[str, AppSources] = {
-    "com.mozilla.firefox": AppSources(
+    "firefox": AppSources(
         installomator=InstallomatorSource(
             label_name="firefoxpkg",
             label_url="https://github.com/Installomator/Installomator/blob/main/fragments/labels/firefoxpkg.sh",
@@ -110,7 +116,7 @@ SEED_SOURCES: dict[str, AppSources] = {
             },
         ),
     ),
-    "com.google.Chrome": AppSources(
+    "google-chrome": AppSources(
         installomator=InstallomatorSource(
             label_name="googlechromepkg",
             label_url="https://github.com/Installomator/Installomator/blob/main/fragments/labels/googlechromepkg.sh",
@@ -140,7 +146,7 @@ SEED_SOURCES: dict[str, AppSources] = {
             },
         ),
     ),
-    "com.microsoft.edgemac": AppSources(
+    "microsoft-edge": AppSources(
         homebrew_cask=HomebrewCaskSource(
             token="microsoft-edge",
             cask_json={

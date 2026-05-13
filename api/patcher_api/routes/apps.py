@@ -36,33 +36,35 @@ async def list_apps(
     return list(rows)
 
 
-@router.get("/{bundle_id}", response_model=App)
+@router.get("/{slug}", response_model=App)
 async def get_app(
-    bundle_id: str,
+    slug: str,
     session: AsyncSession = Depends(get_session),
 ) -> AppRow:
-    row = await session.get(AppRow, bundle_id)
+    row = await session.scalar(select(AppRow).where(AppRow.slug == slug))
     if row is None:
         raise HTTPException(
             status_code=404,
-            detail=f"App with bundle_id '{bundle_id}' not found",
+            detail=f"App with slug '{slug}' not found",
         )
     return row
 
 
-@router.get("/{bundle_id}/sources", response_model=AppSources)
+@router.get("/{slug}/sources", response_model=AppSources)
 async def get_app_sources(
-    bundle_id: str,
+    slug: str,
     session: AsyncSession = Depends(get_session),
 ) -> AppSources:
-    app_row = await session.get(AppRow, bundle_id)
+    app_row = await session.scalar(select(AppRow).where(AppRow.slug == slug))
     if app_row is None:
         raise HTTPException(
             status_code=404,
-            detail=f"App with bundle_id '{bundle_id}' not found",
+            detail=f"App with slug '{slug}' not found",
         )
 
-    detail_row = await session.get(AppSourceDetailRow, bundle_id)
+    detail_row = await session.scalar(
+        select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == app_row.id)
+    )
     if detail_row is None:
         return AppSources()
 
