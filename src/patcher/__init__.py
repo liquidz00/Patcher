@@ -32,8 +32,8 @@ For library usage, the headline entry point is :class:`PatcherClient`:
 
 **Public surface:**
 
-- :class:`PatcherClient` — the unified facade. Holds ``jamf``,
-  ``installomator``, ``data``, and ``report`` collaborators as attributes.
+- :class:`PatcherClient` — the top-level library entry point. Holds
+  ``jamf``, ``installomator``, and ``data`` collaborators as attributes.
 - :class:`JamfClient` — Jamf Pro API client, available standalone for
   callers who only want the Jamf endpoints.
 - :class:`InstallomatorClient` — Installomator label matching service.
@@ -69,7 +69,7 @@ from .core.patcher_client import PatcherClient
 
 __all__ = [
     "__version__",
-    # Headline facade
+    # Top-level library entry point
     "PatcherClient",
     # Per-service clients
     "JamfClient",

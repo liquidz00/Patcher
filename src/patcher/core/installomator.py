@@ -9,8 +9,8 @@ from typing import Any
 from pydantic import ValidationError
 from rapidfuzz import fuzz, process
 
+from ..client import HTTPClient
 from ..client.jamf import JamfClient
-from .config_manager import ConfigManager
 from .exceptions import APIResponseError, PatcherError
 from .logger import LogMe
 from .models.label import Label
@@ -30,32 +30,29 @@ _FRAGMENT_URL_TEMPLATE = f"{_INSTALLOMATOR_RAW_BASE}/fragments/labels/{{name}}.s
 
 
 class InstallomatorClient:
-    def __init__(self, concurrency: int | None = 5, api: JamfClient | None = None):
+    def __init__(self, concurrency: int = 5, api: HTTPClient | None = None):
         """
         Wrapper around the `Installomator <https://github.com/Installomator/Installomator>`_ project — the macOS automated-installer script set.
 
         This class provides methods for discovering, fetching, and matching Installomator labels to ``PatchTitle`` objects. Discovery uses the lightweight ``Labels.txt`` file at the Installomator repo root; individual ``.sh`` fragments are fetched lazily and only for matches.
 
-        :param concurrency: Number of concurrent requests allowed for API operations. See :ref:`concurrency <concurrency>` in Usage docs.
-        :type concurrency: int | None
-        :param api: Optional configured :class:`JamfClient` to use for the
-            Jamf API calls inside :meth:`match` (specifically
-            :meth:`JamfClient.get_app_names`). If ``None``, a new
-            ``JamfClient`` is built using the default :class:`ConfigManager`
-            (keyring-backed) — which requires Jamf credentials to already
-            exist. Library callers using
-            :class:`patcher.core.patcher_client.PatcherClient` get the
-            client's shared ``JamfClient`` injected automatically.
-        :type api: :class:`~patcher.client.jamf.JamfClient` | None
+        :param concurrency: Maximum concurrent requests for label fetches. Defaults to 5.
+        :type concurrency: int
+        :param api: HTTP client used for fetches against Installomator's GitHub.
+            Defaults to a fresh :class:`~patcher.client.HTTPClient` — no Jamf
+            credentials required, so library callers can use
+            ``InstallomatorClient()`` standalone to enumerate or fetch labels.
+            When :meth:`match` is needed, pass a configured
+            :class:`~patcher.client.jamf.JamfClient` instead (it inherits
+            from ``HTTPClient`` and adds the Jamf-specific
+            :meth:`~patcher.client.jamf.JamfClient.get_app_names` call that
+            ``match()`` requires). :class:`PatcherClient` injects its
+            shared ``JamfClient`` automatically.
+        :type api: :class:`~patcher.client.HTTPClient` | None
         """
         self.log = LogMe(self.__class__.__name__)
         self.label_path = Path.home() / "Library/Application Support/Patcher/.labels"
-        if api is None:
-            self.config = ConfigManager()
-            self.api = JamfClient(config=self.config, concurrency=concurrency)
-        else:
-            self.config = None
-            self.api = api
+        self.api = api if api is not None else HTTPClient(max_concurrency=concurrency)
         self.threshold = 85
         self.review_file = Path.home() / "Library/Application Support/Patcher/unmatched_apps.json"
 
@@ -339,7 +336,19 @@ class InstallomatorClient:
             successfully matched title has its ``install_label`` attribute
             extended in place.
         :type patch_titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
+        :raises PatcherError: If this :class:`InstallomatorClient` was not
+            constructed with a :class:`~patcher.client.jamf.JamfClient` (the
+            default ``HTTPClient`` cannot call Jamf's ``get_app_names``
+            endpoint). Pass ``api=<JamfClient>`` at construction, or use
+            :class:`~patcher.core.patcher_client.PatcherClient` which wires
+            this automatically.
         """
+        if not isinstance(self.api, JamfClient):
+            raise PatcherError(
+                "InstallomatorClient.match() requires a configured JamfClient — "
+                "construct InstallomatorClient(api=<JamfClient>) or use PatcherClient.",
+            )
+
         self.log.debug("Starting label-patch title matching process.")
 
         IGNORED_TITLES = [  # noqa: N806

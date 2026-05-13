@@ -1,13 +1,14 @@
-"""High-level facade for Patcher's library use.
+"""
+Top-level class for Patcher's library use.
 
 Composes the per-service clients (:class:`JamfClient`,
-:class:`InstallomatorClient`), data layer (:class:`DataManager`), and
-report orchestration helpers (:class:`ReportManager`) into a single object
-library callers instantiate. CLI users construct the same object via the
-existing ``Setup`` flow, which populates a :class:`ConfigManager` and
-hands it to ``PatcherClient`` through the ``config=`` argument.
+:class:`InstallomatorClient`) and data layer (:class:`DataManager`) into
+a single object library callers instantiate. CLI users construct the
+same object via the existing ``Setup`` flow, which populates a
+:class:`ConfigManager` and hands it to ``PatcherClient`` through the
+``config=`` argument.
 
-For raw, lower-level access without the facade, see
+For raw, lower-level access without ``PatcherClient``, see
 :class:`patcher.client.jamf.JamfClient` (Jamf API directly) and
 :class:`patcher.client.HTTPClient` (generic httpx with truststore).
 """
@@ -36,34 +37,36 @@ class PatcherClient:
         ui_config: dict | None = None,
     ):
         """
-        Construct a Patcher facade with all collaborators wired up.
+        Construct a ``PatcherClient`` with all collaborators wired up.
 
-        Two construction paths:
-
-        - **Direct credentials** (library use)::
+        Library callers pass credentials directly::
 
             from patcher import PatcherClient
 
-            patcher = PatcherClient(
+            async with PatcherClient(
                 client_id="...",
                 client_secret="...",
                 server="https://myorg.jamfcloud.com",
-            )
-            summaries = await patcher.jamf.get_summaries(
-                await patcher.jamf.get_policies()
-            )
+            ) as patcher:
+                summaries = await patcher.jamf.get_summaries(
+                    await patcher.jamf.get_policies()
+                )
+            # connection pool released here
 
-          Builds an in-memory :class:`ConfigManager` internally — no keyring
-          backend required, no plist mutation, no disk I/O on construction.
-
-        - **Existing ConfigManager** (CLI use)::
-
-            patcher = PatcherClient(config=existing_config_manager, ...)
-
-          For the CLI path where setup has already populated keyring.
+        An in-memory :class:`ConfigManager` is built internally — no keyring
+        backend required, no plist mutation, no disk I/O on construction.
+        ``PatcherClient`` is usable as an async context manager (preferred
+        for clean shutdown) or as a regular object (call :meth:`aclose`
+        manually when done).
 
         Exactly one of ``(client_id + client_secret + server)`` or
         ``config`` must be provided.
+
+        .. note::
+
+           The ``config=`` parameter exists for internal CLI use, where the
+           ``Setup`` flow has already populated keyring with credentials.
+           Library callers should use the credentials path above.
 
         :param client_id: Jamf Pro API client ID.
         :type client_id: str | None
@@ -120,3 +123,20 @@ class PatcherClient:
             else None
         )
         self.ui_config = ui_config if ui_config is not None else UIDefaults().model_dump()
+
+    async def aclose(self) -> None:
+        """
+        Release the underlying httpx connection pool.
+
+        Idempotent — safe to call multiple times. PatcherClient owns a single
+        :class:`~patcher.client.jamf.JamfClient` (shared by
+        :attr:`installomator` when present); closing it releases the pool
+        for both collaborators.
+        """
+        await self.jamf.aclose()
+
+    async def __aenter__(self) -> "PatcherClient":
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
+        await self.aclose()

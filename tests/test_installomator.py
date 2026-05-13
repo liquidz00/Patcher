@@ -18,6 +18,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
+from src.patcher.client.jamf import JamfClient
 from src.patcher.core.exceptions import APIResponseError
 from src.patcher.core.installomator import InstallomatorClient
 from src.patcher.core.models.patch import PatchTitle
@@ -42,27 +43,45 @@ def _sample_fragment(
 
 
 @pytest.fixture
-def iom(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> InstallomatorClient:
-    """Return an InstallomatorClient instance with isolated cache paths and a mocked api.
+def iom(tmp_path: Path) -> InstallomatorClient:
+    """Return an InstallomatorClient with isolated cache paths and a mocked api.
 
-    InstallomatorClient's constructor builds its own JamfClient internally, which
-    triggers TokenManager.attach_client() → keyring.get_password(). On Linux
-    CI runners there's no keyring backend available, so the chain raises
-    NoKeyringError before the test can swap in a mock.
-
-    Patching JamfClient at the installomator module level intercepts the chain
-    at construction time, leaving us free to set `instance.api = AsyncMock()`
-    in the body below as the actual test surface.
+    Constructed bare — no Jamf credentials needed (the default ``HTTPClient``
+    has no keyring touchpoint). The api attribute is then replaced with an
+    ``AsyncMock(spec=JamfClient)`` so ``match()`` sees a JamfClient-shaped
+    object (it asserts on type to surface a clear error for callers passing
+    a plain ``HTTPClient`` to a method that requires Jamf endpoints).
     """
-    monkeypatch.setattr(
-        "src.patcher.core.installomator.JamfClient",
-        lambda **kwargs: AsyncMock(),
-    )
     instance = InstallomatorClient()
     instance.label_path = tmp_path / ".labels"
     instance.review_file = tmp_path / "unmatched_apps.json"
-    instance.api = AsyncMock()
+    instance.api = AsyncMock(spec=JamfClient)
     return instance
+
+
+def test_bare_construction_does_not_require_jamf_creds() -> None:
+    """``InstallomatorClient()`` with no args must construct cleanly even when no
+    Jamf credentials exist anywhere (keyring, in-memory, env). Library callers
+    using the client purely for label discovery / fetch shouldn't have to
+    stand up Jamf auth they don't need.
+    """
+    from src.patcher.client import HTTPClient
+
+    iom = InstallomatorClient()
+    assert isinstance(iom.api, HTTPClient)
+
+
+@pytest.mark.asyncio
+async def test_match_raises_without_jamf_client() -> None:
+    """``match()`` requires a JamfClient (it calls ``get_app_names``). When the
+    default ``HTTPClient`` is in place, surface a clear ``PatcherError``
+    pointing the caller at the fix rather than a cryptic AttributeError.
+    """
+    from src.patcher.core.exceptions import PatcherError
+
+    iom = InstallomatorClient()
+    with pytest.raises(PatcherError, match="requires a configured JamfClient"):
+        await iom.match([])
 
 
 @pytest.mark.asyncio
