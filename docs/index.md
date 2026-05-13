@@ -16,7 +16,7 @@ html_theme.sidebar_secondary.remove: True
 
 Patcher is crafted with the needs of Mac Admins in mind, offering a streamlined approach to the often complex and time-consuming task of patch management. By automating the extraction and formatting of patch data, Patcher not only saves time but also ensures accuracy and consistency in the management of software updates.
 
-*** 
+***
 
 ## Features
 
@@ -26,7 +26,7 @@ Patcher is crafted with the needs of Mac Admins in mind, offering a streamlined 
 - **Customization Options**: Tailor the tool to match your organizations branding scheme with custom fonts and logo support.
 - **Analysis**: Quickly analyze Patch Reports to identify which software titles may need some extra TLC.
 
-::::{grid} 1 1 1 3
+::::{grid} 1 1 2 2
 :gutter: 2
 :padding: 2 2 0 0
 :class-container: sd-text-center
@@ -35,9 +35,8 @@ Patcher is crafted with the needs of Mac Admins in mind, offering a streamlined 
 :class-card: sd-card
 :class-title: patcher-title
 :shadow: md
-:columns: 12
 
-Setting yourself up for success--ensuring prerequisites are satisfied, installation instructions, running through the setup assistant, customization options, and command options and examples.
+CLI users — prerequisites, installation, setup assistant, customization, and command examples.
 
 +++
 
@@ -52,11 +51,30 @@ User Guide
 
 :::
 
+:::{grid-item-card} {fas}`code;sd-text-primary` Library Use
+:class-card: sd-card
+:class-title: patcher-title
+:shadow: md
+
+Python developers — using Patcher as an importable library from your own code, scripts, or services.
+
++++
+
+```{button-ref} library/index
+:ref-type: myst
+:click-parent:
+:color: secondary
+:expand:
+
+Library Use
+```
+
+:::
+
 :::{grid-item-card} {fas}`book;sd-text-primary` Reference
 :class-card: sd-card
 :class-title: patcher-title
 :shadow: md
-:columns: 6
 
 Patcher's source-code documentation for reference.
 
@@ -77,7 +95,6 @@ Reference Guide
 :class-card: sd-card
 :class-title: patcher-title
 :shadow: md
-:columns: 6
 
 Resources and guides for contributors.
 
@@ -100,6 +117,7 @@ Contributing Guide
 :hidden:
 
 user/index
+library/index
 reference/index
 contributing/index
 macadmins/index
