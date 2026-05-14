@@ -284,9 +284,13 @@ async def _upsert_app_with_sources(
             "sha256": apps_stmt.excluded.sha256,
             "sources": apps_stmt.excluded.sources,
         },
-    ).returning(AppRow.id)
+    )
+    await session.execute(apps_stmt)
 
-    app_id = (await session.execute(apps_stmt)).scalar_one()
+    # Separate SELECT to get the row's id. Avoids using RETURNING with ON CONFLICT,
+    # which is broken in SQLite < 3.45 (Python 3.11 ships 3.39, Python 3.12 ships 3.42).
+    # The fix landed in SQLite 3.45.0 (Python 3.13+).
+    app_id = await session.scalar(select(AppRow.id).where(AppRow.slug == slug))
 
     detail_stmt = sqlite_insert(AppSourceDetailRow).values(
         app_id=app_id,
@@ -391,4 +395,11 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int]:
             failed += 1
 
     await session.commit()
+
+    # Invalidate the session's identity map — every upsert above was a Core-level
+    # ``sqlite_insert.on_conflict_do_update`` that bypasses the ORM, so any ORM
+    # objects loaded before stitch ran (e.g. seed apps the caller already touched)
+    # would otherwise return stale attribute values on next access.
+    session.expire_all()
+
     return installomator_count, cask_only_count, both_sources, failed
