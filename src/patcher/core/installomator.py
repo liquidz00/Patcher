@@ -2,10 +2,13 @@ import asyncio
 import fnmatch
 import json
 import re
+import shlex
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import httpx
 from pydantic import ValidationError
 from rapidfuzz import fuzz, process
 
@@ -27,6 +30,59 @@ _INSTALLOMATOR_RAW_BASE = (
 )
 _LABELS_TXT_URL = f"{_INSTALLOMATOR_RAW_BASE}/Labels.txt"
 _FRAGMENT_URL_TEMPLATE = f"{_INSTALLOMATOR_RAW_BASE}/fragments/labels/{{name}}.sh"
+
+
+def parse_fragment(fragment: str) -> dict[str, Any]:
+    """
+    Parse an Installomator label fragment into a dict of variable assignments.
+
+    Module-level so consumers outside :class:`InstallomatorClient` (notably
+    Patcher API's ingestion) can call the same parser without instantiating
+    the class. The original ``InstallomatorClient._parse`` delegates here.
+
+    Recognized syntaxes:
+
+    - ``key="quoted value"`` — string values, surrounding quotes stripped.
+    - ``key=$(shell expression)`` — preserved verbatim as the literal expression string.
+    - ``key=(arr "values" here)`` — bash arrays returned as Python lists.
+
+    Lines starting with ``#`` and blank lines are skipped. The opening
+    ``<label>)`` header and trailing ``;;`` separator are stripped before parsing.
+
+    :param fragment: Raw ``.sh`` fragment content as fetched from the Installomator repo.
+    :type fragment: str
+    :return: Variable name → value (string for kv pairs, list for arrays).
+    :rtype: dict[str, Any]
+    """
+    fragment = re.sub(r"^\w+\)\s*", "", fragment).strip()  # Remove opening key
+    fragment = re.sub(r";;\s*$", "", fragment).strip()  # Remove trailing ;;
+
+    data: dict[str, Any] = {}
+    lines = fragment.splitlines()
+
+    kv_pattern = re.compile(r'^(\w+)=(".*?"|\$\(.*?\)|\S+)')
+    array_pattern = re.compile(r"^(\w+)=\((.*?)\)$")
+
+    for line in lines:
+        line = line.strip()
+        if line.startswith("#") or not line:
+            continue
+
+        array_match = array_pattern.match(line)
+        if array_match:
+            key, array_values = array_match.groups()
+            pairs = re.findall(r'"(.*?)"|(\S+)', array_values)
+            data[key] = [val[0] or val[1] for val in pairs]
+            continue
+
+        kv_match = kv_pattern.match(line)
+        if kv_match:
+            key, value = kv_match.groups()
+            value = value.strip('"')
+            data[key] = value
+            continue
+
+    return data
 
 
 class InstallomatorClient:
@@ -65,41 +121,7 @@ class InstallomatorClient:
     @staticmethod
     def _parse(fragment: str) -> dict[str, Any]:
         """Parses the passed fragment string and returns dictionary of formatted key-values."""
-        fragment = re.sub(r"^\w+\)\s*", "", fragment).strip()  # Remove opening key
-        fragment = re.sub(r";;\s*$", "", fragment).strip()  # Remove trailing ;;
-
-        data = {}
-        lines = fragment.splitlines()
-
-        # Regex patterns for parsing
-        kv_pattern = re.compile(r'^(\w+)=(".*?"|\$\(.*?\)|\S+)')  # Key-value pairs
-        array_pattern = re.compile(r"^(\w+)=\((.*?)\)$")  # Arrays
-
-        for line in lines:
-            line = line.strip()
-
-            # Ignore comments and empty lines
-            if line.startswith("#") or not line:
-                continue
-
-            # Match Bash array syntax
-            array_match = array_pattern.match(line)
-            if array_match:
-                key, array_values = array_match.groups()
-                # Split array values by spaces, accounting for potential quotes
-                data[key] = re.findall(r'"(.*?)"|(\S+)', array_values)
-                data[key] = [val[0] or val[1] for val in data[key]]
-                continue
-
-            kv_match = kv_pattern.match(line)
-            if kv_match:
-                key, value = kv_match.groups()
-                # Strip surrounding quotes for quoted values
-                value = value.strip('"')
-                data[key] = value  # type: ignore
-                continue
-
-        return data
+        return parse_fragment(fragment)
 
     def _build_label_from_content(self, content: str, script_name: str) -> Label | None:
         """
@@ -425,3 +447,396 @@ class InstallomatorClient:
             self.log.warning(
                 f"{len(unmatched_apps)} PatchTitle objects had no matches. Review: {self.review_file}"
             )
+
+
+# Shell expression resolution — the "pyinstallomator" subset.
+#
+# Installomator labels frequently declare values via shell pipelines, e.g.::
+#
+#     appNewVersion=$(curl -fsIL "https://download.mozilla.org/?product=firefox-latest" \
+#       | grep -i ^location | cut -d "/" -f7)
+#
+# The Patcher API ingestion pipeline needs the *resolved* value (e.g. "121.0")
+# rather than the raw shell expression. The functions below parse such
+# expressions and re-implement each pipeline stage in Python — no subprocess,
+# no shell evaluation, no sandboxing concerns — so resolution can run safely
+# against ~700 community-authored label snippets without executing any of them.
+#
+# Supported vocabulary:
+#   - curl (flags: -f, -s, -I, -L; HEAD or GET; redirect-chain headers)
+#   - grep (flags: -i, -o, -v, -E)
+#   - head (-n N or -N)
+#   - tail (-n N or -N)
+#   - cut  (-d DELIM, -f SPEC; spec supports N, N1,N2, N1-N2)
+#
+# Patterns outside this vocabulary return a ResolveResult with
+# method="unsupported" so the catalog can track where to extend next.
+
+
+_SHELL_EXPR_PATTERN = re.compile(r"^\$\((.*)\)\s*$", re.DOTALL)
+
+
+@dataclass
+class ResolveResult:
+    """
+    Outcome of resolving a single expression.
+
+    :ivar value: Resolved scalar value, or ``None`` if resolution failed.
+    :vartype value: str | None
+    :ivar error: Human-readable failure description, or ``None`` on success.
+    :vartype error: str | None
+    :ivar method: ``"literal"`` (input wasn't a shell expression),
+        ``"pipeline"`` (resolved by running the pipeline),
+        ``"unsupported"`` (some command in the pipeline isn't yet handled),
+        or ``"error"`` (resolution attempted but a runtime error occurred).
+    :vartype method: str
+    """
+
+    value: str | None
+    error: str | None
+    method: str
+
+
+class UnsupportedOperation(Exception):
+    """Raised when a pipeline contains a command pyinstallomator doesn't yet handle."""
+
+
+def resolve(
+    expression: str | None,
+    *,
+    http_client: httpx.Client | None = None,
+) -> ResolveResult:
+    """
+    Resolve a label variable's value, evaluating shell-style pipelines in Python.
+
+    :param expression: The label variable value as parsed from the ``.sh`` fragment.
+        Plain strings (``"121.0"``) pass through as literals; values shaped
+        ``$(cmd | cmd | ...)`` are parsed and evaluated.
+    :type expression: str | None
+    :param http_client: Optional pre-configured ``httpx.Client``. If omitted,
+        a fresh client with a 30-second timeout is created and disposed per
+        ``curl`` invocation. Tests inject a ``MockTransport``-backed client
+        to avoid hitting real URLs.
+    :type http_client: httpx.Client | None
+    :return: The :class:`ResolveResult`.
+    :rtype: :class:`ResolveResult`
+    """
+    if expression is None:
+        return ResolveResult(value=None, error=None, method="literal")
+
+    match = _SHELL_EXPR_PATTERN.match(expression.strip())
+    if not match:
+        return ResolveResult(value=expression, error=None, method="literal")
+
+    inner = match.group(1).strip()
+    stages = _split_pipeline(inner)
+
+    try:
+        result_lines = _execute_pipeline(stages, http_client=http_client)
+    except UnsupportedOperation as exc:
+        return ResolveResult(value=None, error=str(exc), method="unsupported")
+    except Exception as exc:  # noqa: BLE001 — caller wants a result, not a traceback
+        return ResolveResult(value=None, error=str(exc), method="error")
+
+    if not result_lines:
+        return ResolveResult(value=None, error="Pipeline produced empty output", method="pipeline")
+
+    # Most expressions reduce to a single value via head/cut/grep -o, so this
+    # is usually just one line — but join multi-line output on \n if not.
+    return ResolveResult(value="\n".join(result_lines), error=None, method="pipeline")
+
+
+def _split_pipeline(expr: str) -> list[str]:
+    """Split a shell pipeline on ``|`` while respecting single/double-quoted regions."""
+    stages: list[str] = []
+    current: list[str] = []
+    quote: str | None = None
+
+    for char in expr:
+        if char in ("'", '"') and quote is None:
+            quote = char
+            current.append(char)
+        elif char == quote:
+            quote = None
+            current.append(char)
+        elif char == "|" and quote is None:
+            stages.append("".join(current).strip())
+            current = []
+        else:
+            current.append(char)
+
+    if current:
+        stages.append("".join(current).strip())
+    return stages
+
+
+def _tokenize(stage: str) -> list[str]:
+    """Shell-style tokenization (handles quoted args)."""
+    return shlex.split(stage)
+
+
+def _execute_pipeline(
+    stages: list[str],
+    *,
+    http_client: httpx.Client | None,
+) -> list[str]:
+    """Walk pipeline stages left-to-right, threading list-of-lines between them."""
+    output: list[str] = []
+    for index, stage in enumerate(stages):
+        tokens = _tokenize(stage)
+        if not tokens:
+            raise UnsupportedOperation(f"Empty pipeline stage at position {index}")
+        cmd, args = tokens[0], tokens[1:]
+        if index == 0:
+            # First stage is the source — must produce output (curl).
+            output = _exec_source(cmd, args, http_client=http_client)
+        else:
+            output = _exec_filter(cmd, args, output)
+    return output
+
+
+def _exec_source(cmd: str, args: list[str], *, http_client: httpx.Client | None) -> list[str]:
+    if cmd == "curl":
+        return _exec_curl(args, http_client=http_client)
+    raise UnsupportedOperation(f"Unsupported source command: {cmd!r}")
+
+
+def _exec_filter(cmd: str, args: list[str], input_lines: list[str]) -> list[str]:
+    if cmd == "grep":
+        return _exec_grep(args, input_lines)
+    if cmd == "head":
+        return _exec_head(args, input_lines)
+    if cmd == "tail":
+        return _exec_tail(args, input_lines)
+    if cmd == "cut":
+        return _exec_cut(args, input_lines)
+    raise UnsupportedOperation(f"Unsupported filter command: {cmd!r}")
+
+
+def _parse_short_flags(arg: str) -> str:
+    """``-fsIL`` → ``"fsIL"``. ``-f`` → ``"f"``. Non-flag → ``""``."""
+    if arg.startswith("-") and not arg.startswith("--"):
+        return arg[1:]
+    return ""
+
+
+def _exec_curl(args: list[str], *, http_client: httpx.Client | None) -> list[str]:
+    """
+    Execute a ``curl`` invocation. Returns lines of output (body lines for GET,
+    header lines for HEAD/redirect-chain).
+    """
+    fail_silent = False
+    headers_only = False
+    follow_redirects = False
+    url: str | None = None
+
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        flags = _parse_short_flags(arg)
+        if flags:
+            for f in flags:
+                if f == "f":
+                    fail_silent = True
+                elif f == "s":
+                    pass  # we're always silent
+                elif f == "I":
+                    headers_only = True
+                elif f == "L":
+                    follow_redirects = True
+        elif not arg.startswith("-"):
+            url = arg
+        i += 1
+
+    if not url:
+        raise UnsupportedOperation("curl requires a URL")
+
+    owns_client = http_client is None
+    client = http_client or httpx.Client(timeout=30.0)
+    try:
+        if headers_only and follow_redirects:
+            return _curl_redirect_chain_headers(client, url, fail_silent=fail_silent)
+        if headers_only:
+            return _curl_headers(client, url, fail_silent=fail_silent)
+        return _curl_body(client, url, follow_redirects=follow_redirects, fail_silent=fail_silent)
+    finally:
+        if owns_client:
+            client.close()
+
+
+def _curl_redirect_chain_headers(
+    client: httpx.Client,
+    url: str,
+    *,
+    fail_silent: bool,
+) -> list[str]:
+    """``curl -IL`` — every redirect hop's status line + headers, in order."""
+    lines: list[str] = []
+    current = url
+    for _ in range(10):  # max 10 hops
+        try:
+            response = client.head(current, follow_redirects=False)
+        except httpx.HTTPError:
+            if fail_silent:
+                return lines
+            raise
+        lines.append(
+            f"HTTP/{response.http_version} {response.status_code} {response.reason_phrase}"
+        )
+        for key, value in response.headers.items():
+            lines.append(f"{key}: {value}")
+        lines.append("")  # blank between header blocks
+        if response.status_code in (301, 302, 303, 307, 308):
+            location = response.headers.get("location")
+            if location:
+                current = str(httpx.URL(current).join(location))
+                continue
+        break
+    return lines
+
+
+def _curl_headers(client: httpx.Client, url: str, *, fail_silent: bool) -> list[str]:
+    """``curl -I`` — status line + headers from the single response (no follow)."""
+    try:
+        response = client.head(url, follow_redirects=False)
+    except httpx.HTTPError:
+        if fail_silent:
+            return []
+        raise
+    if fail_silent and response.is_error:
+        return []
+    lines = [f"HTTP/{response.http_version} {response.status_code} {response.reason_phrase}"]
+    lines.extend(f"{key}: {value}" for key, value in response.headers.items())
+    return lines
+
+
+def _curl_body(
+    client: httpx.Client, url: str, *, follow_redirects: bool, fail_silent: bool
+) -> list[str]:
+    """``curl`` (no ``-I``) — response body, split into lines."""
+    try:
+        response = client.get(url, follow_redirects=follow_redirects)
+    except httpx.HTTPError:
+        if fail_silent:
+            return []
+        raise
+    if fail_silent and response.is_error:
+        return []
+    return response.text.splitlines()
+
+
+def _exec_grep(args: list[str], input_lines: list[str]) -> list[str]:
+    """Filter ``input_lines`` by ``pattern``. Supports ``-i``, ``-o``, ``-v``, ``-E``."""
+    case_insensitive = False
+    only_matching = False
+    invert = False
+    pattern: str | None = None
+
+    for arg in args:
+        flags = _parse_short_flags(arg)
+        if flags:
+            for f in flags:
+                if f == "i":
+                    case_insensitive = True
+                elif f == "o":
+                    only_matching = True
+                elif f == "v":
+                    invert = True
+                elif f == "E":
+                    pass  # extended regex is our default
+        elif pattern is None:
+            pattern = arg
+
+    if pattern is None:
+        raise UnsupportedOperation("grep requires a pattern")
+
+    regex = re.compile(pattern, re.IGNORECASE if case_insensitive else 0)
+    out: list[str] = []
+    for line in input_lines:
+        match = regex.search(line)
+        if invert:
+            if not match:
+                out.append(line)
+        elif match:
+            out.append(match.group(0) if only_matching else line)
+    return out
+
+
+def _exec_head(args: list[str], input_lines: list[str]) -> list[str]:
+    """First ``n`` lines (default ``10``). Supports ``-n N`` and ``-N``."""
+    n = _parse_count(args, default=10)
+    return input_lines[:n]
+
+
+def _exec_tail(args: list[str], input_lines: list[str]) -> list[str]:
+    """Last ``n`` lines (default ``10``). Supports ``-n N`` and ``-N``."""
+    n = _parse_count(args, default=10)
+    return input_lines[-n:] if n > 0 else []
+
+
+def _parse_count(args: list[str], *, default: int) -> int:
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "-n" and i + 1 < len(args):
+            try:
+                return int(args[i + 1])
+            except ValueError:
+                pass
+        elif arg.startswith("-") and arg[1:].isdigit():
+            return int(arg[1:])
+        i += 1
+    return default
+
+
+def _exec_cut(args: list[str], input_lines: list[str]) -> list[str]:
+    """
+    Field extraction. Supports ``-d DELIM`` and ``-f N|N1,N2|N1-N2`` (1-indexed).
+    Both separated (``-f 5``) and joined (``-f5``) flag-argument forms are
+    accepted — real Installomator labels use both.
+    """
+    delimiter = "\t"
+    fields: list[int] = [1]
+
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "-d" and i + 1 < len(args):
+            delimiter = args[i + 1]
+            i += 2
+            continue
+        if arg.startswith("-d") and len(arg) > 2:
+            delimiter = arg[2:]
+            i += 1
+            continue
+        if arg == "-f" and i + 1 < len(args):
+            fields = _parse_field_spec(args[i + 1])
+            i += 2
+            continue
+        if arg.startswith("-f") and len(arg) > 2:
+            fields = _parse_field_spec(arg[2:])
+            i += 1
+            continue
+        i += 1
+
+    out: list[str] = []
+    for line in input_lines:
+        parts = line.split(delimiter)
+        selected: list[str] = []
+        for f in fields:
+            if 1 <= f <= len(parts):
+                selected.append(parts[f - 1])
+        out.append(delimiter.join(selected))
+    return out
+
+
+def _parse_field_spec(spec: str) -> list[int]:
+    """Parse ``cut -f`` spec: ``'1'`` → ``[1]``, ``'1,3'`` → ``[1, 3]``, ``'2-5'`` → ``[2,3,4,5]``."""
+    fields: list[int] = []
+    for part in spec.split(","):
+        if "-" in part:
+            start_str, end_str = part.split("-", 1)
+            fields.extend(range(int(start_str), int(end_str) + 1))
+        else:
+            fields.append(int(part))
+    return fields

@@ -22,7 +22,6 @@ once we add drift detection.
 import asyncio
 import logging
 import os
-import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -30,7 +29,15 @@ import httpx
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher.core.installomator import parse_fragment
 from patcher_api.models.installomator import InstallomatorLabel
+
+__all__ = [
+    "IGNORED_TEAMS",
+    "fetch_installomator_labels",
+    "ingest_installomator_labels",
+    "parse_fragment",
+]
 
 # Apple Developer Team IDs we skip on ingestion. Mirrors Patcher's existing
 # IGNORED_TEAMS list so the two implementations agree on which labels are
@@ -45,10 +52,6 @@ _DEFAULT_REF = "refs/heads/main"
 _FETCH_CONCURRENCY = 10
 
 log = logging.getLogger(__name__)
-
-_kv_pattern = re.compile(r'^(\w+)=(".*?"|\$\(.*?\)|\S+)')
-_array_pattern = re.compile(r"^(\w+)=\((.*?)\)$")
-_array_value_pattern = re.compile(r'"(.*?)"|(\S+)')
 
 
 def _scalar_for_column(value: Any) -> str | None:
@@ -71,49 +74,6 @@ def _scalar_for_column(value: Any) -> str | None:
     if isinstance(value, list):
         return str(value[0]) if value else None
     return str(value)
-
-
-def parse_fragment(content: str) -> dict[str, Any]:
-    """
-    Parse a single Installomator ``.sh`` fragment into a variable dict.
-
-    Handles three syntaxes:
-
-    - ``key="quoted value"`` — string values with surrounding quotes stripped.
-    - ``key=$(shell expression)`` — preserved verbatim as the raw expression string.
-    - ``key=(arr "values" here)`` — bash arrays returned as Python lists.
-
-    Lines starting with ``#`` and blank lines are skipped. The opening
-    ``<name>)`` label header and trailing ``;;`` separator are stripped before
-    parsing.
-
-    :param content: Raw ``.sh`` fragment content as fetched from GitHub.
-    :type content: str
-    :return: Dict of variable name → value (string for kv pairs, list for arrays).
-    :rtype: dict[str, Any]
-    """
-    fragment = re.sub(r"^\w+\)\s*", "", content).strip()
-    fragment = re.sub(r";;\s*$", "", fragment).strip()
-
-    data: dict[str, Any] = {}
-    for line in fragment.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-
-        array_match = _array_pattern.match(line)
-        if array_match:
-            key, array_values = array_match.groups()
-            pairs = _array_value_pattern.findall(array_values)
-            data[key] = [val[0] or val[1] for val in pairs]
-            continue
-
-        kv_match = _kv_pattern.match(line)
-        if kv_match:
-            key, value = kv_match.groups()
-            data[key] = value.strip('"')
-
-    return data
 
 
 def _installomator_ref() -> str:
