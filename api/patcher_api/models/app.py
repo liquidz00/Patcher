@@ -14,20 +14,25 @@ class App(Base):
     catalog (those sourced from Installomator without a ``packageID``, or from
     Homebrew Cask without an Info.plist crawl) don't have a known bundle_id.
     ``slug`` is the URL-friendly public identifier used in routes; ``bundle_id``
-    is informational, indexed for joins, and unique-when-not-null.
+    is informational and indexed for joins.
+
+    ``bundle_id`` is intentionally **not** ``UNIQUE`` — multiple upstream
+    Installomator labels can legitimately share a ``packageID`` (e.g. ``firefox``
+    and ``firefoxpkg`` both pointing at ``org.mozilla.firefox``). Treating
+    these as one app per (bundle_id) is a future deduplication concern.
     """
 
     __tablename__ = "apps"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     slug: Mapped[str] = mapped_column(String, unique=True, index=True)
-    bundle_id: Mapped[str | None] = mapped_column(String, nullable=True, unique=True, index=True)
+    bundle_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     name: Mapped[str] = mapped_column(String)
-    vendor: Mapped[str] = mapped_column(String, index=True)
-    current_version: Mapped[str] = mapped_column(String)
+    vendor: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    current_version: Mapped[str | None] = mapped_column(String, nullable=True)
     latest_release_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    download_url: Mapped[str] = mapped_column(String)
-    install_method: Mapped[str] = mapped_column(String)
+    download_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    install_method: Mapped[str | None] = mapped_column(String, nullable=True)
     sha256: Mapped[str | None] = mapped_column(String, nullable=True)
     sources: Mapped[list[str]] = mapped_column(JSON, default=list)
     cves: Mapped[list[str]] = mapped_column(JSON, default=list)

@@ -27,11 +27,11 @@ class App(BaseModel):
     slug: str
     bundle_id: str | None = None
     name: str
-    vendor: str
-    current_version: str
+    vendor: str | None = None
+    current_version: str | None = None
     latest_release_date: date | None = None
-    download_url: HttpUrl
-    install_method: InstallMethod
+    download_url: HttpUrl | None = None
+    install_method: InstallMethod | None = None
     sha256: str | None = None
     sources: list[str]
     cves: list[str] = []
