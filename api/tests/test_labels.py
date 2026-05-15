@@ -83,18 +83,16 @@ class TestBuildInstallomatorLabel:
         assert "homebrew_cask" in result.sources_used
 
         content = result.content
-        assert content.startswith("firefox)\n")
         # Cask name wins over apps row + installomator name
-        assert 'name="Mozilla Firefox"' in content
+        assert content["name"] == "Mozilla Firefox"
         # Installomator type used
-        assert 'type="dmg"' in content
+        assert content["type"] == "dmg"
         # Cask URL preferred over installomator's downloadURL
-        assert 'downloadURL="https://download.mozilla.org/firefox.dmg"' in content
+        assert content["downloadURL"] == "https://download.mozilla.org/firefox.dmg"
         # apps row version
-        assert 'appNewVersion="121.0"' in content
+        assert content["appNewVersion"] == "121.0"
         # Team ID from Installomator
-        assert 'expectedTeamID="43AQ936H96"' in content
-        assert content.rstrip().endswith(";;")
+        assert content["expectedTeamID"] == "43AQ936H96"
 
     def test_cask_only_app_warns_about_missing_team_id(self):
         """Cask-only apps have no expectedTeamID — must warn loudly."""
@@ -113,7 +111,7 @@ class TestBuildInstallomatorLabel:
 
         result = build_installomator_label(app, detail)
 
-        # Field is omitted from content
+        # Field is omitted from content (key not present)
         assert "expectedTeamID" not in result.content
         # Warning surfaces the issue
         assert any("expectedTeamID" in w for w in result.warnings)
@@ -139,8 +137,8 @@ class TestBuildInstallomatorLabel:
         result = build_installomator_label(app, detail)
 
         assert result.sources_used == ["installomator"]
-        assert 'downloadURL="https://from-installomator.example/x.dmg"' in result.content
-        assert 'expectedTeamID="43AQ936H96"' in result.content
+        assert result.content["downloadURL"] == "https://from-installomator.example/x.dmg"
+        assert result.content["expectedTeamID"] == "43AQ936H96"
 
     def test_installomator_shell_expression_url_falls_back_to_apps_row(self):
         """If Installomator's downloadURL is ``$(curl ...)``, we skip it."""
@@ -161,8 +159,8 @@ class TestBuildInstallomatorLabel:
         result = build_installomator_label(app, detail)
 
         # Should fall back to apps_row.download_url, not the shell expression
-        assert "$(curl" not in result.content
-        assert 'downloadURL="https://cask-derived.example/x.dmg"' in result.content
+        assert not result.content["downloadURL"].startswith("$(")
+        assert result.content["downloadURL"] == "https://cask-derived.example/x.dmg"
 
     def test_unknown_version_emits_warning(self):
         app = _make_app(current_version=None)
@@ -199,7 +197,7 @@ class TestBuildInstallomatorLabel:
 
         result = build_installomator_label(app, detail)
 
-        assert 'type="pkg"' in result.content
+        assert result.content["type"] == "pkg"
         assert any("Inferred install type" in w for w in result.warnings)
 
     def test_completely_unknown_type_defaults_with_warning(self):
@@ -213,11 +211,11 @@ class TestBuildInstallomatorLabel:
 
         result = build_installomator_label(app, detail)
 
-        assert 'type="dmg"' in result.content
+        assert result.content["type"] == "dmg"
         assert any("Could not determine install type" in w for w in result.warnings)
 
-    def test_shell_special_chars_in_name_are_escaped(self):
-        """Backslashes and double-quotes in names must be escaped to keep the label valid bash."""
+    def test_special_chars_in_name_survive_untouched(self):
+        """JSON serialization handles escaping at the response layer — raw values pass through."""
         app = _make_app()
         detail = _make_detail(
             homebrew_cask={
@@ -233,8 +231,8 @@ class TestBuildInstallomatorLabel:
 
         result = build_installomator_label(app, detail)
 
-        # Inner double-quotes get backslash-escaped; backslashes get doubled
-        assert r'name="Quirky \"Name\" \\Test"' in result.content
+        # Raw string in the dict; FastAPI/Pydantic will JSON-escape on serialization.
+        assert result.content["name"] == 'Quirky "Name" \\Test'
 
 
 @pytest.mark.parametrize(

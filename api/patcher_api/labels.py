@@ -76,8 +76,7 @@ def build_installomator_label(
             "version downloadURL currently serves."
         )
 
-    content = _format_label(
-        label_name=app_row.slug,
+    content = _build_label_dict(
         name=name,
         install_type=install_type,
         download_url=download_url,
@@ -189,36 +188,33 @@ def _sources_used(
     return sources
 
 
-def _format_label(
+def _build_label_dict(
     *,
-    label_name: str,
     name: str | None,
     install_type: str | None,
     download_url: str | None,
     version: str | None,
     team_id: str | None,
-) -> str:
-    """Render the resolved field values as an Installomator label fragment."""
-    lines = [f"{label_name})"]
-    if name:
-        lines.append(f'    name="{_shell_escape(name)}"')
-    if install_type:
-        lines.append(f'    type="{install_type}"')
-    if download_url:
-        lines.append(f'    downloadURL="{download_url}"')
-    if version:
-        lines.append(f'    appNewVersion="{version}"')
-    if team_id:
-        lines.append(f'    expectedTeamID="{team_id}"')
-    lines.append("    ;;")
-    return "\n".join(lines)
-
-
-def _shell_escape(value: str) -> str:
-    r"""
-    Escape backslashes and double-quotes for safe embedding inside a
-    double-quoted shell string. Bash inside ``"..."`` only treats ``\``,
-    ``"``, ``$``, and `` ` `` specially; we escape the first two (the
-    other two are intentional if present, e.g. literal ``$`` in a version).
+) -> dict[str, Any]:
     """
-    return value.replace("\\", "\\\\").replace('"', '\\"')
+    Build the resolved-fields dict using Installomator's variable names.
+
+    Fields that couldn't be resolved are omitted entirely — their absence is
+    explained in the ``warnings`` list returned alongside. Consumers shouldn't
+    have to filter ``null`` values out before rendering the label.
+
+    :return: Installomator variable name → value, omitting any unresolved fields.
+    :rtype: dict[str, Any]
+    """
+    label: dict[str, Any] = {}
+    if name:
+        label["name"] = name
+    if install_type:
+        label["type"] = install_type
+    if download_url:
+        label["downloadURL"] = download_url
+    if version:
+        label["appNewVersion"] = version
+    if team_id:
+        label["expectedTeamID"] = team_id
+    return label

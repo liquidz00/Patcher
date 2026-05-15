@@ -162,10 +162,9 @@ async def test_generate_label_returns_full_label_for_app_with_both_sources(clien
     assert "installomator" in body["sources_used"]
     assert "homebrew_cask" in body["sources_used"]
     content = body["content"]
-    assert content.startswith("firefox)\n")
-    assert 'name="Mozilla Firefox"' in content
-    assert 'expectedTeamID="43AQ936H96"' in content
-    assert content.rstrip().endswith(";;")
+    assert content["name"] == "Mozilla Firefox"
+    assert content["expectedTeamID"] == "43AQ936H96"
+    assert content["appNewVersion"] == "121.0"
 
 
 @pytest.mark.asyncio
