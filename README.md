@@ -4,7 +4,7 @@
     </a>
 </p>
 
-![](https://img.shields.io/pypi/l/patcherctl)&nbsp;![](https://img.shields.io/badge/Python-3.10+-3776AB.svg?style=flat&logo=python&logoColor=white)&nbsp;![](https://img.shields.io/github/v/release/liquidz00/Patcher?color=orange)&nbsp;![](https://github.com/liquidz00/patcher/actions/workflows/pytest.yml/badge.svg)&nbsp;![](https://img.shields.io/pypi/v/patcherctl?color=yellow)&nbsp;![](https://img.shields.io/badge/macOS-10.13%2B-blueviolet?logo=apple&logoSize=auto)
+![](https://img.shields.io/pypi/l/patcherctl)&nbsp;![](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=flat&logo=python&logoColor=white)&nbsp;![](https://img.shields.io/github/v/release/liquidz00/Patcher?color=orange)&nbsp;![](https://github.com/liquidz00/patcher/actions/workflows/pytest.yml/badge.svg)&nbsp;![](https://img.shields.io/pypi/v/patcherctl?color=yellow)&nbsp;![](https://img.shields.io/badge/macOS-10.13%2B-blueviolet?logo=apple&logoSize=auto)
 
 
 ----
@@ -19,7 +19,9 @@ _Simplified patch reporting_
 </p>
 
 ## What is Patcher?
-Patcher is a Command Line Interface (CLI) tool for macOS that leverages the Jamf Pro API to fetch patch management data and generates comprehensive reports in varying formats. It simplifies tracking and reporting on software update compliance across macOS devices managed through Jamf Pro.
+Patcher is a Python library **and** CLI for macOS that leverages the Jamf Pro API to fetch patch management data and generate comprehensive reports in varying formats. It simplifies tracking and reporting on software update compliance across macOS devices managed through Jamf Pro.
+
+The CLI (`patcherctl`) is the primary interface for most users. The underlying logic is also importable — see the [library quickstart](https://patcher.readthedocs.io/library/quickstart.html) for using Patcher programmatically from your own scripts or services.
 
 Read the full project documentation [on our project homepage](https://patcher.readthedocs.io).
 
@@ -50,7 +52,7 @@ $ python3 -m pip install patcherctl
 ```
 
 > [!NOTE]
-> Please note that while Patcher is installed as a package, it is meant to be used as a command line tool and not as an imported library.
+> Patcher is both a CLI tool and a Python library. Most users will reach for `patcherctl` — but the underlying `patcher` package is importable for custom integrations. See the [library docs](https://patcher.readthedocs.io/library/) for the importable surface.
 
 ## Sample PDF
 Assuming 'AnyOrg' is the name of your organization, an exported PDF could look like this:
@@ -81,8 +83,8 @@ $ cd Patcher
 # Install UV if not already installed
 $ curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Create virtual environment and install dev dependencies (includes docs)
-$ make install-dev
+# Set up full monorepo dev environment (patcherctl + patcher-api + all extras)
+$ make dev
 
 # Run tests
 $ make test
