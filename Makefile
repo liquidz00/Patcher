@@ -77,3 +77,10 @@ build:  ## Build distribution packages (sdist + wheel)
 
 docs:  ## Build Sphinx documentation
 	$(UV) run sphinx-build -b html docs/ docs/_build/
+
+init-vendor-docs:  ## One-time after clone - pull submodule content
+	git submodule update --init --recursive
+
+update-vendor-docs:  ## Refresh vendor docs to latest upstream (Installomator/Autopkg Wikis)
+	git submodule update --remote --merge
+	@echo "Don't forget to commit the submodule bump if you want to share the new state."

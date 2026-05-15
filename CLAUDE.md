@@ -58,7 +58,26 @@ The repo root also contains an `api/` directory (sibling to `src/`) — the Patc
 
 ## Deployment
 
-The API is currently deployed to a Linode running Ubuntu, exposed via Cloudflare Quick Tunnel. Architecture: `uvicorn` (running as a `patcher` system user via systemd) ← `cloudflared tunnel` (outbound to Cloudflare, no inbound ports beyond 22/80/443) ← public `*.trycloudflare.com` URL. Auth happens at the API layer, not the tunnel. **Linux deployments require `KEYRING_BACKEND=keyring.backends.null.Keyring`** at runtime because the patcherctl import chain pulls in `keyring`, which fails without a backend on Linux. Live deployment specifics (IP, paths, recovery commands, gotchas) are in the agent's project memory file `project_patcher_api_deployment.md`. Transferable deployment docs are deferred to the v3 docs restructure.
+The API is deployable to a Linux host, exposed via Cloudflare Tunnel. Architecture: `uvicorn` (running as a dedicated system user via systemd) ← `cloudflared tunnel` (outbound to Cloudflare, no inbound ports beyond 22/80/443) ← public URL. Auth happens at the API layer, not the tunnel. **Linux deployments require `KEYRING_BACKEND=keyring.backends.null.Keyring`** at runtime because the patcherctl import chain pulls in `keyring`, which fails without a backend on Linux. Transferable deployment docs are deferred to the v3 docs restructure.
+
+## Vendor docs
+
+Upstream documentation is included as git submodules under `vendor-docs/`:
+
+- `vendor-docs/installomator/` — [Installomator wiki](https://github.com/Installomator/Installomator/wiki)
+- `vendor-docs/autopkg/` — [AutoPkg wiki](https://github.com/autopkg/autopkg/wiki)
+
+**When working on Installomator- or AutoPkg-related code, consult these local docs first** rather than fetching from the web. The submodule state is pinned, so what you find here reflects the version of upstream docs accepted into the codebase. Running `make update-vendor-docs` bumps both to upstream latest, which then gets committed as a deliberate review action.
+
+Common reference points:
+
+- Installomator label variables (`name`, `type`, `downloadURL`, `appNewVersion`, `expectedTeamID`, `blockingProcesses`, etc.) — `vendor-docs/installomator/Label-Variables-Reference.md`
+- Installomator `valuesfromarguments` mechanism — search the Installomator wiki pages for usage examples; the docs are authoritative on argument names and accepted values.
+- AutoPkg recipe identifiers, processor pipeline, parent recipe inheritance — `vendor-docs/autopkg/` (entry point usually `Home.md`).
+
+**Don't infer behavior from code alone.** If you're about to make a claim about how an Installomator label variable behaves, or how AutoPkg resolves processor inputs, verify in the wiki pages first. The cost of being wrong (generating incorrect labels or recipes) is high; the cost of grepping the local docs is near-zero.
+
+If a contributor clones without `--recursive` and `vendor-docs/` looks empty, `make init-vendor-docs` fills it in.
 
 ### Exit codes (defined in `cli/__init__.py` docstring)
 
