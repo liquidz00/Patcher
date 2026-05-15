@@ -1,0 +1,51 @@
+name: Feature request
+description: Suggest an idea for Patcher
+title: "[FEATURE] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion! The more context you provide, the better.
+
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current behavior
+      description: Briefly describe how Patcher currently behaves or what limitations exist that prompted this request.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-change
+    attributes:
+      label: Proposed change
+      description: A description of the feature or improvement you are suggesting. Focus on what you'd like to see happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Screenshots, references, or context that would help others understand your proposal.
+    validations:
+      required: false
+
+  - type: textarea
+    id: sample-code
+    attributes:
+      label: Sample code (optional)
+      description: Code snippets, mockups, or pseudo-code demonstrating the feature.
+      render: python
+    validations:
+      required: false
+
+  - type: input
+    id: related-issues
+    attributes:
+      label: Related issues (optional)
+      description: Link to any existing or previously closed issues related to this request.
+      placeholder: "#123, #456"
+    validations:
+      required: false
