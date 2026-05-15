@@ -149,3 +149,57 @@ async def test_get_app_sources_returns_404_for_unknown_slug(client):
     response = await client.get("/apps/nonexistent/sources")
 
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_generate_label_returns_full_label_for_app_with_both_sources(client):
+    """firefox has both installomator + homebrew_cask source detail in the seed."""
+    response = await client.post("/apps/firefox/generate-label")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["label_name"] == "firefox"
+    assert "installomator" in body["sources_used"]
+    assert "homebrew_cask" in body["sources_used"]
+    content = body["content"]
+    assert content.startswith("firefox)\n")
+    assert 'name="Mozilla Firefox"' in content
+    assert 'expectedTeamID="43AQ936H96"' in content
+    assert content.rstrip().endswith(";;")
+
+
+@pytest.mark.asyncio
+async def test_generate_label_cask_only_app_warns_about_team_id(client):
+    """microsoft-edge has homebrew_cask only — should warn that expectedTeamID is unknown."""
+    response = await client.post("/apps/microsoft-edge/generate-label")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["sources_used"] == ["homebrew_cask"]
+    assert "expectedTeamID" not in body["content"]
+    assert any("expectedTeamID" in w for w in body["warnings"])
+
+
+@pytest.mark.asyncio
+async def test_generate_label_returns_404_for_unknown_slug(client):
+    response = await client.post("/apps/nonexistent/generate-label")
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_generate_label_returns_422_when_app_has_no_source_detail(client):
+    """slack is in SEED_APPS but has no entry in SEED_SOURCES — can't generate a label."""
+    response = await client.post("/apps/slack/generate-label")
+
+    assert response.status_code == 422
+    assert "no source detail" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_generate_label_requires_auth(unauth_client):
+    response = await unauth_client.post("/apps/firefox/generate-label")
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
