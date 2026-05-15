@@ -13,12 +13,22 @@ For raw, lower-level access without ``PatcherClient``, see
 :class:`patcher.client.HTTPClient` (generic httpx with truststore).
 """
 
+from pathlib import Path
+
 from ..client.jamf import JamfClient
+from .analyze import (
+    Analyzer,
+    FilterCriteria,
+    append_ios_status,
+    omit_recent,
+    sort_titles,
+)
 from .config_manager import ConfigManager
 from .data_manager import DataManager
 from .exceptions import PatcherError
 from .installomator import InstallomatorClient
 from .logger import LogMe
+from .models.patch import PatchTitle
 from .models.ui import UIDefaults
 
 
@@ -123,6 +133,157 @@ class PatcherClient:
             else None
         )
         self.ui_config = ui_config if ui_config is not None else UIDefaults().model_dump()
+
+    async def fetch_patches(
+        self,
+        *,
+        match_installomator: bool = True,
+        include_ios: bool = False,
+        sort_by: str | None = None,
+        omit_recent_hours: int | None = None,
+    ) -> list[PatchTitle]:
+        """
+        Fetch patch summaries in one call — the library equivalent of what the
+        CLI's ``export`` flow gathers before writing a report.
+
+        Composes the granular pipeline: policies → summaries → (optional
+        Installomator match) → (optional iOS append) → (optional sort/filter).
+        Equivalent to manually chaining :meth:`jamf.get_policies`,
+        :meth:`jamf.get_summaries`, :meth:`installomator.match`,
+        :func:`~patcher.core.analyze.append_ios_status`,
+        :func:`~patcher.core.analyze.omit_recent`, and
+        :func:`~patcher.core.analyze.sort_titles`.
+
+        :param match_installomator: If True (default), match each title to its
+            Installomator label via :meth:`installomator.match`. No-op when
+            ``enable_installomator=False`` was passed at construction time.
+        :type match_installomator: bool
+        :param include_ios: If True, append per-iOS-version summaries to the
+            returned list. Costs additional Jamf API calls.
+        :type include_ios: bool
+        :param sort_by: Optional attribute name to sort titles by (e.g.
+            ``"released"``, ``"completion_percent"``). Normalized to
+            lowercase + underscores.
+        :type sort_by: str | None
+        :param omit_recent_hours: If provided, drop titles released within
+            the past ``N`` hours. Mirrors the CLI's ``--omit`` flag.
+        :type omit_recent_hours: int | None
+        :return: List of ``PatchTitle`` objects, optionally enriched and filtered.
+        :rtype: list[:class:`~patcher.core.models.patch.PatchTitle`]
+        :raises PatcherError: If the Jamf API calls fail or sort_by names
+            an attribute that doesn't exist on ``PatchTitle``.
+        """
+        policies = await self.jamf.get_policies()
+        titles = await self.jamf.get_summaries(policies)
+
+        if match_installomator and self.installomator is not None:
+            await self.installomator.match(titles)
+
+        if include_ios:
+            titles = await append_ios_status(titles, self.jamf)
+
+        if omit_recent_hours is not None:
+            titles = await omit_recent(titles, hours=omit_recent_hours)
+
+        if sort_by:
+            titles = await sort_titles(titles, sort_by)
+
+        return titles
+
+    async def analyze(
+        self,
+        titles: list[PatchTitle],
+        criteria: FilterCriteria | str,
+        *,
+        threshold: float | None = 70.0,
+        top_n: int | None = None,
+    ) -> list[PatchTitle]:
+        """
+        Filter and sort patch titles by a named criterion — the library
+        equivalent of the CLI's ``analyze`` subcommand.
+
+        Accepts either a :class:`FilterCriteria` enum value or a CLI-style
+        string (e.g. ``"most-installed"``, ``"below-threshold"``). String
+        inputs are normalized via :meth:`FilterCriteria.from_cli`.
+
+        :param titles: Patch titles to analyze. Typically the output of
+            :meth:`fetch_patches`.
+        :type titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
+        :param criteria: The filtering/sorting criterion. See
+            :class:`~patcher.core.analyze.FilterCriteria` for available values.
+        :type criteria: :class:`~patcher.core.analyze.FilterCriteria` | str
+        :param threshold: Completion-percent threshold for ``below_threshold``
+            criterion. Ignored by other criteria. Defaults to 70.0.
+        :type threshold: float | None
+        :param top_n: If provided, return at most ``top_n`` results. The
+            ``below_threshold`` and ``zero_completion`` criteria ignore this
+            (they return all matching titles).
+        :type top_n: int | None
+        :return: Filtered + sorted list of ``PatchTitle`` objects.
+        :rtype: list[:class:`~patcher.core.models.patch.PatchTitle`]
+        :raises PatcherError: If ``criteria`` is not a recognized value.
+        """
+        if isinstance(criteria, str):
+            criteria = FilterCriteria.from_cli(criteria)
+
+        # Analyzer reads from data_manager.titles; stash the caller's list
+        # there so the existing filter_titles logic can run without a refactor.
+        # data.titles is a documented public setter — safe to assign to.
+        self.data.titles = titles
+
+        analyzer = Analyzer(self.data)
+        return analyzer.filter_titles(criteria, threshold=threshold, top_n=top_n)
+
+    async def export(
+        self,
+        titles: list[PatchTitle],
+        *,
+        output_dir: str | Path,
+        formats: set[str] | None = None,
+        report_title: str | None = None,
+        date_format: str = "%B %d %Y",
+        header_color: str | None = "#6432bdff",
+        analysis: bool = False,
+        device_reports: dict[str, list] | None = None,
+    ) -> dict[str, str]:
+        """
+        Export patch titles to one or more report formats — convenience
+        wrapper around :meth:`data.export`.
+
+        :param titles: Patch titles to include in the report.
+        :type titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
+        :param output_dir: Directory to write report file(s) into.
+        :type output_dir: str | Path
+        :param formats: Set of format strings to emit. Defaults to all four:
+            ``{"excel", "html", "pdf", "json"}``.
+        :type formats: set[str] | None
+        :param report_title: Title used in PDF/HTML headers. Defaults to the
+            ``HEADER_TEXT`` value from this client's ``ui_config``.
+        :type report_title: str | None
+        :param date_format: Date format for PDF/HTML headers (strftime).
+            Defaults to ``"%B %d %Y"``.
+        :type date_format: str
+        :param header_color: Hex color for the HTML report header background.
+        :type header_color: str | None
+        :param analysis: If True, treats this as an analysis report (affects
+            HTML output path naming).
+        :type analysis: bool
+        :param device_reports: Optional per-title device detail data for
+            Excel's per-title sheets.
+        :type device_reports: dict[str, list] | None
+        :return: Mapping of format → output path for every report written.
+        :rtype: dict[str, str]
+        """
+        return await self.data.export(
+            patch_titles=titles,
+            output_dir=output_dir,
+            report_title=report_title or self.ui_config.get("HEADER_TEXT", "Patch Report"),
+            analysis=analysis,
+            date_format=date_format,
+            formats=formats,
+            header_color=header_color,
+            device_reports=device_reports,
+        )
 
     async def aclose(self) -> None:
         """

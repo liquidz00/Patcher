@@ -57,6 +57,7 @@ CLI-only objects (``Setup``, ``UIConfigManager``, ``PropertylistManager``,
 
 from .__about__ import __version__
 from .client.jamf import JamfClient
+from .core.analyze import FilterCriteria, TrendCriteria
 from .core.exceptions import (
     APIResponseError,
     CredentialError,
@@ -78,6 +79,9 @@ __all__ = [
     # Return shapes
     "PatchDevice",
     "PatchTitle",
+    # Analysis criteria enums (consumed by PatcherClient.analyze)
+    "FilterCriteria",
+    "TrendCriteria",
     # Exceptions
     "APIResponseError",
     "CredentialError",
