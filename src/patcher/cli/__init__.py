@@ -13,6 +13,7 @@ from ..core.config_manager import ConfigManager
 from ..core.data_manager import DataManager
 from ..core.exceptions import APIResponseError, InstallomatorWarning, PatcherError, SetupError
 from ..core.logger import LogMe, PatcherLog
+from ..core.models.ui import UIDefaults
 from ..core.patcher_client import PatcherClient
 from .animation import Animation
 from .plist_manager import PropertylistManager
@@ -489,6 +490,30 @@ async def export(
 
     selected_formats = set(formats) if formats else {"excel", "html", "pdf", "json"}
     actual_format = DATE_FORMATS[date_format]
+
+    # The PDF report renders header text, footer text, and (optionally) a
+    # logo straight from the UI configuration. Other formats (excel,
+    # html, json) don't read UI config at all. If a PDF is on the menu
+    # but UI config is still at its defaults, the resulting PDF will show
+    # the "Default header text" placeholders — warn the user up front.
+    if "pdf" in selected_formats:
+        defaults = UIDefaults().model_dump()
+        ui_at_defaults = all(
+            ui_config.config.get(key) == defaults.get(key) for key in ("header_text", "footer_text")
+        )
+        if ui_at_defaults:
+            log = ctx.obj.get("log")
+            log.warning("PDF export requested with default UI configuration.")
+            click.echo(
+                click.style(
+                    "⚠️  PDF export will use placeholder header / footer text — "
+                    "no UI configuration detected. Run `patcherctl reset UI` to "
+                    "customize, or drop pdf from --format if you only need the "
+                    "machine-readable formats (excel, html, json).",
+                    fg="yellow",
+                    bold=True,
+                )
+            )
 
     # Animation + error handling are scoped inside process_reports
     await process_reports(
