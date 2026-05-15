@@ -21,7 +21,7 @@ sys.path.append(str(Path(".").resolve()))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "Patcher"
-copyright = "2024, Andrew Lerman & Chris Ball"
+copyright = "Copyright &copy; 2026, Andrew Lerman & Chris Ball"
 author = "Andrew Lerman & Chris Ball"
 
 version = __version__
@@ -31,17 +31,17 @@ release = f"v{__version__}"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    "sphinx_design",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.autosummary",
-    "sphinx.ext.githubpages",
     "sphinx.ext.intersphinx",
     "sphinx.ext.linkcode",
     "sphinxcontrib.autodoc_pydantic",
     "sphinx_copybutton",
-    "myst_parser",
+    "sphinx_design",
+    "sphinx_iconify",
     "sphinx_togglebutton",
+    "myst_parser",
     "ghwiki",
     "styled_params",
 ]
@@ -57,12 +57,18 @@ github_wiki_default = "Installomator"
 # Intersphinx mapping
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
+    "pydantic": ("https://docs.pydantic.dev/latest", None),
 }
-
-default_role = "py:obj"
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+
+# Suppress specific warnings
+suppress_warnings = [
+    "autodoc",                # Suppress duplicate object warnings from autodoc
+    "myst.xref_ambiguous",    # Suppress ambiguous cross-reference warnings
+    "autosectionlabel.*",     # Suppress duplicate label warnings
+]
 
 # Autodoc options
 add_module_names = False
@@ -76,12 +82,22 @@ toc_object_entries_show_parents = "hide"
 autodoc_pydantic_model_show_json = False
 autodoc_pydantic_model_show_field_summary = False
 
-# Add 'init' DocStrings to class DocStrings
-autoclass_content = "both"
-
 # MyST Options
-myst_enable_extensions = ["colon_fence", "substitution", "attrs_block", "attrs_inline"]
+myst_enable_extensions = [
+    "colon_fence",
+    "substitution",
+    "attrs_block",
+    "attrs_inline"
+]
+
+# Heading anchors
 myst_heading_anchors = 4
+
+# MyST Substitutions
+myst_substitutions = {
+    "version": __version__,
+    "release": release,
+}
 
 # -- Link Code  --------------------------------------------------------------
 # based on pandas doc/source/conf.py
@@ -147,13 +163,16 @@ togglebutton_hint_hide = str(_("Click to collapse"))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_baseurl = "https://patcher.readthedocs.io"
-html_theme = "pydata_sphinx_theme"
+html_theme = "shibuya"
 html_logo = "_static/v2-logo.svg"
 html_favicon = "_static/v2-logo-favicon.svg"
 html_static_path = ["_static"]
 html_title = f"{release}"
 
-html_css_files = ["css/custom.css"]
+html_css_files = [
+    "css/custom.css",
+    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"
+]
 
 # -- RTD version awareness ---------------------------------------------------
 # READTHEDOCS_VERSION_NAME is set by Read the Docs at build time (e.g. "latest",
@@ -170,78 +189,60 @@ if rtd_version == "develop":
     )
 else:
     _announcement = (
-        "https://raw.githubusercontent.com/liquidz00/Patcher/main/docs/_templates/custom-template.html"
+        '<div class="sidebar-message"> '
+        'Find us on the MacAdmins Slack! '
+        '<a href="https://macadmins.slack.com/archives/C07EH1R7LB0">#patcher</a> '
+        '</div>'
     )
 
 html_theme_options = {
-    "external_links": [
-        {"url": "https://github.com/liquidz00/Patcher/blob/main/CHANGELOG.md", "name": "Changelog"},
-        {"url": "https://www.macadmins.org", "name": "MacAdmins Foundation"},
-        {"url": "https://community.jamf.com", "name": "JamfNation"},
-        {
-            "url": "https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Jamf_Pro_Documentation.html",
-            "name": "Jamf Pro Documentation",
-        },
-        {"url": "https://pypi.org/project/patcherctl", "name": "PyPi"},
-    ],
-    "header_links_before_dropdown": 3,
-    "navbar_align": "left",
+    # Shibuya-supported
+    "color_mode": "auto",
+    "dark_code": True,
     "announcement": _announcement,
-    "switcher": {
-        "json_url": "https://patcher.readthedocs.io/en/latest/_static/switcher.json",
-        "version_match": rtd_version or "latest",
-    },
-    # Don't fetch switcher.json at build time — RTD's develop build runs before
-    # main has the file, which would otherwise produce a 404 warning and fail
-    # the build under fail_on_warning. The browser validates at view time.
-    "check_switcher": False,
-    "show_prev_next": False,
-    "navbar_start": ["navbar-logo"],
-    "navbar_center": ["navbar-nav"],
-    "navbar_end": ["version-switcher", "theme-switcher", "navbar-icon-links"],
-    "icon_links": [
+    "light_logo": "_static/logo.svg",
+    "dark_logo": "_static/logo-dark.svg",
+    "open_in_chatgpt": True,
+    "open_in_claude": True,
+    "open_in_perplexity": True,
+    "github_url": "https://github.com/liquidz00/Patcher",
+    "slack_url": "https://macadmins.slack.com/archives/C07EH1R7LB0",
+    "discussion_url": "https://github.com/liquidz00/Patcher/discussions",
+    "nav_links": [
         {
-            "name": "GitHub",
-            "url": "https://github.com/liquidz00/Patcher",
-            "icon": "fab fa-github",
+            "title": "Changelog",
+            "url": "https://github.com/liquidz00/Patcher/blob/main/CHANGELOG.md",
+            "external": True,
         },
         {
-            "name": "PyPI",
-            "url": "https://pypi.org/project/patcherctl/",
-            "icon": "fab fa-python",
-        },
-        {
-            "name": "MacAdmins Slack",
-            "url": "https://macadmins.slack.com/archives/C07EH1R7LB0",
-            "icon": "fab fa-slack",
+            "title": "Resources",
+            "children": [
+                {
+                    "title": "MacAdmins Foundation",
+                    "url": "https://www.macadmins.org",
+                },
+                {
+                    "title": "JamfNation",
+                    "url": "https://community.jamf.com",
+                },
+                {
+                    "title": "Jamf Pro Documentation",
+                    "url": "https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Jamf_Pro_Documentation.html",
+                },
+            ]
         },
     ],
-    "logo": {
-        "text": "Patcher",
-        "image_dark": "_static/v2-logo-dark.svg",
-    },
-    "footer_start": ["copyright"],
-    "footer_end": ["theme-version"],
-    "back_to_top_button": False,
-    "secondary_sidebar_items": {
-        "**/*": ["page-toc", "sourcelink"],
-    },
-    "show_toc_level": 3,
-    "pygments_light_style": "xcode",
-    "pygments_dark_style": "github-dark",
 }
 
 # Remove primary sidebar from contributing page
-html_sidebars = {
-    "contributing/index": [],
-    "macadmins/index": [],
-}
+# TODO: Modify respective page metadata to hide sidebars instead
+# html_sidebars = {
+#     "contributing/index": [],
+#     "macadmins/index": [],
+# }
 
 html_context = {
-    "default_mode": "auto",
-    "navbar_links": [
-        ("User Guide", "user/index.html"),
-        ("Reference", "reference/index.html"),
-        ("Contributing", "contributing/index.html"),
-    ],
+    "source_type": "github",
+    "source_user": "liquidz00",
+    "source_repo": "Patcher",
 }

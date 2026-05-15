@@ -66,10 +66,11 @@ dev = [
 docs = [
   "autodoc-pydantic",
   "myst-parser",
-  "pydata-sphinx-theme",
+  "shibuya>=2026.1.9",
   "sphinx>=7.3.7",
-  "sphinx-design",
   "sphinx-copybutton",
+  "sphinx-design",
+  "sphinx-iconify>=0.3.0",
   "sphinx-togglebutton",
 ]
 
