@@ -132,12 +132,11 @@ async def process_reports(
             device_reports = await patcher.jamf.get_title_reports(title_ids)
 
         await animation.update_msg("Generating reports...")
-        await patcher.data.export(
-            patch_titles=patch_reports,
+        await patcher.export(
+            patch_reports,
             output_dir=output_path,
-            report_title=report_title,
-            analysis=False,
             formats=formats,
+            report_title=report_title,
             date_format=date_format,
             header_color=header_color,
             device_reports=device_reports,

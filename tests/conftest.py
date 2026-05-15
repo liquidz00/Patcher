@@ -315,6 +315,9 @@ def patcher_instance(
     patcher.installomator = mock_installomator
     patcher.ui_config = {"header_text": "", "header_color": ""}
     patcher.debug = True
+    # ``patcher.export`` is a top-level convenience method (delegates to
+    # ``patcher.data.export``). The CLI's ``process_reports`` calls it directly.
+    patcher.export = AsyncMock()
     return patcher
 
 

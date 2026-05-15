@@ -2,6 +2,7 @@ import asyncio
 import inspect
 import sys
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 
 import asyncclick as click
@@ -283,41 +284,47 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
     animation = ctx.obj.get("animation")
     disable_cache = ctx.obj.get("disable_cache")
 
-    reset_functions = [
-        config.reset_config,
-        ui_config.reset_config,
-        setup.reset_setup,
+    reset_steps: list[tuple[str, Callable[[], bool]]] = [
+        ("Resetting credentials...", config.reset_config),
+        ("Resetting UI configuration...", ui_config.reset_config),
+        ("Resetting setup state...", setup.reset_setup),
     ]
 
     if not disable_cache:
         data_manager = get_data_manager(ctx)
-        reset_functions.append(data_manager.reset_cache)
+        reset_steps.append(("Clearing cached data...", data_manager.reset_cache))
 
     async with animation.error_handling():
         if kind.lower() == "full":
             log.info("Performing full reset...")
 
-            # Only trigger setup if all resets successful
-            results = [reset_method() for reset_method in reset_functions]
+            results: list[bool] = []
+            for msg, reset_method in reset_steps:
+                await animation.update_msg(msg)
+                results.append(reset_method())
 
             if not all(results):
-                # Notify user
-                failed_indices = [i for i, result in enumerate(results) if result]
-                failed_methods = [reset_functions[i].__name__ for i in failed_indices]
+                failed_indices = [i for i, result in enumerate(results) if not result]
+                failed_methods = [reset_steps[i][1].__name__ for i in failed_indices]
                 log.error(f"Reset failed. {' '.join(failed_methods)} method(s) were unsuccessful.")
                 raise PatcherError(
                     "Reset could not be completed as expected.", failed=(" ".join(failed_methods))
                 )
             else:
                 log.info("All resets successful. Triggering setup.")
+                await animation.update_msg("Launching setup wizard...")
                 await setup.start(animation)
         elif kind.lower() == "ui":
             log.info("Resetting UI elements...")
+            await animation.update_msg("Resetting UI configuration...")
             if ui_config.reset_config():
-                # Only prompt to setup UI if reset_config was successful
+                await animation.update_msg("Prompting for new UI settings...")
                 await setup.prompt_ui_settings()
         elif kind.lower() == "creds":
             log.info(f"Resetting credentials... (specific: {credential if credential else 'all'})")
+            await animation.update_msg(
+                f"Resetting credentials ({credential if credential else 'all'})..."
+            )
 
             # Keyring automatically overwrites existing passwords if key and service_name are the same.
             # This allows us to just call the set_credential method instead of having to delete existing
@@ -325,12 +332,15 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
             match credential:
                 case "url":
                     new_url = await click.prompt("Enter your Jamf Pro URL")
+                    await animation.update_msg("Saving Jamf Pro URL to keychain...")
                     config.set_credential("URL", new_url)
                 case "client_id":
                     new_client_id = await click.prompt("Enter your API Client ID")
+                    await animation.update_msg("Saving Client ID to keychain...")
                     config.set_credential("CLIENT_ID", new_client_id)
                 case "client_secret":
                     new_client_secret = await click.prompt("Enter your API Client Secret")
+                    await animation.update_msg("Saving Client Secret to keychain...")
                     config.set_credential("CLIENT_SECRET", new_client_secret)
                 case None:
                     log.info("Attempting to delete all credentials from keychain...")
@@ -340,6 +350,7 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
                         "CLIENT_SECRET": await click.prompt("Enter your API Client Secret"),
                     }
                     for k, v in cred_map.items():
+                        await animation.update_msg(f"Saving {k} to keychain...")
                         config.set_credential(k, v)
         elif kind.lower() == "cache":
             log.info("Removing cached data...")
@@ -355,6 +366,7 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
                 )
                 ctx.exit(0)
 
+            await animation.update_msg("Clearing cached data...")
             if not data_manager.reset_cache():
                 raise PatcherError("Encountered an error trying to reset cache.")
 
@@ -585,6 +597,9 @@ async def analyze(
     data_manager = get_data_manager(ctx)
 
     async with animation.error_handling():
+        await animation.update_msg(
+            "Loading patch data from Excel..." if excel_file else "Loading cached patch data..."
+        )
         analyzer = Analyzer(
             excel_path=excel_file if excel_file else None, data_manager=data_manager
         )
@@ -592,6 +607,7 @@ async def analyze(
         if all_time:  # Analyze trends
             trend_criteria = TrendCriteria.from_cli(criteria)
 
+            await animation.update_msg(f"Calculating '{criteria}' trend across cached datasets...")
             trend_df = analyzer.timelapse(trend_criteria)
 
             if trend_df.empty:
@@ -605,6 +621,7 @@ async def analyze(
                 )
                 ctx.exit(0)
 
+            await animation.update_msg("Formatting trend results...")
             formatted_table = analyzer.format_table(
                 trend_df.values.tolist(), headers=trend_df.columns.tolist()
             )
@@ -612,6 +629,7 @@ async def analyze(
 
             if summary:
                 try:
+                    await animation.update_msg("Saving trend analysis report...")
                     output_file = output_dir / f"trend-analysis-{criteria}.html"
                     trend_df.to_html(output_file, index=False)
                     click.echo(
@@ -627,6 +645,7 @@ async def analyze(
                     )
         else:  # Filter analysis
             filter_criteria = FilterCriteria.from_cli(criteria)
+            await animation.update_msg(f"Filtering titles by '{criteria}'...")
             filtered_titles = analyzer.filter_titles(filter_criteria, threshold, top_n)
             if len(filtered_titles) == 0:
                 await animation.stop()
@@ -638,6 +657,7 @@ async def analyze(
                 )
                 ctx.exit(0)
 
+            await animation.update_msg("Formatting filtered results...")
             table_data = [
                 [
                     t.title,
@@ -667,6 +687,7 @@ async def analyze(
 
         if summary:
             try:
+                await animation.update_msg("Writing HTML summary report...")
                 exported = await data_manager.export(
                     filtered_titles,
                     output_dir,
