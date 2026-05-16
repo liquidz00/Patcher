@@ -23,7 +23,7 @@ def serialize_titles_to_dict(
     """
     Convert a list of :class:`PatchTitle` into a JSON-serializable dict.
 
-    Pure function with no I/O — safe to call from CLI export, library code,
+    Pure function with no I/O. Safe to call from CLI export, library code,
     or anywhere a structured representation of the titles is useful.
 
     The returned dict has the shape::
@@ -543,7 +543,7 @@ class DataManager:
             )
 
         try:
-            # JSON — serialized straight from PatchTitle models (no DataFrame round-trip)
+            # JSON: serialized straight from PatchTitle models (no DataFrame round-trip)
             # so consumers get the same shape the library exposes programmatically.
             if "json" in formats:
                 json_path = self._generate_filename(output_dir, "json", analysis)

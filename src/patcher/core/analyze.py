@@ -125,7 +125,7 @@ def calculate_ios_on_latest(
     Per-major-iOS-version, count devices on the latest release and produce
     :class:`PatchTitle` summaries.
 
-    Pure data transform — no I/O.
+    Pure data transform. No I/O.
 
     :param device_versions: Per-device dicts containing ``"OS"`` and ``"DeviceID"``.
     :type device_versions: list[dict[str, str]]

@@ -12,7 +12,7 @@ class Label(Model):
 
     InstallomatorClient labels define metadata required for software installation using the InstallomatorClient tool. This includes information such as the download URL, expected Team ID, and type of installation package.
 
-    For detailed reference on InstallomatorClient Labels, see :ref:`InstallomatorClient <installomator>` in the project docs, or visit the :ghwiki:`Labels reference <InstallomatorClient:Label Variables Reference>` in the InstallomatorClient wiki.
+    For detailed reference on Installomator labels, see :ref:`Installomator <installomator>` in the project docs, or visit the :ghwiki:`Labels reference <Installomator:Label Variables Reference>` in the Installomator wiki.
 
     :param name: The name of the Application the label is tied to (e.g., 'Google Chrome')
     :type name: str

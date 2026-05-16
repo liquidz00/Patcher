@@ -8,9 +8,9 @@ of the always-present rotating file handler; library users who never import
 
 Two install points:
 
-- :func:`install_terminal_handler` — attach the colored console handler.
+- :func:`install_terminal_handler`: attach the colored console handler.
   Call from the CLI entry point when ``--debug`` is set.
-- :func:`install_terminal_excepthook` — chain a terminal-styled message onto
+- :func:`install_terminal_excepthook`: chain a terminal-styled message onto
   :meth:`patcher.core.logger.PatcherLog.custom_excepthook` so unhandled
   exceptions surface a one-line stderr message in addition to the file log.
 """
@@ -30,7 +30,7 @@ class TerminalHandler(logging.Handler):
     Logging handler that emits records as click-styled lines on stdout.
 
     Maps each log level to a color so a debug run produces the same visual
-    output the legacy in-class ``click.echo`` calls did — magenta DEBUG, blue
+    output the legacy in-class ``click.echo`` calls did (magenta DEBUG, blue
     INFO, bold-yellow WARNING, bold-red ERROR. The leading ``\\r`` preserves
     the existing behavior of overwriting the current terminal line (used to
     coexist with the :class:`~patcher.cli.animation.Animation` spinner).
@@ -53,7 +53,7 @@ def install_terminal_handler(debug: bool) -> None:
     """
     Attach a :class:`TerminalHandler` to the Patcher logger when in debug mode.
 
-    Idempotent — calling twice will not add duplicate handlers. No-op when
+    Idempotent. Calling twice will not add duplicate handlers. No-op when
     ``debug`` is False, so the standard CLI run (and any library import path)
     sees no terminal output beyond what callers explicitly emit.
 
@@ -79,7 +79,7 @@ def install_terminal_excepthook() -> None:
     The core hook logs unhandled exceptions to file. This wrapper additionally
     emits a one-line red error message and a hint about the log file to
     stderr, matching the legacy in-module behavior. Library callers who never
-    import ``patcher.cli`` are unaffected — their ``sys.excepthook`` is not
+    import ``patcher.cli`` are unaffected; their ``sys.excepthook`` is not
     touched.
     """
     base_hook = PatcherLog.custom_excepthook

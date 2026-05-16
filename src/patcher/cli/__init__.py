@@ -136,7 +136,7 @@ def _install_cli_process_hooks() -> None:
     help=(
         "Jamf Pro API client ID. When passed alongside --client-secret and --url "
         "(or via PATCHER_CLIENT_ID, PATCHER_CLIENT_SECRET, PATCHER_URL env vars), "
-        "Patcher runs in non-interactive mode without keychain access — intended "
+        "Patcher runs in non-interactive mode without keychain access (intended "
         "for CI/CD environments."
     ),
 )
@@ -230,7 +230,7 @@ async def cli(
             await setup.bootstrap_noninteractive(
                 client_id=client_id, client_secret=client_secret, url=url
             )
-            # Fall through — let the requested subcommand run.
+            # Fall through; let the requested subcommand run.
         elif not setup.completed:
             await setup.start(animator=ctx.obj.get("animation"), fresh=fresh)
             click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
@@ -495,7 +495,7 @@ async def export(
     # logo straight from the UI configuration. Other formats (excel,
     # html, json) don't read UI config at all. If a PDF is on the menu
     # but UI config is still at its defaults, the resulting PDF will show
-    # the "Default header text" placeholders — warn the user up front.
+    # the "Default header text" placeholders, so warn the user up front.
     if "pdf" in selected_formats:
         defaults = UIDefaults().model_dump()
         ui_at_defaults = all(
@@ -506,7 +506,7 @@ async def export(
             log.warning("PDF export requested with default UI configuration.")
             click.echo(
                 click.style(
-                    "⚠️  PDF export will use placeholder header / footer text — "
+                    "⚠️  PDF export will use placeholder header / footer text; "
                     "no UI configuration detected. Run `patcherctl reset UI` to "
                     "customize, or drop pdf from --format if you only need the "
                     "machine-readable formats (excel, html, json).",

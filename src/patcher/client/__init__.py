@@ -43,7 +43,7 @@ class HTTPClient:
 
         Read access is via the :attr:`max_concurrency` attribute directly;
         this method exists specifically for validated writes. It is recommended
-        to keep the value at no more than 5 to avoid overloading Jamf — see
+        to keep the value at no more than 5 to avoid overloading Jamf. See
         the class docstring for the upstream guidance.
 
         :param value: The new maximum concurrency level.
@@ -76,7 +76,7 @@ class HTTPClient:
         if self._http_client is None:
             # truststore.SSLContext bridges Python's ssl module to the OS's
             # native trust store. Corporate CAs installed via MDM are trusted
-            # automatically — no certifi-modification dance required.
+            # automatically; no certifi-modification dance required.
             ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             self._http_client = httpx.AsyncClient(
                 timeout=httpx.Timeout(30.0),
@@ -109,7 +109,7 @@ class HTTPClient:
 
         Translates httpx-native errors to Patcher's :class:`APIResponseError`
         so callers see the same exception contract as the existing
-        :meth:`fetch_json` path — notably the ``not_found=True`` flag on 404
+        :meth:`fetch_json` path, notably the ``not_found=True`` flag on 404
         responses, which :meth:`patcher.core.installomator.InstallomatorClient.match`
         uses to short-circuit gracefully.
 
@@ -213,7 +213,7 @@ class HTTPClient:
 
         Routes the request through the per-instance ``httpx.AsyncClient`` (see
         :attr:`http`). Form-encoded vs JSON request bodies are selected based
-        on the ``Content-Type`` header of the merged request headers — the
+        on the ``Content-Type`` header of the merged request headers; the
         same routing logic the prior curl-based implementation used. Non-2xx
         responses are translated via :meth:`_raise_for_status` into
         :class:`APIResponseError` (with ``not_found=True`` on 404), preserving
@@ -327,7 +327,7 @@ class HTTPClient:
         clients and roles. It should not be used for regular token retrieval after setup.
 
         The password is passed via httpx's ``auth=`` tuple parameter, which encodes it
-        in the ``Authorization`` header — it never appears in the URL, request body, or
+        in the ``Authorization`` header. It never appears in the URL, request body, or
         log output, so no credential-sanitization step is required on the error path.
 
         :param username: Username of admin Jamf Pro account for authentication. Not permanently stored, only used for initial token retrieval.

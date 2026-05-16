@@ -125,7 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Setup can be forcibly restarted by passing the `--fresh` argument, regardless of previous completion
 
 ### Changed
-- Greeting is only shown if setup is in initial state to prevent redundancy. ([Docs](https://patcher.readthedocs.io/user/setup_assistant.html#resumable-setup:~:text=last%20successful%20step.-,The%20stages%20are%3A,-not_started%3A%20Initial%20stage))
+- Greeting is only shown if setup is in initial state to prevent redundancy. ([Docs](https://patcher.readthedocs.io/getting-started/setup/cli.html#starting-fresh))
 
 ## [v2.1.3] - 2025-03-16
 ### Changed
@@ -145,10 +145,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v2.1.1] - 2025-03-13
 ### Added
-- Installomator support can be disabled should it not align with the security standards of your environment ([Docs](https://patcher.readthedocs.io/user/installomator_support.html#disabling-installomator))
+- Installomator support can be disabled should it not align with the security standards of your environment ([Docs](https://patcher.readthedocs.io/integrations/installomator.html#disabling-installomator-support))
 
 ### Changed
-- Property list structure has been reformatted for simplicity and efficiency. ([Docs](https://patcher.readthedocs.io/user/plist.html))
+- Property list structure has been reformatted for simplicity and efficiency. ([Docs](https://patcher.readthedocs.io/concepts/data-storage.html))
 - All property list methods refactored into own `PropertyListManager` class for separation of concerns
 
 ### Fixed

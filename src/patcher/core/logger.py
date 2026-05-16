@@ -23,7 +23,7 @@ class PatcherLog:
         """
         Configures and returns the Patcher logger with a rotating file handler.
 
-        Pure stdlib — no terminal output. Console / colored output is installed
+        Pure stdlib, no terminal output. Console / colored output is installed
         separately by the CLI via :func:`patcher.cli.terminal_logger.install_terminal_handler`;
         library callers get file logging only.
 
@@ -75,7 +75,7 @@ class PatcherLog:
         exc_traceback: TracebackType | None,
     ) -> None:
         """
-        Logs unhandled exceptions to Patcher's log file. Pure file logging — no
+        Logs unhandled exceptions to Patcher's log file. Pure file logging, no
         terminal output. The CLI installs a chained excepthook that adds
         user-facing stderr messages on top of this one (see
         :func:`patcher.cli.terminal_logger.install_terminal_excepthook`).

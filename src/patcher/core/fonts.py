@@ -26,7 +26,7 @@ def ensure_default_fonts(target_dir: Path) -> dict[str, Path]:
     """
     Ensure the default Assistant fonts (Regular and Bold) live in ``target_dir``.
 
-    Idempotent — fonts already present on disk are not re-downloaded. Uses
+    Idempotent. Fonts already present on disk are not re-downloaded. Uses
     :func:`httpx.get` configured with a :class:`truststore.SSLContext` so the
     same OS-trust-store TLS handling that powers ``BaseAPIClient`` applies
     here too (corporate-CA proxies, etc.).

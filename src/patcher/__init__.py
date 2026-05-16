@@ -1,5 +1,5 @@
 """
-Patcher — a Python library and CLI for Jamf Pro patch management reporting.
+Patcher: a Python library and CLI for Jamf Pro patch management reporting.
 
 For CLI usage, install with ``pip install patcherctl`` and run ``patcherctl --help``.
 
@@ -33,22 +33,22 @@ For library usage, the headline entry point is :class:`PatcherClient`:
 
 **Public surface:**
 
-- :class:`PatcherClient` — the top-level library entry point. Holds
+- :class:`PatcherClient`: the top-level library entry point. Holds
   ``jamf``, ``installomator``, and ``data`` collaborators as attributes.
-- :class:`JamfClient` — Jamf Pro API client, available standalone for
+- :class:`JamfClient`: Jamf Pro API client, available standalone for
   callers who only want the Jamf endpoints.
-- :class:`InstallomatorClient` — Installomator label matching service.
+- :class:`InstallomatorClient`: Installomator label matching service.
   Naming pattern reserved for future siblings (Homebrew, AutoPkg, Jamf
   App Installer, the Patcher API service).
-- Return shapes: :class:`PatchTitle`, :class:`PatchDevice` — useful for
+- Return shapes: :class:`PatchTitle`, :class:`PatchDevice`. Useful for
   type-hinting your own code that consumes Patcher's responses.
 - Exceptions: :class:`PatcherError`, :class:`APIResponseError`,
   :class:`CredentialError`, :class:`TokenError`, :class:`InstallomatorWarning`.
 
 Submodules under :mod:`patcher.cli`, :mod:`patcher.core`, and
-:mod:`patcher.client` remain importable for advanced use cases — for
+:mod:`patcher.client` remain importable for advanced use cases (for
 example :class:`patcher.client.HTTPClient` for generic
-httpx-with-truststore requests — but those paths are not part of the
+httpx-with-truststore requests), but those paths are not part of the
 stable public surface.
 
 CLI-only objects (``Setup``, ``UIConfigManager``, ``PropertylistManager``,

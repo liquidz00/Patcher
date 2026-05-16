@@ -55,7 +55,7 @@ async def process_reports(
     :class:`~patcher.core.patcher_client.PatcherClient`.
 
     Wraps the orchestration in an :class:`~patcher.cli.animation.Animation`
-    spinner and prints a success banner on completion — both CLI-presentation
+    spinner and prints a success banner on completion. Both are CLI-presentation
     concerns that don't belong in the core layer. Library callers should call
     ``patcher.jamf``, the transforms in :mod:`patcher.core.analyze`, and
     ``patcher.data.export(...)`` directly.

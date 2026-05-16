@@ -63,7 +63,7 @@ class PatcherClient:
                 )
             # connection pool released here
 
-        An in-memory :class:`ConfigManager` is built internally — no keyring
+        An in-memory :class:`ConfigManager` is built internally. No keyring
         backend required, no plist mutation, no disk I/O on construction.
         ``PatcherClient`` is usable as an async context manager (preferred
         for clean shutdown) or as a regular object (call :meth:`aclose`
@@ -84,7 +84,7 @@ class PatcherClient:
         :type client_secret: str | None
         :param server: Jamf Pro instance URL (e.g. ``https://myorg.jamfcloud.com``).
         :type server: str | None
-        :param config: Existing ``ConfigManager`` instance — mutually
+        :param config: Existing ``ConfigManager`` instance, mutually
             exclusive with the credentials arguments.
         :type config: :class:`~patcher.core.config_manager.ConfigManager` | None
         :param concurrency: Maximum concurrent API requests. Defaults to 5,
@@ -143,7 +143,7 @@ class PatcherClient:
         omit_recent_hours: int | None = None,
     ) -> list[PatchTitle]:
         """
-        Fetch patch summaries in one call — the library equivalent of what the
+        Fetch patch summaries in one call. The library equivalent of what the
         CLI's ``export`` flow gathers before writing a report.
 
         Composes the granular pipeline: policies → summaries → (optional
@@ -199,7 +199,7 @@ class PatcherClient:
         top_n: int | None = None,
     ) -> list[PatchTitle]:
         """
-        Filter and sort patch titles by a named criterion — the library
+        Filter and sort patch titles by a named criterion. The library
         equivalent of the CLI's ``analyze`` subcommand.
 
         Accepts either a :class:`FilterCriteria` enum value or a CLI-style
@@ -228,7 +228,7 @@ class PatcherClient:
 
         # Analyzer reads from data_manager.titles; stash the caller's list
         # there so the existing filter_titles logic can run without a refactor.
-        # data.titles is a documented public setter — safe to assign to.
+        # data.titles is a documented public setter, safe to assign to.
         self.data.titles = titles
 
         analyzer = Analyzer(self.data)
@@ -247,7 +247,7 @@ class PatcherClient:
         device_reports: dict[str, list] | None = None,
     ) -> dict[str, str]:
         """
-        Export patch titles to one or more report formats — convenience
+        Export patch titles to one or more report formats. Convenience
         wrapper around :meth:`data.export`.
 
         :param titles: Patch titles to include in the report.
@@ -289,7 +289,7 @@ class PatcherClient:
         """
         Release the underlying httpx connection pool.
 
-        Idempotent — safe to call multiple times. PatcherClient owns a single
+        Idempotent. Safe to call multiple times. PatcherClient owns a single
         :class:`~patcher.client.jamf.JamfClient` (shared by
         :attr:`installomator` when present); closing it releases the pool
         for both collaborators.

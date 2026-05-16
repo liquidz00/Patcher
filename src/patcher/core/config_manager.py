@@ -25,7 +25,7 @@ class ConfigManager:
         For non-interactive use (CI/CD environments without a keychain backend), pass
         ``in_memory_credentials`` to bypass the keychain entirely. Reads check the
         in-memory dict first and fall through to keyring only if the key is absent.
-        Writes go to the in-memory dict only — keyring is not touched.
+        Writes go to the in-memory dict only; keyring is not touched.
 
         :param service_name: Service name for storing credentials in the keyring. Defaults to 'Patcher'.
         :type service_name: str
@@ -85,7 +85,7 @@ class ConfigManager:
     def set_credential(self, key: str, value: str) -> None:
         """
         Stores a credential. In in-memory mode, writes to the in-memory dict
-        only — the keychain is never touched. Otherwise writes to the macOS
+        only; the keychain is never touched. Otherwise writes to the macOS
         keychain.
 
         :param key: The key under which the credential will be stored. This acts as an identifier for the credential.

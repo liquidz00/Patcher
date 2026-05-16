@@ -42,9 +42,9 @@ def parse_fragment(fragment: str) -> dict[str, Any]:
 
     Recognized syntaxes:
 
-    - ``key="quoted value"`` — string values, surrounding quotes stripped.
-    - ``key=$(shell expression)`` — preserved verbatim as the literal expression string.
-    - ``key=(arr "values" here)`` — bash arrays returned as Python lists.
+    - ``key="quoted value"``: string values, surrounding quotes stripped.
+    - ``key=$(shell expression)``: preserved verbatim as the literal expression string.
+    - ``key=(arr "values" here)``: bash arrays returned as Python lists.
 
     Lines starting with ``#`` and blank lines are skipped. The opening
     ``<label>)`` header and trailing ``;;`` separator are stripped before parsing.
@@ -88,14 +88,14 @@ def parse_fragment(fragment: str) -> dict[str, Any]:
 class InstallomatorClient:
     def __init__(self, concurrency: int = 5, api: HTTPClient | None = None):
         """
-        Wrapper around the `Installomator <https://github.com/Installomator/Installomator>`_ project — the macOS automated-installer script set.
+        Wrapper around the `Installomator <https://github.com/Installomator/Installomator>`_ project (the macOS automated-installer script set).
 
         This class provides methods for discovering, fetching, and matching Installomator labels to ``PatchTitle`` objects. Discovery uses the lightweight ``Labels.txt`` file at the Installomator repo root; individual ``.sh`` fragments are fetched lazily and only for matches.
 
         :param concurrency: Maximum concurrent requests for label fetches. Defaults to 5.
         :type concurrency: int
         :param api: HTTP client used for fetches against Installomator's GitHub.
-            Defaults to a fresh :class:`~patcher.client.HTTPClient` — no Jamf
+            Defaults to a fresh :class:`~patcher.client.HTTPClient`. No Jamf
             credentials required, so library callers can use
             ``InstallomatorClient()`` standalone to enumerate or fetch labels.
             When :meth:`match` is needed, pass a configured
@@ -211,7 +211,7 @@ class InstallomatorClient:
                     f"Could not read cached fragment {cache_path}; will refetch. Details: {e}"
                 )
 
-        # HTTP fetch — `fetch_text` raises `APIResponseError` on non-2xx
+        # HTTP fetch. `fetch_text` raises `APIResponseError` on non-2xx
         # (with `not_found=True` on 404) so we don't silently parse "404:
         # Not Found" bodies as labels. Treat any fetch failure as
         # best-effort: log and return None so a single broken label
@@ -227,7 +227,7 @@ class InstallomatorClient:
         if not content:
             return None
 
-        # Best-effort cache write — failure here doesn't prevent returning the label
+        # Best-effort cache write; failure here doesn't prevent returning the label
         try:
             self.label_path.mkdir(parents=True, exist_ok=True)
             cache_path.write_text(content)
@@ -244,8 +244,8 @@ class InstallomatorClient:
         Fetch and parse multiple Installomator labels in parallel.
 
         :param names: Specific label script names to fetch. If ``None`` (the
-            default), fetches **every** label listed in :data:`_LABELS_TXT_URL`
-            — typically ~700 HTTP calls on first run, served from disk cache
+            default), fetches **every** label listed in :data:`_LABELS_TXT_URL`,
+            typically ~700 HTTP calls on first run and served from disk cache
             on subsequent runs. Prefer passing a concrete name list when you
             know what you need.
         :type names: Iterable[str] | None
@@ -350,7 +350,7 @@ class InstallomatorClient:
 
         1. Fetch the set of available label script names via :meth:`list_available_labels` (one HTTP call).
         2. Pull each patch title's associated app names via :meth:`~patcher.client.jamf.JamfClient.get_app_names`.
-        3. Match each title's app names against the available script names — direct, then normalized, then fuzzy.
+        3. Match each title's app names against the available script names (direct, then normalized, then fuzzy).
         4. Fetch the matched label fragments in parallel via :meth:`get_labels` and attach them to ``PatchTitle.install_label``.
         5. Run a second-pass attempt on still-unmatched titles, keyed on the patch title text itself.
         6. Persist any remaining unmatched apps to ``unmatched_apps.json`` for manual review.
@@ -368,8 +368,8 @@ class InstallomatorClient:
         """
         if not isinstance(self.api, JamfClient):
             raise PatcherError(
-                "InstallomatorClient.match() requires a configured JamfClient — "
-                "construct InstallomatorClient(api=<JamfClient>) or use PatcherClient.",
+                "InstallomatorClient.match() requires a configured JamfClient. "
+                "Construct InstallomatorClient(api=<JamfClient>) or use PatcherClient.",
             )
 
         self.log.debug("Starting label-patch title matching process.")
@@ -449,7 +449,7 @@ class InstallomatorClient:
             )
 
 
-# Shell expression resolution — the "pyinstallomator" subset.
+# Shell expression resolution: the "pyinstallomator" subset.
 #
 # Installomator labels frequently declare values via shell pipelines, e.g.::
 #
@@ -458,8 +458,8 @@ class InstallomatorClient:
 #
 # The Patcher API ingestion pipeline needs the *resolved* value (e.g. "121.0")
 # rather than the raw shell expression. The functions below parse such
-# expressions and re-implement each pipeline stage in Python — no subprocess,
-# no shell evaluation, no sandboxing concerns — so resolution can run safely
+# expressions and re-implement each pipeline stage in Python (no subprocess,
+# no shell evaluation, no sandboxing concerns), so resolution can run safely
 # against ~700 community-authored label snippets without executing any of them.
 #
 # Supported vocabulary:
@@ -535,14 +535,14 @@ def resolve(
         result_lines = _execute_pipeline(stages, http_client=http_client)
     except UnsupportedOperation as exc:
         return ResolveResult(value=None, error=str(exc), method="unsupported")
-    except Exception as exc:  # noqa: BLE001 — caller wants a result, not a traceback
+    except Exception as exc:
         return ResolveResult(value=None, error=str(exc), method="error")
 
     if not result_lines:
         return ResolveResult(value=None, error="Pipeline produced empty output", method="pipeline")
 
     # Most expressions reduce to a single value via head/cut/grep -o, so this
-    # is usually just one line — but join multi-line output on \n if not.
+    # is usually just one line, but join multi-line output on \n if not.
     return ResolveResult(value="\n".join(result_lines), error=None, method="pipeline")
 
 
@@ -588,7 +588,7 @@ def _execute_pipeline(
             raise UnsupportedOperation(f"Empty pipeline stage at position {index}")
         cmd, args = tokens[0], tokens[1:]
         if index == 0:
-            # First stage is the source — must produce output (curl).
+            # First stage is the source; must produce output (curl).
             output = _exec_source(cmd, args, http_client=http_client)
         else:
             output = _exec_filter(cmd, args, output)
@@ -670,7 +670,7 @@ def _curl_redirect_chain_headers(
     *,
     fail_silent: bool,
 ) -> list[str]:
-    """``curl -IL`` — every redirect hop's status line + headers, in order."""
+    """``curl -IL``: every redirect hop's status line + headers, in order."""
     lines: list[str] = []
     current = url
     for _ in range(10):  # max 10 hops
@@ -696,7 +696,7 @@ def _curl_redirect_chain_headers(
 
 
 def _curl_headers(client: httpx.Client, url: str, *, fail_silent: bool) -> list[str]:
-    """``curl -I`` — status line + headers from the single response (no follow)."""
+    """``curl -I``: status line + headers from the single response (no follow)."""
     try:
         response = client.head(url, follow_redirects=False)
     except httpx.HTTPError:
@@ -713,7 +713,7 @@ def _curl_headers(client: httpx.Client, url: str, *, fail_silent: bool) -> list[
 def _curl_body(
     client: httpx.Client, url: str, *, follow_redirects: bool, fail_silent: bool
 ) -> list[str]:
-    """``curl`` (no ``-I``) — response body, split into lines."""
+    """``curl`` (no ``-I``): response body, split into lines."""
     try:
         response = client.get(url, follow_redirects=follow_redirects)
     except httpx.HTTPError:
@@ -793,7 +793,7 @@ def _exec_cut(args: list[str], input_lines: list[str]) -> list[str]:
     """
     Field extraction. Supports ``-d DELIM`` and ``-f N|N1,N2|N1-N2`` (1-indexed).
     Both separated (``-f 5``) and joined (``-f5``) flag-argument forms are
-    accepted — real Installomator labels use both.
+    accepted, since real Installomator labels use both.
     """
     delimiter = "\t"
     fields: list[int] = [1]

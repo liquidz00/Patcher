@@ -8,7 +8,7 @@ class PatcherError(Exception):
 
     .. important::
         **Each keyword in ``**kwargs`` is also set as an instance attribute**
-        (see the loop below). This is load-bearing — multiple callers rely
+        (see the loop below). This is load-bearing; multiple callers rely
         on ``getattr(err, "not_found", False)`` to short-circuit on 404
         responses (notably :meth:`patcher.core.installomator.InstallomatorClient.match`).
         Removing the ``setattr`` loop in favor of "just storing kwargs in
@@ -22,7 +22,7 @@ class PatcherError(Exception):
     def __init__(self, message: str = None, **kwargs):
         self.message = message or self.default_message
         self.context = kwargs
-        # Expose context entries as attributes — see the class docstring's
+        # Expose context entries as attributes; see the class docstring's
         # `.. important::` note. Load-bearing for the 404 short-circuit.
         for key, value in kwargs.items():
             if not hasattr(self, key):
