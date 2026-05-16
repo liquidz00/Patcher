@@ -138,7 +138,7 @@ class InstallomatorClient:
             return None
 
         try:
-            return Label.from_dict(fragment_dict, installomatorLabel=script_name)
+            return Label.from_dict(fragment_dict, installomator_label=script_name)
         except ValidationError as e:
             self.log.warning(
                 f"Skipping invalid Installomator label: {script_name} due to validation error: {e}"
@@ -474,6 +474,36 @@ class InstallomatorClient:
 
 
 _SHELL_EXPR_PATTERN = re.compile(r"^\$\((.*)\)\s*$", re.DOTALL)
+
+
+def is_shell_expression(value: str | None) -> bool:
+    """
+    Detect whether an Installomator label value contains shell syntax that
+    needs evaluation rather than being a usable literal.
+
+    :func:`resolve` handles values shaped *exactly* like ``$(... pipeline ...)``
+    (its regex is anchored). This helper is broader: it also catches embedded
+    substitutions that ``resolve`` will pass through as literals, and which
+    callers should treat as unsafe:
+
+    - Pure expressions: ``$(curl -fsL https://...)`` or ``$varname``
+    - Embedded substitutions: ``https://example.com$(curl ...)`` or
+      ``${baseURL}/path/to/installer.pkg``
+
+    Useful as a safety net after :func:`resolve` returns ``method="literal"`` to
+    confirm the literal is genuinely a clean value, not an unresolvable fragment
+    that snuck past the resolver's anchored pattern.
+
+    :param value: A parsed label-fragment value.
+    :type value: str | None
+    :return: ``True`` if the value contains any shell-expression artifacts.
+    :rtype: bool
+    """
+    if value is None:
+        return False
+    if "$(" in value or "${" in value:
+        return True
+    return value.startswith("$")
 
 
 @dataclass

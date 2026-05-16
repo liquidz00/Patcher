@@ -87,7 +87,7 @@ class Fragment(Model):
 
     @model_validator(mode="after")
     def validate_download_url(self) -> "Fragment":
-        """Ensures ``self.name`` is included in ``self.downloadURL``."""
+        """Ensures ``self.name`` is included in ``self.download_url``."""
         if not self.download_url.endswith(self.name):
             raise PatcherError(
                 "Download URL mismatch in Fragment object.", provided_url=self.download_url

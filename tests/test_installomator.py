@@ -156,7 +156,7 @@ async def test_get_label_fetches_and_caches(iom: InstallomatorClient) -> None:
 
     assert label is not None
     assert label.name == "Google Chrome"
-    assert label.installomatorLabel == "googlechrome"
+    assert label.installomator_label == "googlechrome"
     # Cached on instance: subsequent call doesn't refetch
     label_again = await iom.get_label("googlechrome")
     assert label_again is label
