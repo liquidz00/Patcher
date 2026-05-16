@@ -96,11 +96,14 @@ def test_parse_fragment_returns_empty_dict_for_empty_input():
 
 @pytest.mark.asyncio
 async def test_ingest_stores_realistic_label(test_session, monkeypatch):
-    # Mock pyinstallomator's resolve() so the test stays offline + deterministic.
-    # The Firefox label's appNewVersion is a curl pipeline; we don't want the
-    # test suite hitting download.mozilla.org. Stub returns a fixed version
-    # for the curl expression, passes literals through unchanged.
+    # Enable the opt-in resolver path for this test, AND mock the underlying
+    # resolve() so it stays offline + deterministic. The Firefox label's
+    # appNewVersion is a curl pipeline; we don't want the test suite hitting
+    # download.mozilla.org. Stub returns a fixed version for the curl
+    # expression, passes literals through unchanged.
     from patcher.core.installomator import ResolveResult
+
+    monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
 
     def fake_resolve(expression, *, http_client=None):
         if expression is None:

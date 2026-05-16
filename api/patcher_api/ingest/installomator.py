@@ -10,12 +10,18 @@ The parser mirrors Patcher's :class:`patcher.core.installomator.InstallomatorCli
 behavior — handling literal ``key="value"`` assignments, shell expressions
 ``key=$(...)`` stored as raw strings, and bash arrays ``key=(...)``.
 
-For ``downloadURL`` and ``appNewVersion`` specifically, the ingest evaluates
-shell expressions via :func:`patcher.core.installomator.resolve` (the
-"pyinstallomator" port). Resolved values land in the projected columns;
-unresolvable expressions are stored as ``NULL`` rather than as raw shell
-fragments. The full untouched parse result is always preserved in the
-``raw`` JSON column.
+**Shell expression handling for ``downloadURL`` and ``appNewVersion``** is
+controlled by the ``PATCHER_API_RESOLVE_INGEST`` env var:
+
+- **Default (unset / false):** shell expressions land as ``NULL`` in the
+  projected columns. The full raw value still lives in the ``raw`` JSON
+  column. This is the safe default for production hosts; the resolver is
+  HTTP-bound and OOMs on small instances during bulk ingest.
+- **Set to ``true``/``1``/``yes``:** each shell expression is evaluated via
+  :func:`patcher.core.installomator.resolve` (the "pyinstallomator" port).
+  Resolved values land in the projected columns; unresolvable expressions
+  still go to ``NULL``. Run on a workstation with adequate RAM — the
+  resolver fans 1000+ HTTP requests across upstream vendor sites.
 
 The default Installomator ref is ``refs/heads/main``. Override via the
 ``PATCHER_API_INSTALLOMATOR_REF`` environment variable (or pass ``ref=`` to
@@ -54,6 +60,17 @@ _DEFAULT_REF = "refs/heads/main"
 # Limit concurrent fragment fetches. GitHub's raw endpoint is generous but
 # blasting 700 simultaneous requests is rude.
 _FETCH_CONCURRENCY = 10
+
+# Opt-in: when set, shell-expression downloadURL/appNewVersion values are
+# evaluated via pyinstallomator's resolve() instead of being nulled out.
+# Off by default because resolution is HTTP-bound and OOMs small hosts.
+# Typical workflow: run on a workstation with the flag set, then ship the
+# resulting DB to production.
+_RESOLVE_ON_INGEST = os.environ.get("PATCHER_API_RESOLVE_INGEST", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 log = logging.getLogger(__name__)
 
@@ -113,6 +130,11 @@ def _resolve_or_null(
     """
     if value is None:
         return None
+    if not _RESOLVE_ON_INGEST:
+        # Resolution disabled. Null shell expressions without attempting any
+        # HTTP-bound evaluation; pass literals through unchanged. This is
+        # the default path on hosts that can't safely run the resolver.
+        return None if is_shell_expression(value) else value
     result = resolve(value, http_client=http_client)
     if result.value is None:
         return None
@@ -236,12 +258,16 @@ async def ingest_installomator_labels(
     """
     ingested = skipped = failed = 0
 
-    # One shared httpx.Client for all resolutions in this batch. Creating a
-    # fresh client per resolve() call (the default when http_client=None)
-    # spawns thousands of SSL contexts during a 1000+ label ingest and
-    # OOMs small hosts. ``httpx.Client`` is thread-safe so passing the same
-    # instance to multiple ``asyncio.to_thread`` workers is fine.
-    with httpx.Client(timeout=30.0) as resolver_client:
+    # One shared httpx.Client for all resolutions in this batch — only when
+    # resolution is enabled. Creating a fresh client per resolve() call (the
+    # default when http_client=None) spawns thousands of SSL contexts during
+    # a 1000+ label ingest and OOMs small hosts. ``httpx.Client`` is
+    # thread-safe so passing the same instance to multiple
+    # ``asyncio.to_thread`` workers is fine. Skipped entirely when
+    # PATCHER_API_RESOLVE_INGEST isn't set, since _resolve_or_null short-
+    # circuits without touching the network.
+    resolver_client = httpx.Client(timeout=30.0) if _RESOLVE_ON_INGEST else None
+    try:
         for name, content in name_to_content.items():
             parsed = parse_fragment(content)
             if not parsed:
@@ -295,5 +321,8 @@ async def ingest_installomator_labels(
                 await session.rollback()
                 log.warning("Failed to ingest label %r: %s", name, exc)
                 failed += 1
+    finally:
+        if resolver_client is not None:
+            resolver_client.close()
 
     return ingested, skipped, failed
