@@ -11,7 +11,7 @@
 
 _Simplified patch management and reporting_
 
-<p align="left">
+<p align="center">
     <img src="https://cdn.worldvectorlogo.com/logos/slack-new-logo.svg" width="16" style="vertical-align: middle; margin-right: 5px;"/>
     Find us in the <code>#patcher</code> channel in the <a href="https://www.macadmins.org">MacAdmins Slack</a>
 </p>
