@@ -53,6 +53,9 @@ test:  ## Run Patcher unit tests (excludes integration)
 test-integration:  ## Run Patcher integration tests only
 	$(UV) run pytest tests/ -v -m integration
 
+smoke-test:  ## Hand-run smoke check of PatcherClient against a live Jamf instance
+	$(UV) run python tests/integration/smoke.py
+
 test-api:  ## Run Patcher API tests
 	cd api && $(UV) run pytest
 

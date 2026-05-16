@@ -41,6 +41,7 @@ make serve-api                # cd api && uv run uvicorn patcher_api.main:app --
 make test               # patcherctl unit tests (excludes integration)
 make test-api           # patcher-api tests
 make test-integration   # patcherctl integration tests against dummy.jamfcloud.com
+make smoke-test         # hand-run PatcherClient smoke check (tests/integration/smoke.py)
 make lint               # ruff format --check + ruff check
 make format             # ruff format (does NOT remove unused imports; use lint for that)
 make docs               # sphinx-build -b html docs/ docs/_build/
@@ -189,6 +190,12 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`,
   significant changes (e.g. transport migrations), but they are NOT a
   substitute for mocked unit tests, since the dummy instance data isn't
   comprehensive. See `docs/contributing/index.rst` for details.
+- **Manual smoke script** at `tests/integration/smoke.py`, runnable via
+  `make smoke-test`. Hand-curated end-to-end checks (auth, iOS pipeline,
+  Installomator labels, synthetic analyze + export) with colored pass/fail
+  output. Uses the same env-var overrides as the pytest integration suite
+  (`PATCHER_INTEGRATION_URL` / `_CLIENT_ID` / `_CLIENT_SECRET`). Not
+  collected by pytest (filename lacks the `test_` prefix on purpose).
 - **Mock-friendly design**: when adding new API-touching code, isolate the
   HTTP call in a method that's easy to mock at the test boundary. Don't mix
   business logic and HTTP construction in one place.
