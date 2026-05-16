@@ -80,7 +80,10 @@ def _scalar_for_column(value: Any) -> str | None:
     return str(value)
 
 
-def _resolve_or_null(value: str | None) -> str | None:
+def _resolve_or_null(
+    value: str | None,
+    http_client: httpx.Client | None = None,
+) -> str | None:
     """
     Evaluate a label value via pyinstallomator's :func:`resolve`. Returns:
 
@@ -98,12 +101,19 @@ def _resolve_or_null(value: str | None) -> str | None:
 
     :param value: Raw value from the parsed label fragment.
     :type value: str | None
+    :param http_client: Pre-configured ``httpx.Client`` reused across calls.
+        When ``None``, :func:`resolve` creates a fresh client per curl
+        invocation — fine for one-off use, but spawns thousands of clients
+        (each with its own SSL context) during a full ingest, which OOMs
+        small hosts. Callers running a batch should construct one client
+        and pass it in.
+    :type http_client: httpx.Client | None
     :return: Clean literal usable as a projected column value, or ``None``.
     :rtype: str | None
     """
     if value is None:
         return None
-    result = resolve(value)
+    result = resolve(value, http_client=http_client)
     if result.value is None:
         return None
     # Belt-and-suspenders: even ``method="literal"`` pass-throughs can carry
@@ -226,58 +236,64 @@ async def ingest_installomator_labels(
     """
     ingested = skipped = failed = 0
 
-    for name, content in name_to_content.items():
-        parsed = parse_fragment(content)
-        if not parsed:
-            skipped += 1
-            continue
+    # One shared httpx.Client for all resolutions in this batch. Creating a
+    # fresh client per resolve() call (the default when http_client=None)
+    # spawns thousands of SSL contexts during a 1000+ label ingest and
+    # OOMs small hosts. ``httpx.Client`` is thread-safe so passing the same
+    # instance to multiple ``asyncio.to_thread`` workers is fine.
+    with httpx.Client(timeout=30.0) as resolver_client:
+        for name, content in name_to_content.items():
+            parsed = parse_fragment(content)
+            if not parsed:
+                skipped += 1
+                continue
 
-        if parsed.get("expectedTeamID") in IGNORED_TEAMS:
-            skipped += 1
-            continue
+            if parsed.get("expectedTeamID") in IGNORED_TEAMS:
+                skipped += 1
+                continue
 
-        try:
-            now = datetime.now(UTC)
-            # Resolve shell-expression values via pyinstallomator. Both
-            # downloadURL and appNewVersion frequently contain pipelines that
-            # need evaluation. Run in a worker thread so the event loop stays
-            # free while curl-style pipelines hit upstream sites.
-            raw_download_url = _scalar_for_column(parsed.get("downloadURL"))
-            raw_app_new_version = _scalar_for_column(parsed.get("appNewVersion"))
-            resolved_download_url, resolved_app_new_version = await asyncio.gather(
-                asyncio.to_thread(_resolve_or_null, raw_download_url),
-                asyncio.to_thread(_resolve_or_null, raw_app_new_version),
-            )
-            stmt = insert(InstallomatorLabel).values(
-                name=name,
-                display_name=_scalar_for_column(parsed.get("name")),
-                install_type=_scalar_for_column(parsed.get("type")),
-                package_id=_scalar_for_column(parsed.get("packageID")),
-                download_url=resolved_download_url,
-                expected_team_id=_scalar_for_column(parsed.get("expectedTeamID")),
-                app_new_version=resolved_app_new_version,
-                raw=parsed,
-                ingested_at=now,
-            )
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["name"],
-                set_={
-                    "display_name": stmt.excluded.display_name,
-                    "install_type": stmt.excluded.install_type,
-                    "package_id": stmt.excluded.package_id,
-                    "download_url": stmt.excluded.download_url,
-                    "expected_team_id": stmt.excluded.expected_team_id,
-                    "app_new_version": stmt.excluded.app_new_version,
-                    "raw": stmt.excluded.raw,
-                    "ingested_at": stmt.excluded.ingested_at,
-                },
-            )
-            await session.execute(stmt)
-            await session.commit()
-            ingested += 1
-        except Exception as exc:
-            await session.rollback()
-            log.warning("Failed to ingest label %r: %s", name, exc)
-            failed += 1
+            try:
+                now = datetime.now(UTC)
+                # Resolve shell-expression values via pyinstallomator. Both
+                # downloadURL and appNewVersion frequently contain pipelines
+                # that need evaluation. Run in a worker thread so the event
+                # loop stays free while curl-style pipelines hit upstream sites.
+                raw_download_url = _scalar_for_column(parsed.get("downloadURL"))
+                raw_app_new_version = _scalar_for_column(parsed.get("appNewVersion"))
+                resolved_download_url, resolved_app_new_version = await asyncio.gather(
+                    asyncio.to_thread(_resolve_or_null, raw_download_url, resolver_client),
+                    asyncio.to_thread(_resolve_or_null, raw_app_new_version, resolver_client),
+                )
+                stmt = insert(InstallomatorLabel).values(
+                    name=name,
+                    display_name=_scalar_for_column(parsed.get("name")),
+                    install_type=_scalar_for_column(parsed.get("type")),
+                    package_id=_scalar_for_column(parsed.get("packageID")),
+                    download_url=resolved_download_url,
+                    expected_team_id=_scalar_for_column(parsed.get("expectedTeamID")),
+                    app_new_version=resolved_app_new_version,
+                    raw=parsed,
+                    ingested_at=now,
+                )
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["name"],
+                    set_={
+                        "display_name": stmt.excluded.display_name,
+                        "install_type": stmt.excluded.install_type,
+                        "package_id": stmt.excluded.package_id,
+                        "download_url": stmt.excluded.download_url,
+                        "expected_team_id": stmt.excluded.expected_team_id,
+                        "app_new_version": stmt.excluded.app_new_version,
+                        "raw": stmt.excluded.raw,
+                        "ingested_at": stmt.excluded.ingested_at,
+                    },
+                )
+                await session.execute(stmt)
+                await session.commit()
+                ingested += 1
+            except Exception as exc:
+                await session.rollback()
+                log.warning("Failed to ingest label %r: %s", name, exc)
+                failed += 1
 
     return ingested, skipped, failed
