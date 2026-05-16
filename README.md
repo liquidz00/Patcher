@@ -1,9 +1,8 @@
-<div align="left">
+<div align="center">
     <a href="https://patcher.readthedocs.io/">
         <img src="docs/_static/patcher-banner-readme.svg" width="540"/>
     </a>
 
-![](https://img.shields.io/pypi/l/patcherctl)
 ![](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=flat&logo=python&logoColor=white)
 ![](https://img.shields.io/github/v/release/liquidz00/Patcher?color=orange)
 ![](https://github.com/liquidz00/patcher/actions/workflows/pytest.yml/badge.svg)
@@ -11,12 +10,9 @@
 ![](https://img.shields.io/badge/macOS-10.13%2B-blueviolet?logo=apple&logoSize=auto)
 </div>
 
-
 ----
 
-# Patcher
-
-_Simplified patch reporting_
+_Simplified patch management and reporting_
 
 <p align="left">
     <img src="https://cdn.worldvectorlogo.com/logos/slack-new-logo.svg" width="16" style="vertical-align: middle; margin-right: 5px;"/>
