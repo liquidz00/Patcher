@@ -32,6 +32,7 @@ from src.patcher.core.installomator import (
     _parse_field_spec,
     _split_pipeline,
     _tokenize,
+    looks_like_clean_http_url,
     resolve,
 )
 from src.patcher.core.models.patch import PatchTitle
@@ -446,6 +447,64 @@ class TestResolveLiteralValues:
         result = resolve(None)
         assert result.value is None
         assert result.method == "literal"
+
+
+class TestLooksLikeCleanHttpUrl:
+    """
+    Output sanity check for resolver values that get stored in columns the
+    API serializes as ``HttpUrl``. Regression coverage for the three
+    garbage classes pyinstallomator can return when a pipeline succeeds at
+    the shell level but the captured output isn't a usable URL.
+    """
+
+    def test_https_url_accepted(self):
+        assert looks_like_clean_http_url("https://example.com/foo.dmg") is True
+
+    def test_http_url_accepted(self):
+        assert looks_like_clean_http_url("http://example.com/foo.pkg") is True
+
+    def test_none_rejected(self):
+        assert looks_like_clean_http_url(None) is False
+
+    def test_empty_string_rejected(self):
+        assert looks_like_clean_http_url("") is False
+
+    def test_newline_in_value_rejected(self):
+        # Multi-line concat: resolver's final filter was unsupported, so the
+        # full grep output (every matched URL on the page) landed in the value.
+        garbage = "https://example.com/v1.dmg\nhttps://example.com/v2.dmg"
+        assert looks_like_clean_http_url(garbage) is False
+
+    def test_carriage_return_in_value_rejected(self):
+        assert looks_like_clean_http_url("https://example.com/foo.dmg\r\n") is False
+
+    def test_over_max_length_rejected(self):
+        # Pydantic's HttpUrl ceiling is 2083; we cap at 2000 for headroom.
+        oversized = "https://example.com/" + ("a" * 2000)
+        assert looks_like_clean_http_url(oversized) is False
+
+    def test_ftp_scheme_rejected(self):
+        # A handful of Installomator labels still source from ftp://.
+        # HttpUrl rejects them.
+        assert looks_like_clean_http_url("ftp://cola.gmu.edu/grads/foo.tar.gz") is False
+
+    def test_html_doctype_body_rejected(self):
+        # Upstream vendor returned an error page; curl didn't see the non-2xx
+        # response as an error, so the response body landed in the value.
+        body = (
+            '<!doctype html><html lang="en"><head><title>HTTP Status 400'
+            "</title></head><body><h1>Bad Request</h1></body></html>"
+        )
+        assert looks_like_clean_http_url(body) is False
+
+    def test_html_tag_body_rejected(self):
+        assert looks_like_clean_http_url("<html><body>Not found</body></html>") is False
+
+    def test_leading_whitespace_before_html_still_rejected(self):
+        assert looks_like_clean_http_url("   <html>oops</html>") is False
+
+    def test_relative_path_rejected(self):
+        assert looks_like_clean_http_url("/path/to/foo.dmg") is False
 
 
 class TestSplitPipeline:

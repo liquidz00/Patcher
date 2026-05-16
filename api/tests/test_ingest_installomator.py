@@ -59,6 +59,29 @@ ARRAY_VERSION_FRAGMENT = """toonboomthing)
     ;;
 """
 
+# Regression fixture for resolver-output-validation. The label has a
+# shell-expression downloadURL so resolve() gets called on it; per-test
+# monkeypatching of resolve() then injects the various garbage classes the
+# real Installomator pipelines produce when an unsupported filter drops
+# off the chain (HTML bodies, multi-line concats, ftp:// schemes).
+SHELL_DOWNLOAD_FRAGMENT = """garbagelabel)
+    name="GarbageLabel"
+    type="dmg"
+    downloadURL=$(curl -fsL https://vendor.example.com/list | grep -E 'https://.*\\.dmg')
+    expectedTeamID="ABC123XYZ4"
+    ;;
+"""
+
+# Literal-but-bogus URL fixture for the resolution-off path. Confirms the
+# validator gate runs even when PATCHER_API_RESOLVE_INGEST is unset.
+LITERAL_FTP_FRAGMENT = """ftplabel)
+    name="FtpLabel"
+    type="dmg"
+    downloadURL="ftp://example.com/foo.dmg"
+    expectedTeamID="ABC123XYZ4"
+    ;;
+"""
+
 
 def test_parse_fragment_extracts_literal_assignments():
     parsed = parse_fragment(FIREFOX_FRAGMENT)
@@ -219,6 +242,126 @@ async def test_ingest_handles_mixed_batch(test_session):
     assert failed == 0
     labels = (await test_session.scalars(select(InstallomatorLabel))).all()
     assert {label.name for label in labels} == {"firefoxpkg", "googlechromepkg"}
+
+
+@pytest.mark.asyncio
+async def test_ingest_nulls_html_body_returned_by_resolver(test_session, monkeypatch):
+    """
+    Resolver returned an HTML error page (upstream vendor served a 400/404,
+    curl didn't treat it as an error). The validator must catch this so the
+    HTML body never lands in the ``download_url`` column.
+    """
+    from patcher.core.installomator import ResolveResult
+
+    monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
+
+    html_body = (
+        '<!doctype html><html lang="en"><head><title>HTTP Status 400'
+        "</title></head><body><h1>Bad Request</h1></body></html>"
+    )
+
+    def fake_resolve(expression, *, http_client=None):
+        if expression and expression.startswith("$("):
+            return ResolveResult(value=html_body, error=None, method="pipeline")
+        return ResolveResult(value=expression, error=None, method="literal")
+
+    monkeypatch.setattr("patcher_api.ingest.installomator.resolve", fake_resolve)
+
+    ingested, skipped, failed = await ingest_installomator_labels(
+        test_session, {"garbagelabel": SHELL_DOWNLOAD_FRAGMENT}
+    )
+
+    assert ingested == 1
+    label = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "garbagelabel")
+    )
+    assert label.download_url is None
+
+
+@pytest.mark.asyncio
+async def test_ingest_nulls_multi_line_concat_returned_by_resolver(test_session, monkeypatch):
+    """
+    Resolver returned a newline-joined list of URLs (the pipeline's final
+    ``head -n1`` or ``awk`` was unsupported, so the full grep output came
+    back). Validator must catch the embedded newline.
+    """
+    from patcher.core.installomator import ResolveResult
+
+    monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
+
+    multi_line = (
+        "https://example.com/app-2.6.5.dmg\n"
+        "https://example.com/app-2.6.4.dmg\n"
+        "https://example.com/app-2.6.3.dmg"
+    )
+
+    def fake_resolve(expression, *, http_client=None):
+        if expression and expression.startswith("$("):
+            return ResolveResult(value=multi_line, error=None, method="pipeline")
+        return ResolveResult(value=expression, error=None, method="literal")
+
+    monkeypatch.setattr("patcher_api.ingest.installomator.resolve", fake_resolve)
+
+    ingested, skipped, failed = await ingest_installomator_labels(
+        test_session, {"garbagelabel": SHELL_DOWNLOAD_FRAGMENT}
+    )
+
+    assert ingested == 1
+    label = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "garbagelabel")
+    )
+    assert label.download_url is None
+
+
+@pytest.mark.asyncio
+async def test_ingest_nulls_ftp_url_returned_by_resolver(test_session, monkeypatch):
+    """
+    Resolver returned a syntactically valid but non-http(s) URL. Pydantic's
+    ``HttpUrl`` would reject it on the response side, so the validator
+    nulls it here at ingest.
+    """
+    from patcher.core.installomator import ResolveResult
+
+    monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
+
+    def fake_resolve(expression, *, http_client=None):
+        if expression and expression.startswith("$("):
+            return ResolveResult(
+                value="ftp://cola.gmu.edu/grads/foo.tar.gz", error=None, method="pipeline"
+            )
+        return ResolveResult(value=expression, error=None, method="literal")
+
+    monkeypatch.setattr("patcher_api.ingest.installomator.resolve", fake_resolve)
+
+    ingested, skipped, failed = await ingest_installomator_labels(
+        test_session, {"garbagelabel": SHELL_DOWNLOAD_FRAGMENT}
+    )
+
+    assert ingested == 1
+    label = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "garbagelabel")
+    )
+    assert label.download_url is None
+
+
+@pytest.mark.asyncio
+async def test_ingest_nulls_literal_ftp_url_with_resolution_off(test_session):
+    """
+    The validator runs on the resolution-off path too: a literal ``ftp://``
+    label download_url should be nulled even when the resolver was never
+    consulted. Defends against the rare label that has a non-http literal.
+    """
+    ingested, skipped, failed = await ingest_installomator_labels(
+        test_session, {"ftplabel": LITERAL_FTP_FRAGMENT}
+    )
+
+    assert ingested == 1
+    label = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "ftplabel")
+    )
+    assert label.download_url is None
+    # Raw fragment is still preserved for any caller that needs the original.
+    assert label.raw["downloadURL"] == "ftp://example.com/foo.dmg"
 
 
 @pytest.mark.asyncio

@@ -25,7 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from patcher.core.installomator import is_shell_expression
+from patcher.core.installomator import is_shell_expression, looks_like_clean_http_url
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.homebrew import HomebrewCask
@@ -96,18 +96,29 @@ def _resolve_version(il: InstallomatorLabel, cask: HomebrewCask | None) -> str |
 def _resolve_download_url(il: InstallomatorLabel, cask: HomebrewCask | None) -> str | None:
     """
     Prefer the literal label download URL; fall back to Cask URL when the
-    label's value is a shell expression.
+    label's value is a shell expression or fails URL sanity checks.
+
+    Both candidates are run through :func:`looks_like_clean_http_url` before
+    being returned. This is defense in depth against ingest having stored
+    garbage (HTML bodies, multi-line concats, ``ftp://``) into either
+    source table. Ingest already validates on the way in; this second
+    gate ensures the apps table can't inherit a value the API can't
+    serialize as ``HttpUrl``.
 
     :param il: Installomator label row.
     :type il: :class:`InstallomatorLabel`
     :param cask: Matched Cask row, if any.
     :type cask: :class:`HomebrewCask` | None
-    :return: Download URL string, or None if neither side has a literal value.
+    :return: Download URL string, or None if neither side has a usable value.
     :rtype: str | None
     """
-    if il.download_url and not is_shell_expression(il.download_url):
+    if (
+        il.download_url
+        and not is_shell_expression(il.download_url)
+        and looks_like_clean_http_url(il.download_url)
+    ):
         return il.download_url
-    if cask and cask.url:
+    if cask and cask.url and looks_like_clean_http_url(cask.url):
         return cask.url
     return None
 

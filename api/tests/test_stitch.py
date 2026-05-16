@@ -146,6 +146,36 @@ class TestResolveDownloadUrl:
         cask = _make_cask(token="firefox", url="https://cask.example/firefox.dmg")
         assert _resolve_download_url(label, cask) == "https://cask.example/firefox.dmg"
 
+    def test_falls_back_to_cask_when_label_url_is_html_body(self):
+        """
+        Regression: even if ingest stored an HTML error page in the label's
+        download_url (pre-validator data, or a future regression), stitch
+        must reject it and fall back to the Cask URL rather than propagate
+        garbage into ``apps.download_url``.
+        """
+        label = _make_label(name="firefox", download_url="<!doctype html><html>error</html>")
+        cask = _make_cask(token="firefox", url="https://cask.example/firefox.dmg")
+        assert _resolve_download_url(label, cask) == "https://cask.example/firefox.dmg"
+
+    def test_falls_back_to_cask_when_label_url_is_multi_line(self):
+        label = _make_label(
+            name="firefox",
+            download_url="https://example.com/v1.dmg\nhttps://example.com/v2.dmg",
+        )
+        cask = _make_cask(token="firefox", url="https://cask.example/firefox.dmg")
+        assert _resolve_download_url(label, cask) == "https://cask.example/firefox.dmg"
+
+    def test_falls_back_to_cask_when_label_url_is_ftp(self):
+        label = _make_label(name="grads", download_url="ftp://cola.gmu.edu/grads/foo.tar.gz")
+        cask = _make_cask(token="grads", url="https://cask.example/grads.dmg")
+        assert _resolve_download_url(label, cask) == "https://cask.example/grads.dmg"
+
+    def test_returns_none_when_both_sides_are_garbage(self):
+        """If both the label and the cask URLs fail sanity checks, no fallback."""
+        label = _make_label(name="weird", download_url="ftp://example.com/foo.dmg")
+        cask = _make_cask(token="weird", url="<!doctype html><html>error</html>")
+        assert _resolve_download_url(label, cask) is None
+
 
 class TestResolveInstallMethod:
     def test_known_type_is_returned(self):

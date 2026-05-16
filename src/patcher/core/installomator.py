@@ -506,6 +506,54 @@ def is_shell_expression(value: str | None) -> bool:
     return value.startswith("$")
 
 
+_MAX_URL_LENGTH = 2000
+
+
+def looks_like_clean_http_url(value: str | None) -> bool:
+    """
+    Sanity-check that ``value`` is a single, reasonably-sized http(s) URL
+    safe to store in a column the API later serializes through Pydantic's
+    ``HttpUrl`` type.
+
+    Catches three classes of garbage :func:`resolve` can produce when a
+    pipeline succeeds at the shell level but the captured output isn't a
+    usable URL:
+
+    - **HTML response bodies**: the upstream vendor returned a non-2xx
+      response (404, 400, etc.) but ``curl`` didn't see it as an error, so
+      the response body landed in the value. These typically start with
+      ``<!doctype`` or ``<html``.
+    - **Multi-line concatenations**: the Installomator pipeline's final
+      filter was unsupported (e.g. ``awk`` or ``head -n1``), so the full
+      ``grep`` output (every matched URL on the page, joined with
+      newlines) landed in the value instead of a single line.
+    - **Non-http schemes**: a handful of Installomator labels still use
+      ``ftp://`` sources. Pydantic's ``HttpUrl`` rejects these and the
+      catalog only documents http(s) URLs.
+
+    Also enforces a 2000-character ceiling. Pydantic's ``HttpUrl`` maxes
+    out at 2083 (the IE-era de-facto limit), so leaving 83 chars of
+    headroom avoids edge cases at the boundary.
+
+    :param value: Resolved or literal URL candidate.
+    :type value: str | None
+    :return: ``True`` when the value passes all sanity checks, ``False``
+        otherwise (including for ``None`` and empty strings).
+    :rtype: bool
+    """
+    if not value:
+        return False
+    if "\n" in value or "\r" in value:
+        return False
+    if len(value) > _MAX_URL_LENGTH:
+        return False
+    if not value.startswith(("http://", "https://")):
+        return False
+    if value.lstrip().startswith("<"):
+        return False
+    return True
+
+
 @dataclass
 class ResolveResult:
     """

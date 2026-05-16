@@ -39,7 +39,12 @@ import httpx
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from patcher.core.installomator import is_shell_expression, parse_fragment, resolve
+from patcher.core.installomator import (
+    is_shell_expression,
+    looks_like_clean_http_url,
+    parse_fragment,
+    resolve,
+)
 from patcher_api.models.installomator import InstallomatorLabel
 
 __all__ = [
@@ -100,6 +105,8 @@ def _scalar_for_column(value: Any) -> str | None:
 def _resolve_or_null(
     value: str | None,
     http_client: httpx.Client | None = None,
+    *,
+    is_url: bool = False,
 ) -> str | None:
     """
     Evaluate a label value via pyinstallomator's :func:`resolve`. Returns:
@@ -111,6 +118,10 @@ def _resolve_or_null(
     - ``None`` when the expression can't be resolved, OR when the resolved
       output *still* contains shell artifacts that the resolver's anchored
       regex didn't process (e.g. ``"https://example.com$(curl ...)"``).
+    - ``None`` when ``is_url=True`` and the candidate fails
+      :func:`looks_like_clean_http_url` (HTML body, multi-line concat,
+      ``ftp://``, oversized). Applies on both the resolution-on and
+      resolution-off paths so literal-but-bogus URLs are nulled too.
 
     Synchronous and HTTP-bound. Wrap in :func:`asyncio.to_thread` when calling
     from an async context to avoid blocking the event loop while pipelines
@@ -120,11 +131,16 @@ def _resolve_or_null(
     :type value: str | None
     :param http_client: Pre-configured ``httpx.Client`` reused across calls.
         When ``None``, :func:`resolve` creates a fresh client per curl
-        invocation — fine for one-off use, but spawns thousands of clients
+        invocation. Fine for one-off use, but spawns thousands of clients
         (each with its own SSL context) during a full ingest, which OOMs
         small hosts. Callers running a batch should construct one client
         and pass it in.
     :type http_client: httpx.Client | None
+    :param is_url: When ``True``, applies :func:`looks_like_clean_http_url`
+        to the final value before returning it. Pass for fields whose
+        projected column is later serialized as ``HttpUrl``. Defaults to
+        ``False`` for non-URL fields (e.g. ``appNewVersion``).
+    :type is_url: bool
     :return: Clean literal usable as a projected column value, or ``None``.
     :rtype: str | None
     """
@@ -134,13 +150,19 @@ def _resolve_or_null(
         # Resolution disabled. Null shell expressions without attempting any
         # HTTP-bound evaluation; pass literals through unchanged. This is
         # the default path on hosts that can't safely run the resolver.
-        return None if is_shell_expression(value) else value
+        if is_shell_expression(value):
+            return None
+        if is_url and not looks_like_clean_http_url(value):
+            return None
+        return value
     result = resolve(value, http_client=http_client)
     if result.value is None:
         return None
     # Belt-and-suspenders: even ``method="literal"`` pass-throughs can carry
     # embedded substitutions the anchored resolver didn't touch.
     if is_shell_expression(result.value):
+        return None
+    if is_url and not looks_like_clean_http_url(result.value):
         return None
     return result.value
 
@@ -287,7 +309,9 @@ async def ingest_installomator_labels(
                 raw_download_url = _scalar_for_column(parsed.get("downloadURL"))
                 raw_app_new_version = _scalar_for_column(parsed.get("appNewVersion"))
                 resolved_download_url, resolved_app_new_version = await asyncio.gather(
-                    asyncio.to_thread(_resolve_or_null, raw_download_url, resolver_client),
+                    asyncio.to_thread(
+                        _resolve_or_null, raw_download_url, resolver_client, is_url=True
+                    ),
                     asyncio.to_thread(_resolve_or_null, raw_app_new_version, resolver_client),
                 )
                 stmt = insert(InstallomatorLabel).values(
