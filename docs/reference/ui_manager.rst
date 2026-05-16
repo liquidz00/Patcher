@@ -1,5 +1,3 @@
-:html_theme.sidebar_secondary.remove: True
-
 =================
 UI Config Manager
 =================

@@ -1,8 +1,11 @@
----
-html_theme.sidebar_secondary.remove: True
----
-
 # Reference
+
+```{toctree}
+:caption: Top-Level
+:maxdepth: 3
+
+patcher_client
+```
 
 ```{toctree}
 :caption: Client Modules
@@ -13,6 +16,7 @@ jamf_client
 analyze
 config_manager
 plist_manager
+report
 setup
 token_manager
 ui_manager
@@ -22,9 +26,12 @@ ui_manager
 :caption: Data Models
 :maxdepth: 2
 
+fragment
 jamf
+label
 patch
 token
+ui
 ```
 
 ```{toctree}
@@ -34,7 +41,9 @@ token
 animation
 data_manager
 exceptions
+fonts
 installomator
 logger
 pdf_report
+terminal_logger
 ```

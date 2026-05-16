@@ -1,7 +1,13 @@
+:orphan:
+:layout: simple
+:hide_ai_links: true
+
 .. _contributing_index:
 
 Contributing
 ============
+
+:doc:`« Back to Patcher Documentation </index>`
 
 Contributions to Patcher are encouraged and welcomed. Contributing does not *have* to mean writing Python code! Project documentation can always be improved and `feature requests <https://github.com/liquidz00/Patcher/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=%5BFEATURE%5D+Your+feature+request+title>`_ can be submitted for new ideas or functionality. We, the developers of this tool, **firmly believe** that diverse backgrounds strengthen a product. Therefore, we encourage you to share your ideas and thoughts, regardless of your programming experience.
 

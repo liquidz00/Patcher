@@ -21,7 +21,7 @@ sys.path.append(str(Path(".").resolve()))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "Patcher"
-copyright = "Copyright &copy; 2026, Andrew Lerman & Chris Ball"
+copyright = "Copyright &copy; 2024, Andrew Lerman & Chris Ball"
 author = "Andrew Lerman & Chris Ball"
 
 version = __version__
@@ -43,7 +43,6 @@ extensions = [
     "sphinx_togglebutton",
     "myst_parser",
     "ghwiki",
-    "styled_params",
 ]
 
 # ghwiki
@@ -162,12 +161,19 @@ togglebutton_hint_hide = str(_("Click to collapse"))
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_baseurl = "https://patcher.readthedocs.io"
+# Read the Docs serves under a version path (e.g. /en/latest/). Use the
+# canonical URL it exposes at build time so absolute links Shibuya
+# generates (e.g. the Copy page / View as Markdown buttons that point at
+# ``_sources/...``) resolve correctly. Falls back to the versioned latest
+# path for local builds.
+html_baseurl = os.environ.get(
+    "READTHEDOCS_CANONICAL_URL", "https://patcher.readthedocs.io/en/latest/"
+)
 html_theme = "shibuya"
 html_logo = "_static/v2-logo.svg"
 html_favicon = "_static/v2-logo-favicon.svg"
 html_static_path = ["_static"]
-html_title = f"{release}"
+html_title = f"Patcher {release}"
 
 html_css_files = [
     "css/custom.css",
@@ -177,7 +183,7 @@ html_css_files = [
 # -- RTD version awareness ---------------------------------------------------
 # READTHEDOCS_VERSION_NAME is set by Read the Docs at build time (e.g. "latest",
 # "develop", or a tag like "v2.4.0"). Used to pick a branch-appropriate banner
-# and to feed the pydata-sphinx-theme version switcher.
+# fed into Shibuya's ``announcement`` theme option.
 rtd_version = os.environ.get("READTHEDOCS_VERSION_NAME", "")
 
 if rtd_version == "develop":
@@ -188,34 +194,32 @@ if rtd_version == "develop":
         'Switch to the latest stable docs &rarr;</a>'
     )
 else:
-    _announcement = (
-        '<div class="sidebar-message"> '
-        'Find us on the MacAdmins Slack! '
-        '<a href="https://macadmins.slack.com/archives/C07EH1R7LB0">#patcher</a> '
-        '</div>'
-    )
+    _announcement = None
 
 html_theme_options = {
-    # Shibuya-supported
     "color_mode": "auto",
     "dark_code": True,
     "announcement": _announcement,
-    "light_logo": "_static/logo.svg",
-    "dark_logo": "_static/logo-dark.svg",
+    "accent_color": "violet",
+    "globaltoc_expand_depth": 1,
+    "light_logo": "_static/v2-logo.svg",
+    "dark_logo": "_static/v2-logo-dark.svg",
     "open_in_chatgpt": True,
     "open_in_claude": True,
     "open_in_perplexity": True,
-    "github_url": "https://github.com/liquidz00/Patcher",
-    "slack_url": "https://macadmins.slack.com/archives/C07EH1R7LB0",
     "discussion_url": "https://github.com/liquidz00/Patcher/discussions",
     "nav_links": [
+        {
+            "title": "Contributing",
+            "url": "contributing/index",
+        },
         {
             "title": "Changelog",
             "url": "https://github.com/liquidz00/Patcher/blob/main/CHANGELOG.md",
             "external": True,
         },
         {
-            "title": "Resources",
+            "title": "MacAdmin Resources",
             "children": [
                 {
                     "title": "MacAdmins Foundation",
@@ -233,13 +237,6 @@ html_theme_options = {
         },
     ],
 }
-
-# Remove primary sidebar from contributing page
-# TODO: Modify respective page metadata to hide sidebars instead
-# html_sidebars = {
-#     "contributing/index": [],
-#     "macadmins/index": [],
-# }
 
 html_context = {
     "source_type": "github",

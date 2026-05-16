@@ -1,42 +1,54 @@
+/* -- Per-mode accent — track the logo --------------------------------------
+ * Shibuya's ``accent_color`` (set in conf.py) selects a single Radix
+ * palette site-wide. To match the v2 logo, we override the primary
+ * accent tokens per mode:
+ *
+ *   - light mode  → grape       (purple from the light logo)
+ *   - dark mode   → dodger blue (blue from the dark logo)
+ *
+ * --accent-9 drives Shibuya's link color (--sy-c-link); --accent-a11
+ * drives sphinx-design's primary color (used by buttons + cards). */
+html.light {
+    --accent-9:   #6432bd;                /* Grape */
+    --accent-a9:  #6432bd;
+    --accent-a11: #6432bd;
+}
+html.dark {
+    --accent-9:   #4bb3fd;                /* Dodger Blue */
+    --accent-a9:  #4bb3fd;
+    --accent-a11: #4bb3fd;
+}
+
+/* -- Inline code surface --------------------------------------------------
+ * Shibuya defaults inline code background to ``var(--accent-a3)`` (a
+ * violet tint from the base ``accent_color: "violet"`` palette), while
+ * its text color comes from ``--accent-a11`` which we override per mode
+ * (grape in light, dodger blue in dark). In dark mode that produces blue
+ * text on a violet pill — visually disjoint. Swap the background to a
+ * neutral gray tint so the brand-tinted text reads cleanly in both modes. */
 :root {
-/* Override primary and secondary theme colors */
-    --pst-color-primary: #4bb3fdff; /* Dodger Blue */
-    --pst-color-secondary: #6432bdff; /* Grape */
-
-    /* accent colors */
-    --pst-color-accent-orange: #fd8c4b;
-    --pst-color-accent-lime: #63C764;
-
-    /* Override hover colors */
-    --pst-color-link-hover: #2a9df4; /* Lighter Dodger Blue for hover */
-    --pst-color-button-hover-bg: #3C1E71; /* Grape for button hover background */
-    --pst-color-button-hover-text: #ffffff; /* White text for button hover */
-
-    /* If buttons have a secondary hover color */
-    --pst-color-button-secondary-hover-bg: #3C1E71; /* Darker Grape for secondary button hover */
-
-    --patcher-text-color: #222832;
-    --patcher-text-color-muted: #9ca4af;
+    --yue-c-code-background: var(--gray-a3);
 }
 
-html[data-theme="light"] {
-/* Custom colors for the light theme */
-    --pst-color-primary: #4bb3fdff; /* Dodger Blue */
-    --pst-color-secondary: #6432bdff; /* Grape */
-    --pst-color-link-hover: #2a9df4; /* Lighter Dodger Blue */
-    --pst-color-accent-orange: #fd8c4b;
-    --pst-color-accent-lime: #63C764;
+/* -- Announcement bar text alignment -------------------------------------
+ * Center the announcement message. Shibuya's close button is already
+ * absolutely positioned in the corner, so centering the inner container
+ * doesn't disturb it. */
+.announcement-inner {
+    text-align: center;
 }
 
-html[data-theme="dark"] {
-/* Custom colors for the dark theme */
-    --pst-color-primary: #4bb3fdff; /* Dodger Blue */
-    --pst-color-secondary: #9d7eea; /* Lighter Grape */
-    --pst-color-link-hover: #2a9df4; /* Lighter Dodger Blue */
-    --pst-color-accent-orange: #fd8c4b;
-    --pst-color-accent-lime: #63C764;
+/* -- Brand text in header -----------------------------------------------
+ * Shibuya hides the ``<strong>Patcher</strong>`` title element when a
+ * logo is present (``.sy-head-brand img+strong { display: none }`` in
+ * the theme CSS). Restore it so the wordmark stays visible alongside
+ * the logomark. */
+.sy-head-brand img + strong {
+    display: inline-block;
+    margin-left: 0.5rem;
+    font-size: 1.05rem;
+    color: var(--sy-c-heading);
 }
-
 
 .sd-table tr:hover {
     /* Override hover when using sd-table directive */
@@ -71,79 +83,7 @@ div.admonition.admonition-optional > .admonition-title::after {
     clear: both; /* Prevent text or floated elements from wrapping */
 }
 
-html[data-theme="dark"] .patcher-banner {
-    background-color: transparent;
-}
-
 .patcher-banner + * {
     clear: both;
     margin-top: 20px;
-}
-
-.patcher-parameter {
-    display: flex;
-    flex-direction: column;
-    padding: 8px 0;
-    margin-bottom: 12px;
-}
-
-.patcher-param-header {
-    display: flex;
-    align-items: center !important;
-    gap: 4px;
-    color: var(--patcher-text-color);
-    
-    background: rgba(0, 0, 0, 0.05);
-    padding: 8px 10px !important;
-
-    border-left: 4px solid var(--pst-color-primary);
-    border-radius: 4px;
-}
-
-html[data-theme="dark"] .patcher-param-header {
-    background: rgba(255, 255, 255, 0.1);
-    border-left: 4px solid var(--pst-color-secondary)
-}
-
-.patcher-param-name {
-    font-family: var(--pst-font-family-monospace);
-    font-weight: bold;
-    font-size: 17px;
-    color: var(--pst-color-secondary);
-
-    background: none !important;
-    border: none !important;
-    padding: 0 !important;
-}
-
-html[data-theme="dark"] .patcher-param-name {
-    color: var(--pst-color-primary);
-}
-
-.patcher-param-type {
-    font-style: italic;
-    font-size: 14px;
-    color: #666;
-}
-
-html[data-theme="dark"] .patcher-param-type {
-    color: var(--patcher-text-color-muted);
-}
-
-.patcher-param-required {
-    font-weight: bold;
-    text-transform: uppercase;
-    font-size: 13px;
-    color: var(--pst-color-link-hover);
-}
-
-html[data-theme="dark"] .patcher-param-required {
-    color: var(--pst-color-secondary);
-}
-
-.patcher-param-desc {
-    margin-left: 25px !important;
-    padding-top: 6px !important;
-    font-size: 1rem !important;
-    line-height: 1.5 !important;
 }

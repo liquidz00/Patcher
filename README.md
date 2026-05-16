@@ -8,9 +8,6 @@
 ![](https://github.com/liquidz00/patcher/actions/workflows/pytest.yml/badge.svg)
 ![](https://img.shields.io/pypi/v/patcherctl?color=yellow)
 ![](https://img.shields.io/badge/macOS-10.13%2B-blueviolet?logo=apple&logoSize=auto)
-</div>
-
-----
 
 _Simplified patch management and reporting_
 
@@ -18,7 +15,9 @@ _Simplified patch management and reporting_
     <img src="https://cdn.worldvectorlogo.com/logos/slack-new-logo.svg" width="16" style="vertical-align: middle; margin-right: 5px;"/>
     Find us in the <code>#patcher</code> channel in the <a href="https://www.macadmins.org">MacAdmins Slack</a>
 </p>
+</div>
 
+----
 ## What is Patcher?
 Patcher is a Python library **and** CLI for macOS that leverages the Jamf Pro API to fetch patch management data and generate comprehensive reports in varying formats. It simplifies tracking and reporting on software update compliance across macOS devices managed through Jamf Pro.
 
@@ -59,7 +58,7 @@ $ python3 -m pip install patcherctl
 Assuming 'AnyOrg' is the name of your organization, an exported PDF could look like this:
 <p align="left"><img src="docs/_static/example_pdf.png" width="750"/></p>
 
-PDF Reports can be customized to fit your organizations branding needs. See [customizing report appearance](https://patcher.readthedocs.io/usage/export.html#customizing-report-appearance) in the project docs.
+PDF Reports can be customized to fit your organizations branding needs. See [Customization](https://patcher.readthedocs.io/getting-started/customization.html) in the project docs.
 
 ## Usage
 For a list of all available commands and options, visit the [Usage section](https://patcher.readthedocs.io/usage/export.html) of our documentation.
