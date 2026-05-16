@@ -95,7 +95,22 @@ def test_parse_fragment_returns_empty_dict_for_empty_input():
 
 
 @pytest.mark.asyncio
-async def test_ingest_stores_realistic_label(test_session):
+async def test_ingest_stores_realistic_label(test_session, monkeypatch):
+    # Mock pyinstallomator's resolve() so the test stays offline + deterministic.
+    # The Firefox label's appNewVersion is a curl pipeline; we don't want the
+    # test suite hitting download.mozilla.org. Stub returns a fixed version
+    # for the curl expression, passes literals through unchanged.
+    from patcher.core.installomator import ResolveResult
+
+    def fake_resolve(expression, *, http_client=None):
+        if expression is None:
+            return ResolveResult(value=None, error=None, method="literal")
+        if expression.startswith("$("):
+            return ResolveResult(value="121.0", error=None, method="pipeline")
+        return ResolveResult(value=expression, error=None, method="literal")
+
+    monkeypatch.setattr("patcher_api.ingest.installomator.resolve", fake_resolve)
+
     ingested, skipped, failed = await ingest_installomator_labels(
         test_session, {"firefoxpkg": FIREFOX_FRAGMENT}
     )
@@ -111,8 +126,10 @@ async def test_ingest_stores_realistic_label(test_session):
     assert label.install_type == "pkg"
     assert label.package_id == "org.mozilla.firefox"
     assert label.expected_team_id == "43AQ936H96"
-    # Shell expression preserved verbatim in both the column and the raw payload
-    assert label.app_new_version.startswith("$(curl")
+    # Resolver was wired through ingest: the curl shell expression became a
+    # real version string. The raw fragment is still preserved untouched.
+    assert label.app_new_version == "121.0"
+    assert label.raw["appNewVersion"].startswith("$(curl")
     assert label.raw["blockingProcesses"] == ["firefox"]
 
 
@@ -159,6 +176,11 @@ async def test_ingest_handles_array_valued_scalar_column(test_session):
     bash array syntax that the parser returns as a Python list. The scalar
     TEXT column needs a string; we surface the list's first element. Full
     list still preserved in ``raw``.
+
+    Note: the first element here is ``${version}.${build}`` — a shell
+    substitution that pyinstallomator can't resolve without variable scope.
+    The ingest nulls the projected column rather than storing the raw fragment;
+    the full array stays in ``raw`` for callers that need it.
     """
     ingested, skipped, failed = await ingest_installomator_labels(
         test_session, {"toonboomthing": ARRAY_VERSION_FRAGMENT}
@@ -170,8 +192,9 @@ async def test_ingest_handles_array_valued_scalar_column(test_session):
     label = await test_session.scalar(
         select(InstallomatorLabel).where(InstallomatorLabel.name == "toonboomthing")
     )
-    assert label.app_new_version == "${version}.${build}"
-    # Full array structure preserved in raw
+    # Shell substitution can't be resolved → projected column nulls out
+    assert label.app_new_version is None
+    # Full array structure preserved in raw for callers that need it
     assert label.raw["appNewVersion"] == ["${version}.${build}"]
 
 

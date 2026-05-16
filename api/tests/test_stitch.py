@@ -20,13 +20,14 @@ from patcher_api.stitch import (
     _find_matching_cask,
     _index_casks_by_app_name,
     _infer_install_method_from_cask,
-    _is_shell_expression,
     _resolve_download_url,
     _resolve_install_method,
     _resolve_version,
     stitch_catalog,
 )
 from sqlalchemy import select
+
+from patcher.core.installomator import is_shell_expression
 
 
 def _make_label(
@@ -87,13 +88,13 @@ def _make_cask(
 
 class TestIsShellExpression:
     def test_literal_string_is_not_shell_expression(self):
-        assert not _is_shell_expression("121.0")
+        assert not is_shell_expression("121.0")
 
-    def test_dollar_paren_is_shell_expression(self):
-        assert _is_shell_expression("$(curl -fs example.com)")
+    def test_dollar_parenis_shell_expression(self):
+        assert is_shell_expression("$(curl -fs example.com)")
 
     def test_none_is_not_shell_expression(self):
-        assert not _is_shell_expression(None)
+        assert not is_shell_expression(None)
 
 
 class TestExtractVendor:
@@ -124,7 +125,7 @@ class TestResolveVersion:
         cask = _make_cask(token="firefox", version="120.0")
         assert _resolve_version(label, cask) == "121.0"
 
-    def test_falls_back_to_cask_when_label_is_shell_expression(self):
+    def test_falls_back_to_cask_when_labelis_shell_expression(self):
         label = _make_label(name="firefox", app_new_version="$(curl -fs ...)")
         cask = _make_cask(token="firefox", version="120.0")
         assert _resolve_version(label, cask) == "120.0"
@@ -140,7 +141,7 @@ class TestResolveDownloadUrl:
         cask = _make_cask(token="firefox", url="https://cask.example/firefox.dmg")
         assert _resolve_download_url(label, cask) == "https://mozilla.org/firefox.dmg"
 
-    def test_falls_back_to_cask_when_label_url_is_shell_expression(self):
+    def test_falls_back_to_cask_when_label_urlis_shell_expression(self):
         label = _make_label(name="firefox", download_url="$(curl ...)")
         cask = _make_cask(token="firefox", url="https://cask.example/firefox.dmg")
         assert _resolve_download_url(label, cask) == "https://cask.example/firefox.dmg"

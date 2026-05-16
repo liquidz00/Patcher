@@ -8,10 +8,14 @@ semaphore), parses the variable assignments, and upserts into the
 
 The parser mirrors Patcher's :class:`patcher.core.installomator.InstallomatorClient`
 behavior — handling literal ``key="value"`` assignments, shell expressions
-``key=$(...)`` stored as raw strings, and bash arrays ``key=(...)``. Shell
-expressions are intentionally **not** evaluated; we store them verbatim and
-defer evaluation to a future ingestion v2 (see the project memory's
-"ingestion pipeline" section for rationale).
+``key=$(...)`` stored as raw strings, and bash arrays ``key=(...)``.
+
+For ``downloadURL`` and ``appNewVersion`` specifically, the ingest evaluates
+shell expressions via :func:`patcher.core.installomator.resolve` (the
+"pyinstallomator" port). Resolved values land in the projected columns;
+unresolvable expressions are stored as ``NULL`` rather than as raw shell
+fragments. The full untouched parse result is always preserved in the
+``raw`` JSON column.
 
 The default Installomator ref is ``refs/heads/main``. Override via the
 ``PATCHER_API_INSTALLOMATOR_REF`` environment variable (or pass ``ref=`` to
@@ -29,7 +33,7 @@ import httpx
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from patcher.core.installomator import parse_fragment
+from patcher.core.installomator import is_shell_expression, parse_fragment, resolve
 from patcher_api.models.installomator import InstallomatorLabel
 
 __all__ = [
@@ -74,6 +78,39 @@ def _scalar_for_column(value: Any) -> str | None:
     if isinstance(value, list):
         return str(value[0]) if value else None
     return str(value)
+
+
+def _resolve_or_null(value: str | None) -> str | None:
+    """
+    Evaluate a label value via pyinstallomator's :func:`resolve`. Returns:
+
+    - The literal value when it isn't a shell expression at all (resolve
+      returns ``method="literal"`` for plain strings).
+    - The resolved value when ``resolve`` successfully evaluates the
+      pipeline (``method="pipeline"``).
+    - ``None`` when the expression can't be resolved, OR when the resolved
+      output *still* contains shell artifacts that the resolver's anchored
+      regex didn't process (e.g. ``"https://example.com$(curl ...)"``).
+
+    Synchronous and HTTP-bound. Wrap in :func:`asyncio.to_thread` when calling
+    from an async context to avoid blocking the event loop while pipelines
+    fan out to upstream sites.
+
+    :param value: Raw value from the parsed label fragment.
+    :type value: str | None
+    :return: Clean literal usable as a projected column value, or ``None``.
+    :rtype: str | None
+    """
+    if value is None:
+        return None
+    result = resolve(value)
+    if result.value is None:
+        return None
+    # Belt-and-suspenders: even ``method="literal"`` pass-throughs can carry
+    # embedded substitutions the anchored resolver didn't touch.
+    if is_shell_expression(result.value):
+        return None
+    return result.value
 
 
 def _installomator_ref() -> str:
@@ -201,14 +238,24 @@ async def ingest_installomator_labels(
 
         try:
             now = datetime.now(UTC)
+            # Resolve shell-expression values via pyinstallomator. Both
+            # downloadURL and appNewVersion frequently contain pipelines that
+            # need evaluation. Run in a worker thread so the event loop stays
+            # free while curl-style pipelines hit upstream sites.
+            raw_download_url = _scalar_for_column(parsed.get("downloadURL"))
+            raw_app_new_version = _scalar_for_column(parsed.get("appNewVersion"))
+            resolved_download_url, resolved_app_new_version = await asyncio.gather(
+                asyncio.to_thread(_resolve_or_null, raw_download_url),
+                asyncio.to_thread(_resolve_or_null, raw_app_new_version),
+            )
             stmt = insert(InstallomatorLabel).values(
                 name=name,
                 display_name=_scalar_for_column(parsed.get("name")),
                 install_type=_scalar_for_column(parsed.get("type")),
                 package_id=_scalar_for_column(parsed.get("packageID")),
-                download_url=_scalar_for_column(parsed.get("downloadURL")),
+                download_url=resolved_download_url,
                 expected_team_id=_scalar_for_column(parsed.get("expectedTeamID")),
-                app_new_version=_scalar_for_column(parsed.get("appNewVersion")),
+                app_new_version=resolved_app_new_version,
                 raw=parsed,
                 ingested_at=now,
             )

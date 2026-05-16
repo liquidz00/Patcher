@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher.core.installomator import is_shell_expression
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.homebrew import HomebrewCask
@@ -47,10 +48,6 @@ _VALID_INSTALL_METHODS: set[str] = {
 # Common reverse-DNS prefixes that aren't the vendor name itself. When
 # packageID starts with one of these we skip to the next segment.
 _REVERSE_DNS_TLDS: set[str] = {"com", "org", "net", "io", "co", "us", "edu", "app"}
-
-
-def _is_shell_expression(value: str | None) -> bool:
-    return value is not None and value.startswith("$(")
 
 
 def _extract_vendor(il: InstallomatorLabel) -> str | None:
@@ -89,7 +86,7 @@ def _resolve_version(il: InstallomatorLabel, cask: HomebrewCask | None) -> str |
     :return: Version string, or None if neither side has a literal value.
     :rtype: str | None
     """
-    if il.app_new_version and not _is_shell_expression(il.app_new_version):
+    if il.app_new_version and not is_shell_expression(il.app_new_version):
         return il.app_new_version
     if cask and cask.version:
         return cask.version
@@ -108,7 +105,7 @@ def _resolve_download_url(il: InstallomatorLabel, cask: HomebrewCask | None) -> 
     :return: Download URL string, or None if neither side has a literal value.
     :rtype: str | None
     """
-    if il.download_url and not _is_shell_expression(il.download_url):
+    if il.download_url and not is_shell_expression(il.download_url):
         return il.download_url
     if cask and cask.url:
         return cask.url
