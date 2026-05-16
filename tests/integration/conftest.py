@@ -19,6 +19,9 @@ from __future__ import annotations
 import os
 
 import pytest
+import pytest_asyncio
+from src.patcher import PatcherClient
+from src.patcher.client.jamf import JamfClient
 from src.patcher.client.token_manager import TokenManager
 from src.patcher.core.config_manager import ConfigManager
 
@@ -72,3 +75,47 @@ def integration_config(
 def integration_token_manager(integration_config: ConfigManager) -> TokenManager:
     """A real TokenManager configured against the integration instance."""
     return TokenManager(integration_config)
+
+
+@pytest_asyncio.fixture
+async def integration_jamf_client(
+    integration_url: str,
+    integration_client_id: str,
+    integration_client_secret: str,
+):
+    """
+    JamfClient pointed at the integration instance, with cleanup.
+
+    Uses :meth:`JamfClient.from_credentials` so the client carries an
+    in-memory ConfigManager (no keyring access). Yields the client and
+    closes the underlying httpx pool when the test exits.
+    """
+    client = JamfClient.from_credentials(
+        client_id=integration_client_id,
+        client_secret=integration_client_secret,
+        server=integration_url,
+    )
+    try:
+        yield client
+    finally:
+        await client.aclose()
+
+
+@pytest_asyncio.fixture
+async def integration_patcher_client(
+    integration_url: str,
+    integration_client_id: str,
+    integration_client_secret: str,
+):
+    """
+    PatcherClient pointed at the integration instance, async-context-managed.
+
+    Exits its ``async with`` block before the test returns, so the connection
+    pool is released cleanly.
+    """
+    async with PatcherClient(
+        client_id=integration_client_id,
+        client_secret=integration_client_secret,
+        server=integration_url,
+    ) as patcher:
+        yield patcher
