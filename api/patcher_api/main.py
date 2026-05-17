@@ -5,7 +5,7 @@ from fastapi import FastAPI
 
 from patcher_api.config import get_settings
 from patcher_api.db import get_engine, get_session_maker, init_db
-from patcher_api.routes import apps
+from patcher_api.routes import admin, apps
 from patcher_api.seed import seed_database
 
 
@@ -30,6 +30,7 @@ app = FastAPI(
 )
 
 app.include_router(apps.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")
