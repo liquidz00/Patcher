@@ -497,9 +497,16 @@ async def populated_session(test_session):
 
 @pytest.mark.asyncio
 async def test_stitch_returns_correct_counts(populated_session):
-    il, cask_only, both, mas_only, autopkg_attached, jai_attached, failed = await stitch_catalog(
-        populated_session
-    )
+    (
+        il,
+        cask_only,
+        both,
+        mas_only,
+        mas_merged,
+        autopkg_attached,
+        jai_attached,
+        failed,
+    ) = await stitch_catalog(populated_session)
 
     # 3 Installomator labels → 3 Installomator-sourced apps
     assert il == 3
@@ -507,8 +514,9 @@ async def test_stitch_returns_correct_counts(populated_session):
     assert both == 2
     # `onlycask` is the only Cask not matched by an Installomator label
     assert cask_only == 1
-    # No MAS records in this fixture → no MAS-only apps
+    # No MAS records in this fixture → no MAS-only apps or merges
     assert mas_only == 0
+    assert mas_merged == 0
     # No AutoPkg recipes in this fixture → no autopkg attachments
     assert autopkg_attached == 0
     # No JAI catalog rows in this fixture → no jamf_app_installer attachments
@@ -688,9 +696,16 @@ async def test_stitch_mas_only_record_creates_new_app_row(test_session):
     )
     await test_session.commit()
 
-    il, cask_only, both, mas_only, autopkg_attached, jai_attached, failed = await stitch_catalog(
-        test_session
-    )
+    (
+        il,
+        cask_only,
+        both,
+        mas_only,
+        mas_merged,
+        autopkg_attached,
+        jai_attached,
+        failed,
+    ) = await stitch_catalog(test_session)
     assert mas_only == 1
     assert failed == 0
 
@@ -714,49 +729,73 @@ async def test_stitch_mas_only_record_creates_new_app_row(test_session):
 
 
 @pytest.mark.asyncio
-async def test_stitch_mas_only_skips_slug_collision(test_session, caplog):
+async def test_stitch_mas_slug_collision_merges_into_existing_row(test_session):
     """
-    A MAS-only app whose slug collides with an existing apps row should be
-    skipped + logged rather than silently overwriting the prior row via
-    ON CONFLICT DO UPDATE.
-    """
-    import logging
+    A MAS app whose slug collides with an existing apps row (typically a
+    phase-2 Cask-only entry like "microsoft-word" or "xcode") gets MERGED
+    into that row rather than skipped. The merge:
 
-    # Pre-existing apps row at slug "pages" from another source
-    existing = AppRow(
-        slug="pages",
-        bundle_id="com.example.NotPages",
-        name="Some Other Pages",
-        sources=["installomator"],
-    )
-    test_session.add(existing)
-    test_session.add(
-        _make_mas(
-            bundle_id="com.apple.iWork.Pages",
-            name="Pages",
-            version="14.2",
-            artist_name="Apple",
-        )
+    1. Preserves the existing row's name/vendor/version/download_url.
+    2. Appends "mas" to the row's sources list, reordered into canonical
+       position.
+    3. Writes the mas source_detail payload onto the existing
+       app_source_details row.
+
+    This is the fix for the empirical issue where Microsoft Office and
+    Apple Pro Suite MAS apps were silently dropped because their slugified
+    names already existed on the apps table from Homebrew Cask phase 2.
+    """
+    # Simulate a phase-2 Cask-only row at slug "microsoft-word" that the
+    # MAS app for Microsoft Word would collide with.
+    test_session.add_all(
+        [
+            _make_cask(
+                token="microsoft-word",
+                name="Microsoft Word",
+                url="https://example.com/word.pkg",
+                version="16.83",
+            ),
+            _make_mas(
+                bundle_id="com.microsoft.Word",
+                name="Microsoft Word",
+                version="16.109",
+                artist_name="Microsoft Corporation",
+                store_url="https://apps.apple.com/us/app/microsoft-word/id462054704",
+            ),
+        ]
     )
     await test_session.commit()
 
-    with caplog.at_level(logging.WARNING, logger="patcher_api.stitch"):
-        (
-            il,
-            cask_only,
-            both,
-            mas_only,
-            autopkg_attached,
-            jai_attached,
-            failed,
-        ) = await stitch_catalog(test_session)
-
+    (
+        il,
+        cask_only,
+        both,
+        mas_only,
+        mas_merged,
+        autopkg_attached,
+        jai_attached,
+        failed,
+    ) = await stitch_catalog(test_session)
     assert mas_only == 0
-    assert any("slug collision" in record.message for record in caplog.records)
+    assert mas_merged == 1
+    assert failed == 0
 
-    # The original row is intact, not overwritten with MAS metadata
-    pages = await test_session.scalar(select(AppRow).where(AppRow.slug == "pages"))
-    assert pages.bundle_id == "com.example.NotPages"
+    word = await test_session.scalar(select(AppRow).where(AppRow.slug == "microsoft-word"))
+    assert word is not None
+    # The cask row's fields are preserved (cask version, cask name, etc.)
+    assert word.current_version == "16.83"
+    assert word.name == "Microsoft Word"
+    # "mas" added to sources in canonical order (homebrew_cask comes before mas)
+    assert word.sources == ["homebrew_cask", "mas"]
+
+    # Source detail row gained the mas payload while keeping the cask payload
+    detail = await test_session.scalar(
+        select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == word.id)
+    )
+    assert detail is not None
+    assert detail.homebrew_cask is not None
+    assert detail.mas is not None
+    assert detail.mas["bundle_id"] == "com.microsoft.Word"
 
 
 @pytest.mark.asyncio
@@ -792,7 +831,7 @@ async def test_stitch_attaches_autopkg_to_installomator_app(test_session):
     )
     await test_session.commit()
 
-    _, _, _, _, autopkg_attached, _, _ = await stitch_catalog(test_session)
+    _, _, _, _, _, autopkg_attached, _, _ = await stitch_catalog(test_session)
     assert autopkg_attached == 1
 
     firefox = await test_session.scalar(select(AppRow).where(AppRow.slug == "firefox"))
@@ -867,7 +906,7 @@ async def test_stitch_does_not_create_autopkg_only_apps(test_session):
     )
     await test_session.commit()
 
-    _, _, _, _, autopkg_attached, _, _ = await stitch_catalog(test_session)
+    _, _, _, _, _, autopkg_attached, _, _ = await stitch_catalog(test_session)
     assert autopkg_attached == 0
 
     apps = (await test_session.scalars(select(AppRow))).all()
@@ -926,7 +965,7 @@ async def test_stitch_attaches_jai_to_installomator_app(test_session):
     )
     await test_session.commit()
 
-    _, _, _, _, _, jai_attached, _ = await stitch_catalog(test_session)
+    _, _, _, _, _, _, jai_attached, _ = await stitch_catalog(test_session)
     assert jai_attached == 1
 
     firefox = await test_session.scalar(select(AppRow).where(AppRow.slug == "firefox"))
@@ -988,7 +1027,7 @@ async def test_stitch_does_not_create_jai_only_apps(test_session):
     test_session.add(_make_jai(title="SomeObscureApp", source="Jamf"))
     await test_session.commit()
 
-    _, _, _, _, _, jai_attached, _ = await stitch_catalog(test_session)
+    _, _, _, _, _, _, jai_attached, _ = await stitch_catalog(test_session)
     assert jai_attached == 0
 
     apps = (await test_session.scalars(select(AppRow))).all()

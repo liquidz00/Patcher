@@ -22,7 +22,7 @@ import logging
 import re
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -244,6 +244,21 @@ def _build_cask_payload(cask: HomebrewCask) -> dict[str, Any]:
     }
 
 
+_CANONICAL_SOURCE_ORDER = (
+    "installomator",
+    "homebrew_cask",
+    "autopkg",
+    "jamf_app_installer",
+    "mas",
+)
+
+
+def _canonicalize_sources(sources: list[str]) -> list[str]:
+    """Reorder a sources list into the canonical fixed-position ordering."""
+    present = set(sources)
+    return [s for s in _CANONICAL_SOURCE_ORDER if s in present]
+
+
 def _build_mas_payload(mas_app: MasApp) -> dict[str, Any]:
     """
     Build the MasSource shape for the source_detail JSON column.
@@ -334,6 +349,50 @@ def _build_jai_payload(jai: JamfAppInstaller) -> dict[str, Any]:
         "source": jai.source,
         "host": jai.host,
     }
+
+
+async def _attach_mas_to_existing_app(
+    session: AsyncSession,
+    *,
+    app_id: int,
+    mas_app: MasApp,
+) -> None:
+    """
+    Merge a MAS payload into an existing ``apps`` row instead of creating a
+    new MAS-only row.
+
+    Invoked by phase 3 when ``_slugify(mas_app.name)`` collides with an
+    already-stitched row (typically a phase-2 Cask-only app whose token
+    happens to match the MAS app's slugified name — Apple Pro Suite +
+    Microsoft Office are the common cases). The merge preserves the
+    existing row's name/vendor/version/download_url and only:
+
+    1. Appends ``"mas"`` to the row's ``sources`` list, reordered into the
+       canonical fixed-position sequence.
+    2. Writes the mas source_detail payload (existing detail row gets its
+       ``mas`` column updated; if no detail row exists for any reason, one
+       is created via ON CONFLICT DO UPDATE).
+    """
+    current_sources = (
+        await session.scalar(select(AppRow.sources).where(AppRow.id == app_id))
+    ) or []
+    new_sources = _canonicalize_sources([*current_sources, "mas"])
+    await session.execute(update(AppRow).where(AppRow.id == app_id).values(sources=new_sources))
+
+    mas_payload = _build_mas_payload(mas_app)
+    detail_stmt = sqlite_insert(AppSourceDetailRow).values(
+        app_id=app_id,
+        installomator=None,
+        homebrew_cask=None,
+        autopkg=None,
+        mas=mas_payload,
+        jamf_app_installer=None,
+    )
+    detail_stmt = detail_stmt.on_conflict_do_update(
+        index_elements=["app_id"],
+        set_={"mas": detail_stmt.excluded.mas},
+    )
+    await session.execute(detail_stmt)
 
 
 def _index_jai_by_title(jai_rows: list[JamfAppInstaller]) -> dict[str, JamfAppInstaller]:
@@ -478,7 +537,7 @@ async def _upsert_app_with_sources(
     await session.execute(detail_stmt)
 
 
-async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int, int, int]:
+async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int, int, int, int]:
     """
     Run the stitch process. Builds unified ``apps`` rows from ingested
     Installomator labels, Homebrew Cask records, Mac App Store metadata,
@@ -496,9 +555,13 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
     2. **Cask-only.** Walk Casks not claimed in phase 1. Cask records don't
        expose ``bundle_id``, so no MAS join is attempted, but AutoPkg + JAI
        name matching is still attempted.
-    3. **MAS-only.** Walk MAS records not joined in phase 1. Slug derived
-       from MAS ``trackName`` via :func:`_slugify`; slug collisions skip +
-       log. AutoPkg + JAI name matching still applies.
+    3. **MAS-only with merge-on-collision.** Walk MAS records not joined in
+       phase 1. Slug derived from MAS ``trackName`` via :func:`_slugify`. If
+       the slug collides with an existing phase-1 or phase-2 row, merge the
+       MAS payload into that row via :func:`_attach_mas_to_existing_app`
+       rather than skipping (Microsoft Office + Apple Pro Suite are typical
+       collision cases). Otherwise create a new MAS-only row. AutoPkg + JAI
+       name matching still applies for newly-created rows.
 
     **AutoPkg and JAI never create new apps.** Both are coverage indicators
     attached to existing apps when their normalized name matches the app's
@@ -507,18 +570,21 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
     :param session: Async SQLAlchemy session bound to the target DB.
     :type session: sqlalchemy.ext.asyncio.AsyncSession
     :return: ``(installomator_apps, cask_only_apps, both_sources,
-        mas_only_apps, autopkg_attached_apps, jai_attached_apps, failed)``.
+        mas_only_apps, mas_merged_apps, autopkg_attached_apps,
+        jai_attached_apps, failed)``.
 
         - ``installomator_apps`` is the count of apps with an Installomator source
         - ``cask_only_apps`` is the count of apps with only a Cask source
         - ``both_sources`` is the subset of ``installomator_apps`` that also matched a Cask
-        - ``mas_only_apps`` is the count of MAS-only apps created in phase 3
+        - ``mas_only_apps`` is the count of *newly-created* MAS-only rows from phase 3
+        - ``mas_merged_apps`` is the count of MAS records merged into an existing
+          row via slug collision in phase 3
         - ``autopkg_attached_apps`` is the count of apps with one or more
           AutoPkg recipes attached (across all phases)
         - ``jai_attached_apps`` is the count of apps with a JAI catalog row
           attached (across all phases)
         - ``failed`` is the count of records that raised an unexpected error
-    :rtype: tuple[int, int, int, int, int, int, int]
+    :rtype: tuple[int, int, int, int, int, int, int, int]
     """
     labels = (await session.scalars(select(InstallomatorLabel))).all()
     casks = (await session.scalars(select(HomebrewCask))).all()
@@ -538,6 +604,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
     both_sources = 0
     autopkg_attached_count = 0
     jai_attached_count = 0
+    mas_merged_count = 0
     failed = 0
 
     for il in labels:
@@ -649,17 +716,28 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
             continue
 
         slug = _slugify(mas_app.name)
-        # Defensive: a MAS-only slug colliding with an existing phase 1 or 2
-        # row would overwrite that row via ON CONFLICT DO UPDATE. Skip and
-        # log instead so the caller can pick a better slug (or reconcile)
-        # rather than silently losing the prior row.
+        # If the slugified MAS name already exists on the apps table (typically
+        # because a phase-2 Cask-only app claimed it first — Apple Pro Suite +
+        # Microsoft Office are the common cases), merge the MAS payload into
+        # the existing row instead of skipping or overwriting it. Preserves
+        # name/vendor/version/download_url from the prior source; only adds
+        # "mas" to sources and writes the mas source_detail.
         existing_app_id = await session.scalar(select(AppRow.id).where(AppRow.slug == slug))
         if existing_app_id is not None:
-            log.warning(
-                "MAS-only slug collision: bundle_id=%r slug=%r already exists, skipping",
-                mas_app.bundle_id,
-                slug,
-            )
+            try:
+                async with session.begin_nested():
+                    await _attach_mas_to_existing_app(
+                        session, app_id=existing_app_id, mas_app=mas_app
+                    )
+                mas_merged_count += 1
+            except Exception as exc:
+                log.warning(
+                    "Failed to merge MAS app %r into existing slug %r: %s",
+                    mas_app.bundle_id,
+                    slug,
+                    exc,
+                )
+                failed += 1
             continue
 
         normalized = _normalize_name(mas_app.name)
@@ -718,6 +796,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
         cask_only_count,
         both_sources,
         mas_only_count,
+        mas_merged_count,
         autopkg_attached_count,
         jai_attached_count,
         failed,

@@ -36,6 +36,7 @@ async def main() -> None:
             cask_only_count,
             both_sources,
             mas_only_count,
+            mas_merged_count,
             autopkg_attached_count,
             jai_attached_count,
             failed,
@@ -48,6 +49,7 @@ async def main() -> None:
         f" (of which {both_sources} also matched a Homebrew Cask record)\n"
         f"  Cask-only apps:             {cask_only_count}\n"
         f"  MAS-only apps:              {mas_only_count}\n"
+        f"  MAS merged into existing:   {mas_merged_count}\n"
         f"  Apps with AutoPkg recipes:  {autopkg_attached_count}\n"
         f"  Apps with JAI coverage:     {jai_attached_count}\n"
         f"  Total catalog rows:         {total}\n"
