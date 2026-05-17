@@ -3,7 +3,7 @@ UV 				:= uv
 PYPROJECT 		:= pyproject.toml
 VENV_DIR 		:= .venv
 
-.PHONY: docs all clean test install pre-commit pre-commit-run pre-commit-update
+.PHONY: docs openapi-schema all clean test install pre-commit pre-commit-run pre-commit-update
 
 help:  ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
@@ -78,8 +78,11 @@ pre-commit-update:  ## Update pre-commit hooks to latest versions
 build:  ## Build distribution packages (sdist + wheel)
 	$(UV) build --sdist --wheel
 
-docs:  ## Build Sphinx documentation
+docs: openapi-schema  ## Build Sphinx documentation
 	$(UV) run sphinx-build -b html docs/ docs/_build/
+
+openapi-schema:  ## Regenerate docs/_generated/openapi.json from FastAPI app
+	$(UV) run python scripts/generate_openapi.py
 
 init-vendor-docs:  ## One-time after clone - pull submodule content
 	git submodule update --init --recursive

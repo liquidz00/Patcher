@@ -72,6 +72,7 @@ docs = [
   "sphinx-design",
   "sphinx-iconify>=0.3.0",
   "sphinx-togglebutton",
+  "sphinxcontrib-openapi>=0.8.4",
 ]
 
 [build-system]
