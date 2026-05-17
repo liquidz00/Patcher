@@ -22,9 +22,30 @@ class HomebrewCaskSource(BaseModel):
     cask_json: dict
 
 
+class AutopkgRecipeEntry(BaseModel):
+    """Single recipe attached to an app via the AutoPkg index."""
+
+    identifier: str
+    name: str
+    shortname: str
+    repo: str
+    path: str
+    parent_identifier: str | None = None
+    inferred_type: str | None = None
+    recipe_url: HttpUrl | None = None
+
+
 class AutopkgSource(BaseModel):
-    recipe_name: str
-    recipe_url: HttpUrl
+    """
+    All AutoPkg recipes matched to an app via the recipe index.
+
+    AutoPkg coverage is multi-recipe by nature: a single app like Firefox
+    typically has download, munki, pkg, jamf, and intune variants across
+    multiple maintainer repos. Each match is preserved as a separate
+    :class:`AutopkgRecipeEntry`.
+    """
+
+    recipes: list[AutopkgRecipeEntry]
 
 
 class MasSource(BaseModel):

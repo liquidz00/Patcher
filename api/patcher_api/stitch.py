@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from patcher.core.installomator import is_shell_expression, looks_like_clean_http_url
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
+from patcher_api.models.autopkg import AutopkgRecipe
 from patcher_api.models.homebrew import HomebrewCask
 from patcher_api.models.installomator import InstallomatorLabel
 from patcher_api.models.mas import MasApp
@@ -257,6 +258,68 @@ def _build_mas_payload(mas_app: MasApp) -> dict[str, Any]:
     }
 
 
+def _build_autopkg_payload(recipes: list[AutopkgRecipe]) -> dict[str, Any]:
+    """
+    Build the AutopkgSource shape (a list of recipe entries) for the
+    source_detail JSON column.
+
+    A single app typically has multiple AutoPkg recipes (download, munki,
+    pkg, jamf, etc.) across one or more maintainer repos. Each match is
+    preserved as a separate entry. ``recipe_url`` is constructed from the
+    repo + path; GitHub redirects ``/blob/master/`` to ``/blob/main/``
+    automatically for repos that renamed the default branch.
+    """
+    return {
+        "recipes": [
+            {
+                "identifier": r.identifier,
+                "name": r.name,
+                "shortname": r.shortname,
+                "repo": r.repo,
+                "path": r.path,
+                "parent_identifier": r.parent_identifier,
+                "inferred_type": r.inferred_type,
+                "recipe_url": f"https://github.com/{r.repo}/blob/master/{r.path}",
+            }
+            for r in recipes
+        ],
+    }
+
+
+def _normalize_name(name: str | None) -> str:
+    """
+    Lowercase + strip all non-alphanumeric for cross-variant name matching.
+
+    AutoPkg recipe names use both whitespace-separated (``"Google Chrome"``)
+    and concatenated (``"GoogleChrome"``) forms for the same app, depending
+    on the maintainer. Both normalize to ``"googlechrome"`` so either
+    variant matches an app whose display name is the other variant. Empty
+    or ``None`` input returns the empty string, which won't match anything
+    in the index (lookups against empty keys are guarded at the call site).
+    """
+    if not name:
+        return ""
+    return re.sub(r"[^a-z0-9]+", "", name.lower())
+
+
+def _index_autopkg_by_name(recipes: list[AutopkgRecipe]) -> dict[str, list[AutopkgRecipe]]:
+    """
+    Build a normalized-name → list[recipe] lookup over all AutoPkg recipes.
+
+    Multiple recipes per name is the common case: Firefox alone usually
+    has 5 to 10 child recipes across different maintainer repos. The
+    list ordering is stable across runs since SQL ordering is preserved
+    through the upstream iteration.
+    """
+    index: dict[str, list[AutopkgRecipe]] = {}
+    for r in recipes:
+        key = _normalize_name(r.name)
+        if not key:
+            continue
+        index.setdefault(key, []).append(r)
+    return index
+
+
 def _slugify(name: str) -> str:
     """
     Convert an app name to a URL-friendly slug.
@@ -377,60 +440,75 @@ async def _upsert_app_with_sources(
     await session.execute(detail_stmt)
 
 
-async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int]:
+async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int, int]:
     """
     Run the stitch process. Builds unified ``apps`` rows from ingested
-    Installomator labels, Homebrew Cask records, and Mac App Store metadata.
+    Installomator labels, Homebrew Cask records, Mac App Store metadata,
+    and AutoPkg recipe-index entries.
 
     Phases:
 
     1. **Installomator-led.** For each label, try to match a Cask (token or
-       artifact app-name) and a MAS record (by ``packageID``). Upsert one
-       ``apps`` row per label with whichever sources matched. Sources land
-       in the canonical ordering ``[installomator, homebrew_cask, autopkg,
-       mas]`` regardless of which combination is present.
-    2. **Cask-only.** Walk the Casks not claimed in phase 1 and upsert one
-       ``apps`` row each. Cask records don't expose ``bundle_id``, so no
-       MAS join is attempted here.
-    3. **MAS-only.** Walk the MAS records not joined in phase 1 (the Apple
-       first-party apps with no Installomator label, etc.) and upsert one
-       ``apps`` row each. Slug is derived from the MAS ``trackName`` via
-       :func:`_slugify`; on slug collision with a phase 1 or phase 2 row,
-       the MAS-only insert is skipped and logged.
+       artifact app-name), a MAS record (by ``packageID``), and any AutoPkg
+       recipes (by normalized display name). Upsert one ``apps`` row per
+       label with whichever sources matched. Sources land in the canonical
+       ordering ``[installomator, homebrew_cask, autopkg, mas]`` regardless
+       of which combination is present.
+    2. **Cask-only.** Walk the Casks not claimed in phase 1. Cask records
+       don't expose ``bundle_id``, so no MAS join is attempted here, but
+       AutoPkg name matching is still attempted.
+    3. **MAS-only.** Walk the MAS records not joined in phase 1 (Apple's
+       first-party apps with no Installomator label, etc.). Slug is derived
+       from the MAS ``trackName`` via :func:`_slugify`; on slug collision
+       with a phase 1 or phase 2 row, the MAS-only insert is skipped and
+       logged. AutoPkg name matching still applies.
+
+    **AutoPkg never creates new apps.** Its presence is purely a coverage
+    indicator attached to existing apps when a recipe's normalized name
+    matches the app's display name.
 
     :param session: Async SQLAlchemy session bound to the target DB.
     :type session: sqlalchemy.ext.asyncio.AsyncSession
     :return: ``(installomator_apps, cask_only_apps, both_sources,
-        mas_only_apps, failed)`` where:
+        mas_only_apps, autopkg_attached_apps, failed)`` where:
 
         - ``installomator_apps`` is the count of apps with an Installomator source
         - ``cask_only_apps`` is the count of apps with only a Cask source
         - ``both_sources`` is the subset of ``installomator_apps`` that also matched a Cask
         - ``mas_only_apps`` is the count of MAS-only apps created in phase 3
+        - ``autopkg_attached_apps`` is the count of apps with one or more
+          AutoPkg recipes attached (across all phases)
         - ``failed`` is the count of records that raised an unexpected error
-    :rtype: tuple[int, int, int, int, int]
+    :rtype: tuple[int, int, int, int, int, int]
     """
     labels = (await session.scalars(select(InstallomatorLabel))).all()
     casks = (await session.scalars(select(HomebrewCask))).all()
     mas_apps = (await session.scalars(select(MasApp))).all()
+    autopkg_recipes = (await session.scalars(select(AutopkgRecipe))).all()
 
     casks_by_token = {c.token: c for c in casks}
     casks_by_app_name = _index_casks_by_app_name(casks)
     mas_by_bundle_id = {m.bundle_id: m for m in mas_apps}
+    autopkg_by_name = _index_autopkg_by_name(list(autopkg_recipes))
     matched_cask_tokens: set[str] = set()
     matched_mas_bundle_ids: set[str] = set()
 
     installomator_count = 0
     both_sources = 0
+    autopkg_attached_count = 0
     failed = 0
 
     for il in labels:
         matching_cask = _find_matching_cask(il, casks_by_token, casks_by_app_name)
         matching_mas = mas_by_bundle_id.get(il.package_id) if il.package_id else None
+        display_name = il.display_name or il.name
+        matching_autopkg = autopkg_by_name.get(_normalize_name(display_name), [])
 
         sources = ["installomator"]
         if matching_cask is not None:
             sources.append("homebrew_cask")
+        if matching_autopkg:
+            sources.append("autopkg")
         if matching_mas is not None:
             sources.append("mas")
 
@@ -440,7 +518,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                     session,
                     slug=il.name,
                     bundle_id=il.package_id,
-                    name=il.display_name or il.name,
+                    name=display_name,
                     vendor=_extract_vendor(il),
                     current_version=_resolve_version(il, matching_cask),
                     download_url=_resolve_download_url(il, matching_cask),
@@ -449,7 +527,9 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                     sources=sources,
                     installomator_payload=_build_installomator_payload(il),
                     homebrew_payload=_build_cask_payload(matching_cask) if matching_cask else None,
-                    autopkg_payload=None,
+                    autopkg_payload=(
+                        _build_autopkg_payload(matching_autopkg) if matching_autopkg else None
+                    ),
                     mas_payload=_build_mas_payload(matching_mas) if matching_mas else None,
                 )
             if matching_cask is not None:
@@ -457,6 +537,8 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                 both_sources += 1
             if matching_mas is not None:
                 matched_mas_bundle_ids.add(matching_mas.bundle_id)
+            if matching_autopkg:
+                autopkg_attached_count += 1
             installomator_count += 1
         except Exception as exc:
             log.warning("Failed to stitch Installomator label %r: %s", il.name, exc)
@@ -468,6 +550,12 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
             continue
 
         cask_name = cask.name or cask.token
+        matching_autopkg = autopkg_by_name.get(_normalize_name(cask_name), [])
+
+        sources = ["homebrew_cask"]
+        if matching_autopkg:
+            sources.append("autopkg")
+
         try:
             async with session.begin_nested():
                 await _upsert_app_with_sources(
@@ -480,12 +568,16 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                     download_url=_clean_cask_url(cask),
                     install_method=_infer_install_method_from_cask(cask),
                     sha256=cask.sha256,
-                    sources=["homebrew_cask"],
+                    sources=sources,
                     installomator_payload=None,
                     homebrew_payload=_build_cask_payload(cask),
-                    autopkg_payload=None,
+                    autopkg_payload=(
+                        _build_autopkg_payload(matching_autopkg) if matching_autopkg else None
+                    ),
                     mas_payload=None,
                 )
+            if matching_autopkg:
+                autopkg_attached_count += 1
             cask_only_count += 1
         except Exception as exc:
             log.warning("Failed to stitch Cask %r: %s", cask.token, exc)
@@ -510,6 +602,13 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
             )
             continue
 
+        matching_autopkg = autopkg_by_name.get(_normalize_name(mas_app.name), [])
+
+        sources: list[str] = []
+        if matching_autopkg:
+            sources.append("autopkg")
+        sources.append("mas")
+
         try:
             async with session.begin_nested():
                 await _upsert_app_with_sources(
@@ -522,12 +621,16 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                     download_url=None,
                     install_method=None,
                     sha256=None,
-                    sources=["mas"],
+                    sources=sources,
                     installomator_payload=None,
                     homebrew_payload=None,
-                    autopkg_payload=None,
+                    autopkg_payload=(
+                        _build_autopkg_payload(matching_autopkg) if matching_autopkg else None
+                    ),
                     mas_payload=_build_mas_payload(mas_app),
                 )
+            if matching_autopkg:
+                autopkg_attached_count += 1
             mas_only_count += 1
         except Exception as exc:
             log.warning("Failed to stitch MAS app %r: %s", mas_app.bundle_id, exc)
@@ -541,4 +644,11 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
     # would otherwise return stale attribute values on next access.
     session.expire_all()
 
-    return installomator_count, cask_only_count, both_sources, mas_only_count, failed
+    return (
+        installomator_count,
+        cask_only_count,
+        both_sources,
+        mas_only_count,
+        autopkg_attached_count,
+        failed,
+    )

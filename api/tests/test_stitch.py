@@ -13,6 +13,7 @@ import pytest
 import pytest_asyncio
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
+from patcher_api.models.autopkg import AutopkgRecipe
 from patcher_api.models.homebrew import HomebrewCask
 from patcher_api.models.installomator import InstallomatorLabel
 from patcher_api.models.mas import MasApp
@@ -20,8 +21,10 @@ from patcher_api.stitch import (
     _clean_cask_url,
     _extract_vendor,
     _find_matching_cask,
+    _index_autopkg_by_name,
     _index_casks_by_app_name,
     _infer_install_method_from_cask,
+    _normalize_name,
     _resolve_download_url,
     _resolve_install_method,
     _resolve_version,
@@ -109,6 +112,33 @@ def _make_mas(
         version=version,
         store_url=store_url,
         raw=raw,
+        ingested_at=datetime.now(UTC),
+    )
+
+
+def _make_autopkg(
+    *,
+    identifier: str,
+    name: str,
+    shortname: str | None = None,
+    repo: str = "autopkg/recipes",
+    path: str | None = None,
+    parent_identifier: str | None = None,
+    inferred_type: str | None = None,
+) -> AutopkgRecipe:
+    """Build an :class:`AutopkgRecipe` row for unit tests."""
+    shortname = shortname or f"{name}.download"
+    path = path or f"{name}/{name}.download.recipe"
+    return AutopkgRecipe(
+        identifier=identifier,
+        name=name,
+        shortname=shortname,
+        repo=repo,
+        path=path,
+        parent_identifier=parent_identifier,
+        inferred_type=inferred_type or "download",
+        description=None,
+        raw={"name": name, "shortname": shortname, "repo": repo, "path": path},
         ingested_at=datetime.now(UTC),
     )
 
@@ -234,6 +264,55 @@ class TestCleanCaskUrl:
     def test_html_body_url_returns_none(self):
         cask = _make_cask(token="weird", url="<!doctype html><html>oops</html>")
         assert _clean_cask_url(cask) is None
+
+
+class TestNormalizeName:
+    """
+    Cross-variant name normalization used to match AutoPkg recipe names
+    against app display names. ``"Google Chrome"`` and ``"GoogleChrome"``
+    must both normalize to the same key so either variant matches.
+    """
+
+    def test_simple_name(self):
+        assert _normalize_name("Firefox") == "firefox"
+
+    def test_whitespace_stripped(self):
+        assert _normalize_name("Google Chrome") == "googlechrome"
+
+    def test_concatenated_form_matches_whitespace_form(self):
+        assert _normalize_name("GoogleChrome") == _normalize_name("Google Chrome")
+
+    def test_punctuation_stripped(self):
+        assert _normalize_name("Microsoft-Edge") == "microsoftedge"
+
+    def test_none_returns_empty_string(self):
+        assert _normalize_name(None) == ""
+
+    def test_empty_returns_empty(self):
+        assert _normalize_name("") == ""
+
+
+class TestIndexAutopkgByName:
+    def test_groups_multiple_recipes_by_name(self):
+        recipes = [
+            _make_autopkg(identifier="com.github.autopkg.download.Firefox", name="Firefox"),
+            _make_autopkg(
+                identifier="com.github.autopkg.munki.Firefox",
+                name="Firefox",
+                shortname="Firefox.munki",
+                inferred_type="munki",
+            ),
+        ]
+        index = _index_autopkg_by_name(recipes)
+        assert len(index["firefox"]) == 2
+
+    def test_separates_distinct_names(self):
+        recipes = [
+            _make_autopkg(identifier="com.github.autopkg.download.Firefox", name="Firefox"),
+            _make_autopkg(identifier="com.github.autopkg.download.Chrome", name="Chrome"),
+        ]
+        index = _index_autopkg_by_name(recipes)
+        assert set(index.keys()) == {"firefox", "chrome"}
 
 
 class TestSlugify:
@@ -401,7 +480,9 @@ async def populated_session(test_session):
 
 @pytest.mark.asyncio
 async def test_stitch_returns_correct_counts(populated_session):
-    il, cask_only, both, mas_only, failed = await stitch_catalog(populated_session)
+    il, cask_only, both, mas_only, autopkg_attached, failed = await stitch_catalog(
+        populated_session
+    )
 
     # 3 Installomator labels → 3 Installomator-sourced apps
     assert il == 3
@@ -411,6 +492,8 @@ async def test_stitch_returns_correct_counts(populated_session):
     assert cask_only == 1
     # No MAS records in this fixture → no MAS-only apps
     assert mas_only == 0
+    # No AutoPkg recipes in this fixture → no autopkg attachments
+    assert autopkg_attached == 0
     assert failed == 0
 
 
@@ -586,7 +669,7 @@ async def test_stitch_mas_only_record_creates_new_app_row(test_session):
     )
     await test_session.commit()
 
-    il, cask_only, both, mas_only, failed = await stitch_catalog(test_session)
+    il, cask_only, both, mas_only, autopkg_attached, failed = await stitch_catalog(test_session)
     assert mas_only == 1
     assert failed == 0
 
@@ -637,7 +720,7 @@ async def test_stitch_mas_only_skips_slug_collision(test_session, caplog):
     await test_session.commit()
 
     with caplog.at_level(logging.WARNING, logger="patcher_api.stitch"):
-        il, cask_only, both, mas_only, failed = await stitch_catalog(test_session)
+        il, cask_only, both, mas_only, autopkg_attached, failed = await stitch_catalog(test_session)
 
     assert mas_only == 0
     assert any("slug collision" in record.message for record in caplog.records)
@@ -645,6 +728,152 @@ async def test_stitch_mas_only_skips_slug_collision(test_session, caplog):
     # The original row is intact, not overwritten with MAS metadata
     pages = await test_session.scalar(select(AppRow).where(AppRow.slug == "pages"))
     assert pages.bundle_id == "com.example.NotPages"
+
+
+@pytest.mark.asyncio
+async def test_stitch_attaches_autopkg_to_installomator_app(test_session):
+    """
+    AutoPkg recipes whose normalized name matches an Installomator label's
+    display_name get attached as a source with the full list of matched
+    recipes in the source_detail payload.
+    """
+    test_session.add_all(
+        [
+            _make_label(
+                name="firefox",
+                display_name="Firefox",
+                install_type="pkg",
+                package_id="org.mozilla.firefox",
+                download_url="https://example.com/firefox.pkg",
+            ),
+            _make_autopkg(
+                identifier="com.github.autopkg.download.Firefox",
+                name="Firefox",
+                shortname="Firefox.download",
+                inferred_type="download",
+            ),
+            _make_autopkg(
+                identifier="com.github.autopkg.munki.Firefox",
+                name="Firefox",
+                shortname="Firefox.munki",
+                parent_identifier="com.github.autopkg.download.Firefox",
+                inferred_type="munki",
+            ),
+        ]
+    )
+    await test_session.commit()
+
+    _, _, _, _, autopkg_attached, _ = await stitch_catalog(test_session)
+    assert autopkg_attached == 1
+
+    firefox = await test_session.scalar(select(AppRow).where(AppRow.slug == "firefox"))
+    # Canonical source ordering: installomator, homebrew_cask, autopkg, mas.
+    # Cask + mas absent → just installomator + autopkg.
+    assert firefox.sources == ["installomator", "autopkg"]
+
+    detail = await test_session.scalar(
+        select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == firefox.id)
+    )
+    recipes = detail.autopkg["recipes"]
+    assert len(recipes) == 2
+    assert {r["shortname"] for r in recipes} == {"Firefox.download", "Firefox.munki"}
+    # Recipe URLs are constructed from repo + path (GitHub redirects master to main)
+    assert all(
+        r["recipe_url"].startswith("https://github.com/autopkg/recipes/blob/") for r in recipes
+    )
+
+
+@pytest.mark.asyncio
+async def test_stitch_attaches_autopkg_to_cask_only_app(test_session):
+    """Phase 2 (Cask-only) also gets AutoPkg attached by name match."""
+    test_session.add_all(
+        [
+            _make_cask(
+                token="alacritty", name="Alacritty", url="https://example.com/alacritty.dmg"
+            ),
+            _make_autopkg(
+                identifier="com.github.autopkg.download.Alacritty",
+                name="Alacritty",
+            ),
+        ]
+    )
+    await test_session.commit()
+
+    await stitch_catalog(test_session)
+
+    alacritty = await test_session.scalar(select(AppRow).where(AppRow.slug == "alacritty"))
+    assert alacritty.sources == ["homebrew_cask", "autopkg"]
+
+
+@pytest.mark.asyncio
+async def test_stitch_attaches_autopkg_to_mas_only_app(test_session):
+    """Phase 3 (MAS-only) also gets AutoPkg attached by name match."""
+    test_session.add_all(
+        [
+            _make_mas(bundle_id="com.apple.dt.Xcode", name="Xcode", version="15.4"),
+            _make_autopkg(identifier="com.github.autopkg.download.Xcode", name="Xcode"),
+        ]
+    )
+    await test_session.commit()
+
+    await stitch_catalog(test_session)
+
+    xcode = await test_session.scalar(select(AppRow).where(AppRow.slug == "xcode"))
+    # Canonical ordering puts autopkg before mas.
+    assert xcode.sources == ["autopkg", "mas"]
+
+
+@pytest.mark.asyncio
+async def test_stitch_does_not_create_autopkg_only_apps(test_session):
+    """
+    An AutoPkg recipe with no matching app in Installomator / Cask / MAS
+    should NOT generate a new ``apps`` row. AutoPkg is a coverage indicator,
+    not an app source.
+    """
+    test_session.add(
+        _make_autopkg(
+            identifier="com.github.autopkg.download.SomeObscureApp",
+            name="SomeObscureApp",
+        )
+    )
+    await test_session.commit()
+
+    _, _, _, _, autopkg_attached, _ = await stitch_catalog(test_session)
+    assert autopkg_attached == 0
+
+    apps = (await test_session.scalars(select(AppRow))).all()
+    # Seed apps from conftest may exist but no new row from the orphan recipe
+    assert not any(a.name == "SomeObscureApp" for a in apps)
+
+
+@pytest.mark.asyncio
+async def test_stitch_matches_autopkg_across_name_variants(test_session):
+    """
+    Normalized matching: ``"Google Chrome"`` label display_name should
+    match an AutoPkg recipe named ``"GoogleChrome"`` (concatenated form),
+    and vice versa.
+    """
+    test_session.add_all(
+        [
+            _make_label(
+                name="googlechrome",
+                display_name="Google Chrome",
+                install_type="pkg",
+                package_id="com.google.Chrome",
+                download_url="https://example.com/chrome.pkg",
+            ),
+            _make_autopkg(
+                identifier="com.github.autopkg.download.GoogleChrome",
+                name="GoogleChrome",
+            ),
+        ]
+    )
+    await test_session.commit()
+
+    await stitch_catalog(test_session)
+
+    chrome = await test_session.scalar(select(AppRow).where(AppRow.slug == "googlechrome"))
+    assert "autopkg" in chrome.sources
 
 
 @pytest.mark.asyncio
