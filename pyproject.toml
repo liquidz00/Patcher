@@ -47,7 +47,7 @@ classifiers = [
 Homepage = "https://docs.patcherctl.dev"
 Documentation = "https://docs.patcherctl.dev"
 Repository = "https://github.com/liquidz00/Patcher"
-Issues = "https://github.com/liquidz00/Patcher/issues/new?assignees=&labels=bug&projects=&template=issue.md&title=%5BISSUE%5D+Your+Issue+Title"
+Issues = "https://github.com/liquidz00/Patcher/issues/new?template=bug_report.yml"
 
 [project.scripts]
 patcherctl = "patcher.cli:cli"
