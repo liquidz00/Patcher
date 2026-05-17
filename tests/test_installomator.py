@@ -24,11 +24,18 @@ from src.patcher.client.jamf import JamfClient
 from src.patcher.core.exceptions import APIResponseError
 from src.patcher.core.installomator import (
     InstallomatorClient,
-    ResolveResult,
+    InvalidOutput,
+    Resolved,
+    Unresolvable,
+    _exec_awk,
     _exec_cut,
     _exec_grep,
     _exec_head,
+    _exec_sed,
+    _exec_sort,
     _exec_tail,
+    _exec_tr,
+    _exec_uniq,
     _parse_field_spec,
     _split_pipeline,
     _tokenize,
@@ -434,19 +441,42 @@ def _mock_client(handler) -> httpx.Client:
 
 
 class TestResolveLiteralValues:
-    def test_plain_string_returns_as_literal(self):
+    def test_plain_string_returns_as_resolved(self):
         result = resolve("121.0")
-        assert result == ResolveResult(value="121.0", error=None, method="literal")
+        assert result == Resolved(value="121.0")
 
-    def test_url_returns_as_literal(self):
+    def test_url_returns_as_resolved(self):
         result = resolve("https://example.com/foo.dmg")
-        assert result.method == "literal"
+        assert isinstance(result, Resolved)
         assert result.value == "https://example.com/foo.dmg"
 
-    def test_none_returns_none(self):
+    def test_none_returns_unresolvable(self):
         result = resolve(None)
-        assert result.value is None
-        assert result.method == "literal"
+        assert isinstance(result, Unresolvable)
+
+
+class TestResolveUrlValidation:
+    """When ``is_url=True`` is passed, the resolved value is checked against
+    :func:`looks_like_clean_http_url` and failures land as
+    :class:`InvalidOutput` rather than :class:`Resolved`."""
+
+    def test_clean_http_url_resolves(self):
+        result = resolve("https://example.com/foo.dmg", is_url=True)
+        assert result == Resolved(value="https://example.com/foo.dmg")
+
+    def test_literal_ftp_url_is_invalid_output(self):
+        result = resolve("ftp://example.com/foo.dmg", is_url=True)
+        assert isinstance(result, InvalidOutput)
+        assert result.raw == "ftp://example.com/foo.dmg"
+
+    def test_literal_html_body_is_invalid_output(self):
+        result = resolve("<!doctype html><html>oops</html>", is_url=True)
+        assert isinstance(result, InvalidOutput)
+
+    def test_non_url_field_skips_validation(self):
+        # is_url=False is the default; ftp:// should pass through unchecked.
+        result = resolve("ftp://example.com/foo.dmg")
+        assert result == Resolved(value="ftp://example.com/foo.dmg")
 
 
 class TestLooksLikeCleanHttpUrl:
@@ -587,6 +617,106 @@ class TestParseFieldSpec:
         assert _parse_field_spec("1,3,5") == [1, 3, 5]
 
 
+class TestExecAwk:
+    def test_print_field_with_explicit_separator(self):
+        assert _exec_awk(["-F", "<", "{print $4}"], ["a<b<c<d<e"]) == ["d"]
+
+    def test_default_whitespace_split(self):
+        assert _exec_awk(["{print $2}"], ["alpha beta gamma"]) == ["beta"]
+
+    def test_out_of_range_field_yields_empty(self):
+        assert _exec_awk(["{print $9}"], ["one two"]) == [""]
+
+    def test_unsupported_program_raises(self):
+        from src.patcher.core.installomator import UnsupportedOperation
+
+        with pytest.raises(UnsupportedOperation):
+            _exec_awk(['{ if ($1 == "x") print $2 }'], ["x y"])
+
+
+class TestExecSed:
+    def test_basic_substitute_first_occurrence(self):
+        assert _exec_sed(["s/foo/bar/"], ["foo and foo"]) == ["bar and foo"]
+
+    def test_global_flag_replaces_all(self):
+        assert _exec_sed(["s/foo/bar/g"], ["foo and foo"]) == ["bar and bar"]
+
+    def test_extended_regex_with_dash_E(self):  # noqa: N802
+        assert _exec_sed(["-E", "s/[0-9]+/N/g"], ["abc123def456"]) == ["abcNdefN"]
+
+    def test_alternate_delimiter(self):
+        assert _exec_sed(["s|foo|bar|g"], ["foo/baz"]) == ["bar/baz"]
+
+    def test_unsupported_command_raises(self):
+        from src.patcher.core.installomator import UnsupportedOperation
+
+        with pytest.raises(UnsupportedOperation):
+            _exec_sed(["1,5p"], ["whatever"])
+
+
+class TestExecTr:
+    def test_translate_simple_sets(self):
+        assert _exec_tr(["abc", "xyz"], ["aabbcc"]) == ["xxyyzz"]
+
+    def test_delete_mode_removes_chars(self):
+        assert _exec_tr(["-d", "0123456789"], ["abc123def"]) == ["abcdef"]
+
+    def test_mismatched_set_lengths_raise(self):
+        from src.patcher.core.installomator import UnsupportedOperation
+
+        with pytest.raises(UnsupportedOperation):
+            _exec_tr(["ab", "xyz"], ["whatever"])
+
+
+class TestExecSort:
+    def test_plain_sort(self):
+        assert _exec_sort([], ["banana", "apple", "cherry"]) == ["apple", "banana", "cherry"]
+
+    def test_reverse_sort(self):
+        assert _exec_sort(["-r"], ["a", "c", "b"]) == ["c", "b", "a"]
+
+    def test_numeric_sort(self):
+        assert _exec_sort(["-n"], ["10", "2", "30"]) == ["2", "10", "30"]
+
+    def test_unsupported_flag_raises(self):
+        from src.patcher.core.installomator import UnsupportedOperation
+
+        with pytest.raises(UnsupportedOperation):
+            _exec_sort(["-k2"], ["whatever"])
+
+
+class TestExecUniq:
+    def test_removes_adjacent_duplicates(self):
+        assert _exec_uniq([], ["a", "a", "b", "b", "a"]) == ["a", "b", "a"]
+
+    def test_preserves_non_adjacent_duplicates(self):
+        # uniq is local: non-adjacent duplicates are preserved (sort first to dedupe globally)
+        assert _exec_uniq([], ["a", "b", "a"]) == ["a", "b", "a"]
+
+
+class TestSubprocessFallback:
+    """The opt-in fallback for pipelines containing commands native dispatch
+    doesn't handle. Default off; only invoked when ``resolve`` is called with
+    ``allow_subprocess_fallback=True``."""
+
+    def test_default_off_returns_unresolvable_for_unsupported_command(self):
+        # plutil is genuinely not implemented natively. Without the opt-in
+        # flag, the outcome is Unresolvable.
+        result = resolve("$(plutil -extract foo raw bar.plist)")
+        assert isinstance(result, Unresolvable)
+
+    def test_opt_in_runs_real_bash(self, monkeypatch):
+        # Smoke test: with allow_subprocess_fallback=True, a pipeline that
+        # uses real bash echo lands as Resolved. Uses /bin/bash so it works
+        # on any POSIX dev box.
+        result = resolve("$(echo hello)", allow_subprocess_fallback=True)
+        # echo is treated as a "source" command native-dispatch doesn't
+        # handle, so native dispatch raises UnsupportedOperation, then
+        # fallback runs `echo hello` and captures stdout.
+        assert isinstance(result, Resolved)
+        assert result.value == "hello"
+
+
 class TestCurlBody:
     def test_simple_get(self):
         def handler(request):
@@ -594,7 +724,7 @@ class TestCurlBody:
 
         client = _mock_client(handler)
         result = resolve('$(curl -fs "https://example.com/")', http_client=client)
-        assert result.method == "pipeline"
+        assert isinstance(result, Resolved)
         assert result.value == "line one\nline two\nline three"
 
     def test_fail_silent_on_404(self):
@@ -603,8 +733,9 @@ class TestCurlBody:
 
         client = _mock_client(handler)
         result = resolve('$(curl -fs "https://example.com/")', http_client=client)
-        assert result.method == "pipeline"
-        assert result.value is None
+        # 404 with -fs silently drops the body; pipeline produces empty output
+        # which the new shape reports as Unresolvable rather than empty Resolved.
+        assert isinstance(result, Unresolvable)
 
     def test_grep_and_cut_pipeline(self):
         def handler(request):
@@ -622,7 +753,7 @@ class TestCurlBody:
             '$(curl -fs "https://example.com/index.json" | grep mirror | cut -d "\\"" -f2)',
             http_client=client,
         )
-        assert result.method == "pipeline"
+        assert isinstance(result, Resolved)
         # Split on `"`: ["mirror: ", "https://mirror.example/v1.2.3/firefox.dmg", ""]
         # -f2 (1-indexed) extracts the quoted URL itself.
         assert result.value == "https://mirror.example/v1.2.3/firefox.dmg"
@@ -651,7 +782,7 @@ class TestCurlRedirectChainHeaders:
             '| cut -d "/" -f5)',
             http_client=client,
         )
-        assert result.method == "pipeline"
+        assert isinstance(result, Resolved)
         # Splitting Location URL on "/" (1-indexed): 1=https:, 2=, 3=cdn..., 4=firefox, 5=121.0
         assert result.value == "121.0"
 
@@ -664,20 +795,20 @@ class TestCurlRedirectChainHeaders:
             '$(curl -fsIL "https://example.com/" | grep -i ^x-final)',
             http_client=client,
         )
-        assert result.method == "pipeline"
+        assert isinstance(result, Resolved)
         assert result.value == "x-final: yes"
 
 
 class TestResolveUnsupported:
     def test_unknown_command_returns_unsupported(self):
-        result = resolve("$(awk '{print $1}')")
-        assert result.method == "unsupported"
-        assert "awk" in result.error
+        result = resolve("$(plutil -extract foo raw bar.plist)")
+        assert isinstance(result, Unresolvable)
+        assert "plutil" in result.reason
 
     def test_curl_without_url_returns_unsupported(self):
         result = resolve("$(curl -fs)")
-        assert result.method == "unsupported"
-        assert "URL" in result.error
+        assert isinstance(result, Unresolvable)
+        assert "URL" in result.reason
 
     def test_grep_without_pattern_returns_unsupported(self):
         def handler(request):
@@ -685,10 +816,10 @@ class TestResolveUnsupported:
 
         client = _mock_client(handler)
         result = resolve('$(curl -fs "https://example.com/" | grep -i)', http_client=client)
-        assert result.method == "unsupported"
-        assert "pattern" in result.error.lower()
+        assert isinstance(result, Unresolvable)
+        assert "pattern" in result.reason.lower()
 
     def test_filter_command_as_source_returns_unsupported(self):
         result = resolve("$(grep foo)")
-        assert result.method == "unsupported"
-        assert "source command" in result.error.lower()
+        assert isinstance(result, Unresolvable)
+        assert "source command" in result.reason.lower()

@@ -17,15 +17,24 @@ class AutopkgIndexEntry(BaseModel):
     map key in upstream ``index.json``. The map's key (the reverse-DNS
     identifier like ``com.github.autopkg.download.Firefox``) is passed
     separately when ingesting; it is not part of the entry value.
+
+    ``name`` and ``shortname`` are intentionally optional because the
+    upstream index has substantial inconsistency on these fields. Shared-
+    processor utility recipes typically have ``name: null``; some app
+    recipes have unusual ``shortname`` values (often containing special
+    characters like ``.`` or whitespace) that the index doesn't capture
+    cleanly. Preserving these rows keeps the catalog complete; the stitch
+    matching logic already gates on a non-empty normalized name, so
+    recipes without one naturally never attach to apps.
     """
 
     model_config = ConfigDict(extra="ignore")
 
-    name: str
+    name: str | None = None
     description: str | None = None
     repo: str
     path: str
     parent: str | None = None
-    shortname: str
+    shortname: str | None = None
     inferred_type: str | None = None
     children: list[str] = []

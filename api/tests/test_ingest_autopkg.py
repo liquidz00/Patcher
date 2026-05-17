@@ -150,6 +150,34 @@ async def test_ingest_handles_empty_payload(test_session):
 
 
 @pytest.mark.asyncio
+async def test_ingest_accepts_recipes_with_null_name(test_session):
+    """
+    Shared-processor utility recipes upstream often have ``name: null``.
+    Schema is intentionally permissive on that field so the catalog stays
+    complete. Stitch matching gates on a non-empty normalized name, so these
+    rows never attach to apps anyway.
+    """
+    null_name_entry = {
+        "name": None,
+        "repo": "autopkg/recipes",
+        "path": "Shared/SharedProcessors.recipe",
+        # shortname also intentionally omitted
+    }
+    payload = _make_index_payload({"com.example.SharedProcessors": null_name_entry})
+
+    ingested, skipped = await ingest_autopkg_index(test_session, payload)
+
+    assert ingested == 1
+    assert skipped == 0
+    recipe = await test_session.scalar(
+        select(AutopkgRecipe).where(AutopkgRecipe.identifier == "com.example.SharedProcessors")
+    )
+    assert recipe is not None
+    assert recipe.name is None
+    assert recipe.shortname is None
+
+
+@pytest.mark.asyncio
 async def test_ingest_upserts_on_re_run(test_session):
     """Running ingestion twice updates the existing row rather than duplicating."""
     v1 = _make_index_payload(

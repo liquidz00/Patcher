@@ -124,16 +124,18 @@ async def test_ingest_stores_realistic_label(test_session, monkeypatch):
     # appNewVersion is a curl pipeline; we don't want the test suite hitting
     # download.mozilla.org. Stub returns a fixed version for the curl
     # expression, passes literals through unchanged.
-    from patcher.core.installomator import ResolveResult
+    from patcher.core.installomator import Resolved, Unresolvable
 
     monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
 
-    def fake_resolve(expression, *, http_client=None):
+    def fake_resolve(
+        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False
+    ):
         if expression is None:
-            return ResolveResult(value=None, error=None, method="literal")
+            return Unresolvable(reason="none")
         if expression.startswith("$("):
-            return ResolveResult(value="121.0", error=None, method="pipeline")
-        return ResolveResult(value=expression, error=None, method="literal")
+            return Resolved(value="121.0")
+        return Resolved(value=expression)
 
     monkeypatch.setattr("patcher_api.ingest.installomator.resolve", fake_resolve)
 
@@ -251,7 +253,7 @@ async def test_ingest_nulls_html_body_returned_by_resolver(test_session, monkeyp
     curl didn't treat it as an error). The validator must catch this so the
     HTML body never lands in the ``download_url`` column.
     """
-    from patcher.core.installomator import ResolveResult
+    from patcher.core.installomator import InvalidOutput, Resolved, looks_like_clean_http_url
 
     monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
 
@@ -260,10 +262,13 @@ async def test_ingest_nulls_html_body_returned_by_resolver(test_session, monkeyp
         "</title></head><body><h1>Bad Request</h1></body></html>"
     )
 
-    def fake_resolve(expression, *, http_client=None):
-        if expression and expression.startswith("$("):
-            return ResolveResult(value=html_body, error=None, method="pipeline")
-        return ResolveResult(value=expression, error=None, method="literal")
+    def fake_resolve(
+        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False
+    ):
+        value = html_body if expression and expression.startswith("$(") else expression
+        if is_url and value is not None and not looks_like_clean_http_url(value):
+            return InvalidOutput(raw=value, reason="bad url")
+        return Resolved(value=value)
 
     monkeypatch.setattr("patcher_api.ingest.installomator.resolve", fake_resolve)
 
@@ -285,7 +290,7 @@ async def test_ingest_nulls_multi_line_concat_returned_by_resolver(test_session,
     ``head -n1`` or ``awk`` was unsupported, so the full grep output came
     back). Validator must catch the embedded newline.
     """
-    from patcher.core.installomator import ResolveResult
+    from patcher.core.installomator import InvalidOutput, Resolved, looks_like_clean_http_url
 
     monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
 
@@ -295,10 +300,13 @@ async def test_ingest_nulls_multi_line_concat_returned_by_resolver(test_session,
         "https://example.com/app-2.6.3.dmg"
     )
 
-    def fake_resolve(expression, *, http_client=None):
-        if expression and expression.startswith("$("):
-            return ResolveResult(value=multi_line, error=None, method="pipeline")
-        return ResolveResult(value=expression, error=None, method="literal")
+    def fake_resolve(
+        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False
+    ):
+        value = multi_line if expression and expression.startswith("$(") else expression
+        if is_url and value is not None and not looks_like_clean_http_url(value):
+            return InvalidOutput(raw=value, reason="bad url")
+        return Resolved(value=value)
 
     monkeypatch.setattr("patcher_api.ingest.installomator.resolve", fake_resolve)
 
@@ -320,16 +328,19 @@ async def test_ingest_nulls_ftp_url_returned_by_resolver(test_session, monkeypat
     ``HttpUrl`` would reject it on the response side, so the validator
     nulls it here at ingest.
     """
-    from patcher.core.installomator import ResolveResult
+    from patcher.core.installomator import InvalidOutput, Resolved, looks_like_clean_http_url
 
     monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
 
-    def fake_resolve(expression, *, http_client=None):
-        if expression and expression.startswith("$("):
-            return ResolveResult(
-                value="ftp://cola.gmu.edu/grads/foo.tar.gz", error=None, method="pipeline"
-            )
-        return ResolveResult(value=expression, error=None, method="literal")
+    ftp_url = "ftp://cola.gmu.edu/grads/foo.tar.gz"
+
+    def fake_resolve(
+        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False
+    ):
+        value = ftp_url if expression and expression.startswith("$(") else expression
+        if is_url and value is not None and not looks_like_clean_http_url(value):
+            return InvalidOutput(raw=value, reason="bad url")
+        return Resolved(value=value)
 
     monkeypatch.setattr("patcher_api.ingest.installomator.resolve", fake_resolve)
 

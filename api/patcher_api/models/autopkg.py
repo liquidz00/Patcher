@@ -30,8 +30,8 @@ class AutopkgRecipe(Base):
     __tablename__ = "autopkg_recipes"
 
     identifier: Mapped[str] = mapped_column(String, primary_key=True)
-    name: Mapped[str] = mapped_column(String, index=True)
-    shortname: Mapped[str] = mapped_column(String)
+    name: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    shortname: Mapped[str | None] = mapped_column(String, nullable=True)
     repo: Mapped[str] = mapped_column(String)
     path: Mapped[str] = mapped_column(String)
     parent_identifier: Mapped[str | None] = mapped_column(String, nullable=True)

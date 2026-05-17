@@ -40,8 +40,10 @@ from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from patcher.core.installomator import (
+    InvalidOutput,
+    Resolved,
+    Unresolvable,
     is_shell_expression,
-    looks_like_clean_http_url,
     parse_fragment,
     resolve,
 )
@@ -109,19 +111,14 @@ def _resolve_or_null(
     is_url: bool = False,
 ) -> str | None:
     """
-    Evaluate a label value via pyinstallomator's :func:`resolve`. Returns:
+    Evaluate a label value via pyinstallomator's :func:`resolve`. Returns the
+    final string when resolve produces :class:`Resolved`, otherwise ``None``
+    when it produces :class:`Unresolvable` or :class:`InvalidOutput`.
 
-    - The literal value when it isn't a shell expression at all (resolve
-      returns ``method="literal"`` for plain strings).
-    - The resolved value when ``resolve`` successfully evaluates the
-      pipeline (``method="pipeline"``).
-    - ``None`` when the expression can't be resolved, OR when the resolved
-      output *still* contains shell artifacts that the resolver's anchored
-      regex didn't process (e.g. ``"https://example.com$(curl ...)"``).
-    - ``None`` when ``is_url=True`` and the candidate fails
-      :func:`looks_like_clean_http_url` (HTML body, multi-line concat,
-      ``ftp://``, oversized). Applies on both the resolution-on and
-      resolution-off paths so literal-but-bogus URLs are nulled too.
+    URL validation lives inside :func:`resolve` itself when ``is_url=True``:
+    a value that fails :func:`looks_like_clean_http_url` comes back as
+    :class:`InvalidOutput`, which this wrapper nulls. Callers don't have to
+    re-apply the validator.
 
     Synchronous and HTTP-bound. Wrap in :func:`asyncio.to_thread` when calling
     from an async context to avoid blocking the event loop while pipelines
@@ -136,10 +133,11 @@ def _resolve_or_null(
         small hosts. Callers running a batch should construct one client
         and pass it in.
     :type http_client: httpx.Client | None
-    :param is_url: When ``True``, applies :func:`looks_like_clean_http_url`
-        to the final value before returning it. Pass for fields whose
-        projected column is later serialized as ``HttpUrl``. Defaults to
-        ``False`` for non-URL fields (e.g. ``appNewVersion``).
+    :param is_url: When ``True``, the resolved value is run through
+        :func:`looks_like_clean_http_url` inside :func:`resolve` itself.
+        Pass for fields whose projected column is later serialized as
+        ``HttpUrl``. Defaults to ``False`` for non-URL fields
+        (e.g. ``appNewVersion``).
     :type is_url: bool
     :return: Clean literal usable as a projected column value, or ``None``.
     :rtype: str | None
@@ -148,23 +146,21 @@ def _resolve_or_null(
         return None
     if not _RESOLVE_ON_INGEST:
         # Resolution disabled. Null shell expressions without attempting any
-        # HTTP-bound evaluation; pass literals through unchanged. This is
-        # the default path on hosts that can't safely run the resolver.
+        # HTTP-bound evaluation. Plain literals still flow through
+        # :func:`resolve` so the URL validator runs on them (catches literal
+        # ftp:// label values and similar).
         if is_shell_expression(value):
             return None
-        if is_url and not looks_like_clean_http_url(value):
+    outcome = resolve(value, http_client=http_client, is_url=is_url)
+    match outcome:
+        case Resolved(value=resolved_value):
+            # Belt-and-suspenders: even literal pass-throughs can carry
+            # embedded substitutions the anchored resolver didn't touch.
+            if is_shell_expression(resolved_value):
+                return None
+            return resolved_value
+        case Unresolvable() | InvalidOutput():
             return None
-        return value
-    result = resolve(value, http_client=http_client)
-    if result.value is None:
-        return None
-    # Belt-and-suspenders: even ``method="literal"`` pass-throughs can carry
-    # embedded substitutions the anchored resolver didn't touch.
-    if is_shell_expression(result.value):
-        return None
-    if is_url and not looks_like_clean_http_url(result.value):
-        return None
-    return result.value
 
 
 def _installomator_ref() -> str:

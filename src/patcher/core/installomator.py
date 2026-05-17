@@ -3,6 +3,7 @@ import fnmatch
 import json
 import re
 import shlex
+import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -555,24 +556,37 @@ def looks_like_clean_http_url(value: str | None) -> bool:
 
 
 @dataclass
-class ResolveResult:
-    """
-    Outcome of resolving a single expression.
+class Resolved:
+    """A pipeline (or literal) produced a final, usable value. Caller stores it."""
 
-    :ivar value: Resolved scalar value, or ``None`` if resolution failed.
-    :vartype value: str | None
-    :ivar error: Human-readable failure description, or ``None`` on success.
-    :vartype error: str | None
-    :ivar method: ``"literal"`` (input wasn't a shell expression),
-        ``"pipeline"`` (resolved by running the pipeline),
-        ``"unsupported"`` (some command in the pipeline isn't yet handled),
-        or ``"error"`` (resolution attempted but a runtime error occurred).
-    :vartype method: str
+    value: str
+
+
+@dataclass
+class Unresolvable:
+    """
+    We couldn't get a value at all. Pipeline contained an unsupported command,
+    failed parsing, networked errored, or produced empty output. Caller nulls
+    the column.
     """
 
-    value: str | None
-    error: str | None
-    method: str
+    reason: str
+
+
+@dataclass
+class InvalidOutput:
+    """
+    We got a value, but it failed sanity checks (URL validator, etc). Caller
+    nulls the column AND keeps the raw value for review. Distinct from
+    :class:`Unresolvable` so callers can log "we got *something*, but rejected
+    it" vs "we got nothing."
+    """
+
+    raw: str
+    reason: str
+
+
+ResolveOutcome = Resolved | Unresolvable | InvalidOutput
 
 
 class UnsupportedOperation(Exception):
@@ -583,7 +597,9 @@ def resolve(
     expression: str | None,
     *,
     http_client: httpx.Client | None = None,
-) -> ResolveResult:
+    is_url: bool = False,
+    allow_subprocess_fallback: bool = False,
+) -> ResolveOutcome:
     """
     Resolve a label variable's value, evaluating shell-style pipelines in Python.
 
@@ -596,15 +612,31 @@ def resolve(
         ``curl`` invocation. Tests inject a ``MockTransport``-backed client
         to avoid hitting real URLs.
     :type http_client: httpx.Client | None
-    :return: The :class:`ResolveResult`.
-    :rtype: :class:`ResolveResult`
+    :param is_url: When ``True``, the resolved value is run through
+        :func:`looks_like_clean_http_url` before returning. Failures land as
+        :class:`InvalidOutput` so callers see "got something, rejected it"
+        rather than "no value." Pass for fields whose projected column gets
+        serialized as Pydantic ``HttpUrl``.
+    :type is_url: bool
+    :param allow_subprocess_fallback: When ``True``, pipelines that raise
+        :class:`UnsupportedOperation` during native dispatch fall through to
+        :func:`_subprocess_fallback`. Off by default because the fallback
+        invokes ``bash`` on a public-repo string, which is a real (accepted)
+        shell-injection surface area. Callers that pin the Installomator
+        commit hash and trust the pipeline-string corpus can opt in.
+    :type allow_subprocess_fallback: bool
+    :return: A :class:`Resolved`, :class:`Unresolvable`, or :class:`InvalidOutput`.
+    :rtype: :class:`ResolveOutcome`
     """
     if expression is None:
-        return ResolveResult(value=None, error=None, method="literal")
+        return Unresolvable(reason="expression is None")
 
     match = _SHELL_EXPR_PATTERN.match(expression.strip())
     if not match:
-        return ResolveResult(value=expression, error=None, method="literal")
+        # Literal value, no pipeline evaluation.
+        if is_url and not looks_like_clean_http_url(expression):
+            return InvalidOutput(raw=expression, reason="literal but not a clean http(s) URL")
+        return Resolved(value=expression)
 
     inner = match.group(1).strip()
     stages = _split_pipeline(inner)
@@ -612,16 +644,23 @@ def resolve(
     try:
         result_lines = _execute_pipeline(stages, http_client=http_client)
     except UnsupportedOperation as exc:
-        return ResolveResult(value=None, error=str(exc), method="unsupported")
+        if allow_subprocess_fallback:
+            try:
+                result_lines = _subprocess_fallback(stages)
+            except UnsupportedOperation as fallback_exc:
+                return Unresolvable(reason=f"subprocess fallback failed: {fallback_exc}")
+        else:
+            return Unresolvable(reason=f"unsupported command in pipeline: {exc}")
     except Exception as exc:
-        return ResolveResult(value=None, error=str(exc), method="error")
+        return Unresolvable(reason=f"pipeline execution error: {exc}")
 
     if not result_lines:
-        return ResolveResult(value=None, error="Pipeline produced empty output", method="pipeline")
+        return Unresolvable(reason="pipeline produced empty output")
 
-    # Most expressions reduce to a single value via head/cut/grep -o, so this
-    # is usually just one line, but join multi-line output on \n if not.
-    return ResolveResult(value="\n".join(result_lines), error=None, method="pipeline")
+    value = "\n".join(result_lines)
+    if is_url and not looks_like_clean_http_url(value):
+        return InvalidOutput(raw=value, reason="resolved value failed URL sanity check")
+    return Resolved(value=value)
 
 
 def _split_pipeline(expr: str) -> list[str]:
@@ -688,6 +727,16 @@ def _exec_filter(cmd: str, args: list[str], input_lines: list[str]) -> list[str]
         return _exec_tail(args, input_lines)
     if cmd == "cut":
         return _exec_cut(args, input_lines)
+    if cmd == "awk":
+        return _exec_awk(args, input_lines)
+    if cmd == "sed":
+        return _exec_sed(args, input_lines)
+    if cmd == "tr":
+        return _exec_tr(args, input_lines)
+    if cmd == "sort":
+        return _exec_sort(args, input_lines)
+    if cmd == "uniq":
+        return _exec_uniq(args, input_lines)
     raise UnsupportedOperation(f"Unsupported filter command: {cmd!r}")
 
 
@@ -918,3 +967,220 @@ def _parse_field_spec(spec: str) -> list[int]:
         else:
             fields.append(int(part))
     return fields
+
+
+_AWK_PRINT_PATTERN = re.compile(r"^\{\s*print\s+\$(\d+)\s*\}$")
+
+
+def _exec_awk(args: list[str], input_lines: list[str]) -> list[str]:
+    """
+    Minimal awk implementation. Supports only the highest-frequency
+    Installomator pattern: ``awk -F <sep> '{print $N}'``.
+
+    The full awk language (BEGIN/END blocks, regex patterns, conditionals,
+    arithmetic) is intentionally not handled here; if a label uses anything
+    richer, the dispatch raises :class:`UnsupportedOperation` and (when the
+    caller has opted in) the subprocess fallback takes over.
+    """
+    delimiter = " "  # awk's default FS is "whitespace runs"; we approximate with space-split
+    use_whitespace_split = True
+    program: str | None = None
+
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "-F" and i + 1 < len(args):
+            delimiter = args[i + 1]
+            use_whitespace_split = False
+            i += 2
+            continue
+        if not arg.startswith("-") and program is None:
+            program = arg
+        i += 1
+
+    if program is None:
+        raise UnsupportedOperation("awk invocation has no program")
+
+    match = _AWK_PRINT_PATTERN.match(program)
+    if not match:
+        raise UnsupportedOperation(f"awk program {program!r} not supported (only '{{print $N}}')")
+
+    field_index = int(match.group(1))
+    out: list[str] = []
+    for line in input_lines:
+        parts = line.split() if use_whitespace_split else line.split(delimiter)
+        if 1 <= field_index <= len(parts):
+            out.append(parts[field_index - 1])
+        else:
+            out.append("")
+    return out
+
+
+_SED_SUBST_PATTERN = re.compile(r"^s(.)(.*?)\1(.*?)\1([gimsx]*)$", re.DOTALL)
+
+
+def _exec_sed(args: list[str], input_lines: list[str]) -> list[str]:
+    """
+    Minimal sed implementation. Supports only the substitution form
+    ``s/X/Y/`` (or ``s/X/Y/g``), optionally with the ``-E`` flag for extended
+    regex. The delimiter can be any character (sed accepts ``s|X|Y|``,
+    ``s#X#Y#``, etc.).
+
+    Addresses, multi-line operations, hold-space tricks, and other sed
+    features are intentionally unsupported. If a label uses them, dispatch
+    raises :class:`UnsupportedOperation`.
+    """
+    extended = False
+    program: str | None = None
+
+    for arg in args:
+        if arg in ("-E", "-r"):
+            extended = True
+            continue
+        if not arg.startswith("-") and program is None:
+            program = arg
+
+    if program is None:
+        raise UnsupportedOperation("sed invocation has no program")
+
+    match = _SED_SUBST_PATTERN.match(program)
+    if not match:
+        raise UnsupportedOperation(f"sed program {program!r} not supported (only s/X/Y/[g])")
+
+    _, pattern, replacement, flags = match.groups()
+    global_replace = "g" in flags
+
+    if not extended:
+        # BRE-to-PCRE escape: in basic regex, ``(`` ``)`` ``{`` ``}`` are literal,
+        # ``\(`` ``\)`` are groups. We do the minimum useful translation by
+        # escaping the special-in-PCRE chars that BRE treats as literal.
+        pattern = pattern.replace(r"\(", "(").replace(r"\)", ")")
+        pattern = pattern.replace(r"\{", "{").replace(r"\}", "}")
+
+    compiled = re.compile(pattern)
+    count = 0 if global_replace else 1
+    # Convert sed's ``\1`` backrefs to Python's ``\1`` (already same syntax)
+    return [compiled.sub(replacement, line, count=count) for line in input_lines]
+
+
+def _exec_tr(args: list[str], input_lines: list[str]) -> list[str]:
+    """
+    Minimal tr implementation. Supports character translation (``tr X Y``)
+    and deletion (``tr -d X``). Character classes like ``[:upper:]`` and
+    ranges like ``a-z`` are not expanded.
+    """
+    delete_mode = False
+    positional: list[str] = []
+
+    for arg in args:
+        if arg == "-d":
+            delete_mode = True
+            continue
+        if not arg.startswith("-"):
+            positional.append(arg)
+
+    if delete_mode:
+        if len(positional) != 1:
+            raise UnsupportedOperation("tr -d expects exactly one set argument")
+        delete_chars = set(positional[0])
+        return ["".join(c for c in line if c not in delete_chars) for line in input_lines]
+
+    if len(positional) != 2:
+        raise UnsupportedOperation("tr translate expects exactly two set arguments")
+    src, dst = positional
+    if len(src) != len(dst):
+        raise UnsupportedOperation("tr translate sets must be the same length")
+    table = str.maketrans(src, dst)
+    return [line.translate(table) for line in input_lines]
+
+
+def _exec_sort(args: list[str], input_lines: list[str]) -> list[str]:
+    """
+    Minimal sort implementation. Supports plain sort, ``-r`` reverse, and
+    ``-n`` numeric. Locale, key, and merge flags are not supported.
+    """
+    reverse = False
+    numeric = False
+    for arg in args:
+        flags = _parse_short_flags(arg)
+        if not flags:
+            if arg.startswith("-"):
+                raise UnsupportedOperation(f"sort flag {arg!r} not supported")
+            continue
+        for f in flags:
+            if f == "r":
+                reverse = True
+            elif f == "n":
+                numeric = True
+            else:
+                raise UnsupportedOperation(f"sort flag '-{f}' not supported")
+
+    if numeric:
+
+        def key(line: str) -> tuple[int, float | str]:
+            try:
+                return (0, float(line.strip()))
+            except ValueError:
+                # Non-numeric lines sort after numerics, preserving textual order
+                return (1, line)
+
+        return sorted(input_lines, key=key, reverse=reverse)
+    return sorted(input_lines, reverse=reverse)
+
+
+def _exec_uniq(args: list[str], input_lines: list[str]) -> list[str]:
+    """
+    Minimal uniq implementation. Removes adjacent duplicates (mirroring
+    real uniq's behavior, which is why pipelines typically sort first).
+    Flags are not currently supported.
+    """
+    for arg in args:
+        if arg.startswith("-"):
+            raise UnsupportedOperation(f"uniq flag {arg!r} not supported")
+
+    out: list[str] = []
+    previous: str | None = None
+    for line in input_lines:
+        if line != previous:
+            out.append(line)
+            previous = line
+    return out
+
+
+_SUBPROCESS_FALLBACK_TIMEOUT_SECONDS = 30.0
+_SUBPROCESS_FALLBACK_PATH = "/usr/bin:/bin"
+
+
+def _subprocess_fallback(stages: list[str]) -> list[str]:
+    """
+    Last-resort: hand the pipeline string to ``/bin/bash -c`` and capture
+    stdout. Locked-down env (minimal PATH, no inherited variables), timeout,
+    no shell expansion of our argv (we invoke bash explicitly with
+    ``shell=False``). The pipeline string itself is still interpreted by
+    bash, which is the accepted shell-injection surface area: callers opt
+    in via ``allow_subprocess_fallback=True`` after pinning the Installomator
+    commit hash and accepting the trust boundary.
+    """
+    pipeline = " | ".join(stages)
+    try:
+        result = subprocess.run(
+            ["/bin/bash", "-c", pipeline],
+            capture_output=True,
+            timeout=_SUBPROCESS_FALLBACK_TIMEOUT_SECONDS,
+            text=True,
+            env={"PATH": _SUBPROCESS_FALLBACK_PATH},
+            shell=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise UnsupportedOperation(
+            f"subprocess fallback timed out after {_SUBPROCESS_FALLBACK_TIMEOUT_SECONDS}s"
+        ) from exc
+    except OSError as exc:
+        raise UnsupportedOperation(f"subprocess fallback could not start bash: {exc}") from exc
+
+    if result.returncode != 0:
+        stderr_snip = (result.stderr or "")[:200]
+        raise UnsupportedOperation(
+            f"subprocess fallback exited {result.returncode}: {stderr_snip!r}"
+        )
+    return [line for line in result.stdout.splitlines() if line]
