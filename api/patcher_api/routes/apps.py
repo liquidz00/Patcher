@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from patcher_api.auth import get_current_user
@@ -18,6 +18,24 @@ router = APIRouter(
 )
 
 
+def _sources_contains(source_name: str) -> ColumnElement[bool]:
+    """
+    SQLite JSON1-backed predicate: ``source_name in apps.sources``.
+
+    Renders as ``EXISTS (SELECT 1 FROM json_each(apps.sources) WHERE value
+    = :source_name)``. Works for both ``source`` (include) and
+    ``exclude_source`` (negate with ``~``) filters, lets SQL apply the
+    predicate before pagination so ``LIMIT`` reflects the filtered count.
+
+    JSON1 is built into the sqlite3 module Python ships against; no
+    additional dependency. The predicate scales linearly with the
+    ``sources`` array length (always small, at most 5 elements with the
+    current source set) so the inner scan is effectively constant time.
+    """
+    je = func.json_each(AppRow.sources).table_valued("value")
+    return select(literal(1)).select_from(je).where(je.c.value == source_name).exists()
+
+
 @router.get("", response_model=list[App])
 async def list_apps(
     vendor: str | None = None,
@@ -30,12 +48,12 @@ async def list_apps(
     """
     List apps in the catalog with optional filters and pagination.
 
-    Filters apply in order: ``vendor`` is pushed into the SQL WHERE clause;
-    ``source`` and ``exclude_source`` are applied in Python after fetch
-    (the ``sources`` column is a JSON list, not trivially queryable in
-    SQLite without a JSON1 function). Pagination is applied last, after
-    all filters, so ``limit`` describes the page size of the *filtered*
-    result, not the raw table.
+    All filters (``vendor``, ``source``, ``exclude_source``) and the
+    ``limit``/``offset`` pagination push down into a single SQL statement
+    so the database does the filtering before paginating. Earlier versions
+    of this endpoint filtered ``source``/``exclude_source`` in Python after
+    materializing every row that matched ``vendor``, which made ``limit``
+    describe the post-fetch slice rather than the actual page size.
 
     Results are ordered by ``slug`` so pagination is deterministic across
     requests.
@@ -49,14 +67,14 @@ async def list_apps(
     stmt = select(AppRow).order_by(AppRow.slug)
     if vendor is not None:
         stmt = stmt.where(AppRow.vendor.ilike(vendor))
+    if source is not None:
+        stmt = stmt.where(_sources_contains(source))
+    if exclude_source is not None:
+        stmt = stmt.where(~_sources_contains(exclude_source))
+    stmt = stmt.limit(limit).offset(offset)
 
     rows = (await session.scalars(stmt)).all()
-
-    if source is not None:
-        rows = [r for r in rows if source in r.sources]
-    if exclude_source is not None:
-        rows = [r for r in rows if exclude_source not in r.sources]
-    return list(rows[offset : offset + limit])
+    return list(rows)
 
 
 @router.get("/{slug}", response_model=App)

@@ -152,6 +152,87 @@ async def test_list_apps_rejects_negative_offset(client):
     assert response.status_code == 422
 
 
+# ETag + Cache-Control headers — derived from the catalog file's SHA-256
+# computed at API startup. ASGITransport doesn't run lifespan by default,
+# so tests inject a synthetic hash directly into app.state.
+
+
+@pytest.fixture
+def fixed_catalog_sha(monkeypatch):
+    """Pin a deterministic catalog hash so ETag assertions are stable."""
+    from patcher_api.main import app as fastapi_app
+
+    sha = "a" * 64
+    monkeypatch.setattr(fastapi_app.state, "catalog_sha", sha, raising=False)
+    return sha
+
+
+@pytest.mark.asyncio
+async def test_etag_present_on_apps_response(client, fixed_catalog_sha):
+    response = await client.get("/apps?limit=3")
+
+    assert response.status_code == 200
+    assert response.headers["etag"] == f'W/"{fixed_catalog_sha}"'
+    assert "max-age=300" in response.headers["cache-control"]
+    assert "stale-while-revalidate=3600" in response.headers["cache-control"]
+
+
+@pytest.mark.asyncio
+async def test_etag_returns_304_on_if_none_match(client, fixed_catalog_sha):
+    response = await client.get(
+        "/apps?limit=3",
+        headers={"If-None-Match": f'W/"{fixed_catalog_sha}"'},
+    )
+
+    assert response.status_code == 304
+    assert response.headers["etag"] == f'W/"{fixed_catalog_sha}"'
+    assert response.text == ""
+
+
+@pytest.mark.asyncio
+async def test_etag_returns_full_body_on_if_none_match_mismatch(client, fixed_catalog_sha):
+    """If the client's cached ETag doesn't match the live one, send the body."""
+    response = await client.get(
+        "/apps?limit=3",
+        headers={"If-None-Match": 'W/"deadbeef"'},
+    )
+
+    assert response.status_code == 200
+    assert response.json()  # non-empty body
+
+
+@pytest.mark.asyncio
+async def test_etag_absent_when_catalog_sha_unset(client, monkeypatch):
+    """First boot pre-catalog or test transports without lifespan: no ETag."""
+    from patcher_api.main import app as fastapi_app
+
+    monkeypatch.setattr(fastapi_app.state, "catalog_sha", None, raising=False)
+
+    response = await client.get("/apps?limit=3")
+
+    assert response.status_code == 200
+    assert "etag" not in response.headers
+
+
+@pytest.mark.asyncio
+async def test_etag_not_applied_to_health(client, fixed_catalog_sha):
+    """/health is an ops endpoint; should always return fresh, no caching."""
+    response = await client.get("/health")
+
+    assert response.status_code == 200
+    assert "etag" not in response.headers
+
+
+@pytest.mark.asyncio
+async def test_etag_not_applied_to_admin(unauth_client, fixed_catalog_sha):
+    """Admin endpoints (catalog upload, etc.) shouldn't be cached."""
+    # 401 because no auth, but the response should still skip ETag headers
+    response = await unauth_client.post("/admin/catalog/upload", content=b"")
+
+    assert response.status_code == 401
+    assert "etag" not in response.headers
+
+
 @pytest.mark.asyncio
 async def test_get_app_returns_record_for_known_slug(client):
     response = await client.get("/apps/firefox")
