@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- **GitHub Actions catalog-refresh workflow** at `.github/workflows/refresh-catalog.yml`. Runs daily at 04:00 UTC and on-demand via `workflow_dispatch`. Walks all five ingest scripts (Installomator with resolver enabled, Homebrew Cask, MAS, AutoPkg, JAI), runs stitch, uploads the resulting DB to `https://api.patcherctl.dev/admin/catalog/upload` with a per-run-generated SHA-256 integrity header. Single required secret: `PATCHER_DEPLOY_TOKEN`. Concurrency-guarded so overlapping schedules and manual triggers queue rather than stomp each other. The DB is also saved as a 7-day workflow artifact for diagnostic recovery. Replaces the manual local-ingest + scp + ssh-swap dance entirely.
 - **Push-based catalog deployment via `POST /admin/catalog/upload`.** New admin route, deploy-token auth, file-watch swap automation, and GitHub-issue alerting form a complete push-deploy pipeline that replaces the manual scp + ssh dance for catalog refreshes. Components:
   - `DeployToken` model (separate `deploy_tokens` table; SHA-256 hashed at rest like user tokens). User tokens cannot authorize admin endpoints and vice versa; revoking one class doesn't affect the other.
   - `get_current_deploy_token` FastAPI dependency mirroring `get_current_user` but scoped to the deploy table.
