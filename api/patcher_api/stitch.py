@@ -32,6 +32,7 @@ from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.autopkg import AutopkgRecipe
 from patcher_api.models.homebrew import HomebrewCask
 from patcher_api.models.installomator import InstallomatorLabel
+from patcher_api.models.jamf_app_installers import JamfAppInstaller
 from patcher_api.models.mas import MasApp
 
 log = logging.getLogger(__name__)
@@ -320,6 +321,38 @@ def _index_autopkg_by_name(recipes: list[AutopkgRecipe]) -> dict[str, list[Autop
     return index
 
 
+def _build_jai_payload(jai: JamfAppInstaller) -> dict[str, Any]:
+    """
+    Build the JamfAppInstallerSource shape for the source_detail JSON column.
+
+    Mirrors the public HTML catalog's three columns. When the unlisted
+    Jamf Pro API endpoint becomes available, this helper grows additional
+    fields (bundle_id, version, download URL, Jamf Software Title ID).
+    """
+    return {
+        "title": jai.title,
+        "source": jai.source,
+        "host": jai.host,
+    }
+
+
+def _index_jai_by_title(jai_rows: list[JamfAppInstaller]) -> dict[str, JamfAppInstaller]:
+    """
+    Build a normalized-title → JAI row lookup. Titles are unique in the
+    JAI catalog, so this is a 1:1 map rather than the 1:N pattern AutoPkg
+    uses.
+    """
+    index: dict[str, JamfAppInstaller] = {}
+    for j in jai_rows:
+        key = _normalize_name(j.title)
+        if not key:
+            continue
+        # First-write wins on collision (shouldn't happen in practice with
+        # unique upstream titles, but defensive).
+        index.setdefault(key, j)
+    return index
+
+
 def _slugify(name: str) -> str:
     """
     Convert an app name to a URL-friendly slug.
@@ -353,6 +386,7 @@ async def _upsert_app_with_sources(
     homebrew_payload: dict | None,
     autopkg_payload: dict | None,
     mas_payload: dict | None,
+    jamf_app_installer_payload: dict | None,
 ) -> None:
     """
     Upsert an ``apps`` row by slug, then upsert its ``app_source_details`` row
@@ -387,6 +421,8 @@ async def _upsert_app_with_sources(
     :type autopkg_payload: dict | None
     :param mas_payload: MasSource shape, or None.
     :type mas_payload: dict | None
+    :param jamf_app_installer_payload: JamfAppInstallerSource shape, or None.
+    :type jamf_app_installer_payload: dict | None
     """
     apps_stmt = sqlite_insert(AppRow).values(
         slug=slug,
@@ -427,6 +463,7 @@ async def _upsert_app_with_sources(
         homebrew_cask=homebrew_payload,
         autopkg=autopkg_payload,
         mas=mas_payload,
+        jamf_app_installer=jamf_app_installer_payload,
     )
     detail_stmt = detail_stmt.on_conflict_do_update(
         index_elements=["app_id"],
@@ -435,42 +472,42 @@ async def _upsert_app_with_sources(
             "homebrew_cask": detail_stmt.excluded.homebrew_cask,
             "autopkg": detail_stmt.excluded.autopkg,
             "mas": detail_stmt.excluded.mas,
+            "jamf_app_installer": detail_stmt.excluded.jamf_app_installer,
         },
     )
     await session.execute(detail_stmt)
 
 
-async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int, int]:
+async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int, int, int]:
     """
     Run the stitch process. Builds unified ``apps`` rows from ingested
     Installomator labels, Homebrew Cask records, Mac App Store metadata,
-    and AutoPkg recipe-index entries.
+    AutoPkg recipe-index entries, and Jamf App Installers catalog rows.
 
     Phases:
 
     1. **Installomator-led.** For each label, try to match a Cask (token or
-       artifact app-name), a MAS record (by ``packageID``), and any AutoPkg
-       recipes (by normalized display name). Upsert one ``apps`` row per
-       label with whichever sources matched. Sources land in the canonical
-       ordering ``[installomator, homebrew_cask, autopkg, mas]`` regardless
-       of which combination is present.
-    2. **Cask-only.** Walk the Casks not claimed in phase 1. Cask records
-       don't expose ``bundle_id``, so no MAS join is attempted here, but
-       AutoPkg name matching is still attempted.
-    3. **MAS-only.** Walk the MAS records not joined in phase 1 (Apple's
-       first-party apps with no Installomator label, etc.). Slug is derived
-       from the MAS ``trackName`` via :func:`_slugify`; on slug collision
-       with a phase 1 or phase 2 row, the MAS-only insert is skipped and
-       logged. AutoPkg name matching still applies.
+       artifact app-name), a MAS record (by ``packageID``), any AutoPkg
+       recipes (by normalized display name), and any JAI catalog row (by
+       normalized display name). Upsert one ``apps`` row per label.
+       Sources land in canonical ordering
+       ``[installomator, homebrew_cask, autopkg, jamf_app_installer, mas]``
+       regardless of which combination is present.
+    2. **Cask-only.** Walk Casks not claimed in phase 1. Cask records don't
+       expose ``bundle_id``, so no MAS join is attempted, but AutoPkg + JAI
+       name matching is still attempted.
+    3. **MAS-only.** Walk MAS records not joined in phase 1. Slug derived
+       from MAS ``trackName`` via :func:`_slugify`; slug collisions skip +
+       log. AutoPkg + JAI name matching still applies.
 
-    **AutoPkg never creates new apps.** Its presence is purely a coverage
-    indicator attached to existing apps when a recipe's normalized name
-    matches the app's display name.
+    **AutoPkg and JAI never create new apps.** Both are coverage indicators
+    attached to existing apps when their normalized name matches the app's
+    display name.
 
     :param session: Async SQLAlchemy session bound to the target DB.
     :type session: sqlalchemy.ext.asyncio.AsyncSession
     :return: ``(installomator_apps, cask_only_apps, both_sources,
-        mas_only_apps, autopkg_attached_apps, failed)`` where:
+        mas_only_apps, autopkg_attached_apps, jai_attached_apps, failed)``.
 
         - ``installomator_apps`` is the count of apps with an Installomator source
         - ``cask_only_apps`` is the count of apps with only a Cask source
@@ -478,37 +515,46 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
         - ``mas_only_apps`` is the count of MAS-only apps created in phase 3
         - ``autopkg_attached_apps`` is the count of apps with one or more
           AutoPkg recipes attached (across all phases)
+        - ``jai_attached_apps`` is the count of apps with a JAI catalog row
+          attached (across all phases)
         - ``failed`` is the count of records that raised an unexpected error
-    :rtype: tuple[int, int, int, int, int, int]
+    :rtype: tuple[int, int, int, int, int, int, int]
     """
     labels = (await session.scalars(select(InstallomatorLabel))).all()
     casks = (await session.scalars(select(HomebrewCask))).all()
     mas_apps = (await session.scalars(select(MasApp))).all()
     autopkg_recipes = (await session.scalars(select(AutopkgRecipe))).all()
+    jai_rows = (await session.scalars(select(JamfAppInstaller))).all()
 
     casks_by_token = {c.token: c for c in casks}
     casks_by_app_name = _index_casks_by_app_name(casks)
     mas_by_bundle_id = {m.bundle_id: m for m in mas_apps}
     autopkg_by_name = _index_autopkg_by_name(list(autopkg_recipes))
+    jai_by_title = _index_jai_by_title(list(jai_rows))
     matched_cask_tokens: set[str] = set()
     matched_mas_bundle_ids: set[str] = set()
 
     installomator_count = 0
     both_sources = 0
     autopkg_attached_count = 0
+    jai_attached_count = 0
     failed = 0
 
     for il in labels:
         matching_cask = _find_matching_cask(il, casks_by_token, casks_by_app_name)
         matching_mas = mas_by_bundle_id.get(il.package_id) if il.package_id else None
         display_name = il.display_name or il.name
-        matching_autopkg = autopkg_by_name.get(_normalize_name(display_name), [])
+        normalized = _normalize_name(display_name)
+        matching_autopkg = autopkg_by_name.get(normalized, [])
+        matching_jai = jai_by_title.get(normalized)
 
         sources = ["installomator"]
         if matching_cask is not None:
             sources.append("homebrew_cask")
         if matching_autopkg:
             sources.append("autopkg")
+        if matching_jai is not None:
+            sources.append("jamf_app_installer")
         if matching_mas is not None:
             sources.append("mas")
 
@@ -531,6 +577,9 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                         _build_autopkg_payload(matching_autopkg) if matching_autopkg else None
                     ),
                     mas_payload=_build_mas_payload(matching_mas) if matching_mas else None,
+                    jamf_app_installer_payload=(
+                        _build_jai_payload(matching_jai) if matching_jai else None
+                    ),
                 )
             if matching_cask is not None:
                 matched_cask_tokens.add(matching_cask.token)
@@ -539,6 +588,8 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                 matched_mas_bundle_ids.add(matching_mas.bundle_id)
             if matching_autopkg:
                 autopkg_attached_count += 1
+            if matching_jai is not None:
+                jai_attached_count += 1
             installomator_count += 1
         except Exception as exc:
             log.warning("Failed to stitch Installomator label %r: %s", il.name, exc)
@@ -550,11 +601,15 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
             continue
 
         cask_name = cask.name or cask.token
-        matching_autopkg = autopkg_by_name.get(_normalize_name(cask_name), [])
+        normalized = _normalize_name(cask_name)
+        matching_autopkg = autopkg_by_name.get(normalized, [])
+        matching_jai = jai_by_title.get(normalized)
 
         sources = ["homebrew_cask"]
         if matching_autopkg:
             sources.append("autopkg")
+        if matching_jai is not None:
+            sources.append("jamf_app_installer")
 
         try:
             async with session.begin_nested():
@@ -575,9 +630,14 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                         _build_autopkg_payload(matching_autopkg) if matching_autopkg else None
                     ),
                     mas_payload=None,
+                    jamf_app_installer_payload=(
+                        _build_jai_payload(matching_jai) if matching_jai else None
+                    ),
                 )
             if matching_autopkg:
                 autopkg_attached_count += 1
+            if matching_jai is not None:
+                jai_attached_count += 1
             cask_only_count += 1
         except Exception as exc:
             log.warning("Failed to stitch Cask %r: %s", cask.token, exc)
@@ -602,11 +662,15 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
             )
             continue
 
-        matching_autopkg = autopkg_by_name.get(_normalize_name(mas_app.name), [])
+        normalized = _normalize_name(mas_app.name)
+        matching_autopkg = autopkg_by_name.get(normalized, [])
+        matching_jai = jai_by_title.get(normalized)
 
         sources: list[str] = []
         if matching_autopkg:
             sources.append("autopkg")
+        if matching_jai is not None:
+            sources.append("jamf_app_installer")
         sources.append("mas")
 
         try:
@@ -628,9 +692,14 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                         _build_autopkg_payload(matching_autopkg) if matching_autopkg else None
                     ),
                     mas_payload=_build_mas_payload(mas_app),
+                    jamf_app_installer_payload=(
+                        _build_jai_payload(matching_jai) if matching_jai else None
+                    ),
                 )
             if matching_autopkg:
                 autopkg_attached_count += 1
+            if matching_jai is not None:
+                jai_attached_count += 1
             mas_only_count += 1
         except Exception as exc:
             log.warning("Failed to stitch MAS app %r: %s", mas_app.bundle_id, exc)
@@ -650,5 +719,6 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
         both_sources,
         mas_only_count,
         autopkg_attached_count,
+        jai_attached_count,
         failed,
     )

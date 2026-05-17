@@ -16,6 +16,7 @@ from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.autopkg import AutopkgRecipe
 from patcher_api.models.homebrew import HomebrewCask
 from patcher_api.models.installomator import InstallomatorLabel
+from patcher_api.models.jamf_app_installers import JamfAppInstaller
 from patcher_api.models.mas import MasApp
 from patcher_api.stitch import (
     _clean_cask_url,
@@ -139,6 +140,22 @@ def _make_autopkg(
         inferred_type=inferred_type or "download",
         description=None,
         raw={"name": name, "shortname": shortname, "repo": repo, "path": path},
+        ingested_at=datetime.now(UTC),
+    )
+
+
+def _make_jai(
+    *,
+    title: str,
+    source: str = "Jamf",
+    host: str | None = None,
+) -> JamfAppInstaller:
+    """Build a :class:`JamfAppInstaller` row for unit tests."""
+    return JamfAppInstaller(
+        title=title,
+        source=source,
+        host=host,
+        raw={"title": title, "source": source, "host": host},
         ingested_at=datetime.now(UTC),
     )
 
@@ -480,7 +497,7 @@ async def populated_session(test_session):
 
 @pytest.mark.asyncio
 async def test_stitch_returns_correct_counts(populated_session):
-    il, cask_only, both, mas_only, autopkg_attached, failed = await stitch_catalog(
+    il, cask_only, both, mas_only, autopkg_attached, jai_attached, failed = await stitch_catalog(
         populated_session
     )
 
@@ -494,6 +511,8 @@ async def test_stitch_returns_correct_counts(populated_session):
     assert mas_only == 0
     # No AutoPkg recipes in this fixture → no autopkg attachments
     assert autopkg_attached == 0
+    # No JAI catalog rows in this fixture → no jamf_app_installer attachments
+    assert jai_attached == 0
     assert failed == 0
 
 
@@ -669,7 +688,9 @@ async def test_stitch_mas_only_record_creates_new_app_row(test_session):
     )
     await test_session.commit()
 
-    il, cask_only, both, mas_only, autopkg_attached, failed = await stitch_catalog(test_session)
+    il, cask_only, both, mas_only, autopkg_attached, jai_attached, failed = await stitch_catalog(
+        test_session
+    )
     assert mas_only == 1
     assert failed == 0
 
@@ -720,7 +741,15 @@ async def test_stitch_mas_only_skips_slug_collision(test_session, caplog):
     await test_session.commit()
 
     with caplog.at_level(logging.WARNING, logger="patcher_api.stitch"):
-        il, cask_only, both, mas_only, autopkg_attached, failed = await stitch_catalog(test_session)
+        (
+            il,
+            cask_only,
+            both,
+            mas_only,
+            autopkg_attached,
+            jai_attached,
+            failed,
+        ) = await stitch_catalog(test_session)
 
     assert mas_only == 0
     assert any("slug collision" in record.message for record in caplog.records)
@@ -763,7 +792,7 @@ async def test_stitch_attaches_autopkg_to_installomator_app(test_session):
     )
     await test_session.commit()
 
-    _, _, _, _, autopkg_attached, _ = await stitch_catalog(test_session)
+    _, _, _, _, autopkg_attached, _, _ = await stitch_catalog(test_session)
     assert autopkg_attached == 1
 
     firefox = await test_session.scalar(select(AppRow).where(AppRow.slug == "firefox"))
@@ -838,7 +867,7 @@ async def test_stitch_does_not_create_autopkg_only_apps(test_session):
     )
     await test_session.commit()
 
-    _, _, _, _, autopkg_attached, _ = await stitch_catalog(test_session)
+    _, _, _, _, autopkg_attached, _, _ = await stitch_catalog(test_session)
     assert autopkg_attached == 0
 
     apps = (await test_session.scalars(select(AppRow))).all()
@@ -874,6 +903,137 @@ async def test_stitch_matches_autopkg_across_name_variants(test_session):
 
     chrome = await test_session.scalar(select(AppRow).where(AppRow.slug == "googlechrome"))
     assert "autopkg" in chrome.sources
+
+
+@pytest.mark.asyncio
+async def test_stitch_attaches_jai_to_installomator_app(test_session):
+    """
+    A JAI catalog row whose normalized title matches an Installomator
+    label's display_name gets attached as a source, with the title/source/
+    host preserved in the source_detail payload.
+    """
+    test_session.add_all(
+        [
+            _make_label(
+                name="firefox",
+                display_name="Firefox",
+                install_type="pkg",
+                package_id="org.mozilla.firefox",
+                download_url="https://example.com/firefox.pkg",
+            ),
+            _make_jai(title="Firefox", source="External", host="download.mozilla.org"),
+        ]
+    )
+    await test_session.commit()
+
+    _, _, _, _, _, jai_attached, _ = await stitch_catalog(test_session)
+    assert jai_attached == 1
+
+    firefox = await test_session.scalar(select(AppRow).where(AppRow.slug == "firefox"))
+    # Canonical ordering: installomator, homebrew_cask, autopkg, jamf_app_installer, mas.
+    assert firefox.sources == ["installomator", "jamf_app_installer"]
+
+    detail = await test_session.scalar(
+        select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == firefox.id)
+    )
+    assert detail.jamf_app_installer == {
+        "title": "Firefox",
+        "source": "External",
+        "host": "download.mozilla.org",
+    }
+
+
+@pytest.mark.asyncio
+async def test_stitch_attaches_jai_to_cask_only_app(test_session):
+    """Phase 2 (Cask-only) also gets JAI attached by name match."""
+    test_session.add_all(
+        [
+            _make_cask(token="alttab", name="AltTab", url="https://example.com/alttab.dmg"),
+            _make_jai(title="AltTab", source="External", host="github.com"),
+        ]
+    )
+    await test_session.commit()
+
+    await stitch_catalog(test_session)
+
+    alttab = await test_session.scalar(select(AppRow).where(AppRow.slug == "alttab"))
+    assert "jamf_app_installer" in alttab.sources
+
+
+@pytest.mark.asyncio
+async def test_stitch_attaches_jai_to_mas_only_app(test_session):
+    """Phase 3 (MAS-only) also gets JAI attached by name match."""
+    test_session.add_all(
+        [
+            _make_mas(bundle_id="com.example.Xcode", name="Xcode", version="15.4"),
+            _make_jai(title="Xcode", source="Jamf", host=None),
+        ]
+    )
+    await test_session.commit()
+
+    await stitch_catalog(test_session)
+
+    xcode = await test_session.scalar(select(AppRow).where(AppRow.slug == "xcode"))
+    # Canonical ordering puts jamf_app_installer before mas.
+    assert xcode.sources == ["jamf_app_installer", "mas"]
+
+
+@pytest.mark.asyncio
+async def test_stitch_does_not_create_jai_only_apps(test_session):
+    """
+    A JAI title with no matching app in Installomator / Cask / MAS does
+    NOT generate a new apps row. JAI is a coverage indicator, not an app
+    source.
+    """
+    test_session.add(_make_jai(title="SomeObscureApp", source="Jamf"))
+    await test_session.commit()
+
+    _, _, _, _, _, jai_attached, _ = await stitch_catalog(test_session)
+    assert jai_attached == 0
+
+    apps = (await test_session.scalars(select(AppRow))).all()
+    assert not any(a.name == "SomeObscureApp" for a in apps)
+
+
+@pytest.mark.asyncio
+async def test_stitch_canonical_source_ordering_with_all_five(test_session):
+    """
+    When an app has every possible source attached, the ``sources`` list
+    lands in the canonical order regardless of insertion order. This
+    pinned ordering is what downstream filter logic expects.
+    """
+    test_session.add_all(
+        [
+            _make_label(
+                name="firefox",
+                display_name="Firefox",
+                install_type="pkg",
+                package_id="org.mozilla.firefox",
+                download_url="https://example.com/firefox.pkg",
+            ),
+            _make_cask(
+                token="firefox",
+                name="Firefox",
+                url="https://example.com/firefox.dmg",
+                artifacts=[{"app": ["Firefox.app"]}],
+            ),
+            _make_autopkg(identifier="com.github.autopkg.download.Firefox", name="Firefox"),
+            _make_mas(bundle_id="org.mozilla.firefox", name="Firefox", version="125.0"),
+            _make_jai(title="Firefox", source="External", host="download.mozilla.org"),
+        ]
+    )
+    await test_session.commit()
+
+    await stitch_catalog(test_session)
+
+    firefox = await test_session.scalar(select(AppRow).where(AppRow.slug == "firefox"))
+    assert firefox.sources == [
+        "installomator",
+        "homebrew_cask",
+        "autopkg",
+        "jamf_app_installer",
+        "mas",
+    ]
 
 
 @pytest.mark.asyncio
