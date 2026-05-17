@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,9 +23,30 @@ async def list_apps(
     vendor: str | None = None,
     source: str | None = None,
     exclude_source: str | None = None,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_session),
 ) -> list[AppRow]:
-    stmt = select(AppRow)
+    """
+    List apps in the catalog with optional filters and pagination.
+
+    Filters apply in order: ``vendor`` is pushed into the SQL WHERE clause;
+    ``source`` and ``exclude_source`` are applied in Python after fetch
+    (the ``sources`` column is a JSON list, not trivially queryable in
+    SQLite without a JSON1 function). Pagination is applied last, after
+    all filters, so ``limit`` describes the page size of the *filtered*
+    result, not the raw table.
+
+    Results are ordered by ``slug`` so pagination is deterministic across
+    requests.
+
+    :param vendor: Case-insensitive exact vendor match. None disables.
+    :param source: Include only rows whose ``sources`` contains this token.
+    :param exclude_source: Drop rows whose ``sources`` contains this token.
+    :param limit: Maximum rows to return. Default 100, max 1000.
+    :param offset: Number of filtered rows to skip before returning. Default 0.
+    """
+    stmt = select(AppRow).order_by(AppRow.slug)
     if vendor is not None:
         stmt = stmt.where(AppRow.vendor.ilike(vendor))
 
@@ -35,7 +56,7 @@ async def list_apps(
         rows = [r for r in rows if source in r.sources]
     if exclude_source is not None:
         rows = [r for r in rows if exclude_source not in r.sources]
-    return list(rows)
+    return list(rows[offset : offset + limit])
 
 
 @router.get("/{slug}", response_model=App)

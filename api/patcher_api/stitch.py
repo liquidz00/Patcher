@@ -93,6 +93,29 @@ def _resolve_version(il: InstallomatorLabel, cask: HomebrewCask | None) -> str |
     return None
 
 
+def _clean_cask_url(cask: HomebrewCask | None) -> str | None:
+    """
+    Return ``cask.url`` if it passes :func:`looks_like_clean_http_url`,
+    otherwise ``None``.
+
+    Used wherever stitch propagates a Cask URL into the apps table, both
+    the phase 1 fallback (label URL missing or garbage) and the phase 2
+    direct insert (Cask-only apps with no matching label). Centralizing
+    here keeps the two paths from drifting: any new column-level URL
+    constraint added in the future applies to both at once.
+
+    :param cask: Cask row, or None.
+    :type cask: :class:`HomebrewCask` | None
+    :return: Clean http(s) URL, or None.
+    :rtype: str | None
+    """
+    if cask is None or not cask.url:
+        return None
+    if not looks_like_clean_http_url(cask.url):
+        return None
+    return cask.url
+
+
 def _resolve_download_url(il: InstallomatorLabel, cask: HomebrewCask | None) -> str | None:
     """
     Prefer the literal label download URL; fall back to Cask URL when the
@@ -118,9 +141,7 @@ def _resolve_download_url(il: InstallomatorLabel, cask: HomebrewCask | None) -> 
         and looks_like_clean_http_url(il.download_url)
     ):
         return il.download_url
-    if cask and cask.url and looks_like_clean_http_url(cask.url):
-        return cask.url
-    return None
+    return _clean_cask_url(cask)
 
 
 def _resolve_install_method(install_type: str | None) -> str | None:
@@ -389,7 +410,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int]:
                     name=cask_name,
                     vendor=cask_name.split()[0] if cask_name else None,
                     current_version=cask.version,
-                    download_url=cask.url,
+                    download_url=_clean_cask_url(cask),
                     install_method=_infer_install_method_from_cask(cask),
                     sha256=cask.sha256,
                     sources=["homebrew_cask"],

@@ -91,6 +91,67 @@ async def test_list_apps_source_and_exclude_compose(client):
     assert {record["slug"] for record in body} == {"microsoft-edge"}
 
 
+# Pagination — six seed apps ordered by slug: firefox, google-chrome,
+# microsoft-edge, slack, vscode, zoom.
+
+
+@pytest.mark.asyncio
+async def test_list_apps_limit_caps_results(client):
+    response = await client.get("/apps", params={"limit": 2})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 2
+    # Ordered by slug, so the first two alphabetically.
+    assert [record["slug"] for record in body] == ["firefox", "google-chrome"]
+
+
+@pytest.mark.asyncio
+async def test_list_apps_offset_skips_results(client):
+    response = await client.get("/apps", params={"offset": 4})
+
+    body = response.json()
+    assert [record["slug"] for record in body] == ["vscode", "zoom"]
+
+
+@pytest.mark.asyncio
+async def test_list_apps_limit_and_offset_compose(client):
+    response = await client.get("/apps", params={"limit": 2, "offset": 2})
+
+    body = response.json()
+    assert [record["slug"] for record in body] == ["microsoft-edge", "slack"]
+
+
+@pytest.mark.asyncio
+async def test_list_apps_default_returns_all_when_under_limit(client):
+    """With only 6 seed apps, the default limit of 100 returns everything."""
+    response = await client.get("/apps")
+
+    body = response.json()
+    assert len(body) == 6
+
+
+@pytest.mark.asyncio
+async def test_list_apps_rejects_limit_below_one(client):
+    response = await client.get("/apps", params={"limit": 0})
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_list_apps_rejects_limit_above_max(client):
+    response = await client.get("/apps", params={"limit": 1001})
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_list_apps_rejects_negative_offset(client):
+    response = await client.get("/apps", params={"offset": -1})
+
+    assert response.status_code == 422
+
+
 @pytest.mark.asyncio
 async def test_get_app_returns_record_for_known_slug(client):
     response = await client.get("/apps/firefox")

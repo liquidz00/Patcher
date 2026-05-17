@@ -16,6 +16,7 @@ from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.homebrew import HomebrewCask
 from patcher_api.models.installomator import InstallomatorLabel
 from patcher_api.stitch import (
+    _clean_cask_url,
     _extract_vendor,
     _find_matching_cask,
     _index_casks_by_app_name,
@@ -175,6 +176,35 @@ class TestResolveDownloadUrl:
         label = _make_label(name="weird", download_url="ftp://example.com/foo.dmg")
         cask = _make_cask(token="weird", url="<!doctype html><html>error</html>")
         assert _resolve_download_url(label, cask) is None
+
+
+class TestCleanCaskUrl:
+    """
+    Used by both the phase 1 fallback in :func:`_resolve_download_url` and
+    the phase 2 direct insert in :func:`stitch_catalog` for Cask-only
+    apps. The phase 2 path is the one that bit production: a Cask with an
+    ``ftp://`` URL would bypass the phase 1 validator and land in
+    ``apps.download_url``, then trip ``HttpUrl`` at response time.
+    """
+
+    def test_clean_http_url_returned(self):
+        cask = _make_cask(token="firefox", url="https://example.com/foo.dmg")
+        assert _clean_cask_url(cask) == "https://example.com/foo.dmg"
+
+    def test_none_cask_returns_none(self):
+        assert _clean_cask_url(None) is None
+
+    def test_cask_without_url_returns_none(self):
+        cask = _make_cask(token="firefox", url=None)
+        assert _clean_cask_url(cask) is None
+
+    def test_ftp_url_returns_none(self):
+        cask = _make_cask(token="grads", url="ftp://cola.gmu.edu/grads/foo.tar.gz")
+        assert _clean_cask_url(cask) is None
+
+    def test_html_body_url_returns_none(self):
+        cask = _make_cask(token="weird", url="<!doctype html><html>oops</html>")
+        assert _clean_cask_url(cask) is None
 
 
 class TestResolveInstallMethod:
@@ -397,6 +427,41 @@ async def test_stitch_cask_only_record(populated_session):
     )
     assert detail.installomator is None
     assert detail.homebrew_cask["token"] == "onlycask"
+
+
+@pytest.mark.asyncio
+async def test_stitch_cask_only_record_with_ftp_url_nulls_download_url(test_session):
+    """
+    Regression: phase 2 of :func:`stitch_catalog` previously assigned
+    ``cask.url`` directly to ``apps.download_url`` without sanity-checking
+    it. A cask with an ``ftp://`` URL (e.g. the ``grads`` cask sourcing
+    from ``cola.gmu.edu``) would then trip the response model's ``HttpUrl``
+    validation, surfacing as a 500 on ``/apps``. Phase 2 now gates the
+    cask URL through :func:`_clean_cask_url`.
+    """
+    test_session.add(
+        _make_cask(
+            token="grads",
+            name="GrADS",
+            url="ftp://cola.gmu.edu/grads/2.2/grads-2.2.1-bin-darwin17.5.tar.gz",
+            version="2.2.1",
+            sha256="no_check",
+            artifacts=[{"app": ["GrADS.app"]}],
+        )
+    )
+    await test_session.commit()
+
+    await stitch_catalog(test_session)
+
+    grads_app = await test_session.scalar(select(AppRow).where(AppRow.slug == "grads"))
+    assert grads_app is not None
+    # FTP URL was nulled by the validator gate, not propagated verbatim.
+    assert grads_app.download_url is None
+    # The cask source detail still carries the original URL for traceability.
+    detail = await test_session.scalar(
+        select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == grads_app.id)
+    )
+    assert detail.homebrew_cask["cask_json"]["url"].startswith("ftp://")
 
 
 @pytest.mark.asyncio
