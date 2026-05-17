@@ -1,14 +1,15 @@
 """
-Stitch the catalog — build unified ``apps`` rows from already-ingested
-Installomator labels and Homebrew Cask records.
+Stitch the catalog. Builds unified ``apps`` rows from already-ingested
+Installomator labels, Homebrew Cask records, and Mac App Store metadata.
 
-Run AFTER both ingest scripts have populated their tables::
+Run AFTER the ingest scripts have populated their tables::
 
     cd api && uv run python scripts/ingest_installomator.py
     cd api && uv run python scripts/ingest_homebrew.py
+    cd api && uv run python scripts/ingest_mas.py
     cd api && uv run python scripts/stitch_catalog.py
 
-Safe to re-run — existing ``apps`` rows are updated, not duplicated.
+Safe to re-run. Existing ``apps`` rows are updated, not duplicated.
 """
 
 import asyncio
@@ -21,17 +22,27 @@ from patcher_api.stitch import stitch_catalog
 async def main() -> None:
     await init_db()
 
-    print("Stitching catalog from Installomator + Homebrew Cask...", file=sys.stderr)
+    print(
+        "Stitching catalog from Installomator + Homebrew Cask + MAS...",
+        file=sys.stderr,
+    )
 
     async with get_session_maker()() as session:
-        installomator_count, cask_only_count, both_sources, failed = await stitch_catalog(session)
+        (
+            installomator_count,
+            cask_only_count,
+            both_sources,
+            mas_only_count,
+            failed,
+        ) = await stitch_catalog(session)
 
-    total = installomator_count + cask_only_count
+    total = installomator_count + cask_only_count + mas_only_count
     print(
         f"Stitch complete.\n"
         f"  Installomator-sourced apps: {installomator_count}"
         f" (of which {both_sources} also matched a Homebrew Cask record)\n"
         f"  Cask-only apps:             {cask_only_count}\n"
+        f"  MAS-only apps:              {mas_only_count}\n"
         f"  Total catalog rows:         {total}\n"
         f"  Failed:                     {failed} (see warnings above for details)",
         file=sys.stderr,

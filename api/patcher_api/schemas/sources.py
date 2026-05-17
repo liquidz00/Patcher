@@ -27,7 +27,14 @@ class AutopkgSource(BaseModel):
     recipe_url: HttpUrl
 
 
+class MasSource(BaseModel):
+    bundle_id: str
+    store_url: HttpUrl | None = None
+    raw: dict
+
+
 class AppSources(BaseModel):
     installomator: InstallomatorSource | None = None
     homebrew_cask: HomebrewCaskSource | None = None
     autopkg: AutopkgSource | None = None
+    mas: MasSource | None = None

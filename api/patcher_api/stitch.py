@@ -19,6 +19,7 @@ Idempotent — re-running upserts existing rows rather than duplicating.
 """
 
 import logging
+import re
 from typing import Any
 
 from sqlalchemy import select
@@ -30,6 +31,7 @@ from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.homebrew import HomebrewCask
 from patcher_api.models.installomator import InstallomatorLabel
+from patcher_api.models.mas import MasApp
 
 log = logging.getLogger(__name__)
 
@@ -240,6 +242,38 @@ def _build_cask_payload(cask: HomebrewCask) -> dict[str, Any]:
     }
 
 
+def _build_mas_payload(mas_app: MasApp) -> dict[str, Any]:
+    """
+    Build the MasSource shape for the source_detail JSON column.
+
+    The full Apple lookup payload is preserved in ``raw`` so consumers can
+    see Apple's native shape (matching the principle applied to Cask and
+    Installomator sources).
+    """
+    return {
+        "bundle_id": mas_app.bundle_id,
+        "store_url": mas_app.store_url,
+        "raw": mas_app.raw,
+    }
+
+
+def _slugify(name: str) -> str:
+    """
+    Convert an app name to a URL-friendly slug.
+
+    Lowercase, collapse runs of non-alphanumeric into single hyphens,
+    strip leading and trailing hyphens. Used for MAS-only apps that don't
+    inherit a slug from Installomator (which uses the label name) or
+    Homebrew Cask (which uses the cask token).
+
+    Returns ``"unknown"`` on inputs that collapse to empty, so callers
+    don't have to guard against empty-string slugs blowing up the
+    unique-index constraint.
+    """
+    cleaned = re.sub(r"[^a-zA-Z0-9]+", "-", name).strip("-").lower()
+    return cleaned or "unknown"
+
+
 async def _upsert_app_with_sources(
     session: AsyncSession,
     *,
@@ -255,6 +289,7 @@ async def _upsert_app_with_sources(
     installomator_payload: dict | None,
     homebrew_payload: dict | None,
     autopkg_payload: dict | None,
+    mas_payload: dict | None,
 ) -> None:
     """
     Upsert an ``apps`` row by slug, then upsert its ``app_source_details`` row
@@ -287,6 +322,8 @@ async def _upsert_app_with_sources(
     :type homebrew_payload: dict | None
     :param autopkg_payload: AutopkgSource shape, or None.
     :type autopkg_payload: dict | None
+    :param mas_payload: MasSource shape, or None.
+    :type mas_payload: dict | None
     """
     apps_stmt = sqlite_insert(AppRow).values(
         slug=slug,
@@ -326,6 +363,7 @@ async def _upsert_app_with_sources(
         installomator=installomator_payload,
         homebrew_cask=homebrew_payload,
         autopkg=autopkg_payload,
+        mas=mas_payload,
     )
     detail_stmt = detail_stmt.on_conflict_do_update(
         index_elements=["app_id"],
@@ -333,33 +371,54 @@ async def _upsert_app_with_sources(
             "installomator": detail_stmt.excluded.installomator,
             "homebrew_cask": detail_stmt.excluded.homebrew_cask,
             "autopkg": detail_stmt.excluded.autopkg,
+            "mas": detail_stmt.excluded.mas,
         },
     )
     await session.execute(detail_stmt)
 
 
-async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int]:
+async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int]:
     """
-    Run the stitch process — build unified ``apps`` rows from ingested
-    Installomator labels and Homebrew Cask records.
+    Run the stitch process. Builds unified ``apps`` rows from ingested
+    Installomator labels, Homebrew Cask records, and Mac App Store metadata.
+
+    Phases:
+
+    1. **Installomator-led.** For each label, try to match a Cask (token or
+       artifact app-name) and a MAS record (by ``packageID``). Upsert one
+       ``apps`` row per label with whichever sources matched. Sources land
+       in the canonical ordering ``[installomator, homebrew_cask, autopkg,
+       mas]`` regardless of which combination is present.
+    2. **Cask-only.** Walk the Casks not claimed in phase 1 and upsert one
+       ``apps`` row each. Cask records don't expose ``bundle_id``, so no
+       MAS join is attempted here.
+    3. **MAS-only.** Walk the MAS records not joined in phase 1 (the Apple
+       first-party apps with no Installomator label, etc.) and upsert one
+       ``apps`` row each. Slug is derived from the MAS ``trackName`` via
+       :func:`_slugify`; on slug collision with a phase 1 or phase 2 row,
+       the MAS-only insert is skipped and logged.
 
     :param session: Async SQLAlchemy session bound to the target DB.
     :type session: sqlalchemy.ext.asyncio.AsyncSession
-    :return: ``(installomator_apps, cask_only_apps, both_sources, failed)``
-        where:
+    :return: ``(installomator_apps, cask_only_apps, both_sources,
+        mas_only_apps, failed)`` where:
 
-        - ``installomator_apps`` — count of apps with an Installomator source
-        - ``cask_only_apps`` — count of apps with only a Cask source
-        - ``both_sources`` — subset of ``installomator_apps`` that also matched a Cask
-        - ``failed`` — count of records that raised an unexpected error
-    :rtype: tuple[int, int, int, int]
+        - ``installomator_apps`` is the count of apps with an Installomator source
+        - ``cask_only_apps`` is the count of apps with only a Cask source
+        - ``both_sources`` is the subset of ``installomator_apps`` that also matched a Cask
+        - ``mas_only_apps`` is the count of MAS-only apps created in phase 3
+        - ``failed`` is the count of records that raised an unexpected error
+    :rtype: tuple[int, int, int, int, int]
     """
     labels = (await session.scalars(select(InstallomatorLabel))).all()
     casks = (await session.scalars(select(HomebrewCask))).all()
+    mas_apps = (await session.scalars(select(MasApp))).all()
 
     casks_by_token = {c.token: c for c in casks}
     casks_by_app_name = _index_casks_by_app_name(casks)
+    mas_by_bundle_id = {m.bundle_id: m for m in mas_apps}
     matched_cask_tokens: set[str] = set()
+    matched_mas_bundle_ids: set[str] = set()
 
     installomator_count = 0
     both_sources = 0
@@ -367,6 +426,13 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int]:
 
     for il in labels:
         matching_cask = _find_matching_cask(il, casks_by_token, casks_by_app_name)
+        matching_mas = mas_by_bundle_id.get(il.package_id) if il.package_id else None
+
+        sources = ["installomator"]
+        if matching_cask is not None:
+            sources.append("homebrew_cask")
+        if matching_mas is not None:
+            sources.append("mas")
 
         try:
             async with session.begin_nested():
@@ -380,16 +446,17 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int]:
                     download_url=_resolve_download_url(il, matching_cask),
                     install_method=_resolve_install_method(il.install_type),
                     sha256=matching_cask.sha256 if matching_cask else None,
-                    sources=(
-                        ["installomator", "homebrew_cask"] if matching_cask else ["installomator"]
-                    ),
+                    sources=sources,
                     installomator_payload=_build_installomator_payload(il),
                     homebrew_payload=_build_cask_payload(matching_cask) if matching_cask else None,
                     autopkg_payload=None,
+                    mas_payload=_build_mas_payload(matching_mas) if matching_mas else None,
                 )
             if matching_cask is not None:
                 matched_cask_tokens.add(matching_cask.token)
                 both_sources += 1
+            if matching_mas is not None:
+                matched_mas_bundle_ids.add(matching_mas.bundle_id)
             installomator_count += 1
         except Exception as exc:
             log.warning("Failed to stitch Installomator label %r: %s", il.name, exc)
@@ -417,18 +484,61 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int]:
                     installomator_payload=None,
                     homebrew_payload=_build_cask_payload(cask),
                     autopkg_payload=None,
+                    mas_payload=None,
                 )
             cask_only_count += 1
         except Exception as exc:
             log.warning("Failed to stitch Cask %r: %s", cask.token, exc)
             failed += 1
 
+    mas_only_count = 0
+    for mas_app in mas_apps:
+        if mas_app.bundle_id in matched_mas_bundle_ids:
+            continue
+
+        slug = _slugify(mas_app.name)
+        # Defensive: a MAS-only slug colliding with an existing phase 1 or 2
+        # row would overwrite that row via ON CONFLICT DO UPDATE. Skip and
+        # log instead so the caller can pick a better slug (or reconcile)
+        # rather than silently losing the prior row.
+        existing_app_id = await session.scalar(select(AppRow.id).where(AppRow.slug == slug))
+        if existing_app_id is not None:
+            log.warning(
+                "MAS-only slug collision: bundle_id=%r slug=%r already exists, skipping",
+                mas_app.bundle_id,
+                slug,
+            )
+            continue
+
+        try:
+            async with session.begin_nested():
+                await _upsert_app_with_sources(
+                    session,
+                    slug=slug,
+                    bundle_id=mas_app.bundle_id,
+                    name=mas_app.name,
+                    vendor=mas_app.raw.get("artistName"),
+                    current_version=mas_app.version,
+                    download_url=None,
+                    install_method=None,
+                    sha256=None,
+                    sources=["mas"],
+                    installomator_payload=None,
+                    homebrew_payload=None,
+                    autopkg_payload=None,
+                    mas_payload=_build_mas_payload(mas_app),
+                )
+            mas_only_count += 1
+        except Exception as exc:
+            log.warning("Failed to stitch MAS app %r: %s", mas_app.bundle_id, exc)
+            failed += 1
+
     await session.commit()
 
-    # Invalidate the session's identity map — every upsert above was a Core-level
+    # Invalidate the session's identity map. Every upsert above was a Core-level
     # ``sqlite_insert.on_conflict_do_update`` that bypasses the ORM, so any ORM
     # objects loaded before stitch ran (e.g. seed apps the caller already touched)
     # would otherwise return stale attribute values on next access.
     session.expire_all()
 
-    return installomator_count, cask_only_count, both_sources, failed
+    return installomator_count, cask_only_count, both_sources, mas_only_count, failed

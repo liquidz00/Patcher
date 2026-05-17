@@ -15,6 +15,7 @@ from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.homebrew import HomebrewCask
 from patcher_api.models.installomator import InstallomatorLabel
+from patcher_api.models.mas import MasApp
 from patcher_api.stitch import (
     _clean_cask_url,
     _extract_vendor,
@@ -24,6 +25,7 @@ from patcher_api.stitch import (
     _resolve_download_url,
     _resolve_install_method,
     _resolve_version,
+    _slugify,
     stitch_catalog,
 )
 from sqlalchemy import select
@@ -79,6 +81,33 @@ def _make_cask(
         url=url,
         version=version,
         sha256=sha256,
+        raw=raw,
+        ingested_at=datetime.now(UTC),
+    )
+
+
+def _make_mas(
+    *,
+    bundle_id: str,
+    name: str,
+    version: str | None = None,
+    artist_name: str | None = None,
+    store_url: str | None = None,
+) -> MasApp:
+    """Build a :class:`MasApp` row for unit tests."""
+    raw = {
+        "bundleId": bundle_id,
+        "trackName": name,
+        "version": version,
+        "artistName": artist_name,
+        "trackViewUrl": store_url,
+        "kind": "mac-software",
+    }
+    return MasApp(
+        bundle_id=bundle_id,
+        name=name,
+        version=version,
+        store_url=store_url,
         raw=raw,
         ingested_at=datetime.now(UTC),
     )
@@ -205,6 +234,35 @@ class TestCleanCaskUrl:
     def test_html_body_url_returns_none(self):
         cask = _make_cask(token="weird", url="<!doctype html><html>oops</html>")
         assert _clean_cask_url(cask) is None
+
+
+class TestSlugify:
+    """
+    Used by phase 3 to derive a URL-friendly slug from a MAS app's
+    ``trackName``. The exact normalization isn't load-bearing but the
+    cases here protect against silent regressions.
+    """
+
+    def test_simple_name(self):
+        assert _slugify("Pages") == "pages"
+
+    def test_multi_word_name(self):
+        assert _slugify("Final Cut Pro") == "final-cut-pro"
+
+    def test_collapses_runs_of_non_alphanumerics(self):
+        assert _slugify("OmniFocus 3 — Pro") == "omnifocus-3-pro"
+
+    def test_strips_leading_and_trailing_punctuation(self):
+        assert _slugify("...Things 3...") == "things-3"
+
+    def test_returns_unknown_for_empty_input(self):
+        assert _slugify("") == "unknown"
+
+    def test_returns_unknown_for_all_punctuation_input(self):
+        assert _slugify("!!!") == "unknown"
+
+    def test_alphanumerics_are_lowercased(self):
+        assert _slugify("BBEdit") == "bbedit"
 
 
 class TestResolveInstallMethod:
@@ -343,7 +401,7 @@ async def populated_session(test_session):
 
 @pytest.mark.asyncio
 async def test_stitch_returns_correct_counts(populated_session):
-    il, cask_only, both, failed = await stitch_catalog(populated_session)
+    il, cask_only, both, mas_only, failed = await stitch_catalog(populated_session)
 
     # 3 Installomator labels → 3 Installomator-sourced apps
     assert il == 3
@@ -351,6 +409,8 @@ async def test_stitch_returns_correct_counts(populated_session):
     assert both == 2
     # `onlycask` is the only Cask not matched by an Installomator label
     assert cask_only == 1
+    # No MAS records in this fixture → no MAS-only apps
+    assert mas_only == 0
     assert failed == 0
 
 
@@ -462,6 +522,129 @@ async def test_stitch_cask_only_record_with_ftp_url_nulls_download_url(test_sess
         select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == grads_app.id)
     )
     assert detail.homebrew_cask["cask_json"]["url"].startswith("ftp://")
+
+
+@pytest.mark.asyncio
+async def test_stitch_attaches_mas_when_installomator_bundle_id_matches(test_session):
+    """
+    An Installomator label whose ``package_id`` matches an existing
+    :class:`MasApp.bundle_id` should produce an apps row with both
+    ``installomator`` and ``mas`` in ``sources`` (canonical ordering) and
+    both source-detail payloads populated.
+    """
+    test_session.add_all(
+        [
+            _make_label(
+                name="microsoftword",
+                display_name="Microsoft Word",
+                install_type="pkg",
+                package_id="com.microsoft.Word",
+                download_url="https://example.com/word.pkg",
+            ),
+            _make_mas(
+                bundle_id="com.microsoft.Word",
+                name="Microsoft Word",
+                version="16.83",
+                artist_name="Microsoft Corporation",
+                store_url="https://apps.apple.com/us/app/microsoft-word/id462054704",
+            ),
+        ]
+    )
+    await test_session.commit()
+
+    await stitch_catalog(test_session)
+
+    word = await test_session.scalar(select(AppRow).where(AppRow.slug == "microsoftword"))
+    assert word is not None
+    # Sources land in canonical order: installomator, homebrew_cask, autopkg, mas
+    assert word.sources == ["installomator", "mas"]
+
+    detail = await test_session.scalar(
+        select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == word.id)
+    )
+    assert detail.installomator is not None
+    assert detail.mas is not None
+    assert detail.mas["bundle_id"] == "com.microsoft.Word"
+    assert detail.mas["raw"]["artistName"] == "Microsoft Corporation"
+
+
+@pytest.mark.asyncio
+async def test_stitch_mas_only_record_creates_new_app_row(test_session):
+    """
+    A MAS record with no matching Installomator label produces a phase 3
+    apps row with ``["mas"]`` as the only source, slug derived from the
+    track name, and vendor pulled from ``artistName`` in the raw payload.
+    """
+    test_session.add(
+        _make_mas(
+            bundle_id="com.apple.iWork.Pages",
+            name="Pages",
+            version="14.2",
+            artist_name="Apple",
+            store_url="https://apps.apple.com/us/app/pages/id409201541",
+        )
+    )
+    await test_session.commit()
+
+    il, cask_only, both, mas_only, failed = await stitch_catalog(test_session)
+    assert mas_only == 1
+    assert failed == 0
+
+    pages = await test_session.scalar(select(AppRow).where(AppRow.slug == "pages"))
+    assert pages is not None
+    assert pages.bundle_id == "com.apple.iWork.Pages"
+    assert pages.name == "Pages"
+    assert pages.vendor == "Apple"
+    assert pages.current_version == "14.2"
+    assert pages.sources == ["mas"]
+    # MAS apps have no direct download URL; the App Store handles install
+    assert pages.download_url is None
+
+    detail = await test_session.scalar(
+        select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == pages.id)
+    )
+    assert detail.installomator is None
+    assert detail.homebrew_cask is None
+    assert detail.mas is not None
+    assert detail.mas["store_url"].startswith("https://apps.apple.com/")
+
+
+@pytest.mark.asyncio
+async def test_stitch_mas_only_skips_slug_collision(test_session, caplog):
+    """
+    A MAS-only app whose slug collides with an existing apps row should be
+    skipped + logged rather than silently overwriting the prior row via
+    ON CONFLICT DO UPDATE.
+    """
+    import logging
+
+    # Pre-existing apps row at slug "pages" from another source
+    existing = AppRow(
+        slug="pages",
+        bundle_id="com.example.NotPages",
+        name="Some Other Pages",
+        sources=["installomator"],
+    )
+    test_session.add(existing)
+    test_session.add(
+        _make_mas(
+            bundle_id="com.apple.iWork.Pages",
+            name="Pages",
+            version="14.2",
+            artist_name="Apple",
+        )
+    )
+    await test_session.commit()
+
+    with caplog.at_level(logging.WARNING, logger="patcher_api.stitch"):
+        il, cask_only, both, mas_only, failed = await stitch_catalog(test_session)
+
+    assert mas_only == 0
+    assert any("slug collision" in record.message for record in caplog.records)
+
+    # The original row is intact, not overwritten with MAS metadata
+    pages = await test_session.scalar(select(AppRow).where(AppRow.slug == "pages"))
+    assert pages.bundle_id == "com.example.NotPages"
 
 
 @pytest.mark.asyncio

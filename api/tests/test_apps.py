@@ -202,7 +202,12 @@ async def test_get_app_sources_returns_empty_for_app_without_seed_sources(client
     response = await client.get("/apps/slack/sources")
 
     assert response.status_code == 200
-    assert response.json() == {"installomator": None, "homebrew_cask": None, "autopkg": None}
+    assert response.json() == {
+        "installomator": None,
+        "homebrew_cask": None,
+        "autopkg": None,
+        "mas": None,
+    }
 
 
 @pytest.mark.asyncio
