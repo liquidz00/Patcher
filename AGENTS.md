@@ -253,7 +253,7 @@ User-facing docs are organized by audience-neutral topic under `docs/`:
 Pages are Markdown via MyST except `docs/reference/` (RST). The Shibuya theme
 is configured via captioned root toctrees in `docs/index.md`; each caption
 becomes a section header in the sidebar. Build with `make docs`. The site
-publishes to https://patcher.readthedocs.io.
+publishes to https://docs.patcherctl.dev.
 
 When adding a new user-facing feature:
 1. Add a page in the topic directory it belongs to (or extend an existing one).

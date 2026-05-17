@@ -167,7 +167,7 @@ togglebutton_hint_hide = str(_("Click to collapse"))
 # ``_sources/...``) resolve correctly. Falls back to the versioned latest
 # path for local builds.
 html_baseurl = os.environ.get(
-    "READTHEDOCS_CANONICAL_URL", "https://patcher.readthedocs.io/en/latest/"
+    "READTHEDOCS_CANONICAL_URL", "https://docs.patcherctl.dev/en/latest/"
 )
 html_theme = "shibuya"
 html_logo = "_static/v2-logo.svg"
@@ -190,7 +190,7 @@ if rtd_version == "develop":
     _announcement = (
         '<strong>You are reading the development docs.</strong> '
         'These cover unreleased changes on the <code>develop</code> branch. '
-        '<a href="https://patcher.readthedocs.io/en/latest/">'
+        '<a href="https://docs.patcherctl.dev/en/latest/">'
         'Switch to the latest stable docs &rarr;</a>'
     )
 else:

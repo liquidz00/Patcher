@@ -24,7 +24,7 @@ The setup assistant will prompt you to choose your setup method--Standard is the
 You will be prompted to enter in the header and footer text for PDF reports, along with optional custom fonts and branding logo. These can be configured later by modifying the corresponding keys in the com.liquidzoo.patcher.plist file in Patcher's Application Support directory stored in the user library.
 
 """
-DOC = "For more information, visit the project documentation: https://patcher.readthedocs.io\n"
+DOC = "For more information, visit the project documentation: https://docs.patcherctl.dev\n"
 
 
 class SetupType(str, Enum):
