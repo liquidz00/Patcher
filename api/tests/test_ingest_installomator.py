@@ -124,7 +124,7 @@ async def test_ingest_stores_realistic_label(test_session, monkeypatch):
     # appNewVersion is a curl pipeline; we don't want the test suite hitting
     # download.mozilla.org. Stub returns a fixed version for the curl
     # expression, passes literals through unchanged.
-    from patcher.core.installomator import Resolved, Unresolvable
+    from patcher_api.installomator_resolver import Resolved, Unresolvable
 
     monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
 
@@ -253,7 +253,11 @@ async def test_ingest_nulls_html_body_returned_by_resolver(test_session, monkeyp
     curl didn't treat it as an error). The validator must catch this so the
     HTML body never lands in the ``download_url`` column.
     """
-    from patcher.core.installomator import InvalidOutput, Resolved, looks_like_clean_http_url
+    from patcher_api.installomator_resolver import (
+        InvalidOutput,
+        Resolved,
+        looks_like_clean_http_url,
+    )
 
     monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
 
@@ -290,7 +294,11 @@ async def test_ingest_nulls_multi_line_concat_returned_by_resolver(test_session,
     ``head -n1`` or ``awk`` was unsupported, so the full grep output came
     back). Validator must catch the embedded newline.
     """
-    from patcher.core.installomator import InvalidOutput, Resolved, looks_like_clean_http_url
+    from patcher_api.installomator_resolver import (
+        InvalidOutput,
+        Resolved,
+        looks_like_clean_http_url,
+    )
 
     monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
 
@@ -328,7 +336,11 @@ async def test_ingest_nulls_ftp_url_returned_by_resolver(test_session, monkeypat
     ``HttpUrl`` would reject it on the response side, so the validator
     nulls it here at ingest.
     """
-    from patcher.core.installomator import InvalidOutput, Resolved, looks_like_clean_http_url
+    from patcher_api.installomator_resolver import (
+        InvalidOutput,
+        Resolved,
+        looks_like_clean_http_url,
+    )
 
     monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
 

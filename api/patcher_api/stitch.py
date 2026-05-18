@@ -26,7 +26,7 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from patcher.core.installomator import is_shell_expression, looks_like_clean_http_url
+from patcher_api.installomator_resolver import is_shell_expression, looks_like_clean_http_url
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.autopkg import AutopkgRecipe

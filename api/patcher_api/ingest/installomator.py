@@ -18,7 +18,7 @@ controlled by the ``PATCHER_API_RESOLVE_INGEST`` env var:
   column. This is the safe default for production hosts; the resolver is
   HTTP-bound and OOMs on small instances during bulk ingest.
 - **Set to ``true``/``1``/``yes``:** each shell expression is evaluated via
-  :func:`patcher.core.installomator.resolve` (the "pyinstallomator" port).
+  :func:`patcher_api.installomator_resolver.resolve` (the "pyinstallomator" port).
   Resolved values land in the projected columns; unresolvable expressions
   still go to ``NULL``. Run on a workstation with adequate RAM — the
   resolver fans 1000+ HTTP requests across upstream vendor sites.
@@ -39,12 +39,12 @@ import httpx
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from patcher.core.installomator import (
+from patcher.core.installomator import parse_fragment
+from patcher_api.installomator_resolver import (
     InvalidOutput,
     Resolved,
     Unresolvable,
     is_shell_expression,
-    parse_fragment,
     resolve,
 )
 from patcher_api.models.installomator import InstallomatorLabel

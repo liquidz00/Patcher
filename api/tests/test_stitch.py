@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
+from patcher_api.installomator_resolver import is_shell_expression
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.autopkg import AutopkgRecipe
@@ -33,8 +34,6 @@ from patcher_api.stitch import (
     stitch_catalog,
 )
 from sqlalchemy import select
-
-from patcher.core.installomator import is_shell_expression
 
 
 def _make_label(
