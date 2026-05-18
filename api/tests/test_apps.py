@@ -224,10 +224,10 @@ async def test_etag_not_applied_to_health(client, fixed_catalog_sha):
 
 
 @pytest.mark.asyncio
-async def test_etag_not_applied_to_admin(unauth_client, fixed_catalog_sha):
+async def test_etag_not_applied_to_admin(client, fixed_catalog_sha):
     """Admin endpoints (catalog upload, etc.) shouldn't be cached."""
     # 401 because no auth, but the response should still skip ETag headers
-    response = await unauth_client.post("/admin/catalog/upload", content=b"")
+    response = await client.post("/admin/catalog/upload", content=b"")
 
     assert response.status_code == 401
     assert "etag" not in response.headers
@@ -342,11 +342,3 @@ async def test_generate_label_returns_422_when_app_has_no_source_detail(client):
 
     assert response.status_code == 422
     assert "no source detail" in response.json()["detail"]
-
-
-@pytest.mark.asyncio
-async def test_generate_label_requires_auth(unauth_client):
-    response = await unauth_client.post("/apps/firefox/generate-label")
-
-    assert response.status_code == 401
-    assert response.headers["www-authenticate"] == "Bearer"

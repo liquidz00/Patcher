@@ -14,5 +14,4 @@ from patcher_api.models import (  # noqa: F401
     installomator,
     jamf_app_installers,
     mas,
-    token,
 )

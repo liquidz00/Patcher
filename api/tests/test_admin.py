@@ -43,9 +43,6 @@ def incoming_dir(tmp_path, monkeypatch) -> Path:
 
 @pytest.mark.asyncio
 async def test_upload_returns_401_without_auth(client, incoming_dir):
-    # The shared ``client`` fixture sets a user-token Authorization header.
-    # Strip it so we exercise the missing-auth path.
-    client.headers.pop("Authorization", None)
     response = await client.post(
         "/admin/catalog/upload",
         content=b"any body",
@@ -55,27 +52,11 @@ async def test_upload_returns_401_without_auth(client, incoming_dir):
 
 
 @pytest.mark.asyncio
-async def test_upload_rejects_user_token(client, incoming_dir):
-    """
-    A valid user-facing bearer token must not satisfy the deploy-scope
-    dependency. Confirms the deploy/user table separation.
-    """
-    # ``client`` fixture already carries a user token via Authorization header
-    response = await client.post(
-        "/admin/catalog/upload",
-        content=b"any body",
-    )
-    assert response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_upload_accepts_deploy_token_and_stages_file(
-    unauth_client, deploy_token, incoming_dir
-):
+async def test_upload_accepts_deploy_token_and_stages_file(client, deploy_token, incoming_dir):
     body = b"\x00\x01\x02 SQLite-shaped bytes \x03\x04\x05"
     expected_sha = hashlib.sha256(body).hexdigest()
 
-    response = await unauth_client.post(
+    response = await client.post(
         "/admin/catalog/upload",
         content=body,
         headers={
@@ -98,11 +79,11 @@ async def test_upload_accepts_deploy_token_and_stages_file(
 
 
 @pytest.mark.asyncio
-async def test_upload_rejects_sha256_mismatch(unauth_client, deploy_token, incoming_dir):
+async def test_upload_rejects_sha256_mismatch(client, deploy_token, incoming_dir):
     body = b"some bytes"
     wrong_sha = "0" * 64  # length-correct but won't match
 
-    response = await unauth_client.post(
+    response = await client.post(
         "/admin/catalog/upload",
         content=body,
         headers={
@@ -121,11 +102,11 @@ async def test_upload_rejects_sha256_mismatch(unauth_client, deploy_token, incom
 
 @pytest.mark.asyncio
 async def test_upload_rejects_oversized_via_content_length(
-    unauth_client, deploy_token, incoming_dir, monkeypatch
+    client, deploy_token, incoming_dir, monkeypatch
 ):
     monkeypatch.setattr(get_settings(), "max_upload_bytes", 100)
 
-    response = await unauth_client.post(
+    response = await client.post(
         "/admin/catalog/upload",
         content=b"x" * 200,
         headers={
@@ -139,13 +120,13 @@ async def test_upload_rejects_oversized_via_content_length(
 
 
 @pytest.mark.asyncio
-async def test_upload_works_without_sha_header(unauth_client, deploy_token, incoming_dir):
+async def test_upload_works_without_sha_header(client, deploy_token, incoming_dir):
     """The SHA-256 header is optional; without it the body is still hashed
     and the staged file is still produced."""
     body = b"contents"
     expected_sha = hashlib.sha256(body).hexdigest()
 
-    response = await unauth_client.post(
+    response = await client.post(
         "/admin/catalog/upload",
         content=body,
         headers={
@@ -161,7 +142,7 @@ async def test_upload_works_without_sha_header(unauth_client, deploy_token, inco
 
 @pytest.mark.asyncio
 async def test_upload_revoked_deploy_token_rejected(
-    unauth_client, deploy_token, test_session, incoming_dir
+    client, deploy_token, test_session, incoming_dir
 ):
     """A deploy token that has been revoked no longer authorizes uploads."""
     from datetime import UTC, datetime
@@ -175,7 +156,7 @@ async def test_upload_revoked_deploy_token_rejected(
     token_row.revoked_at = datetime.now(UTC)
     await test_session.commit()
 
-    response = await unauth_client.post(
+    response = await client.post(
         "/admin/catalog/upload",
         content=b"anything",
         headers={"Authorization": f"Bearer {deploy_token}"},

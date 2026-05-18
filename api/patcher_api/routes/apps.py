@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import ColumnElement, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from patcher_api.auth import get_current_user
 from patcher_api.db import get_session
 from patcher_api.labels import build_installomator_label
 from patcher_api.models.app import App as AppRow
@@ -14,7 +13,6 @@ from patcher_api.schemas.sources import AppSources
 router = APIRouter(
     prefix="/apps",
     tags=["apps"],
-    dependencies=[Depends(get_current_user)],
 )
 
 
