@@ -38,8 +38,9 @@ For library usage, the headline entry point is :class:`PatcherClient`:
 - :class:`JamfClient`: Jamf Pro API client, available standalone for
   callers who only want the Jamf endpoints.
 - :class:`InstallomatorClient`: Installomator label matching service.
-  Naming pattern reserved for future siblings (Homebrew, AutoPkg, Jamf
-  App Installer, the Patcher API service).
+- :class:`PatcherAPIClient`: client for the public Patcher API catalog
+  (https://api.patcherctl.dev). Useful standalone for scripting against
+  stitched app metadata.
 - Return shapes: :class:`PatchTitle`, :class:`PatchDevice`. Useful for
   type-hinting your own code that consumes Patcher's responses.
 - Exceptions: :class:`PatcherError`, :class:`APIResponseError`,
@@ -58,6 +59,7 @@ CLI-only objects (``Setup``, ``UIConfigManager``, ``PropertylistManager``,
 from .__about__ import __version__
 from .clients.installomator import InstallomatorClient
 from .clients.jamf import JamfClient
+from .clients.patcher_api import PatcherAPIClient
 from .core.analyze import FilterCriteria, TrendCriteria
 from .core.exceptions import (
     APIResponseError,
@@ -76,6 +78,7 @@ __all__ = [
     # Per-service clients
     "JamfClient",
     "InstallomatorClient",
+    "PatcherAPIClient",
     # Return shapes
     "PatchDevice",
     "PatchTitle",
