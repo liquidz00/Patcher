@@ -185,7 +185,7 @@ class TokenManager:
         :class:`TokenError` so callers see a single, consistent exception
         type for token-validation failures.
 
-        Called by :meth:`~patcher.client.jamf.JamfClient._headers` on
+        Called by :meth:`~patcher.clients.jamf.JamfClient._headers` on
         every Jamf request. Every API method on ``JamfClient`` builds its
         headers via that method, so token validation runs exactly once per
         request without a separate decorator.

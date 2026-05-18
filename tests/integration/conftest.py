@@ -21,8 +21,8 @@ import os
 import pytest
 import pytest_asyncio
 from src.patcher import PatcherClient
-from src.patcher.client.jamf import JamfClient
-from src.patcher.client.token_manager import TokenManager
+from src.patcher.clients.jamf import JamfClient
+from src.patcher.clients.token_manager import TokenManager
 from src.patcher.core.config_manager import ConfigManager
 
 # Jamf's published, world-readable test instance. Safe to commit — these

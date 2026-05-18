@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from src.patcher.client.jamf import JamfClient
+from src.patcher.clients.jamf import JamfClient
 from src.patcher.core import exceptions
 
 

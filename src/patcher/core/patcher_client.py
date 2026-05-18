@@ -9,13 +9,13 @@ same object via the existing ``Setup`` flow, which populates a
 ``config=`` argument.
 
 For raw, lower-level access without ``PatcherClient``, see
-:class:`patcher.client.jamf.JamfClient` (Jamf API directly) and
-:class:`patcher.client.HTTPClient` (generic httpx with truststore).
+:class:`patcher.clients.jamf.JamfClient` (Jamf API directly) and
+:class:`patcher.clients.HTTPClient` (generic httpx with truststore).
 """
 
 from pathlib import Path
 
-from ..client.jamf import JamfClient
+from ..clients.jamf import JamfClient
 from .analyze import (
     Analyzer,
     FilterCriteria,
@@ -290,7 +290,7 @@ class PatcherClient:
         Release the underlying httpx connection pool.
 
         Idempotent. Safe to call multiple times. PatcherClient owns a single
-        :class:`~patcher.client.jamf.JamfClient` (shared by
+        :class:`~patcher.clients.jamf.JamfClient` (shared by
         :attr:`installomator` when present); closing it releases the pool
         for both collaborators.
         """

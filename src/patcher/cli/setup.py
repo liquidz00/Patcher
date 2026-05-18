@@ -6,8 +6,8 @@ from PIL import Image
 
 from ..cli.plist_manager import PropertylistManager
 from ..cli.ui_manager import UIConfigManager
-from ..client import HTTPClient
-from ..client.token_manager import TokenManager
+from ..clients import HTTPClient
+from ..clients.token_manager import TokenManager
 from ..core.config_manager import ConfigManager
 from ..core.exceptions import APIResponseError, PatcherError, SetupError, TokenError
 from ..core.logger import LogMe

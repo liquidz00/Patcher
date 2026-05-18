@@ -46,8 +46,8 @@ For library usage, the headline entry point is :class:`PatcherClient`:
   :class:`CredentialError`, :class:`TokenError`, :class:`InstallomatorWarning`.
 
 Submodules under :mod:`patcher.cli`, :mod:`patcher.core`, and
-:mod:`patcher.client` remain importable for advanced use cases (for
-example :class:`patcher.client.HTTPClient` for generic
+:mod:`patcher.clients` remain importable for advanced use cases (for
+example :class:`patcher.clients.HTTPClient` for generic
 httpx-with-truststore requests), but those paths are not part of the
 stable public surface.
 
@@ -56,7 +56,7 @@ CLI-only objects (``Setup``, ``UIConfigManager``, ``PropertylistManager``,
 """
 
 from .__about__ import __version__
-from .client.jamf import JamfClient
+from .clients.jamf import JamfClient
 from .core.analyze import FilterCriteria, TrendCriteria
 from .core.exceptions import (
     APIResponseError,

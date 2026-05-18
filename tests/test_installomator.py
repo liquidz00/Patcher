@@ -20,7 +20,7 @@ from unittest.mock import AsyncMock
 
 import httpx
 import pytest
-from src.patcher.client.jamf import JamfClient
+from src.patcher.clients.jamf import JamfClient
 from src.patcher.core.exceptions import APIResponseError
 from src.patcher.core.installomator import (
     InstallomatorClient,
@@ -88,7 +88,7 @@ def test_bare_construction_does_not_require_jamf_creds() -> None:
     using the client purely for label discovery / fetch shouldn't have to
     stand up Jamf auth they don't need.
     """
-    from src.patcher.client import HTTPClient
+    from src.patcher.clients import HTTPClient
 
     iom = InstallomatorClient()
     assert isinstance(iom.api, HTTPClient)

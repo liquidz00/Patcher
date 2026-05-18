@@ -13,8 +13,8 @@ import httpx
 from pydantic import ValidationError
 from rapidfuzz import fuzz, process
 
-from ..client import HTTPClient
-from ..client.jamf import JamfClient
+from ..clients import HTTPClient
+from ..clients.jamf import JamfClient
 from .exceptions import APIResponseError, PatcherError
 from .logger import LogMe
 from .models.label import Label
@@ -96,16 +96,16 @@ class InstallomatorClient:
         :param concurrency: Maximum concurrent requests for label fetches. Defaults to 5.
         :type concurrency: int
         :param api: HTTP client used for fetches against Installomator's GitHub.
-            Defaults to a fresh :class:`~patcher.client.HTTPClient`. No Jamf
+            Defaults to a fresh :class:`~patcher.clients.HTTPClient`. No Jamf
             credentials required, so library callers can use
             ``InstallomatorClient()`` standalone to enumerate or fetch labels.
             When :meth:`match` is needed, pass a configured
-            :class:`~patcher.client.jamf.JamfClient` instead (it inherits
+            :class:`~patcher.clients.jamf.JamfClient` instead (it inherits
             from ``HTTPClient`` and adds the Jamf-specific
-            :meth:`~patcher.client.jamf.JamfClient.get_app_names` call that
+            :meth:`~patcher.clients.jamf.JamfClient.get_app_names` call that
             ``match()`` requires). :class:`PatcherClient` injects its
             shared ``JamfClient`` automatically.
-        :type api: :class:`~patcher.client.HTTPClient` | None
+        :type api: :class:`~patcher.clients.HTTPClient` | None
         """
         self.log = LogMe(self.__class__.__name__)
         self.label_path = Path.home() / "Library/Application Support/Patcher/.labels"
@@ -350,7 +350,7 @@ class InstallomatorClient:
         Flow:
 
         1. Fetch the set of available label script names via :meth:`list_available_labels` (one HTTP call).
-        2. Pull each patch title's associated app names via :meth:`~patcher.client.jamf.JamfClient.get_app_names`.
+        2. Pull each patch title's associated app names via :meth:`~patcher.clients.jamf.JamfClient.get_app_names`.
         3. Match each title's app names against the available script names (direct, then normalized, then fuzzy).
         4. Fetch the matched label fragments in parallel via :meth:`get_labels` and attach them to ``PatchTitle.install_label``.
         5. Run a second-pass attempt on still-unmatched titles, keyed on the patch title text itself.
@@ -361,7 +361,7 @@ class InstallomatorClient:
             extended in place.
         :type patch_titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
         :raises PatcherError: If this :class:`InstallomatorClient` was not
-            constructed with a :class:`~patcher.client.jamf.JamfClient` (the
+            constructed with a :class:`~patcher.clients.jamf.JamfClient` (the
             default ``HTTPClient`` cannot call Jamf's ``get_app_names``
             endpoint). Pass ``api=<JamfClient>`` at construction, or use
             :class:`~patcher.core.patcher_client.PatcherClient` which wires

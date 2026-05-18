@@ -7,7 +7,7 @@ from typing import Callable
 
 import pandas as pd
 
-from ..client.jamf import JamfClient
+from ..clients.jamf import JamfClient
 from .data_manager import DataManager
 from .exceptions import APIResponseError, PatcherError
 from .logger import LogMe
@@ -76,7 +76,7 @@ async def append_ios_status(titles: list[PatchTitle], api: JamfClient) -> list[P
     :type titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
     :param api: Configured ``JamfClient`` used for the device/version
         and SOFA feed calls.
-    :type api: :class:`~patcher.client.jamf.JamfClient`
+    :type api: :class:`~patcher.clients.jamf.JamfClient`
     :raises PatcherError: If the device list, OS versions, or SOFA feed cannot be fetched.
     """
     _log.debug("Attempting to fetch iOS device IDs.")

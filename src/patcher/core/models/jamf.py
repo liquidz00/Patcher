@@ -11,9 +11,9 @@ class JamfCredentials(Model):
     Pydantic model carrying the credentials needed to authenticate against
     a Jamf Pro instance: client ID, client secret, and server URL.
 
-    Constructed by :class:`~patcher.client.token_manager.TokenManager.attach_client`
+    Constructed by :class:`~patcher.clients.token_manager.TokenManager.attach_client`
     from values held in a :class:`~patcher.core.config_manager.ConfigManager` and
-    handed to :class:`~patcher.client.jamf.JamfClient` (the API client) at
+    handed to :class:`~patcher.clients.jamf.JamfClient` (the API client) at
     instantiation time.
 
     :ivar client_id: The client ID used for authentication with the Jamf API.

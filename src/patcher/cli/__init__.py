@@ -452,7 +452,7 @@ async def export(
     .. seealso::
 
         - :meth:`~patcher.cli.report.process_reports`
-        - :attr:`~patcher.client.HTTPClient.max_concurrency`
+        - :attr:`~patcher.clients.HTTPClient.max_concurrency`
         - :ref:`export`
 
     :param ctx: The context object, providing access to shared state between commands.

@@ -297,7 +297,7 @@ class HTTPClient:
 
         :param urls: list of URLs to fetch data from.
         :type urls: list[str]
-        :param headers: Optional headers to include in the request. Defaults to ``self.headers`` via the :meth:`~patcher.client.__init__.fetch_json` method.
+        :param headers: Optional headers to include in the request. Defaults to ``self.headers`` via the :meth:`~patcher.clients.__init__.fetch_json` method.
         :type headers: dict[str, str] | None
         :param query_params: Additional query parameters to append to the URL. Defaults to None.
         :type query_params: dict[str, str] | None

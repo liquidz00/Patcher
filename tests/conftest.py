@@ -7,9 +7,9 @@ import pandas as pd
 import pytest
 from fpdf import FPDF
 from src.patcher.cli.plist_manager import PropertylistManager
-from src.patcher.client import HTTPClient
-from src.patcher.client.jamf import JamfClient
-from src.patcher.client.token_manager import TokenManager
+from src.patcher.clients import HTTPClient
+from src.patcher.clients.jamf import JamfClient
+from src.patcher.clients.token_manager import TokenManager
 from src.patcher.core.data_manager import DataManager
 from src.patcher.core.models.jamf import JamfCredentials
 from src.patcher.core.models.patch import PatchTitle
