@@ -16,7 +16,7 @@ This module verifies:
 from __future__ import annotations
 
 import pytest
-from src.patcher import InstallomatorClient, JamfClient
+from src.patcher import JamfClient, PatcherAPIClient
 from src.patcher.core.data_manager import DataManager
 from src.patcher.core.models.patch import PatchTitle
 
@@ -27,9 +27,7 @@ async def test_patcher_client_wires_collaborators(integration_patcher_client) ->
     """PatcherClient exposes the expected attached collaborators after construction."""
     p = integration_patcher_client
     assert isinstance(p.jamf, JamfClient), "patcher.jamf should be a JamfClient"
-    assert isinstance(p.installomator, InstallomatorClient), (
-        "patcher.installomator should be an InstallomatorClient"
-    )
+    assert isinstance(p.api, PatcherAPIClient), "patcher.api should be a PatcherAPIClient"
     assert isinstance(p.data, DataManager), "patcher.data should be a DataManager"
 
 

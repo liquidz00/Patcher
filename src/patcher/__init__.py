@@ -20,8 +20,9 @@ For library usage, the headline entry point is :class:`PatcherClient`:
         await patcher.jamf.get_policies()
     )
 
-    # Match against Installomator labels:
-    await patcher.installomator.match(summaries)
+    # Enrich titles with Patcher API catalog matches:
+    from patcher.core.matching import match_titles
+    await match_titles(summaries, jamf=patcher.jamf, api=patcher.api)
 
     # Export to disk:
     await patcher.data.export(

@@ -50,16 +50,16 @@ class Label(UpstreamModel):
     """
 
     name: str
-    type: str
-    expected_team_id: str = Field(
-        ...,
+    type: str | None = None
+    expected_team_id: str | None = Field(
+        default=None,
         alias="expectedTeamID",
-        description="Expected Team ID (must be exactly 10 characters)",
+        description="Expected Team ID (must be exactly 10 characters when present)",
     )
     # ``installomator_label`` rides on the to_camel alias generator from
     # ``UpstreamModel``, which produces ``installomatorLabel`` correctly.
     installomator_label: str  # fragmentName - ".sh"
-    download_url: str = Field(..., alias="downloadURL")
+    download_url: str | None = Field(default=None, alias="downloadURL")
 
     # NOTE: Planning on implementing these properties at a later time, commenting out for now.
 
@@ -88,6 +88,8 @@ class Label(UpstreamModel):
 
     @field_validator("type", mode="before")
     def validate_type(cls, v):
+        if v is None:
+            return None
         allowed_types = [
             "dmg",
             "pkg",
@@ -105,6 +107,8 @@ class Label(UpstreamModel):
 
     @field_validator("expected_team_id", mode="before")
     def validate_team_id(cls, v):
+        if v is None:
+            return None
         if v in "Software Update":
             return v  # Apple software/tools
         if len(v) != 10:

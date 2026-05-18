@@ -16,6 +16,7 @@ import asyncclick as click
 
 from ..core.analyze import append_ios_status, omit_recent, sort_titles
 from ..core.exceptions import APIResponseError, PatcherError
+from ..core.matching import match_titles
 from ..core.patcher_client import PatcherClient
 from .animation import Animation
 
@@ -117,10 +118,10 @@ async def process_reports(
             await animation.update_msg("Including iOS info...")
             patch_reports = await append_ios_status(patch_reports, patcher.jamf)
 
-        if enable_iom and patcher.installomator is not None:
+        if enable_iom and patcher.api is not None:
             await animation.update_msg("Identifying Installomator support for titles...")
             try:
-                await patcher.installomator.match(patch_reports)
+                await match_titles(patch_reports, jamf=patcher.jamf, api=patcher.api)
             except APIResponseError as e:
                 if not getattr(e, "not_found", False):
                     raise

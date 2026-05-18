@@ -2,21 +2,22 @@
 Top-level class for Patcher's library use.
 
 Composes the per-service clients (:class:`JamfClient`,
-:class:`InstallomatorClient`) and data layer (:class:`DataManager`) into
+:class:`PatcherAPIClient`) and data layer (:class:`DataManager`) into
 a single object library callers instantiate. CLI users construct the
 same object via the existing ``Setup`` flow, which populates a
 :class:`ConfigManager` and hands it to ``PatcherClient`` through the
 ``config=`` argument.
 
 For raw, lower-level access without ``PatcherClient``, see
-:class:`patcher.clients.jamf.JamfClient` (Jamf API directly) and
-:class:`patcher.clients.HTTPClient` (generic httpx with truststore).
+:class:`patcher.clients.jamf.JamfClient` (Jamf API directly),
+:class:`patcher.clients.patcher_api.PatcherAPIClient` (Patcher catalog),
+and :class:`patcher.clients.HTTPClient` (generic httpx with truststore).
 """
 
 from pathlib import Path
 
-from ..clients.installomator import InstallomatorClient
 from ..clients.jamf import JamfClient
+from ..clients.patcher_api import PatcherAPIClient
 from .analyze import (
     Analyzer,
     FilterCriteria,
@@ -28,6 +29,7 @@ from .config_manager import ConfigManager
 from .data_manager import DataManager
 from .exceptions import PatcherError
 from .logger import LogMe
+from .matching import match_titles
 from .models.patch import PatchTitle
 from .models.ui import UIDefaults
 
@@ -97,8 +99,10 @@ class PatcherClient:
         :param debug: Enables debug-mode handling in collaborators (notably
             disables the spinner animation when set in the CLI path).
         :type debug: bool
-        :param enable_installomator: If False, :attr:`installomator` is
-            ``None`` and Installomator label matching is skipped.
+        :param enable_installomator: If False, :attr:`api` is ``None`` and
+            Installomator-label matching (now sourced from the Patcher
+            API catalog) is skipped. Kept under the legacy name for
+            backward compatibility with existing CLI flags.
         :type enable_installomator: bool
         :param ui_config: Optional dict of UI settings (header text,
             footer, font paths, header color, etc.) for PDF/HTML report
@@ -127,11 +131,7 @@ class PatcherClient:
         self.debug = debug
         self.jamf = JamfClient(config=config, concurrency=concurrency)
         self.data = DataManager(disable_cache=disable_cache)
-        self.installomator = (
-            InstallomatorClient(concurrency=concurrency, api=self.jamf)
-            if enable_installomator
-            else None
-        )
+        self.api = PatcherAPIClient(max_concurrency=concurrency) if enable_installomator else None
         self.ui_config = ui_config if ui_config is not None else UIDefaults().model_dump()
 
     async def fetch_patches(
@@ -149,13 +149,15 @@ class PatcherClient:
         Composes the granular pipeline: policies → summaries → (optional
         Installomator match) → (optional iOS append) → (optional sort/filter).
         Equivalent to manually chaining :meth:`jamf.get_policies`,
-        :meth:`jamf.get_summaries`, :meth:`installomator.match`,
+        :meth:`jamf.get_summaries`,
+        :func:`~patcher.core.matching.match_titles`,
         :func:`~patcher.core.analyze.append_ios_status`,
         :func:`~patcher.core.analyze.omit_recent`, and
         :func:`~patcher.core.analyze.sort_titles`.
 
-        :param match_installomator: If True (default), match each title to its
-            Installomator label via :meth:`installomator.match`. No-op when
+        :param match_installomator: If True (default), match each title to
+            its Installomator label via the Patcher API catalog
+            (:func:`~patcher.core.matching.match_titles`). No-op when
             ``enable_installomator=False`` was passed at construction time.
         :type match_installomator: bool
         :param include_ios: If True, append per-iOS-version summaries to the
@@ -176,8 +178,8 @@ class PatcherClient:
         policies = await self.jamf.get_policies()
         titles = await self.jamf.get_summaries(policies)
 
-        if match_installomator and self.installomator is not None:
-            await self.installomator.match(titles)
+        if match_installomator and self.api is not None:
+            await match_titles(titles, jamf=self.jamf, api=self.api)
 
         if include_ios:
             titles = await append_ios_status(titles, self.jamf)
@@ -287,14 +289,14 @@ class PatcherClient:
 
     async def aclose(self) -> None:
         """
-        Release the underlying httpx connection pool.
+        Release the underlying httpx connection pools.
 
-        Idempotent. Safe to call multiple times. PatcherClient owns a single
-        :class:`~patcher.clients.jamf.JamfClient` (shared by
-        :attr:`installomator` when present); closing it releases the pool
-        for both collaborators.
+        Idempotent. Safe to call multiple times. Closes both the JamfClient
+        and (when present) the PatcherAPIClient.
         """
         await self.jamf.aclose()
+        if self.api is not None:
+            await self.api.aclose()
 
     async def __aenter__(self) -> "PatcherClient":
         return self

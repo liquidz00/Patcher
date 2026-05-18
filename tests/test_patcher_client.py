@@ -24,9 +24,9 @@ def patcher(mock_policy_response, mock_patch_title_response):
     Real PatcherClient instance with mocked collaborators.
 
     Constructed via the in-memory credentials path so no keyring is touched.
-    ``jamf``, ``data``, and ``installomator`` are then replaced with mocks so
-    each convenience method test can stub specific return values without
-    standing up real HTTP / disk infrastructure.
+    ``jamf``, ``data``, and ``api`` are then replaced with mocks so each
+    convenience method test can stub specific return values without standing
+    up real HTTP / disk infrastructure.
     """
     p = PatcherClient(
         client_id="test-cid",
@@ -37,35 +37,52 @@ def patcher(mock_policy_response, mock_patch_title_response):
     p.jamf.get_policies.return_value = mock_policy_response
     p.jamf.get_summaries.return_value = mock_patch_title_response
     p.data = AsyncMock()
-    p.installomator = AsyncMock()
-    p.installomator.match = AsyncMock(return_value=None)
+    p.api = AsyncMock()
     return p
 
 
 class TestFetchPatches:
     @pytest.mark.asyncio
-    async def test_default_flow_runs_policies_summaries_and_match(self, patcher):
+    async def test_default_flow_runs_policies_summaries_and_match(self, patcher, mocker):
+        mock_match = mocker.patch(
+            "src.patcher.core.patcher_client.match_titles",
+            new_callable=AsyncMock,
+        )
+
         result = await patcher.fetch_patches()
 
         patcher.jamf.get_policies.assert_awaited_once()
         patcher.jamf.get_summaries.assert_awaited_once_with(patcher.jamf.get_policies.return_value)
-        patcher.installomator.match.assert_awaited_once_with(
-            patcher.jamf.get_summaries.return_value
+        mock_match.assert_awaited_once_with(
+            patcher.jamf.get_summaries.return_value,
+            jamf=patcher.jamf,
+            api=patcher.api,
         )
         assert result == patcher.jamf.get_summaries.return_value
 
     @pytest.mark.asyncio
-    async def test_skips_installomator_match_when_disabled(self, patcher):
+    async def test_skips_match_when_disabled(self, patcher, mocker):
+        mock_match = mocker.patch(
+            "src.patcher.core.patcher_client.match_titles",
+            new_callable=AsyncMock,
+        )
+
         await patcher.fetch_patches(match_installomator=False)
 
-        patcher.installomator.match.assert_not_called()
+        mock_match.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_skips_installomator_match_when_no_installomator(self, patcher):
-        """When PatcherClient was constructed with enable_installomator=False, .installomator is None."""
-        patcher.installomator = None
+    async def test_skips_match_when_no_api_client(self, patcher, mocker):
+        """When PatcherClient was constructed with enable_installomator=False, .api is None."""
+        mock_match = mocker.patch(
+            "src.patcher.core.patcher_client.match_titles",
+            new_callable=AsyncMock,
+        )
+        patcher.api = None
+
         result = await patcher.fetch_patches()  # must not crash
 
+        mock_match.assert_not_called()
         assert result == patcher.jamf.get_summaries.return_value
 
     @pytest.mark.asyncio

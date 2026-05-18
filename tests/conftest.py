@@ -295,14 +295,14 @@ def stop_event_fixture():
 
 @pytest.fixture
 def patcher_instance(
-    mock_policy_response, mock_patch_title_response, config_manager, mock_installomator
+    mock_policy_response, mock_patch_title_response, config_manager, mock_patcher_api
 ):
     """
     Mock-shaped PatcherClient for tests that exercise process_reports.
 
     Wires a mock ``jamf`` (with canned policy + summary responses), a mock
-    ``data`` (with mocked export), and the mock installomator. No legacy
-    ReportManager — the helpers it once held now live as standalone
+    ``data`` (with mocked export), and the mock Patcher API client. No
+    legacy ReportManager — the helpers it once held now live as standalone
     functions in :mod:`patcher.core.analyze`.
     """
     jamf = AsyncMock()
@@ -312,7 +312,7 @@ def patcher_instance(
     patcher = MagicMock()
     patcher.jamf = jamf
     patcher.data = AsyncMock()
-    patcher.installomator = mock_installomator
+    patcher.api = mock_patcher_api
     patcher.ui_config = {"header_text": "", "header_color": ""}
     patcher.debug = True
     # ``patcher.export`` is a top-level convenience method (delegates to
@@ -322,10 +322,9 @@ def patcher_instance(
 
 
 @pytest.fixture
-def mock_installomator():
-    mock = AsyncMock()
-    mock.match.return_value = None
-    return mock
+def mock_patcher_api():
+    """Mock PatcherAPIClient used by the matching pipeline."""
+    return AsyncMock()
 
 
 @pytest.fixture

@@ -523,7 +523,7 @@ async def export(
         ios=ios,
         date_format=actual_format,
         report_title=patcher.ui_config.get("header_text"),
-        enable_iom=patcher.installomator is not None,
+        enable_iom=patcher.api is not None,
         header_color=patcher.ui_config.get("header_color"),
         device_details=device_details,
     )
