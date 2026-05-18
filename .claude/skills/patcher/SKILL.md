@@ -1,22 +1,24 @@
 ---
-name: check-app-match
+name: patcher
 description: |
-  Given a Mac application name, enumerate every patching method that covers it across
-  Installomator, Homebrew Cask, and AutoPkg, and surface the results as a structured
-  per-ecosystem report. Read-only — no DB writes, no state changes. Useful when adding
-  a new app to the canonical apps DB, debugging an unmatched patch title, or sanity-
-  checking what's available before configuring deployment for a new title.
+  Given a Mac application name, look up every patching method that covers it across
+  Installomator, Homebrew Cask, and AutoPkg, plus surface official vendor/MDM
+  deployment documentation if it exists. Read-only. No DB writes, no state changes.
+  Useful when adding a new app to the canonical apps DB, debugging an unmatched
+  patch title, or sanity-checking deployment options for a new title.
 
-  Invoke when the user says any of: "check match for <app>", "what patching methods
-  cover <app>", "is <app> in Installomator", "look up <app> across ecosystems", or
-  similar phrasing. App name is the single required argument.
+  Invoke when the user says any of: "/patcher <app>", "check match for <app>",
+  "patcher lookup <app>", "what patching methods cover <app>", "is <app> in
+  Installomator", "look up <app> across ecosystems", or similar phrasing. App name
+  is the single required argument.
 ---
 
-# check-app-match
+# patcher
 
-Given an app name, this skill queries four ecosystems and prints a per-ecosystem
-report of matching patching methods. It does not write to disk and does not require
-Jamf Pro access (the App Installers ecosystem is intentionally skipped — see below).
+Given an app name, this skill queries four patching ecosystems and an open-web pass
+for vendor/MDM deployment docs, then prints a consolidated report. It does not write
+to disk and does not require Jamf Pro access (the App Installers ecosystem is
+intentionally skipped; see below).
 
 ## Required argument
 
@@ -33,8 +35,9 @@ respect it.
 
 ## Workflow
 
-Run these four checks in order. They're independent — failures in one don't block
-the others. Report partial results if anything fails.
+Run the four ecosystem checks in parallel where possible (they're independent), then
+do the vendor-docs pass. Failures in one section don't block the others. Report
+partial results if anything fails.
 
 ### 1. Installomator
 
@@ -90,7 +93,7 @@ If `Labels.txt` fetch fails, print:
 
 ### 2. Homebrew Cask
 
-Fetch the cask catalog JSON. It's ~1 MB — cache it under `/tmp` to avoid refetching
+Fetch the cask catalog JSON. It's ~1 MB; cache it under `/tmp` to avoid refetching
 on repeat invocations within the same session:
 
 ```bash
@@ -146,7 +149,7 @@ PY
 autopkg search "<APP_NAME>" 2>&1
 ```
 
-Parse the table output — recipes appear with their parent repo. If `autopkg` is not
+Parse the table output; recipes appear with their parent repo. If `autopkg` is not
 on `PATH` or the command fails with a non-zero exit code, fall back to GitHub code
 search via `gh`:
 
@@ -173,15 +176,55 @@ requires Jamf Pro tenant access, which is not currently available.
 Print:
 
 ```
-  skipped — no Jamf access. Browse public catalog at:
+  skipped (no Jamf access). Browse public catalog at:
   https://learn.jamf.com/r/en-US/jamf-app-catalog/App_Installers_Software_Titles
 ```
 
+### 5. Vendor / MDM deployment docs
+
+After the four ecosystem checks, do a targeted web search for **official** deployment
+documentation. The goal is to surface the kind of links a MacAdmin would actually
+deploy from (vendor admin guides, Jamf knowledge-base entries, and well-known
+MacAdmin community references), not blog posts or forum threads.
+
+Use the WebSearch tool with these queries (run in parallel; pick the best 2–4
+results across all queries):
+
+1. `"<APP_NAME>" enterprise deployment macOS`
+2. `"<APP_NAME>" Jamf Pro deployment`
+3. `"<APP_NAME>" MDM configuration profile`
+4. `"<APP_NAME>" site:learn.jamf.com OR site:community.jamf.com`
+
+**Filter aggressively.** Prefer in this order:
+
+1. The vendor's own admin/IT documentation (e.g., `support.google.com/chrome/a/`,
+   `support.1password.com/business-deployment/`, `support.zoom.us/hc/en-us/sections/200305593`).
+2. `learn.jamf.com` knowledge-base articles.
+3. `community.jamf.com` threads marked as accepted solutions, only when (1) and (2)
+   are absent.
+4. `macadmins.org` resources or well-known MacAdmin slugs (e.g., `macadmins.slack.com`
+   channel references in indexed pages, not the live Slack).
+
+**Reject:**
+
+- Random blog posts, Medium articles, YouTube tutorials.
+- Vendor *consumer* support pages that aren't about deployment.
+- Outdated pages (>3 years old) unless they're the canonical reference.
+- App-Store-only deployment guides for apps with non-MAS deployment paths.
+
+If no high-quality result surfaces after the search pass, print:
+```
+  (no official deployment docs surfaced)
+```
+
+This is honest output; most apps don't have well-documented MDM deployment paths,
+and saying so is more useful than fabricating links.
+
 ## Output format
 
-After all four checks, emit a single consolidated report. Use the structure below
-verbatim — fixed-width labels, two-space indent for results, blank line between
-ecosystems:
+After all five checks, emit a single consolidated report. Use the structure below
+verbatim: fixed-width labels, two-space indent for results, blank line between
+sections:
 
 ```
 App: <APP_NAME>
@@ -200,12 +243,19 @@ AutoPkg
   ...
 
 Jamf App Installer
-  skipped — no Jamf access. Browse public catalog at:
+  skipped (no Jamf access). Browse public catalog at:
   https://learn.jamf.com/r/en-US/jamf-app-catalog/App_Installers_Software_Titles
+
+Deployment docs
+  <title>
+    <url>
+  ...
 ```
 
 If an ecosystem has no matches, print `(no matches)` indented in place of the
-result list. If an ecosystem fails, print the failure note as above.
+result list. If an ecosystem fails, print the failure note as above. The
+"Deployment docs" section follows the same convention: `(no official deployment
+docs surfaced)` when nothing meets the quality bar.
 
 ## Confidence-flag legend
 
@@ -213,7 +263,7 @@ For Installomator (the only ecosystem that uses fuzzy scoring):
 
 | Score | Flag | Meaning |
 |---|---|---|
-| 100 | `exact` | Direct or normalized match — high signal |
+| 100 | `exact` | Direct or normalized match. High signal |
 | 85–99 | `high conf` | Above Patcher's default matching threshold |
 | 75–84 | `below threshold` | Below the default threshold; surfaced for visibility but would NOT be picked up by `Installomator.match()` automatically |
 
@@ -223,10 +273,13 @@ For Installomator (the only ecosystem that uses fuzzy scoring):
 - Does not propose canonical-app-DB inserts. That's a separate skill for after
   the Patcher API DB schema lands.
 - Does not validate that matched packages are still installable. Match quality
-  is about identity, not freshness — the `Last-Verified-At` story belongs to the
+  is about identity, not freshness; the `Last-Verified-At` story belongs to the
   API DB layer, not this lookup utility.
 - Does not require Jamf Pro tenant access. The App Installers ecosystem is
   explicitly skipped until tenant access is restored.
+- Does not fetch release/version metadata from the Patcher API. If the user
+  wants current version data, point them at the `patcherctl` CLI or the
+  importable `PatcherClient`.
 
 ## Failure modes to handle gracefully
 
@@ -235,7 +288,8 @@ For Installomator (the only ecosystem that uses fuzzy scoring):
 - **cask.json fetch fails** → print "(catalog unreachable)" in the Homebrew section.
 - **Both autopkg + gh unavailable** → print the install note in the AutoPkg section.
 - **rapidfuzz import fails** → user's venv isn't synced; print
-  "(matching unavailable — run `make install-dev` to sync dev deps)" and skip the
+  "(matching unavailable; run `make install-dev` to sync dev deps)" and skip the
   Installomator section.
+- **WebSearch returns nothing usable** → print "(no official deployment docs surfaced)".
 - **No matches anywhere** → still emit the full report with `(no matches)` per
   ecosystem. The absence is itself useful information.
