@@ -53,8 +53,8 @@ example :class:`patcher.clients.HTTPClient` for generic
 httpx-with-truststore requests), but those paths are not part of the
 stable public surface.
 
-CLI-only objects (``Setup``, ``UIConfigManager``, ``PropertylistManager``,
-``Animation``) are deliberately not re-exported here.
+CLI-only objects (``Setup``, ``UIConfigManager``, ``Animation``) are
+deliberately not re-exported here.
 """
 
 from .__about__ import __version__

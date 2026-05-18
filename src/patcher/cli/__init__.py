@@ -15,8 +15,8 @@ from ..core.exceptions import APIResponseError, InstallomatorWarning, PatcherErr
 from ..core.logger import LogMe, PatcherLog
 from ..core.models.ui import UIDefaults
 from ..core.patcher_client import PatcherClient
+from ..core.plist_manager import PropertylistManager
 from .animation import Animation
-from .plist_manager import PropertylistManager
 from .report import process_reports
 from .setup import Setup
 from .terminal_logger import install_terminal_excepthook, install_terminal_handler

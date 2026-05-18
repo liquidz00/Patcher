@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pandas as pd
 import pytest
 from fpdf import FPDF
-from src.patcher.cli.plist_manager import PropertylistManager
 from src.patcher.clients import HTTPClient
 from src.patcher.clients.jamf import JamfClient
 from src.patcher.clients.token_manager import TokenManager
@@ -15,6 +14,7 @@ from src.patcher.core.models.jamf import JamfCredentials
 from src.patcher.core.models.patch import PatchTitle
 from src.patcher.core.models.token import AccessToken
 from src.patcher.core.pdf_report import PDFReport
+from src.patcher.core.plist_manager import PropertylistManager
 
 
 @pytest.fixture

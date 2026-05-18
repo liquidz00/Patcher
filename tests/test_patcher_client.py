@@ -195,6 +195,199 @@ class TestAnalyze:
         assert mock_analyzer_cls.call_count == 1
 
 
+class TestAnalyzeExcel:
+    @pytest.mark.asyncio
+    async def test_analyzer_constructed_with_excel_path(self, patcher, mocker):
+        mock_analyzer_cls = mocker.patch("src.patcher.core.patcher_client.Analyzer")
+        mock_analyzer_cls.return_value.filter_titles.return_value = ["from-excel"]
+
+        result = await patcher.analyze_excel(
+            "/tmp/report.xlsx", criteria=FilterCriteria.MOST_INSTALLED
+        )
+
+        mock_analyzer_cls.assert_called_once_with(
+            excel_path="/tmp/report.xlsx", data_manager=patcher.data
+        )
+        assert result == ["from-excel"]
+
+    @pytest.mark.asyncio
+    async def test_cli_string_criteria_converts(self, patcher, mocker):
+        mock_analyzer_cls = mocker.patch("src.patcher.core.patcher_client.Analyzer")
+        mock_analyzer_cls.return_value.filter_titles.return_value = []
+
+        await patcher.analyze_excel("/tmp/r.xlsx", criteria="below-threshold")
+
+        mock_analyzer_cls.return_value.filter_titles.assert_called_once_with(
+            FilterCriteria.BELOW_THRESHOLD, threshold=70.0, top_n=None
+        )
+
+
+class TestAnalyzeTrend:
+    @pytest.mark.asyncio
+    async def test_returns_trend_dataframe(self, patcher, mocker):
+        from src.patcher.core.analyze import TrendCriteria
+
+        mock_analyzer_cls = mocker.patch("src.patcher.core.patcher_client.Analyzer")
+        fake_df = mocker.MagicMock()
+        fake_df.empty = False
+        mock_analyzer_cls.return_value.timelapse.return_value = fake_df
+
+        result = await patcher.analyze_trend("patch-adoption")
+
+        mock_analyzer_cls.assert_called_once_with(patcher.data)
+        mock_analyzer_cls.return_value.timelapse.assert_called_once_with(
+            TrendCriteria.PATCH_ADOPTION
+        )
+        assert result is fake_df
+
+    @pytest.mark.asyncio
+    async def test_save_to_writes_html(self, patcher, mocker, tmp_path):
+        mock_analyzer_cls = mocker.patch("src.patcher.core.patcher_client.Analyzer")
+        fake_df = mocker.MagicMock()
+        fake_df.empty = False
+        mock_analyzer_cls.return_value.timelapse.return_value = fake_df
+
+        out = tmp_path / "trend.html"
+        await patcher.analyze_trend("patch-adoption", save_to=out)
+
+        fake_df.to_html.assert_called_once_with(out, index=False)
+
+    @pytest.mark.asyncio
+    async def test_save_to_skipped_on_empty_dataframe(self, patcher, mocker, tmp_path):
+        mock_analyzer_cls = mocker.patch("src.patcher.core.patcher_client.Analyzer")
+        fake_df = mocker.MagicMock()
+        fake_df.empty = True
+        mock_analyzer_cls.return_value.timelapse.return_value = fake_df
+
+        await patcher.analyze_trend("patch-adoption", save_to=tmp_path / "trend.html")
+
+        fake_df.to_html.assert_not_called()
+
+
+class TestReset:
+    @pytest.mark.asyncio
+    async def test_cache_calls_data_reset(self, patcher):
+        patcher.data.reset_cache = MagicMock(return_value=True)
+        await patcher.reset("cache")
+        patcher.data.reset_cache.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_cache_failure_raises(self, patcher):
+        patcher.data.reset_cache = MagicMock(return_value=False)
+        with pytest.raises(PatcherError, match="Reset cache"):
+            await patcher.reset("cache")
+
+    @pytest.mark.asyncio
+    async def test_in_memory_mode_blocks_non_cache_reset(self, patcher):
+        patcher._config = MagicMock()
+        patcher._config.in_memory_mode = True
+
+        with pytest.raises(PatcherError, match="in-memory"):
+            await patcher.reset("creds")
+        with pytest.raises(PatcherError, match="in-memory"):
+            await patcher.reset("UI")
+        with pytest.raises(PatcherError, match="in-memory"):
+            await patcher.reset("full")
+
+    @pytest.mark.asyncio
+    async def test_creds_all_calls_reset_config(self, patcher, mocker):
+        patcher._config = MagicMock()
+        patcher._config.in_memory_mode = False
+        mocker.patch("src.patcher.core.patcher_client.PropertylistManager")
+
+        await patcher.reset("creds")
+
+        patcher._config.reset_config.assert_called_once()
+        patcher._config.set_credential.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_creds_with_credential_arg_clears_one_key(self, patcher, mocker):
+        patcher._config = MagicMock()
+        patcher._config.in_memory_mode = False
+        mocker.patch("src.patcher.core.patcher_client.PropertylistManager")
+
+        await patcher.reset("creds", credential="url")
+
+        patcher._config.set_credential.assert_called_once_with("URL", "")
+        patcher._config.reset_config.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_ui_removes_plist_key(self, patcher, mocker):
+        patcher._config = MagicMock()
+        patcher._config.in_memory_mode = False
+        mock_plist_cls = mocker.patch("src.patcher.core.patcher_client.PropertylistManager")
+
+        await patcher.reset("UI")
+
+        mock_plist_cls.return_value.remove.assert_called_once_with("UserInterfaceSettings")
+
+    @pytest.mark.asyncio
+    async def test_full_runs_every_reset(self, patcher, mocker):
+        patcher._config = MagicMock()
+        patcher._config.in_memory_mode = False
+        patcher.data.reset_cache = MagicMock(return_value=True)
+        mock_plist_cls = mocker.patch("src.patcher.core.patcher_client.PropertylistManager")
+
+        await patcher.reset("full")
+
+        patcher._config.reset_config.assert_called_once()
+        plist = mock_plist_cls.return_value
+        assert plist.remove.call_count == 2
+        plist.remove.assert_any_call("UserInterfaceSettings")
+        plist.remove.assert_any_call("setup_completed")
+        patcher.data.reset_cache.assert_called_once()
+
+
+class TestFromState:
+    def test_reads_ui_and_installomator_from_plist(self, mocker):
+        mock_plist = mocker.patch(
+            "src.patcher.core.patcher_client.PropertylistManager"
+        ).return_value
+        mock_plist.get.side_effect = lambda key: {
+            "UserInterfaceSettings": {"header_text": "Org Header"},
+            "enable_installomator": True,
+        }.get(key)
+        mock_config_cls = mocker.patch("src.patcher.core.patcher_client.ConfigManager")
+        mock_client_cls = mocker.patch.object(PatcherClient, "__init__", return_value=None)
+
+        PatcherClient.from_state()
+
+        mock_client_cls.assert_called_once_with(
+            config=mock_config_cls.return_value,
+            enable_installomator=True,
+            ui_config={"header_text": "Org Header"},
+        )
+
+    def test_overrides_take_precedence(self, mocker):
+        mock_plist = mocker.patch(
+            "src.patcher.core.patcher_client.PropertylistManager"
+        ).return_value
+        mock_plist.get.return_value = None  # no UI settings, no toggle
+        mocker.patch("src.patcher.core.patcher_client.ConfigManager")
+        mock_client_cls = mocker.patch.object(PatcherClient, "__init__", return_value=None)
+
+        PatcherClient.from_state(concurrency=10, debug=True)
+
+        call_kwargs = mock_client_cls.call_args.kwargs
+        assert call_kwargs["concurrency"] == 10
+        assert call_kwargs["debug"] is True
+        assert call_kwargs["enable_installomator"] is False  # plist had nothing
+
+    def test_omits_ui_config_when_plist_has_none(self, mocker):
+        """Empty UI settings should fall through to PatcherClient's defaults."""
+        mock_plist = mocker.patch(
+            "src.patcher.core.patcher_client.PropertylistManager"
+        ).return_value
+        mock_plist.get.return_value = None
+        mocker.patch("src.patcher.core.patcher_client.ConfigManager")
+        mock_client_cls = mocker.patch.object(PatcherClient, "__init__", return_value=None)
+
+        PatcherClient.from_state()
+
+        call_kwargs = mock_client_cls.call_args.kwargs
+        assert "ui_config" not in call_kwargs  # falls through to UIDefaults
+
+
 class TestExport:
     @pytest.mark.asyncio
     async def test_delegates_to_data_export_with_threaded_params(self, patcher):

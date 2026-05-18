@@ -15,12 +15,14 @@ and :class:`patcher.clients.HTTPClient` (generic httpx with truststore).
 """
 
 from pathlib import Path
+from typing import Any, Literal
 
 from ..clients.jamf import JamfClient
 from ..clients.patcher_api import PatcherAPIClient
 from .analyze import (
     Analyzer,
     FilterCriteria,
+    TrendCriteria,
     append_ios_status,
     omit_recent,
     sort_titles,
@@ -32,6 +34,7 @@ from .logger import LogMe
 from .matching import match_titles
 from .models.patch import PatchTitle
 from .models.ui import UIDefaults
+from .plist_manager import PropertylistManager
 
 
 class PatcherClient:
@@ -133,6 +136,41 @@ class PatcherClient:
         self.data = DataManager(disable_cache=disable_cache)
         self.api = PatcherAPIClient(max_concurrency=concurrency) if enable_installomator else None
         self.ui_config = ui_config if ui_config is not None else UIDefaults().model_dump()
+
+    @classmethod
+    def from_state(cls, **overrides: Any) -> "PatcherClient":
+        """
+        Construct a ``PatcherClient`` using state already persisted on this Mac.
+
+        Reads Jamf credentials from the macOS keychain, UI customization
+        from the property list, and the ``enable_installomator`` toggle.
+        Equivalent to what the ``patcherctl`` CLI does on startup; useful
+        for library callers running on a workstation that has already been
+        through the setup wizard.
+
+        Any keyword argument accepted by :meth:`__init__` can be passed as
+        an override (commonly ``concurrency`` or ``debug``).
+
+        :param overrides: Optional ``PatcherClient`` constructor kwargs that
+            take precedence over what's read from on-disk state.
+        :return: A configured ``PatcherClient`` ready to call.
+        :rtype: :class:`PatcherClient`
+        :raises PatcherError: If keychain credentials are missing (i.e.
+            ``patcherctl`` setup hasn't completed on this machine).
+        """
+        plist = PropertylistManager()
+        ui_settings = plist.get("UserInterfaceSettings")
+        enable_installomator = bool(plist.get("enable_installomator"))
+
+        kwargs: dict[str, Any] = {
+            "config": ConfigManager(),
+            "enable_installomator": enable_installomator,
+        }
+        if ui_settings:
+            kwargs["ui_config"] = ui_settings
+        kwargs.update(overrides)
+
+        return cls(**kwargs)
 
     async def fetch_patches(
         self,
@@ -236,6 +274,78 @@ class PatcherClient:
         analyzer = Analyzer(self.data)
         return analyzer.filter_titles(criteria, threshold=threshold, top_n=top_n)
 
+    async def analyze_excel(
+        self,
+        excel_path: str | Path,
+        criteria: FilterCriteria | str,
+        *,
+        threshold: float | None = 70.0,
+        top_n: int | None = None,
+    ) -> list[PatchTitle]:
+        """
+        Filter and sort patch titles loaded from a saved Excel report.
+
+        Library equivalent of ``patcherctl analyze --excel-file``. The Excel
+        file is loaded into a fresh DataFrame, hydrated into ``PatchTitle``
+        objects, and filtered exactly like :meth:`analyze`.
+
+        :param excel_path: Path to a previously-exported Patcher Excel report.
+        :type excel_path: str | :class:`pathlib.Path`
+        :param criteria: Filter criterion (enum or CLI string).
+        :type criteria: :class:`~patcher.core.analyze.FilterCriteria` | str
+        :param threshold: Completion-percent cutoff for ``below_threshold``.
+        :type threshold: float | None
+        :param top_n: Optional result cap. Ignored by ``below_threshold`` and
+            ``zero_completion``.
+        :type top_n: int | None
+        :return: Filtered + sorted titles loaded from the Excel file.
+        :rtype: list[:class:`~patcher.core.models.patch.PatchTitle`]
+        :raises PatcherError: If the file is missing, empty, or unparseable.
+        """
+        if isinstance(criteria, str):
+            criteria = FilterCriteria.from_cli(criteria)
+
+        analyzer = Analyzer(excel_path=excel_path, data_manager=self.data)
+        return analyzer.filter_titles(criteria, threshold=threshold, top_n=top_n)
+
+    async def analyze_trend(
+        self,
+        criteria: TrendCriteria | str,
+        *,
+        save_to: str | Path | None = None,
+    ):
+        """
+        Compute trend analysis across every cached patch dataset.
+
+        Library equivalent of ``patcherctl analyze --all-time --criteria``.
+        Reads every cached snapshot in the data cache and builds a trend
+        DataFrame keyed on the requested criterion.
+
+        :param criteria: Trend criterion (enum or CLI string, e.g.
+            ``"patch-adoption"``, ``"release-frequency"``,
+            ``"completion-trends"``).
+        :type criteria: :class:`~patcher.core.analyze.TrendCriteria` | str
+        :param save_to: Optional path. When provided, the trend DataFrame is
+            also written to disk as HTML. Parent directories are created if
+            needed.
+        :type save_to: str | :class:`pathlib.Path` | None
+        :return: Trend results as a :class:`pandas.DataFrame`. Empty if no
+            data is available for the requested criterion.
+        :rtype: pandas.DataFrame
+        """
+        if isinstance(criteria, str):
+            criteria = TrendCriteria.from_cli(criteria)
+
+        analyzer = Analyzer(self.data)
+        trend_df = analyzer.timelapse(criteria)
+
+        if save_to is not None and not trend_df.empty:
+            save_to_path = Path(save_to)
+            save_to_path.parent.mkdir(parents=True, exist_ok=True)
+            trend_df.to_html(save_to_path, index=False)
+
+        return trend_df
+
     async def export(
         self,
         titles: list[PatchTitle],
@@ -285,6 +395,83 @@ class PatcherClient:
             formats=formats,
             header_color=header_color,
             device_reports=device_reports,
+        )
+
+    async def reset(
+        self,
+        kind: Literal["full", "UI", "creds", "cache"],
+        *,
+        credential: Literal["url", "client_id", "client_secret"] | None = None,
+    ) -> None:
+        """
+        Reset persisted state on this Mac. Library equivalent of
+        ``patcherctl reset <kind>``.
+
+        Unlike the CLI, :meth:`reset` does **not** re-launch the setup
+        wizard after a full reset — library callers can re-construct a
+        ``PatcherClient`` themselves once they've supplied new credentials.
+
+        Kinds:
+
+        - ``"cache"`` — empty the on-disk patch-data cache. Works in any mode.
+        - ``"creds"`` — delete Jamf credentials from the keychain. Pass
+          ``credential=`` to scope to a single key. Requires keychain-backed
+          mode (raises in in-memory mode).
+        - ``"UI"`` — clear UI customization from the property list. Requires
+          keychain-backed mode.
+        - ``"full"`` — every reset above, plus clears the ``setup_completed``
+          flag so the next ``patcherctl`` invocation re-runs the wizard.
+
+        :param kind: One of ``"full"``, ``"UI"``, ``"creds"``, ``"cache"``.
+        :type kind: str
+        :param credential: When ``kind="creds"``, restrict deletion to this
+            single credential. One of ``"url"``, ``"client_id"``,
+            ``"client_secret"``.
+        :type credential: str | None
+        :raises PatcherError: If ``kind`` is not ``"cache"`` and this client
+            was constructed with in-memory credentials (nothing on disk to
+            reset).
+        """
+        if kind == "cache":
+            if not self.data.reset_cache():
+                raise PatcherError("Reset cache: failure removing cached data.")
+            return
+
+        if self._config.in_memory_mode:
+            raise PatcherError(
+                f"reset(kind={kind!r}) requires keychain-backed credentials; "
+                "this client was constructed with in-memory credentials.",
+            )
+
+        plist = PropertylistManager()
+
+        if kind == "creds":
+            if credential is None:
+                self._config.reset_config()
+            else:
+                # Map the CLI-style argument to the keyring service-account name.
+                key_map = {
+                    "url": "URL",
+                    "client_id": "CLIENT_ID",
+                    "client_secret": "CLIENT_SECRET",
+                }
+                self._config.set_credential(key_map[credential], "")
+            return
+
+        if kind == "UI":
+            plist.remove("UserInterfaceSettings")
+            return
+
+        if kind == "full":
+            self._config.reset_config()
+            plist.remove("UserInterfaceSettings")
+            plist.remove("setup_completed")
+            self.data.reset_cache()
+            return
+
+        raise PatcherError(
+            f"reset(kind={kind!r}) is not a recognized reset kind.",
+            allowed=("full", "UI", "creds", "cache"),
         )
 
     async def aclose(self) -> None:

@@ -6,7 +6,7 @@ from ..core.exceptions import PatcherError
 from ..core.fonts import ensure_default_fonts
 from ..core.logger import LogMe
 from ..core.models.ui import UIConfigKeys, UIDefaults
-from .plist_manager import PropertylistManager
+from ..core.plist_manager import PropertylistManager
 
 
 class UIConfigManager:

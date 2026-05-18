@@ -4,7 +4,6 @@ from pathlib import Path
 import asyncclick as click
 from PIL import Image
 
-from ..cli.plist_manager import PropertylistManager
 from ..cli.ui_manager import UIConfigManager
 from ..clients import HTTPClient
 from ..clients.token_manager import TokenManager
@@ -13,6 +12,7 @@ from ..core.exceptions import APIResponseError, PatcherError, SetupError, TokenE
 from ..core.logger import LogMe
 from ..core.models.token import AccessToken
 from ..core.models.ui import UIConfigKeys, UIDefaults
+from ..core.plist_manager import PropertylistManager
 from .animation import Animation
 
 # Welcome messages
@@ -58,7 +58,7 @@ class Setup:
         :param ui_config: Handles UI-related configurations for the setup process.
         :type ui_config: :class:`~patcher.cli.ui_manager.UIConfigManager`
         :param plist_manager: Handles read/write operations to project property list.
-        :type plist_manager: :class:`~patcher.cli.plist_manager.PropertylistManager`
+        :type plist_manager: :class:`~patcher.core.plist_manager.PropertylistManager`
         """
         self.config = config
         self.ui_config = ui_config
