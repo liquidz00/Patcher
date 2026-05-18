@@ -9,12 +9,12 @@ from typing import Any
 from pydantic import ValidationError
 from rapidfuzz import fuzz, process
 
-from ..clients import HTTPClient
-from ..clients.jamf import JamfClient
-from .exceptions import APIResponseError, PatcherError
-from .logger import LogMe
-from .models.label import Label
-from .models.patch import PatchTitle
+from ..core.exceptions import APIResponseError, PatcherError
+from ..core.logger import LogMe
+from ..core.models.label import Label
+from ..core.models.patch import PatchTitle
+from . import HTTPClient
+from .jamf import JamfClient
 
 IGNORED_TEAMS = ["Frydendal", "Media", "LL3KBL2M3A"]  # "LL3KBL2M3A" - lcadvancedvpnclient
 

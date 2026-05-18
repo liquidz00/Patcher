@@ -6,7 +6,7 @@ pulls each label's ``.sh`` fragment in parallel (capped by an asyncio
 semaphore), parses the variable assignments, and upserts into the
 ``installomator_labels`` table.
 
-The parser mirrors Patcher's :class:`patcher.core.installomator.InstallomatorClient`
+The parser mirrors Patcher's :class:`patcher.clients.installomator.InstallomatorClient`
 behavior — handling literal ``key="value"`` assignments, shell expressions
 ``key=$(...)`` stored as raw strings, and bash arrays ``key=(...)``.
 
@@ -39,7 +39,7 @@ import httpx
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from patcher.core.installomator import parse_fragment
+from patcher.clients.installomator import parse_fragment
 from patcher_api.installomator_resolver import (
     InvalidOutput,
     Resolved,

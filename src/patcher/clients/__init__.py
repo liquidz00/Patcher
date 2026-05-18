@@ -110,7 +110,7 @@ class HTTPClient:
         Translates httpx-native errors to Patcher's :class:`APIResponseError`
         so callers see the same exception contract as the existing
         :meth:`fetch_json` path, notably the ``not_found=True`` flag on 404
-        responses, which :meth:`patcher.core.installomator.InstallomatorClient.match`
+        responses, which :meth:`patcher.clients.installomator.InstallomatorClient.match`
         uses to short-circuit gracefully.
 
         :param url: The URL to fetch.

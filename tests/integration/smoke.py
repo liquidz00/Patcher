@@ -53,7 +53,7 @@ logging.getLogger("Patcher").propagate = False
 # root to ``sys.path``; this script runs standalone, so we import the
 # normally-resolvable ``patcher`` package instead.
 from patcher import PatcherClient
-from patcher.core.installomator import InstallomatorClient
+from patcher.clients.installomator import InstallomatorClient
 from patcher.core.models.patch import PatchTitle
 
 # Same defaults as the integration suite. Credentials are intentionally

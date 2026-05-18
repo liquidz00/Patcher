@@ -28,7 +28,7 @@ Patterns outside this vocabulary raise :class:`UnsupportedOperation`. Callers
 can opt into :func:`_subprocess_fallback` (handing the pipeline to ``bash``)
 by passing ``allow_subprocess_fallback=True``.
 
-Historically lived under ``patcher.core.installomator``. Moved here because
+Historically lived under ``patcher.clients.installomator``. Moved here because
 resolution is a Patcher-API ingest concern, not a ``patcher`` package
 concern — the package consumes resolved values via the API rather than
 running pipelines itself.

@@ -9,10 +9,10 @@ that ``__all__`` accurately describes the public API.
 from unittest.mock import AsyncMock
 
 import pytest
+from src.patcher.clients.installomator import InstallomatorClient as _IomCanonical
 from src.patcher.clients.jamf import JamfClient as _JamfFromClient
 from src.patcher.core.exceptions import APIResponseError as _APIErr
 from src.patcher.core.exceptions import PatcherError as _PatcherErr
-from src.patcher.core.installomator import InstallomatorClient as _IomCanonical
 from src.patcher.core.models.patch import PatchDevice as _DeviceFromCore
 from src.patcher.core.models.patch import PatchTitle as _TitleFromCore
 from src.patcher.core.patcher_client import PatcherClient as _PatcherCanonical

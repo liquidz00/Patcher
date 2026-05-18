@@ -56,6 +56,7 @@ CLI-only objects (``Setup``, ``UIConfigManager``, ``PropertylistManager``,
 """
 
 from .__about__ import __version__
+from .clients.installomator import InstallomatorClient
 from .clients.jamf import JamfClient
 from .core.analyze import FilterCriteria, TrendCriteria
 from .core.exceptions import (
@@ -65,7 +66,6 @@ from .core.exceptions import (
     PatcherError,
     TokenError,
 )
-from .core.installomator import InstallomatorClient
 from .core.models.patch import PatchDevice, PatchTitle
 from .core.patcher_client import PatcherClient
 

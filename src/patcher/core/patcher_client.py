@@ -15,6 +15,7 @@ For raw, lower-level access without ``PatcherClient``, see
 
 from pathlib import Path
 
+from ..clients.installomator import InstallomatorClient
 from ..clients.jamf import JamfClient
 from .analyze import (
     Analyzer,
@@ -26,7 +27,6 @@ from .analyze import (
 from .config_manager import ConfigManager
 from .data_manager import DataManager
 from .exceptions import PatcherError
-from .installomator import InstallomatorClient
 from .logger import LogMe
 from .models.patch import PatchTitle
 from .models.ui import UIDefaults
