@@ -82,7 +82,7 @@ docs: openapi-schema  ## Build Sphinx documentation
 	$(UV) run sphinx-build -b html docs/ docs/_build/
 
 openapi-schema:  ## Regenerate docs/_generated/openapi.json from FastAPI app
-	$(UV) run python scripts/generate_openapi.py
+	$(UV) run python api/scripts/generate_openapi.py
 
 init-vendor-docs:  ## One-time after clone - pull submodule content
 	git submodule update --init --recursive
