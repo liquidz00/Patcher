@@ -112,7 +112,7 @@ class ConfigManager:
     def delete_credential(self, key: str) -> bool:
         """
         Deletes the provided credential in the keyring under the specified key. Primarily intended for
-        use with the ``--reset`` flag (See :meth:`~patcher.core.config_manager.ConfigManager.reset`).
+        use with the ``--reset`` flag (See :meth:`~patcher.core.config_manager.ConfigManager.reset_config`).
 
         If the specified credential could not be deleted, an error is logged.
 

@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Removed
+- **`patcher.core.models.fragment.Fragment` Pydantic model** and the corresponding `docs/reference/models/fragment.md` reference page. The class was kept around in `src/patcher/core/models/fragment.py` as scaffolding for a future use case that never materialized: zero non-self imports across `src/`, `tests/`, `api/`, and `docs/`; not exported from `patcher` or `patcher.core.models.__all__`; no test coverage. Library callers somehow constructing `Fragment` directly will see `ImportError` on `from patcher.core.models.fragment import Fragment`; there is no replacement because there were no consumers.
+
 ### Added
 - **API documentation built out** at `docs/api/endpoints.md` and `docs/api/examples.md`. Endpoints page covers auth, base URL, caching semantics (ETag + Cache-Control + If-None-Match), every `/apps*` endpoint with parameters and response shapes, error reference, and OpenAPI schema pointer. Examples page has tab-set blocks with `bash` (curl) and `python` (httpx) for setup, list/filter/fetch/sources/generate-label, ETag-aware revalidation, full pagination loops, and error handling. Roadmap note for a future `PatcherAPIClient` helper class. The deploy-internal `/admin/catalog/upload` endpoint is intentionally omitted from the public docs.
 - **README mention of the Patcher API**. Short section pointing readers to <https://api.patcherctl.dev> and the docs, with the private-beta + Slack-access framing matching `docs/api/endpoints.md`. README scope otherwise unchanged (still primarily a `patcherctl` library + CLI README).

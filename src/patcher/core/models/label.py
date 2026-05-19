@@ -123,7 +123,7 @@ class Label(UpstreamModel):
         ``installomatorLabel``, ...) or the snake_case Python field names.
 
         Both forms are accepted thanks to ``populate_by_name=True`` on
-        :class:`~patcher.core.models.UpstreamModel`. Only keys that match
+        ``UpstreamModel``. Only keys that match
         a known field name or alias are forwarded to the constructor;
         unknown keys are silently dropped.
 

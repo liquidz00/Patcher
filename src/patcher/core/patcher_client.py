@@ -5,7 +5,7 @@ Composes the per-service clients (:class:`JamfClient`,
 :class:`PatcherAPIClient`) and data layer (:class:`DataManager`) into
 a single object library callers instantiate. CLI users construct the
 same object via the existing ``Setup`` flow, which populates a
-:class:`ConfigManager` and hands it to ``PatcherClient`` through the
+:class:`~patcher.core.config_manager.ConfigManager` and hands it to ``PatcherClient`` through the
 ``config=`` argument.
 
 For raw, lower-level access without ``PatcherClient``, see
@@ -68,7 +68,7 @@ class PatcherClient:
                 )
             # connection pool released here
 
-        An in-memory :class:`ConfigManager` is built internally. No keyring
+        An in-memory :class:`~patcher.core.config_manager.ConfigManager` is built internally. No keyring
         backend required, no plist mutation, no disk I/O on construction.
         ``PatcherClient`` is usable as an async context manager (preferred
         for clean shutdown) or as a regular object (call :meth:`aclose`
@@ -148,7 +148,7 @@ class PatcherClient:
         for library callers running on a workstation that has already been
         through the setup wizard.
 
-        Any keyword argument accepted by :meth:`__init__` can be passed as
+        Any keyword argument accepted by ``__init__`` can be passed as
         an override (commonly ``concurrency`` or ``debug``).
 
         :param overrides: Optional ``PatcherClient`` constructor kwargs that
@@ -186,8 +186,8 @@ class PatcherClient:
 
         Composes the granular pipeline: policies → summaries → (optional
         Installomator match) → (optional iOS append) → (optional sort/filter).
-        Equivalent to manually chaining :meth:`jamf.get_policies`,
-        :meth:`jamf.get_summaries`,
+        Equivalent to manually chaining ``self.jamf.get_policies``,
+        ``self.jamf.get_summaries``,
         :func:`~patcher.core.matching.match_titles`,
         :func:`~patcher.core.analyze.append_ios_status`,
         :func:`~patcher.core.analyze.omit_recent`, and
@@ -242,9 +242,9 @@ class PatcherClient:
         Filter and sort patch titles by a named criterion. The library
         equivalent of the CLI's ``analyze`` subcommand.
 
-        Accepts either a :class:`FilterCriteria` enum value or a CLI-style
+        Accepts either a :class:`~patcher.core.analyze.FilterCriteria` enum value or a CLI-style
         string (e.g. ``"most-installed"``, ``"below-threshold"``). String
-        inputs are normalized via :meth:`FilterCriteria.from_cli`.
+        inputs are normalized via :meth:`~patcher.core.analyze.FilterCriteria.from_cli`.
 
         :param titles: Patch titles to analyze. Typically the output of
             :meth:`fetch_patches`.
@@ -360,7 +360,7 @@ class PatcherClient:
     ) -> dict[str, str]:
         """
         Export patch titles to one or more report formats. Convenience
-        wrapper around :meth:`data.export`.
+        wrapper around ``self.data.export``.
 
         :param titles: Patch titles to include in the report.
         :type titles: list[:class:`~patcher.core.models.patch.PatchTitle`]

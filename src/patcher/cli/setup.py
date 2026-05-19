@@ -358,7 +358,7 @@ class Setup:
         Non-interactive setup path for CI/CD environments.
 
         Skips all prompts (setup type, InstallomatorClient, UI configuration). The provided
-        credentials are stored via the configured :class:`ConfigManager`. When that
+        credentials are stored via the configured :class:`~patcher.core.config_manager.ConfigManager`. When that
         manager is in in-memory mode (the typical CI/CD setup) the macOS keychain is
         not touched. An access token is then fetched so subsequent API calls succeed.
 

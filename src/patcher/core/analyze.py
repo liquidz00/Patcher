@@ -70,7 +70,7 @@ async def omit_recent(titles: list[PatchTitle], hours: int = 48) -> list[PatchTi
 async def append_ios_status(titles: list[PatchTitle], api: JamfClient) -> list[PatchTitle]:
     """
     Fetch iOS device/version data via ``api`` + the SOFA feed and append
-    per-iOS-version :class:`PatchTitle` summaries to ``titles``.
+    per-iOS-version :class:`~patcher.core.models.patch.PatchTitle` summaries to ``titles``.
 
     :param titles: Existing PatchTitle list to extend.
     :type titles: list[:class:`~patcher.core.models.patch.PatchTitle`]

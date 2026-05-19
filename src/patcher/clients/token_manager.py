@@ -180,9 +180,9 @@ class TokenManager:
     async def ensure_valid_token(self) -> AccessToken:
         """
         Verify the current access token is valid (present and not expired);
-        refresh it if not. Pydantic :class:`ValidationError` from the
+        refresh it if not. Pydantic ``ValidationError`` from the
         underlying token or client objects is translated to
-        :class:`TokenError` so callers see a single, consistent exception
+        :exc:`~patcher.core.exceptions.TokenError` so callers see a single, consistent exception
         type for token-validation failures.
 
         Called by :meth:`~patcher.clients.jamf.JamfClient._headers` on

@@ -4,7 +4,7 @@ Default font download helper.
 Pulled out of :class:`patcher.cli.ui_manager.UIConfigManager` so library
 callers generating PDF reports can ensure the bundled Assistant fonts
 are present on disk without instantiating the CLI's UIConfigManager
-(which is plist-coupled and lives in :mod:`patcher.cli`).
+(which is plist-coupled and lives in the ``patcher.cli`` package).
 """
 
 import ssl

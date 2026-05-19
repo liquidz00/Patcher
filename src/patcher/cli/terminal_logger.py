@@ -74,7 +74,7 @@ def install_terminal_handler(debug: bool) -> None:
 
 def install_terminal_excepthook() -> None:
     """
-    Chain a terminal-styled excepthook onto :meth:`PatcherLog.custom_excepthook`.
+    Chain a terminal-styled excepthook onto :meth:`~patcher.core.logger.PatcherLog.custom_excepthook`.
 
     The core hook logs unhandled exceptions to file. This wrapper additionally
     emits a one-line red error message and a hint about the log file to

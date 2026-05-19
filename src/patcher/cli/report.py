@@ -3,7 +3,7 @@ CLI-side report orchestration.
 
 Drives the ``patcherctl export`` workflow: wraps the patch-data pipeline
 (fetch policies → fetch summaries → filter/sort → match Installomator
-labels → export to disk) in an :class:`Animation` spinner and prints a
+labels → export to disk) in an :class:`~patcher.cli.animation.Animation` spinner and prints a
 success banner. Library callers should use the underlying transforms in
 :mod:`patcher.core.analyze` and call ``patcher.data.export(...)``
 directly.

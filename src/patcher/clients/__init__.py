@@ -41,7 +41,7 @@ class HTTPClient:
         """
         Set the maximum concurrency level for outbound API requests, with validation.
 
-        Read access is via the :attr:`max_concurrency` attribute directly;
+        Read access is via the ``self.max_concurrency`` attribute directly;
         this method exists specifically for validated writes. It is recommended
         to keep the value at no more than 5 to avoid overloading Jamf. See
         the class docstring for the upstream guidance.
@@ -107,7 +107,7 @@ class HTTPClient:
         """
         Fetch the body of a URL as text via httpx.
 
-        Translates httpx-native errors to Patcher's :class:`APIResponseError`
+        Translates httpx-native errors to Patcher's :class:`patcher.core.exceptions.APIResponseError`
         so callers see the same exception contract as the existing
         :meth:`fetch_json` path, notably the ``not_found=True`` flag on 404
         responses, which :meth:`patcher.clients.installomator.InstallomatorClient.match`
@@ -159,7 +159,7 @@ class HTTPClient:
 
     def _raise_for_status(self, status_code: int, response_json: dict | None) -> None:
         """
-        Raise :class:`APIResponseError` if ``status_code`` is non-2xx.
+        Raise :class:`patcher.core.exceptions.APIResponseError` if ``status_code`` is non-2xx.
 
         2xx is a no-op (control returns to the caller, which uses
         ``response_json`` directly). 404 carries ``not_found=True`` so callers
@@ -215,8 +215,8 @@ class HTTPClient:
         :attr:`http`). Form-encoded vs JSON request bodies are selected based
         on the ``Content-Type`` header of the merged request headers; the
         same routing logic the prior curl-based implementation used. Non-2xx
-        responses are translated via :meth:`_raise_for_status` into
-        :class:`APIResponseError` (with ``not_found=True`` on 404), preserving
+        responses are translated via :meth:`patcher.clients.HTTPClient._raise_for_status` into
+        :class:`patcher.core.exceptions.APIResponseError` (with ``not_found=True`` on 404), preserving
         the public exception contract for callers.
 
         :param url: The URL to fetch data from.
@@ -293,11 +293,11 @@ class HTTPClient:
         """
         Fetches JSON data in batches to respect the concurrency limit.
 
-        Data is fetched from each URL in the provided list, ensuring that no more than ``max_concurrency`` requests are sent concurrently.
+        Data is fetched from each URL in the provided list, ensuring that no more than ``patcher.clients.HTTPClient.max_concurrency`` requests are sent concurrently.
 
         :param urls: list of URLs to fetch data from.
         :type urls: list[str]
-        :param headers: Optional headers to include in the request. Defaults to ``self.headers`` via the :meth:`~patcher.clients.__init__.fetch_json` method.
+        :param headers: Optional headers to include in the request. Defaults to ``self.headers`` via the :meth:`~patcher.clients.HTTPClient.fetch_json` method.
         :type headers: dict[str, str] | None
         :param query_params: Additional query parameters to append to the URL. Defaults to None.
         :type query_params: dict[str, str] | None

@@ -222,7 +222,7 @@ class PatcherAPIClient(HTTPClient):
         ``GET /apps/{slug}/sources`` — fetch per-source payloads for a slug.
 
         Returns ``None`` on 404. Source values inside the returned
-        :class:`AppSources` object are ``None`` for sources that didn't
+        :class:`~patcher.clients.patcher_api.AppSources` object are ``None`` for sources that didn't
         contribute data for this slug.
         """
         try:
@@ -237,7 +237,7 @@ class PatcherAPIClient(HTTPClient):
         """
         ``POST /apps/{slug}/generate-label`` — server-side label projection.
 
-        Returns ``None`` on 404. The returned :class:`GeneratedLabel` carries
+        Returns ``None`` on 404. The returned :class:`~patcher.clients.patcher_api.GeneratedLabel` carries
         a ``warnings`` array surfacing fields that couldn't be resolved
         (most commonly ``expectedTeamID`` for Cask-only apps).
         """

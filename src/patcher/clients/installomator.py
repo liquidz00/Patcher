@@ -146,7 +146,7 @@ class InstallomatorClient:
         """
         Return the set of every label name currently available in Installomator.
 
-        Fetches and parses :data:`_LABELS_TXT_URL`. The result is cached on the instance for the session; subsequent calls do not re-fetch.
+        Fetches and parses ``_LABELS_TXT_URL``. The result is cached on the instance for the session; subsequent calls do not re-fetch.
 
         :return: A set of label script names (e.g. ``{"googlechrome", "1password8", ...}``).
         :rtype: set[str]
@@ -181,7 +181,7 @@ class InstallomatorClient:
 
         1. Instance cache (``self._labels_by_name``)
         2. On-disk cache (``~/Library/Application Support/Patcher/.labels/<name>.sh``)
-        3. HTTP fetch from :data:`_FRAGMENT_URL_TEMPLATE`
+        3. HTTP fetch from ``_FRAGMENT_URL_TEMPLATE``
 
         :param name: The Installomator script name (e.g. ``"googlechrome"``).
             Case-insensitive; normalized to lowercase before lookup.
@@ -208,7 +208,7 @@ class InstallomatorClient:
                     f"Could not read cached fragment {cache_path}; will refetch. Details: {e}"
                 )
 
-        # HTTP fetch. `fetch_text` raises `APIResponseError` on non-2xx
+        # HTTP fetch. `fetch_text` raises `patcher.core.exceptions.APIResponseError` on non-2xx
         # (with `not_found=True` on 404) so we don't silently parse "404:
         # Not Found" bodies as labels. Treat any fetch failure as
         # best-effort: log and return None so a single broken label
@@ -241,7 +241,7 @@ class InstallomatorClient:
         Fetch and parse multiple Installomator labels in parallel.
 
         :param names: Specific label script names to fetch. If ``None`` (the
-            default), fetches **every** label listed in :data:`_LABELS_TXT_URL`,
+            default), fetches **every** label listed in ``_LABELS_TXT_URL``,
             typically ~700 HTTP calls on first run and served from disk cache
             on subsequent runs. Prefer passing a concrete name list when you
             know what you need.

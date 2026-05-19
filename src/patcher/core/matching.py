@@ -96,11 +96,11 @@ async def match_titles(
     review_file: Path | None = DEFAULT_REVIEW_FILE,
 ) -> None:
     """
-    Match each :class:`PatchTitle` against the API catalog and populate
-    ``install_label`` with Label stubs for matches.
+    Match each :class:`~patcher.core.models.patch.PatchTitle` against the API
+    catalog and populate ``install_label`` with Label stubs for matches.
 
     Mutates the input list in place. Titles that pattern-match
-    :data:`_IGNORED_TITLES` are skipped silently.
+    the module's ``_IGNORED_TITLES`` list are skipped silently.
 
     :param patch_titles: The list of ``PatchTitle`` objects to match.
     :type patch_titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
