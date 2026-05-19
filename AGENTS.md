@@ -120,7 +120,7 @@ api/                          # patcher-api workspace member (the API service)
 
 tests/                        # patcherctl tests (flat, conftest.py for shared fixtures)
 docs/                         # Sphinx + MyST + Shibuya theme
-                              # getting-started/, usage/, integrations/, concepts/,
+                              # getting-started/, guides/, integrations/, concepts/,
                               # api/, reference/, contributing/, faq.md, troubleshooting.md
 vendor-docs/                  # Upstream Installomator + AutoPkg wikis (git submodules)
 ```
@@ -189,7 +189,7 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`,
   and excluded from the default `make test`. Use them as a smoke layer for
   significant changes (e.g. transport migrations), but they are NOT a
   substitute for mocked unit tests, since the dummy instance data isn't
-  comprehensive. See `docs/contributing/index.rst` for details.
+  comprehensive. See `docs/project/contributing.rst` for details.
 - **Manual smoke script** at `tests/integration/smoke.py`, runnable via
   `make smoke-test`. Hand-curated end-to-end checks (auth, iOS pipeline,
   Installomator labels, synthetic analyze + export) with colored pass/fail
@@ -206,7 +206,7 @@ Patcher supports running without keychain access via `--client-id` /
 `--client-secret` / `--url` flags or `PATCHER_CLIENT_ID` /
 `PATCHER_CLIENT_SECRET` / `PATCHER_URL` env vars. When all three are present,
 `ConfigManager(in_memory_credentials={...})` is used and the keychain is
-never touched. See `docs/usage/automation.md` for the user-facing contract.
+never touched. See `docs/guides/automation.md` for the user-facing contract.
 
 When adding features, **don't break this**: avoid hardcoding paths to
 `~/Library/Application Support/...` or assuming a macOS keychain backend
@@ -243,12 +243,12 @@ file an issue and tackle separately.
 User-facing docs are organized by audience-neutral topic under `docs/`:
 
 - `docs/getting-started/`: install, configure Jamf, set up CLI / library
-- `docs/usage/`: day-to-day commands and library calls (export, analyze, reset, automation)
+- `docs/guides/`: day-to-day commands and library calls (export, analyze, reset, automation)
 - `docs/integrations/`: Installomator and other data-source integrations
 - `docs/concepts/`: architecture, matching logic, local data storage
 - `docs/api/`: the hosted Patcher API service (public catalog; admin endpoints gated)
 - `docs/reference/`: auto-generated source-code reference (reStructuredText)
-- `docs/contributing/`, `docs/faq.md`, `docs/troubleshooting.md`
+- `docs/project/`, `docs/faq.md`, `docs/troubleshooting.md`
 
 Pages are Markdown via MyST except `docs/reference/` (RST). The Shibuya theme
 is configured via captioned root toctrees in `docs/index.md`; each caption
