@@ -1,15 +1,15 @@
 ---
-description: "End-to-end curl and Python httpx examples for the Patcher API. Covers filtering, pagination, ETag revalidation, label generation, and error shapes."
+description: "End-to-end curl and PatcherAPIClient examples for the Patcher API. Covers filtering, pagination, ETag revalidation, label generation, and error shapes."
 ---
 
 # Examples
 
 :::{rst-class} lead
-End-to-end `curl` and `httpx` (Python) examples for talking to the Patcher API.
+End-to-end `curl` and {class}`~patcher.clients.patcher_api.PatcherAPIClient` examples for talking to the Patcher API.
 :::
 
 ```{note}
-The catalog is public — no authentication. Examples below talk straight to `api.patcherctl.dev`. A first-class `PatcherAPIClient` is being added to the `patcher` package; until it ships, the patterns below are the recommended shape.
+The catalog is public, no authentication required. Examples below talk to `api.patcherctl.dev`. Python users should reach for {class}`~patcher.clients.patcher_api.PatcherAPIClient` from the `patcher` package, which wraps the same endpoints with typed Pydantic models. If you can't take the `patcher` dependency, the raw HTTP shape is straightforward; see the `bash` tabs (or use `httpx` / `requests` with the same URLs and params).
 ```
 
 ## Setup
@@ -30,12 +30,18 @@ export PATCHER_API_URL="https://api.patcherctl.dev"
 :sync: python
 
 ```python
-import httpx
+import asyncio
+from patcher import PatcherAPIClient
 
-API_URL = "https://api.patcherctl.dev"
+async def main():
+    async with PatcherAPIClient() as api:
+        # examples below assume they run inside this block
+        ...
 
-client = httpx.Client(base_url=API_URL, timeout=30.0)
+asyncio.run(main())
 ```
+
+`PatcherAPIClient()` defaults to `https://api.patcherctl.dev`. Override `base_url=` for a self-hosted deployment or a local `make serve-api` instance.
 
 ::::
 :::::
@@ -60,12 +66,12 @@ curl -sS "${PATCHER_API_URL}/apps?limit=10" | jq .
 :sync: python
 
 ```python
-response = client.get("/apps", params={"limit": 10})
-response.raise_for_status()
-apps = response.json()
+apps = await api.list_apps(limit=10)
 for app in apps:
-    print(app["slug"], app["current_version"])
+    print(app.slug, app.current_version)
 ```
+
+`list_apps` returns `list[App]`. The Pydantic model means `app.slug`, `app.current_version`, `app.sources`, etc., are typed attributes rather than dict keys.
 
 ::::
 :::::
@@ -91,12 +97,8 @@ curl -sS "${PATCHER_API_URL}/apps?source=installomator&limit=1000" \
 :sync: python
 
 ```python
-response = client.get(
-    "/apps",
-    params={"source": "installomator", "limit": 1000},
-)
-response.raise_for_status()
-both = [a for a in response.json() if "homebrew_cask" in a["sources"]]
+apps = await api.list_apps(source="installomator", limit=1000)
+both = [a for a in apps if "homebrew_cask" in a.sources]
 print(f"{len(both)} apps in both Installomator and Cask")
 ```
 
@@ -104,12 +106,12 @@ print(f"{len(both)} apps in both Installomator and Cask")
 :::::
 
 ```{note}
-The `source` and `exclude_source` filters compose. Querying `?source=installomator&exclude_source=homebrew_cask` would return Installomator apps that have **no** Cask coverage. The filter is applied server-side before pagination, so `limit` reflects the filtered result count rather than a pre-filter slice.
+The `source` and `exclude_source` filters compose. Passing both `source="installomator"` and `exclude_source="homebrew_cask"` returns Installomator apps that have **no** Cask coverage. Filtering is applied server-side before pagination, so `limit` reflects the filtered result count rather than a pre-filter slice.
 ```
 
 ## Fetch a single app
 
-Returns `404` if the slug isn't in the catalog.
+The package method returns `None` on 404 rather than raising. The HTTP endpoint returns a `404` with a `detail` field.
 
 :::::{tab-set}
 :sync-group: lang
@@ -127,13 +129,11 @@ curl -sS "${PATCHER_API_URL}/apps/firefox" | jq .
 :sync: python
 
 ```python
-response = client.get("/apps/firefox")
-if response.status_code == 404:
+app = await api.get_app("firefox")
+if app is None:
     print("Not in catalog")
 else:
-    response.raise_for_status()
-    app = response.json()
-    print(app["current_version"], app["download_url"])
+    print(app.current_version, app.download_url)
 ```
 
 ::::
@@ -159,16 +159,17 @@ curl -sS "${PATCHER_API_URL}/apps/firefox/sources" | jq .
 :sync: python
 
 ```python
-response = client.get("/apps/firefox/sources")
-response.raise_for_status()
-sources = response.json()
-# Source values are null when that source didn't contribute.
-if sources["installomator"]:
-    print("Installomator label:", sources["installomator"]["label_name"])
-if sources["homebrew_cask"]:
-    print("Cask token:", sources["homebrew_cask"]["token"])
-if sources["autopkg"]:
-    print(f"{len(sources['autopkg']['recipes'])} AutoPkg recipes")
+sources = await api.get_app_sources("firefox")
+if sources is None:
+    return
+
+# Each source attribute is None when that source didn't contribute.
+if sources.installomator:
+    print("Installomator label:", sources.installomator.label_name)
+if sources.homebrew_cask:
+    print("Cask token:", sources.homebrew_cask.token)
+if sources.autopkg:
+    print(f"{len(sources.autopkg.recipes)} AutoPkg recipes")
 ```
 
 ::::
@@ -176,7 +177,7 @@ if sources["autopkg"]:
 
 ## Generate an Installomator label
 
-Projects an app's Cask + Installomator source data into a label-shaped dict you can drop into your Installomator deployment.
+Projects an app's Cask + Installomator source data into a label-shaped object you can drop into your Installomator deployment.
 
 :::::{tab-set}
 :sync-group: lang
@@ -194,15 +195,15 @@ curl -sS -X POST "${PATCHER_API_URL}/apps/firefox/generate-label" | jq .
 :sync: python
 
 ```python
-response = client.post("/apps/firefox/generate-label")
-response.raise_for_status()
-label = response.json()
+label = await api.generate_label("firefox")
+if label is None:
+    return
 
-print(f"# Generated label: {label['label_name']}")
-print(f"# Sources used: {', '.join(label['sources_used'])}")
-for warning in label["warnings"]:
+print(f"# Generated label: {label.label_name}")
+print(f"# Sources used: {', '.join(label.sources_used)}")
+for warning in label.warnings:
     print(f"# WARN: {warning}")
-for key, value in label["content"].items():
+for key, value in label.content.items():
     print(f'{key}="{value}"')
 ```
 
@@ -213,13 +214,11 @@ The endpoint returns a `warnings` array surfacing fields that couldn't be resolv
 
 ## Use the ETag to skip unchanged downloads
 
-Every read response carries an `ETag` whose value is the SHA-256 of the underlying catalog DB. The hash changes exactly when a fresh catalog deploys (typically once per day). Clients that store the ETag from the first response and send it back on subsequent requests get a `304 Not Modified` short-circuit when nothing has changed — no body transfer, no DB read on the server.
+Every read response carries an `ETag` whose value is the SHA-256 of the underlying catalog DB. The hash changes exactly when a fresh catalog deploys (typically once per day). Clients that store the ETag from the first response and send it back on subsequent requests get a `304 Not Modified` short-circuit when nothing has changed; no body transfer, no DB read on the server.
 
-:::::{tab-set}
-:sync-group: lang
-
-::::{tab-item} {iconify}`material-icon-theme:console` bash
-:sync: bash
+```{note}
+{class}`~patcher.clients.patcher_api.PatcherAPIClient` does not currently surface ETag caching as a method. The API sits behind Cloudflare, so identical requests typically resolve from edge cache before reaching origin. If you need explicit If-None-Match revalidation, drop to raw HTTP for that specific call.
+```
 
 ```bash
 # First request: store the ETag
@@ -232,61 +231,14 @@ curl -sS -o /dev/null -w "%{http_code}\n" \
   "${PATCHER_API_URL}/apps"
 ```
 
-::::
-
-::::{tab-item} {iconify}`material-icon-theme:python` python
-:sync: python
-
-```python
-cached_etag: str | None = None
-cached_body: list[dict] | None = None
-
-def fetch_apps() -> list[dict]:
-    global cached_etag, cached_body
-    headers = {}
-    if cached_etag:
-        headers["If-None-Match"] = cached_etag
-    response = client.get("/apps", headers=headers)
-    if response.status_code == 304:
-        # Catalog hasn't changed; our cache is still valid.
-        return cached_body
-    response.raise_for_status()
-    cached_etag = response.headers.get("ETag")
-    cached_body = response.json()
-    return cached_body
-```
-
-::::
-:::::
-
 ## Health check
 
-`/health` is unauthenticated, uncached, and intended for load-balancer probes or simple monitoring. Returns `{"status": "ok"}` when the API is up.
-
-:::::{tab-set}
-:sync-group: lang
-
-::::{tab-item} {iconify}`material-icon-theme:console` bash
-:sync: bash
+`/health` is unauthenticated, uncached, and intended for load-balancer probes or simple monitoring. Returns `{"status": "ok"}` when the API is up. Not exposed on {class}`~patcher.clients.patcher_api.PatcherAPIClient`; use raw HTTP if you need to probe.
 
 ```bash
 curl -sS "${PATCHER_API_URL}/health"
 # {"status":"ok"}
 ```
-
-::::
-
-::::{tab-item} {iconify}`material-icon-theme:python` python
-:sync: python
-
-```python
-response = client.get("/health")
-response.raise_for_status()
-assert response.json()["status"] == "ok"
-```
-
-::::
-:::::
 
 ## Pagination
 
@@ -316,22 +268,19 @@ done
 :sync: python
 
 ```python
-def iter_all_apps(page_size: int = 200):
+async def iter_all_apps(api: PatcherAPIClient, page_size: int = 200):
     offset = 0
     while True:
-        response = client.get(
-            "/apps",
-            params={"limit": page_size, "offset": offset},
-        )
-        response.raise_for_status()
-        page = response.json()
+        page = await api.list_apps(limit=page_size, offset=offset)
         if not page:
             return
-        yield from page
+        for app in page:
+            yield app
         offset += page_size
 
-for app in iter_all_apps():
-    print(app["slug"])
+async with PatcherAPIClient() as api:
+    async for app in iter_all_apps(api):
+        print(app.slug)
 ```
 
 ::::
@@ -339,7 +288,7 @@ for app in iter_all_apps():
 
 ## Error handling
 
-All non-2xx responses are JSON with a `detail` field. The most common shapes:
+All non-2xx responses are JSON with a `detail` field. The package wraps these as {exc}`~patcher.core.exceptions.APIResponseError`. `get_app`, `get_app_sources`, and `generate_label` swallow 404 specifically and return `None`; anything else raises.
 
 :::::{tab-set}
 :sync-group: lang
@@ -362,14 +311,17 @@ $ curl -sS "${PATCHER_API_URL}/apps?limit=99999" | jq .detail
 :sync: python
 
 ```python
-from httpx import HTTPStatusError
+from patcher import APIResponseError
 
 try:
-    response = client.get("/apps/no-such-app")
-    response.raise_for_status()
-except HTTPStatusError as exc:
-    detail = exc.response.json().get("detail", "(no detail)")
-    print(f"{exc.response.status_code}: {detail}")
+    apps = await api.list_apps(limit=99999)  # over server cap
+except APIResponseError as exc:
+    # Context is attached as kwargs (status_code, error, url, not_found).
+    print(f"{exc.status_code}: {exc.error}")
+
+# 404 is None, not an exception:
+missing = await api.get_app("no-such-app")
+assert missing is None
 ```
 
 ::::

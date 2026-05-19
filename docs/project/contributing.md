@@ -7,7 +7,7 @@ description: "Contribute to Patcher: bug reports, feature requests, PR workflow,
 # Contributing
 
 :::{rst-class} lead
-Contributions are welcome and don't require writing Python. Bug reports, feature requests, documentation improvements, and review feedback all move the project forward.
+Contributions are welcome and don't require writing Python.
 :::
 
 We firmly believe that diverse backgrounds strengthen a product. Share your ideas regardless of your programming experience — half the time the most valuable contribution is naming a problem clearly.
@@ -108,39 +108,47 @@ Run `make help` from the repo root to see the live list. The Makefile is the sou
 `make lint` before opening a PR catches the same checks CI runs. `make format` auto-fixes the mechanical ones. Neither is strictly required (pre-commit hooks and the GitHub runner enforce both), but running them locally is faster than waiting for CI to fail.
 ```
 
+(testing)=
+
+## Testing
+
+Three suites, each shaped for a different feedback loop. Together they cover what changes between commits, what changes when Jamf changes, and what changes when the catalog ingest changes.
+
+```{mermaid}
+%%{init: {'theme':'base', 'themeVariables': {'fontSize': '14px'}}}%%
+flowchart LR
+  Dev([Developer])
+  Unit[Unit<br/>tests/]
+  API[API<br/>api/tests/]
+  Integration[Integration<br/>tests/integration/]
+  Live[(dummy.jamfcloud.com)]
+  CI{{Every PR}}
+  Merge([Merge])
+
+  Dev --> Unit
+  Dev --> API
+  Dev -. opt-in .-> Integration
+  Integration -. real HTTP .-> Live
+  Unit --> CI
+  API --> CI
+  CI --> Merge
+```
+
+### Why three suites
+
+**Unit tests** (`tests/`, excluding `tests/integration/`) mock the HTTP and filesystem boundaries. They run on every PR and finish fast because the boundary is the contract that matters: when Jamf's API contract is stable, the unit suite is enough to catch regressions in our parsing, matching, and report-building code. This is the suite that turns red when you break refactor work.
+
+**API tests** (`api/tests/`) cover the catalog service itself: ingest from upstream sources, stitch logic, FastAPI routes, ETag behavior. They're separate from the package tests because the API can ship independently, but they run alongside the unit suite on every PR (`make test-api` is the second step in the [pytest workflow](https://github.com/liquidz00/Patcher/blob/main/.github/workflows/pytest.yml)).
+
+**Integration tests** (`tests/integration/`) hit Jamf's public [dummy instance](https://developer.jamf.com/jamf-pro/docs/populating-dummy-data) with no mocks at the HTTP boundary. They validate the full chain — credential loading, OAuth token flow, real HTTP, response parsing — against actual Jamf Pro responses. They are **not** in CI because hitting a shared dummy on every PR would be discourteous and slow. Run them locally before pushing anything that touches request shaping or response parsing: `make test-integration`.
+
+The [pytest workflow](https://github.com/liquidz00/Patcher/blob/main/.github/workflows/pytest.yml) badge on the [landing page](../index.md) is the live signal for unit + API. Click it for the latest run.
+
 (integration_tests)=
 
-## Integration tests
+### Integration: configuration
 
-Patcher includes an opt-in integration test suite that exercises a real Jamf Pro API instance rather than mocked components. Integration tests live in `tests/integration/` and are marked with the `integration` pytest marker.
-
-By default, `make test` **excludes** integration tests so the standard development loop stays fast and offline. Run them explicitly:
-
-```{code-block} console
-$ make test-integration
-```
-
-### What gets exercised
-
-Integration tests use real {class}`~patcher.core.config_manager.ConfigManager`, {class}`~patcher.clients.token_manager.TokenManager`, and {class}`~patcher.clients.jamf.JamfClient` objects — no mocks at the HTTP boundary. This validates the full chain: credential loading, OAuth token flow, real HTTP calls, response parsing, and error handling against actual Jamf Pro responses.
-
-Particularly useful when:
-
-- Verifying that a refactor (e.g. the httpx transport migration) hasn't changed observable behavior.
-- Reproducing a bug that only surfaces against real API responses.
-- Smoke-testing before a release.
-
-### Default target instance
-
-By default, integration tests target Jamf's [publicly-published dummy instance](https://developer.jamf.com/jamf-pro/docs/populating-dummy-data) at `https://dummy.jamfcloud.com`. The credentials are public and intentionally shareable. No setup is required to run against this default.
-
-```{note}
-Jamf documents that the dummy instance data "is not comprehensive nor does it truly mirror a production Jamf Pro environment." Treat it as smoke-test coverage, not exhaustive validation. Tokens issued by the dummy instance are also short-lived, which is why `seconds_remaining > 0` is the test idiom for verifying token freshness rather than the stricter {attr}`~patcher.core.models.token.AccessToken.is_expired`.
-```
-
-### Pointing at your own test tenant
-
-Set these environment variables before invoking the suite:
+By default, integration tests target the Jamf dummy instance with public credentials, so no setup is needed. To point at your own test tenant:
 
 ```{code-block} console
 $ export PATCHER_INTEGRATION_URL="https://your-tenant.jamfcloud.com"
@@ -149,21 +157,14 @@ $ export PATCHER_INTEGRATION_CLIENT_SECRET="..."
 $ make test-integration
 ```
 
-Each variable falls back independently. You can override just the URL while keeping the dummy credentials, for example.
+Each variable falls back independently. Override just the URL while keeping the dummy credentials if you want.
 
-### Not in CI
-
-The integration suite does **not** run in the default GitHub Actions workflow. Hitting a shared dummy instance on every PR would be discourteous and slow CI considerably. Run integration tests locally before pushing significant changes, or trigger them through a manual workflow when needed.
+```{note}
+Jamf documents that the dummy instance data "is not comprehensive nor does it truly mirror a production Jamf Pro environment." Treat it as smoke-test coverage, not exhaustive validation. Tokens issued by the dummy instance are also short-lived, which is why `seconds_remaining > 0` is the integration-suite idiom for verifying token freshness rather than the stricter {attr}`~patcher.core.models.token.AccessToken.is_expired`.
+```
 
 ## Next steps
 
 If anything in this guide is unclear, reach out on the [#patcher channel](https://macadmins.slack.com/archives/C07EH1R7LB0) in [MacAdmins Slack](https://www.macadmins.org). The maintainers are active there.
 
 If you're new to the GitHub PR flow, GitHub's [own documentation](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request-from-a-fork) is the canonical walkthrough. The [Keep on Coding](https://www.youtube.com/watch?v=jRLGobWwA3Y) YouTube video is an option for visual learners.
-
-```{toctree}
-:hidden:
-
-architecture
-roadmap
-```

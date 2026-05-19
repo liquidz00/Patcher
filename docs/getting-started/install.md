@@ -12,29 +12,30 @@ Getting Patcher onto your Mac in a single command.
 
 Patcher ships as a single PyPI package (`patcherctl`) that exposes both the `patcherctl` CLI and the importable `patcher` Python library. One install gives you both surfaces; pick whichever fits your workflow.
 
-:::{note}
-Patcher reports and analyzes patch state. It does **not** deploy software or run installers. If you need a deployment tool, look at [Installomator](https://github.com/Installomator/Installomator), [AutoPkg](https://github.com/autopkg/autopkg), [App Auto-Patch](https://github.com/App-Auto-Patch/App-Auto-Patch), or other alternatives.
-:::
-
-A few practical clarifications that come up often:
-
-- **Patcher runs on your admin workstation or CI runner, not on managed Macs.** Nothing gets installed on the devices being tracked.
-- **It reads from Jamf Pro's existing patch-management view.** That data needs to be populated in Jamf first; Patcher is an analysis layer on top, not a replacement for the patch policies themselves.
-- **It surfaces state, not actions.** Patcher tells you what's stale, what's missing, and what's automation-ready. Closing those gaps still happens through the deployment tools above.
+```{note}
+The package is named `patcherctl` because `patcher` was already taken on PyPI. The project itself is still Patcher; only the install command and CLI binary carry the `ctl` suffix.
+```
 
 ## Prerequisites
 
-::::{grid} 3
+::::{grid} 1 2 3 3
 :gutter: 2
 :padding: 0
+:class-row: surface
 
-:::{grid-item-card} {iconify}`lucide:search` macOS (tested on 13+)
+:::{grid-item-card} {iconify}`material-icon-theme:applescript` macOS (13+)
+
+Patcher is macOS-only, sorry Windows users!
 :::
 
-:::{grid-item-card} {iconify}`lucide:file-bar-chart` Python 3.11 or newer
+:::{grid-item-card} {iconify}`material-icon-theme:python` Python 3.11+
+
+From [Python.org](https://www.python.org/downloads/release/python-31115/) or install and use [uv](https://docs.astral.sh/uv/)
 :::
 
-:::{grid-item-card} {iconify}`lucide:server` Jamf Pro Access
+:::{grid-item-card} {iconify}`material-icon-theme:key` Jamf Pro Access
+
+For OAuth client credential creation and patch title management
 :::
 ::::
 
@@ -51,7 +52,7 @@ uv pip install patcherctl
 
 ::::
 
-::::{tab-item} {iconify}`material-icon-theme:pypi` pip
+::::{tab-item} {iconify}`material-icon-theme:python` pip
 :sync: pip
 
 ```bash
@@ -61,10 +62,8 @@ python3 -m pip install --upgrade patcherctl
 ::::
 :::::
 
-Verify the install:
-
-```console
-$ patcherctl --version
+```{tip}
+Patcher also ships a [Claude Code](https://claude.com/claude-code) skill that looks up Mac apps across Installomator, Homebrew Cask, AutoPkg, and vendor deployment docs with one slash command. See {doc}`claude-code` for install and usage.
 ```
 
 ## Nuances

@@ -1,9 +1,7 @@
 ---
 layout: landing
-# description:
 description: "Simplified patch management reporting for macOS fleets on Jamf Pro. Open-source Python CLI and library; PDF, HTML, Excel, and JSON exports."
 ---
-<div>
 
 # Patcher
 
@@ -13,10 +11,8 @@ description: "Simplified patch management reporting for macOS fleets on Jamf Pro
 ![](https://img.shields.io/pypi/v/patcherctl?color=yellow)
 ![](https://img.shields.io/badge/macOS-10.13%2B-blueviolet?logo=apple&logoSize=auto)
 
-</div>
-
 :::{rst-class} lead
-A Python package and CLI for **patch analysis, reporting, and catalog access** on macOS fleets managed by Jamf Pro.
+A Python package and CLI for **patch analysis and reporting** on macOS fleets managed by [Jamf Pro](https://jamf.com/products/jamf-pro/).
 :::
 
 :::{container} buttons
@@ -24,31 +20,80 @@ A Python package and CLI for **patch analysis, reporting, and catalog access** o
 [GitHub](https://github.com/liquidz00/Patcher)
 :::
 
-::::{grid} 1 1 2 3
+## Key Features
+
+::::{grid} 1 2 3 3
 :gutter: 2
 :padding: 0
+:class-row: surface
 
-:::{grid-item-card} {iconify}`lucide:search` Patch analysis
+:::{grid-item-card} {iconify}`octicon:graph-16` **Analysis**
+:link: guides/analyze
+:link-type: doc
 
 Cross-reference Jamf Pro's patch-management view of your fleet against [Installomator](https://github.com/Installomator/Installomator), [Homebrew](https://github.com/Homebrew/brew), [AutoPkg](https://github.com/autopkg/autopkg), and [Jamf App Installers](https://learn.jamf.com/r/en-US/jamf-pro-documentation-current/App_Installers).
 :::
 
-:::{grid-item-card} {iconify}`lucide:file-bar-chart` Reporting
+:::{grid-item-card} {iconify}`octicon:checklist-16` **Reporting**
+:link: guides/export
+:link-type: doc
 
-Export customizable reports in varying formats tailored to a tracked Jamf Pro instance.
+Export customizable reports into PDF, Excel, HTML and JSON formats tailored to a tracked Jamf Pro instance.
 :::
 
-:::{grid-item-card} {iconify}`lucide:server` Catalog API
+:::{grid-item-card} {iconify}`octicon:plug-16` **Catalog API**
+:link: reference/api/endpoints
+:link-type: doc
 
-A community-facing {doc}`JSON API </api/endpoints>` stitching the same upstream sources into a single queryable surface.
+A community-facing API stitching upstream application sources into a single queryable surface.
+:::
+
+:::{grid-item-card} {iconify}`octicon:terminal-16` **Library & CLI**
+:link: guides/recipes
+:link-type: doc
+
+Use as `patcherctl` or import as a Python library; same operations either way.
+:::
+
+:::{grid-item-card} {iconify}`octicon:workflow-16` **Unattended Runs**
+:link: guides/automation
+:link-type: doc
+
+Set it and forget it; recipes for automating Patcher with `launchd` and GitHub Actions support.
+:::
+
+:::{grid-item-card} {iconify}`octicon:paintbrush-16` **Custom branding**
+:link: getting-started/customization
+:link-type: doc
+
+PDF and HTML reports take your header text, footer, fonts, logo and accent color to bring reports to life.
+:::
+::::
+
+## Getting Help
+
+::::{grid} 1 2 2 2
+:gutter: 2
+:padding: 0
+:class-row: surface
+
+:::{grid-item-card} {iconify}`devicon:slack` MacAdmins Slack
+:link: https://macadmins.slack.com/archives/C07EH1R7LB0
+
+Join the `#patcher` channel and say hi.
+:::
+
+:::{grid-item-card} {iconify}`mdi:github` GitHub Issues
+:link: https://github.com/liquidz00/Patcher/issues/new?template=bug_report.yml
+
+Report bugs or submit feedback and feature requests.
+
 :::
 ::::
 
 ## License
 
 Patcher is licensed under the Apache License 2.0. See the [LICENSE](https://github.com/liquidz00/Patcher/blob/main/LICENSE) file for details.
-
-<!-- TODO -->
 
 
 ```{toctree}
@@ -59,36 +104,30 @@ getting-started/install
 getting-started/jamf-api
 getting-started/setup
 getting-started/customization
+getting-started/claude-code
 ```
 
 ```{toctree}
-:caption: Usage
+:caption: Guides
 :hidden:
 
-usage/export
-usage/analyze
-usage/reset
-usage/installomator
-usage/library
-usage/automation
+guides/export
+guides/analyze
+guides/reset
+guides/installomator
+guides/automation
+guides/recipes
 ```
 
 ```{toctree}
-:caption: Patcher API
+:caption: Project
 :hidden:
 
-api/endpoints
-api/examples
-```
-
-```{toctree}
-:caption: Development & Support
-:hidden:
-
-contributing/index
-support/data-storage
-support/faq
-support/troubleshooting
+project/contributing
+project/architecture
+project/roadmap
+project/data-storage
+project/troubleshooting
 ```
 
 ```{toctree}

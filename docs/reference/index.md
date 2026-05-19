@@ -1,77 +1,66 @@
+---
+description: "Patcher reference: Python library entry points, the REST API surface, data shapes, building blocks, helper classes, and CLI internals. Grouped by reader intent."
+---
+
 # Reference
 
-Auto-generated API reference, grouped by source layout. Sections mirror the package's top-level directories (`clients/`, `core/`, `cli/`, plus the model subpackage) so navigating from "I'm reading the source" to "where are the docs for this" is one-to-one.
+Auto-generated API reference, grouped by what you're trying to do, not where the file lives. If you're looking for a `patcherctl` flag or subcommand, those are documented inline on the relevant {doc}`Usage page </guides/export>`.
+
+::::{grid} 1 2 3 3
+:gutter: 2
+:padding: 0
+:class-row: surface
+
+:::{grid-item-card} {iconify}`octicon:package-16` **Library Classes**
+:link: library/index
+:link-type: doc
+
+The four classes most callers import. Each one owns one external surface (Jamf, the Patcher catalog API, the Installomator label registry) or composes the others ({class}`~patcher.core.patcher_client.PatcherClient`).
+:::
+
+:::{grid-item-card} {iconify}`octicon:plug-16` **REST API**
+:link: api/index
+:link-type: doc
+
+The public catalog at `api.patcherctl.dev`. Any-language consumers and shell scripts call it directly; Python consumers should reach for {class}`~patcher.clients.patcher_api.PatcherAPIClient` instead, which wraps the same endpoints with typed responses.
+:::
+
+:::{grid-item-card} {iconify}`octicon:database-16` **Data Models**
+:link: models/index
+:link-type: doc
+
+Pydantic models returned by the entry-point clients. These are what you destructure in your own code: iterate a list of `PatchTitle`, inspect a `Label`, render a `UIConfig`.
+:::
+
+:::{grid-item-card} {iconify}`octicon:tools-16` **Building Blocks**
+:link: building-blocks/index
+:link-type: doc
+
+Stable, less commonly imported. Reach for these when you're extending Patcher (custom HTTP transport, alternate config source, embedded analysis) rather than just using it.
+:::
+
+:::{grid-item-card} {iconify}`octicon:beaker-16` **Helper Classes**
+:link: helpers/index
+:link-type: doc
+
+Utility classes Patcher uses across the codebase: animation, structured logging, the exception hierarchy.
+:::
+
+:::{grid-item-card} {iconify}`octicon:gear-16` **CLI Internals**
+:link: internals/index
+:link-type: doc
+
+Implementation detail of `patcherctl`. Not part of the library's stable surface; documented for contributors who are reading or modifying the CLI.
+:::
+::::
 
 ```{toctree}
-:caption: Command-line
-:maxdepth: 2
+:hidden:
 
-cli
+library/index
+api/index
+models/index
+building-blocks/index
+helpers/index
+internals/index
 ```
-
-Every `patcherctl` flag, subcommand, exit code, and environment variable in one place.
-
-```{toctree}
-:caption: Top-Level
-:maxdepth: 3
-
-patcher_client
-```
-
-Library entry point. The orchestrator that composes the per-service clients, the data layer, and the matching pipeline.
-
-```{toctree}
-:caption: Clients
-:maxdepth: 3
-
-http_client
-jamf_client
-patcher_api_client
-installomator
-token_manager
-```
-
-`src/patcher/clients/`. HTTPClient is the shared httpx-with-truststore base; JamfClient and PatcherAPIClient are the per-service wrappers. InstallomatorClient is a standalone label fetcher; TokenManager handles Jamf OAuth bookkeeping.
-
-```{toctree}
-:caption: Core
-:maxdepth: 3
-
-analyze
-config_manager
-data_manager
-exceptions
-fonts
-logger
-pdf_report
-plist_manager
-```
-
-`src/patcher/core/`. Analysis primitives, configuration loading, on-disk patch-data cache, exception hierarchy, logging, PDF report writer, and macOS plist read/write.
-
-```{toctree}
-:caption: CLI
-:maxdepth: 3
-
-animation
-report
-setup
-terminal_logger
-ui_manager
-```
-
-`src/patcher/cli/`. Setup wizard, report orchestration, terminal animation, and the click-styled logging adapter. These power `patcherctl` and aren't part of the library's stable surface.
-
-```{toctree}
-:caption: Models
-:maxdepth: 2
-
-fragment
-jamf_models
-label
-patch
-token
-ui
-```
-
-`src/patcher/core/models/`. Pydantic data shapes shared across the package. `PatchTitle` and `PatchDevice` are the return shapes for `PatcherClient.fetch_patches` and the per-device report flows.

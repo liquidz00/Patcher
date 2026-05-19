@@ -1,5 +1,6 @@
 # Exceptions
 
-```{automodule} patcher.core.exceptions
-:members:
+```{eval-rst}
+.. automodule:: patcher.core.exceptions
+   :members:
 ```

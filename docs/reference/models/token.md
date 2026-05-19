@@ -1,6 +1,7 @@
 # Access Token
 
-```{autoclass} patcher.core.models.token.AccessToken
-:members:
-:exclude-members: model_computed_fields, model_config, model_fields
+```{eval-rst}
+.. autoclass:: patcher.core.models.token.AccessToken
+   :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
 ```

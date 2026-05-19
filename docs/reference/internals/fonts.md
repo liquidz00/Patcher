@@ -1,5 +1,6 @@
 # Fonts
 
-```{automodule} patcher.core.fonts
-:members:
+```{eval-rst}
+.. automodule:: patcher.core.fonts
+   :members:
 ```

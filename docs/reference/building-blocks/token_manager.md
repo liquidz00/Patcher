@@ -1,5 +1,6 @@
 # Token Manager
 
-```{autoclass} patcher.clients.token_manager.TokenManager
-:members:
+```{eval-rst}
+.. autoclass:: patcher.clients.token_manager.TokenManager
+   :members:
 ```

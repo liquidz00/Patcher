@@ -12,6 +12,27 @@ Read the stitched macOS app catalog without standing up your own ingestion pipel
 The Patcher API catalog is **public** — no authentication required for any `/apps*` endpoint. Admin endpoints used to upload fresh catalog data are gated behind a separate deploy token and not documented publicly.
 ```
 
+## Two ways in
+
+Pick the surface that matches your consumer:
+
+::::{grid} 2
+:gutter: 2
+:padding: 0
+
+:::{grid-item-card} {iconify}`material-icon-theme:python` `PatcherAPIClient`
+:link: /reference/library/patcher_api_client
+:link-type: doc
+
+For Python consumers. Async client wrapping every public endpoint, returning typed Pydantic models. Lives in the `patcher` package: `from patcher import PatcherAPIClient`. {doc}`See examples <examples>`.
+:::
+
+:::{grid-item-card} {iconify}`material-icon-theme:console` REST
+For any-language consumers, shell scripts, or one-off `curl` checks. The endpoint reference below plus the {ref}`OpenAPI schema <reference/api/endpoints:openapi schema>` are the full surface.
+:::
+
+::::
+
 ## Base URL
 
 ```
@@ -40,7 +61,7 @@ ETag headers are applied to `GET` requests under `/apps*` only. `/health` and ad
 The reference below is auto-generated from the live OpenAPI schema. When a route's signature or response model changes in code, this page follows automatically on the next docs build.
 
 ```{eval-rst}
-.. openapi:: ../_generated/openapi.json
+.. openapi:: ../../_generated/openapi.json
    :paths: /apps /apps/{slug} /apps/{slug}/sources /apps/{slug}/generate-label
    :examples:
 ```

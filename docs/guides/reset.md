@@ -5,7 +5,7 @@ description: "Reset Patcher's persisted state: credentials, UI configuration, ca
 (reset)=
 (resetting_patcher)=
 
-# Reset configuration
+# Resetting Configuration
 
 :::{rst-class} lead
 Wipe credentials, UI config, cached data, or everything at once. Granular control over Patcher's state.
@@ -113,11 +113,11 @@ async with PatcherClient.from_state() as patcher:
     await patcher.reset("full")
 ```
 
-The `"creds"`, `"UI"`, and `"full"` kinds require keychain-backed credentials and raise {class}`~patcher.PatcherError` when called on a client constructed with in-memory credentials.
+The `"creds"`, `"UI"`, and `"full"` kinds require keychain-backed credentials and raise {class}`~patcher.core.exceptions.PatcherError` when called on a client constructed with in-memory credentials.
 :::
 
 ::::
 
 :::{seealso}
-For more about cached data and where Patcher stores it, see {doc}`/support/data-storage`.
+For more about cached data and where Patcher stores it, see {doc}`/project/data-storage`.
 :::

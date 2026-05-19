@@ -1,5 +1,6 @@
 # Terminal Logger
 
-```{automodule} patcher.cli.terminal_logger
-:members:
+```{eval-rst}
+.. automodule:: patcher.cli.terminal_logger
+   :members:
 ```

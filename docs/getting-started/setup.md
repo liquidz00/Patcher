@@ -79,7 +79,7 @@ Pass `--fresh` to force the wizard regardless of saved completion state:
 $ patcherctl --fresh
 ```
 
-Use this when you want a clean slate without nuking cached data (for testing, fixing a typo'd credential, or rotating an API client). To also wipe credentials and cached data, use `patcherctl reset full` instead (see {doc}`/usage/reset`).
+Use this when you want a clean slate without nuking cached data (for testing, fixing a typo'd credential, or rotating an API client). To also wipe credentials and cached data, use `patcherctl reset full` instead (see {doc}`/guides/reset`).
 
 :::{note}
 If a previous Standard setup attempt failed *after* creating the API role and client on the Jamf side, a second Standard run will fail with a `400` because those objects already exist. Either delete them manually in Jamf and retry, or switch to SSO setup to reuse the existing client credentials.
@@ -110,11 +110,11 @@ You can skip generating a bearer token. Patcher handles obtaining and refreshing
 
 (library-quickstart)=
 
-Library callers skip the setup wizard entirely. Credentials are passed in-memory to {class}`~patcher.PatcherClient` and never touch disk or the macOS keychain.
+Library callers skip the setup wizard entirely. Credentials are passed in-memory to {class}`~patcher.core.patcher_client.PatcherClient` and never touch disk or the macOS keychain.
 
 ### Your first call
 
-The headline class is {class}`~patcher.PatcherClient`. It composes the per-service clients ({class}`~patcher.JamfClient`, {class}`~patcher.InstallomatorClient`) and a {class}`~patcher.core.data_manager.DataManager` into a single object:
+The headline class is {class}`~patcher.core.patcher_client.PatcherClient`. It composes the per-service clients ({class}`~patcher.clients.jamf.JamfClient`, {class}`~patcher.clients.installomator.InstallomatorClient`) and a {class}`~patcher.core.data_manager.DataManager` into a single object:
 
 ```python
 import asyncio
@@ -139,7 +139,7 @@ A few things to know:
 - **Async context manager preferred.** `async with PatcherClient(...) as patcher:` guarantees the underlying `httpx` connection pool is released on exit. If you can't use `async with` (e.g. FastAPI startup hooks), construct directly and call `await patcher.aclose()` when done.
 - **In-memory credentials.** Nothing is written to disk. No keyring backend required.
 - **Sensible default concurrency.** 5 concurrent Jamf API requests, the recommended ceiling per [Jamf's scalability best practices](https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices). Override with `concurrency=`.
-- **Returns Pydantic models.** {class}`~patcher.PatchTitle` and {class}`~patcher.PatchDevice` are the return shapes for the report-shaped methods. Import them from `patcher` if you want type-annotated code.
+- **Returns Pydantic models.** {class}`~patcher.core.models.patch.PatchTitle` and {class}`~patcher.core.models.patch.PatchDevice` are the return shapes for the report-shaped methods. Import them from `patcher` if you want type-annotated code.
 
 ### Construction options
 
@@ -183,7 +183,7 @@ finally:
     await client.aclose()
 ```
 
-{meth}`JamfClient.from_credentials <patcher.JamfClient.from_credentials>` wraps credentials in an in-memory {class}`~patcher.core.config_manager.ConfigManager`. No keyring backend, no disk I/O.
+{meth}`JamfClient.from_credentials <patcher.clients.jamf.JamfClient.from_credentials>` wraps credentials in an in-memory {class}`~patcher.core.config_manager.ConfigManager`. No keyring backend, no disk I/O.
 
 #### `InstallomatorClient` standalone
 
@@ -198,12 +198,12 @@ firefox = await iom.get_label("firefox")
 print(firefox.expected_team_id, firefox.download_url)
 ```
 
-Calling `match()` on a bare `InstallomatorClient()` (no `api=` argument) raises a clear {class}`~patcher.PatcherError`. Matching requires a configured Jamf client.
+Calling `match()` on a bare `InstallomatorClient()` (no `api=` argument) raises a clear {class}`~patcher.core.exceptions.PatcherError`. Matching requires a configured Jamf client.
 
 ### What's next
 
-- {doc}`/usage/export`: fetch and export patch reports
-- {doc}`/usage/analyze`: filter and trend cached data
+- {doc}`/guides/export`: fetch and export patch reports
+- {doc}`/guides/analyze`: filter and trend cached data
 - {doc}`/reference/index`: full method signatures for every public class
 
 ::::::

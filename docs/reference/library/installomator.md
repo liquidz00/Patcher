@@ -1,11 +1,13 @@
 # Installomator
 
 :::{seealso}
-{doc}`/usage/installomator` for the matching algorithm walkthrough.
+{doc}`/guides/installomator` for the matching algorithm walkthrough.
 :::
 
-```{autoclass} patcher.clients.installomator.InstallomatorClient
-:members:
+```{eval-rst}
+.. autoclass:: patcher.clients.installomator.InstallomatorClient
+   :members:
+   :private-members: _match_directly, _match_fuzzy
 ```
 
 :::{note}

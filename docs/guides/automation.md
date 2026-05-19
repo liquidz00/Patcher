@@ -2,7 +2,7 @@
 description: "Run Patcher unattended via launchd or in CI. Covers non-interactive mode, the KEYRING_BACKEND requirement for Linux runners, and a GitHub Actions example."
 ---
 
-# Automation
+# Automating Patcher
 
 :::{rst-class} lead
 Run Patcher unattended, either locally on a schedule with `launchd` or in CI/CD pipelines.
@@ -15,13 +15,6 @@ Two patterns cover most automation needs: a `launchd` LaunchAgent on a workstati
 (launch_agent)=
 
 For a workstation that runs Patcher on a schedule, a `launchd` LaunchAgent is the cleanest option. It hands the scheduling off to macOS and writes stdout/stderr to log files you can tail when something misbehaves.
-
-:::{dropdown} What's a LaunchAgent?
-:animate: fade-in-slide-down
-:icon: bookmark
-
-A LaunchAgent is a macOS service configuration file used to run tasks on behalf of logged-in users. It's part of the `launchd` system and is ideal for scheduling recurring user-scoped actions like report exports.
-:::
 
 :::{warning}
 Make sure both `python3` and `patcherctl` are on your `PATH`. When you install via PyPI, `patcherctl` lands in your Python user-base `bin` directory. See {ref}`add-path` if `patcherctl --version` fails to resolve.
@@ -95,7 +88,7 @@ To ensure the LaunchAgent is working:
 
 ## CI/CD & non-interactive mode
 
-For ephemeral environments (GitHub Actions runners, Linux build agents, etc.), Patcher runs in **non-interactive mode** — also called `in_memory_credentials` mode internally; the same mode {class}`PatcherClient <patcher.PatcherClient>` engages when library callers pass `client_id`, `client_secret`, and `server` directly. No keychain access, no setup wizard, no persistent state.
+For ephemeral environments (GitHub Actions runners, Linux build agents, etc.), Patcher runs in **non-interactive mode** — also called `in_memory_credentials` mode internally; the same mode {class}`PatcherClient <patcher.core.patcher_client.PatcherClient>` engages when library callers pass `client_id`, `client_secret`, and `server` directly. No keychain access, no setup wizard, no persistent state.
 
 ### Engaging non-interactive mode
 
@@ -139,7 +132,7 @@ The requested subcommand executes as soon as an access token is fetched. No wiza
 
 (linux-keyring)=
 
-### {iconify}`simple-icons:linux` Linux runners: keyring backend
+### Linux runners: keyring backend
 
 `patcherctl` imports the [`keyring`](https://pypi.org/project/keyring/) library as part of its credential plumbing. On Linux, `keyring` requires a backend that talks to a session keyring (typically Secret Service via D-Bus); CI runners and headless servers don't have one, which historically meant the import would crash before Patcher had a chance to run.
 

@@ -10,32 +10,34 @@ Features and source integrations planned for upcoming Patcher releases.
 
 This page is the source of truth for work that is scoped but not yet shipped. Items here are tracked in the [Patcher repository](https://github.com/liquidz00/Patcher); the API surface for some of them is already partially in place (the `App` model in the catalog reserves fields like `cves` that no ingest currently populates).
 
+**Status legend:** {iconify}`lucide:circle-dot style=color:#ea580c` In progress &nbsp;&nbsp; {iconify}`lucide:circle style=color:#9ca3af` Planned &nbsp;&nbsp; {iconify}`lucide:circle-check style=color:#16a34a` Shipped
+
 ::::{grid} 1 1 2 2
 :gutter: 2
 :padding: 0
 
-:::{grid-item-card} {iconify}`simple-icons:homebrew` Homebrew Cask
+:::{grid-item-card} {iconify}`simple-icons:homebrew` Homebrew Cask {iconify}`lucide:circle-dot style=color:#ea580c`
 :link: roadmap-homebrew-cask
 :link-type: ref
 
 Pull Cask metadata (bundle ID, canonical name, vendor) as a second matching dimension alongside Installomator.
 :::
 
-:::{grid-item-card} {iconify}`lucide:workflow` AutoPkg
+:::{grid-item-card} {iconify}`lucide:workflow` AutoPkg {iconify}`lucide:circle style=color:#9ca3af`
 :link: roadmap-autopkg
 :link-type: ref
 
 Match Jamf titles against the AutoPkg recipe catalog for broader, multi-maintainer coverage.
 :::
 
-:::{grid-item-card} {iconify}`lucide:store` Jamf App Installers
+:::{grid-item-card} {iconify}`lucide:store` Jamf App Installers {iconify}`lucide:circle style=color:#9ca3af`
 :link: roadmap-jai
 :link-type: ref
 
 Flag titles already covered by JAI so reports can surface "Patcher may not need to track this."
 :::
 
-:::{grid-item-card} {iconify}`lucide:shield-alert` CVE sourcing for apps
+:::{grid-item-card} {iconify}`lucide:shield-alert` CVE sourcing for apps {iconify}`lucide:circle style=color:#9ca3af`
 :link: roadmap-cves
 :link-type: ref
 

@@ -2,18 +2,31 @@
 
 # Analyzer
 
-```{autoclass} patcher.core.analyze.Analyzer
-:members:
-```
+```{eval-rst}
+.. py:module:: patcher.core.analyze
 
-```{autoclass} patcher.core.analyze.BaseEnum
-:members:
-```
+.. autoclass:: Analyzer
+   :members:
 
-```{autoclass} patcher.core.analyze.FilterCriteria
-:members:
-```
+.. autoclass:: BaseEnum
+   :members:
 
-```{autoclass} patcher.core.analyze.TrendCriteria
-:members:
+.. autoclass:: FilterCriteria
+   :members:
+   :inherited-members:
+
+.. autoclass:: TrendCriteria
+   :members:
+   :inherited-members:
+
+.. autofunction:: sort_titles
+
+.. autofunction:: omit_recent
+
+.. autofunction:: append_ios_status
+
+.. py:module:: patcher.core.matching
+   :no-index:
+
+.. autofunction:: match_titles
 ```

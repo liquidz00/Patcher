@@ -19,7 +19,7 @@ Customizable branding covers the header and footer text, the PDF font, an option
 ```
 
 :::{important}
-UI customization affects **PDF and HTML reports only**. Excel and JSON exports never read these settings. See [Customizing report appearance](/usage/export.md#customizing-report-appearance) in the export docs for the full story.
+UI customization affects **PDF and HTML reports only**. Excel and JSON exports never read these settings. See [Customizing report appearance](/guides/export.md#customizing-report-appearance) in the export docs for the full story.
 :::
 
 ## How customization works
@@ -28,7 +28,7 @@ Three flows. Pick whichever fits your environment:
 
 ::::{tab-set}
 
-:::{tab-item} {iconify}`mdi:wizard-hat` CLI wizard
+:::{tab-item} {iconify}`material-icon-theme:console` CLI wizard
 :sync: wizard
 
 The simplest path. `patcherctl reset UI` walks you through every UI setting in order and writes the result to your property list. Run it once when onboarding, or any time you want to refresh your branding.
@@ -41,7 +41,7 @@ The wizard prompts for header text, footer text, font choice, optional logo, and
 
 :::
 
-:::{tab-item} {iconify}`mdi:file-cog-outline` Manual plist edit
+:::{tab-item} {iconify}`material-icon-theme:xml` Manual plist edit
 :sync: plist
 
 Best for scripted provisioning (Jamf policy, Munki, Workspace ONE, etc.) where you want to seed Patcher's branding before any user runs the wizard. Use `PlistBuddy` to write directly to the property list:
@@ -58,7 +58,7 @@ Per-key examples are in the sections below. For the full plist schema (including
 :::{tab-item} {iconify}`material-icon-theme:python` Library
 :sync: library
 
-Pass a `ui_config` dict when constructing {class}`~patcher.PatcherClient`. Values stay in memory for the lifetime of the client; nothing is written to disk.
+Pass a `ui_config` dict when constructing {class}`~patcher.core.patcher_client.PatcherClient`. Values stay in memory for the lifetime of the client; nothing is written to disk.
 
 ```python
 from patcher import PatcherClient
@@ -97,7 +97,7 @@ The rest of the page covers each element in detail, with both a `PlistBuddy` com
 
 ::::{tab-set}
 
-:::{tab-item} Plist
+:::{tab-item} {iconify}`material-icon-theme:xml` plist
 :sync: plist
 
 ```console
@@ -109,7 +109,7 @@ $ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:footer_text 'Made with 
 
 :::
 
-:::{tab-item} Library
+:::{tab-item} {iconify}`material-icon-theme:python` Library
 :sync: library
 
 ```python
@@ -133,7 +133,7 @@ Custom fonts can introduce alignment or spacing quirks in the PDF. Run a test ex
 
 ::::{tab-set}
 
-:::{tab-item} Plist
+:::{tab-item} {iconify}`material-icon-theme:xml` plist
 :sync: plist
 
 ```console
@@ -147,7 +147,7 @@ $ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:bold_font_path '/path/t
 
 :::
 
-:::{tab-item} Library
+:::{tab-item} {iconify}`material-icon-theme:python` Library
 :sync: library
 
 ```python
@@ -168,7 +168,7 @@ ui_config = {
 
 ::::{tab-set}
 
-:::{tab-item} Plist
+:::{tab-item} {iconify}`material-icon-theme:xml` plist
 :sync: plist
 
 ```console
@@ -178,7 +178,7 @@ $ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:header_color '#0071bc'"
 
 :::
 
-:::{tab-item} Library
+:::{tab-item} {iconify}`material-icon-theme:python` Library
 :sync: library
 
 ```python
@@ -209,14 +209,14 @@ Need to generate a logo file from an existing icon? SAP's [`macOS-icon-generator
 
 ::::{tab-set}
 
-:::{tab-item} CLI wizard
+:::{tab-item} {iconify}`material-icon-theme:console` CLI wizard
 :sync: wizard
 
 `patcherctl reset UI` prompts for a logo path during the UI walkthrough. If you provide one, Patcher copies the file to its Application Support directory and writes the resulting path to the plist.
 
 :::
 
-:::{tab-item} Plist
+:::{tab-item} {iconify}`material-icon-theme:xml` plist
 :sync: plist
 
 ```console
@@ -228,7 +228,7 @@ If you set the path manually, copy the logo file somewhere stable yourself. Patc
 
 :::
 
-:::{tab-item} Library
+:::{tab-item} {iconify}`material-icon-theme:python` Library
 :sync: library
 
 ```python

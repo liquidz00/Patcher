@@ -101,7 +101,7 @@ To rule out configuration drift, run a full reset. This wipes credentials, UI co
 $ patcherctl reset full
 ```
 
-See {doc}`/usage/reset` for the granular alternatives.
+See {doc}`/guides/reset` for the granular alternatives.
 
 :::{admonition} Known issue
 :class: danger
@@ -118,10 +118,9 @@ $ python3 -m pip uninstall patcherctl
 $ python3 -m pip install patcherctl
 ```
 
-:::{admonition} Optional
-:class: admonition-optional
+```{note}
 Before reinstalling, wipe the Application Support directory at `~/Library/Application Support/Patcher/` **except** the `logs` subdirectory. The logs help diagnose what caused the original problem.
-:::
+```
 
 ## TLS / corporate proxies
 

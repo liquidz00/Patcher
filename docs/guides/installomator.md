@@ -4,7 +4,7 @@ description: "How Patcher matches Jamf titles against Installomator labels. Cove
 
 (installomator)=
 
-# Installomator
+# Installomator Integration
 
 :::{rst-class} lead
 Each Jamf patch title gets a flag for "an Installomator label exists for this app" so reports can highlight what's automation-ready and what isn't.

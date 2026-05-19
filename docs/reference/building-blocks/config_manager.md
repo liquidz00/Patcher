@@ -1,5 +1,6 @@
 # Config Manager
 
-```{autoclass} patcher.core.config_manager.ConfigManager
-:members:
+```{eval-rst}
+.. autoclass:: patcher.core.config_manager.ConfigManager
+   :members:
 ```

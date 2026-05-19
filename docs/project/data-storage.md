@@ -10,32 +10,25 @@ description: "Where Patcher writes on your Mac: the Application Support director
 Where Patcher writes on your Mac, and how to inspect, modify, or reset each piece.
 :::
 
-
 ## How Patcher Stores Data Locally
 
 Patcher stores information locally for session persistence:
 
-::::{grid} 1
+::::{grid} 3
 :gutter: 2
 :padding: 0
 
 :::{grid-item-card} {iconify}`material-icon-theme:folder-content` `~/Library/Application Support/Patcher/`
-:link: application_support_dir
-:link-type: ref
 
 Property list (configuration), cached Installomator labels, unmatched-apps file, custom fonts and logo
 :::
 
 :::{grid-item-card} {iconify}`material-icon-theme:folder-assembly` `~/Library/Caches/Patcher/`
-:link: patch_data_cache
-:link-type: ref
 
 Cached patch report data
 :::
 
 :::{grid-item-card} {iconify}`material-icon-theme:lock` Login keychain (service `Patcher`)
-:link: keychain_creds
-:link-type: ref
 
 Jamf API URL, Client ID, Client Secret, OAuth token + expiration
 :::
@@ -44,7 +37,7 @@ Jamf API URL, Client ID, Client Secret, OAuth token + expiration
 
 (application_support_dir)=
 
-### Application Support directory
+## Application Support directory
 
 Everything Patcher writes outside of the keychain and the patch-data cache lives under `~/Library/Application Support/Patcher/`:
 
@@ -68,30 +61,28 @@ The property list at `~/Library/Application Support/Patcher/com.liquidzoo.patche
 
 (v2_format_change)=
 
-#### Format
+:::{dropdown} {iconify}`material-icon-theme:xml` Property list keys
 
-```{versionchanged} 2.1.1
-The property list format was updated for clarity and consistency. Patcher migrates the old format automatically on first run and writes a backup before doing so.
-```
-
-| Setting | Old key | New key |
-|---|---|---|
-| UI settings dict | `UI` | `UserInterfaceSettings` |
-| Header text | `HEADER_TEXT` | `header_text` |
-| Footer text | `FOOTER_TEXT` | `footer_text` |
-| Font name | `FONT_NAME` | `font_name` |
-| Regular font path | `FONT_REGULAR_PATH` | `reg_font_path` |
-| Bold font path | `FONT_BOLD_PATH` | `bold_font_path` |
-| Logo path | `LOGO_PATH` | `logo_path` |
-| HTML header color | *N/A* | `header_color` |
-| Setup completion | `first_run_done` (nested) | `setup_completed` (top-level) |
-| Installomator toggle | *N/A* | `enable_installomator` |
+| Setting | Key |
+|---|---|
+| UI settings dict | `UserInterfaceSettings` |
+| Header text | `header_text` |
+| Footer text | `footer_text` |
+| Font name | `font_name` |
+| Regular font path | `reg_font_path` |
+| Bold font path | `bold_font_path` |
+| Logo path | `logo_path` |
+| HTML header color | `header_color` |
+| Setup completion | `setup_completed` (top-level) |
+| Installomator toggle | `enable_installomator` |
+:::
 
 (modify_plist)=
 
-#### Modifying the plist
+:::{dropdown} {iconify}`material-icon-theme:mxml` Editing the binary plist
 
 `.plist` files default to binary format. `PlistBuddy` reads and writes binary directly, which makes it the right tool for surgical edits to nested dictionaries (notably anything under `UserInterfaceSettings`). For the editing commands themselves, see {doc}`/getting-started/customization`. For a one-off text-editor workflow, `plutil -convert xml1 <file>` round-trips the file via XML.
+:::
 
 #### UI customization keys
 
@@ -116,7 +107,7 @@ Don't edit `setup_completed` by hand. To re-run setup, use `patcherctl --fresh` 
 
 (full_example_config)=
 
-#### Full example
+:::{dropdown} {iconify}`material-icon-theme:xml` Full plist example
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -147,18 +138,19 @@ Don't edit `setup_completed` by hand. To re-run setup, use `patcherctl --fresh` 
 </dict>
 </plist>
 ```
+:::
 
 (patch_data_cache)=
 
-### Patch data cache
+## Patch data cache
 
-Patch report data fetched from Jamf is cached at `~/Library/Caches/Patcher/`. This is what powers `patcherctl analyze` against "the latest report" without re-fetching, and what `--all-time` trend analysis reads across.
+Patch report data fetched from Jamf is cached at `~/Library/Caches/Patcher/`. This is what powers Patcher's analysis functionality against "the latest report" without re-fetching, and what `--all-time` trend analysis reads across.
 
-To wipe the cache: `patcherctl reset cache` (CLI) or `patcher.data.reset_cache()` (library). To skip caching entirely on a per-invocation basis, construct {class}`~patcher.PatcherClient` with `disable_cache=True`.
+To wipe the cache: `patcherctl reset cache` (CLI) or `patcher.data.reset_cache()` (library). To skip caching entirely on a per-invocation basis, construct {class}`~patcher.core.patcher_client.PatcherClient` with `disable_cache=True`.
 
 (keychain_creds)=
 
-### Credentials in keychain
+## Credentials in keychain
 
 Jamf credentials live in the macOS login keychain under the service name `Patcher`:
 
@@ -170,6 +162,6 @@ Jamf credentials live in the macOS login keychain under the service name `Patche
 | `TOKEN` | Current OAuth access token (managed by Patcher) |
 | `TOKEN_EXPIRATION` | Token expiration timestamp (managed by Patcher) |
 
-The CLI's setup wizard writes the first three; the {class}`~patcher.clients.token_manager.TokenManager` manages the last two automatically. Library callers pass credentials in-memory to {class}`~patcher.PatcherClient` and bypass the keychain entirely (see {doc}`/getting-started/setup`).
+The CLI's setup wizard writes the first three; the {class}`~patcher.clients.token_manager.TokenManager` manages the last two automatically. Library callers pass credentials in-memory to {class}`~patcher.core.patcher_client.PatcherClient` and bypass the keychain entirely (see {doc}`/getting-started/setup`).
 
 To inspect the entries: open **Keychain Access**, switch to the **login** keychain, and filter by `Patcher`. To clear them: `patcherctl reset creds` (all) or `patcherctl reset creds --credential url` (one at a time).

@@ -5,7 +5,7 @@ description: "Patcher's internal architecture: the clients / core / cli package 
 # Architecture
 
 :::{rst-class} lead
-Patcher is organized as three internal packages (`clients/`, `core/`, `cli/`) with a small public surface in {mod}`patcher`. The CLI is a thin wrapper around `PatcherClient`; both surfaces share the same domain code.
+Patcher is organized as three internal packages (`clients/`, `core/`, `cli/`) with a small public surface in ``patcher``. The CLI is a thin wrapper around `PatcherClient`; both surfaces share the same domain code.
 :::
 
 ## The three internal packages
@@ -46,12 +46,12 @@ The single exception worth knowing: `cli/setup.py` imports from `clients/` and `
 
 ## `PatcherClient`: the entry point
 
-{class}`~patcher.PatcherClient` is the headline composer. It owns three collaborators that do real work:
+{class}`~patcher.core.patcher_client.PatcherClient` is the headline composer. It owns three collaborators that do real work:
 
 | Attribute | Type | Responsibility |
 |---|---|---|
-| `patcher.jamf` | {class}`~patcher.JamfClient` | All Jamf Pro API traffic |
-| `patcher.api` | {class}`~patcher.PatcherAPIClient` | Patcher catalog reads (matching, label enrichment); `None` when `enable_installomator=False` |
+| `patcher.jamf` | {class}`~patcher.clients.jamf.JamfClient` | All Jamf Pro API traffic |
+| `patcher.api` | {class}`~patcher.clients.patcher_api.PatcherAPIClient` | Patcher catalog reads (matching, label enrichment); `None` when `enable_installomator=False` |
 | `patcher.data` | {class}`~patcher.core.data_manager.DataManager` | On-disk patch-data cache + export pipeline |
 
 ```{mermaid}
@@ -162,7 +162,7 @@ There's no multi-tenant story today — a `PatcherClient` instance is bound to o
 
 ## Public surface
 
-The stable, importable surface is curated in {mod}`patcher` itself:
+The stable, importable surface is curated in ``patcher`` itself:
 
 ```python
 from patcher import (
@@ -190,4 +190,4 @@ Anything reachable via deeper paths (`patcher.cli.*`, `patcher.clients.HTTPClien
 
 The workspace imports `patcher.clients.installomator.parse_fragment` for label parsing (so both sides agree on what a label looks like). Everything else — the resolver that evaluates shell pipelines, the per-source ingest modules, the stitch logic, the FastAPI app itself — lives in `api/patcher_api/` and has its own dependencies, tests, and deploy pipeline.
 
-For library users, the hosted API is what `PatcherClient.fetch_patches` queries through `patcher.api`. You don't need to know about the workspace to use the library; the workspace exists because deploying the catalog service is independent from shipping the patcherctl Python package. See {doc}`/api/endpoints` for the API surface.
+For library users, the hosted API is what `PatcherClient.fetch_patches` queries through `patcher.api`. You don't need to know about the workspace to use the library; the workspace exists because deploying the catalog service is independent from shipping the patcherctl Python package. See {doc}`/reference/api/endpoints` for the API surface.

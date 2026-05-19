@@ -156,3 +156,7 @@ Follow the steps above to create the API role, client, and secret yourself. Then
 1. Temporarily [create a standard Jamf Pro user account](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Jamf_Pro_User_Accounts_and_Groups.html#ariaid-title3:~:text=Click%20Save%20.-,Creating%20a%20Jamf%20Pro%20User%20Account,-Requirements) with administrator privileges.
 2. Pass that account's credentials to Patcher's setup wizard. Patcher will create the API role and client on your behalf.
 3. After setup completes, delete the temporary account.
+
+## Multi-instance support
+
+Patcher can be reset and pointed at a different Jamf URL via `patcherctl reset creds` (or by constructing {class}`~patcher.core.patcher_client.PatcherClient` with different credentials), but it has only been exercised against a single Jamf instance configured with two [sites](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Sites.html). Multi-tenant patterns (one workstation hopping between two distinct Jamf Pro instances) work in principle but are unverified. File a bug if you hit issues; that path is a candidate for a real test.

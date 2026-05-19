@@ -4,7 +4,7 @@ description: "Filter and trend Patcher data by criterion. Covers the patcherctl 
 
 (analyze)=
 
-# Analyze data
+# Analyzing Data
 
 :::{rst-class} lead
 Filter, rank, and trend patch data to surface the software titles that need attention.
@@ -37,7 +37,7 @@ Criteria names are case-insensitive and dash/underscore-flexible. `most-installe
 | `zero-completion` | Titles with 0% completion |
 | `top-performers` | Titles with completion above 90% |
 | `high-missing` | Titles where missing patches are >50% of total hosts |
-| `installomator` | Titles that match an [Installomator](/usage/installomator) label. Helpful for identifying automation-ready software |
+| `installomator` | Titles that match an [Installomator](/guides/installomator) label. Helpful for identifying automation-ready software |
 
 ### Trend criteria
 

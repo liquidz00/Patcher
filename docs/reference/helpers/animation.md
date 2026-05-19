@@ -1,5 +1,6 @@
 # Animation
 
-```{autoclass} patcher.cli.animation.Animation
-:members:
+```{eval-rst}
+.. autoclass:: patcher.cli.animation.Animation
+   :members:
 ```

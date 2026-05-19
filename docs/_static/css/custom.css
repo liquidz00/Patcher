@@ -39,18 +39,3 @@ html.dark {
 .sd-table tr:hover {
     background-color: unset !important;
 }
-
-/* Custom "Optional" Admonition */
-div.admonition.admonition-optional {
-    border-color: hsl(0 0% 80%);
-}
-
-div.admonition.admonition-optional > .admonition-title {
-    background-color: hsl(0 0% 80%);
-    color: black;
-}
-
-div.admonition.admonition-optional > .admonition-title::after {
-    color: hsl(0 0% 30%);
-    content: "\f08d";
-}

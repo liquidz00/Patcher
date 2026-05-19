@@ -53,6 +53,7 @@ github_wiki_default = "Installomator"
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "pydantic": ("https://docs.pydantic.dev/latest", None),
+    "pandas": ("https://pandas.pydata.org/docs", None),
 }
 
 templates_path = ["_templates"]
@@ -61,8 +62,30 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # Autodoc options
 add_module_names = False
 autodoc_typehints = "both"
+autodoc_typehints_format = "fully-qualified"
 autodoc_member_order = "bysource"
 autosectionlabel_prefix_document = True
+
+nitpick_ignore = [
+    ("py:class", "annotated_types.MinLen"),
+    ("py:class", "min_length=1"),
+    ("py:class", "TracebackType"),
+    ("py:class", "fpdf.fpdf.FPDF"),
+    ("py:class", "truststore.SSLContext"),
+    ("py:class", "httpx.AsyncClient"),
+    ("py:func", "httpx.get"),
+    # patcher_api server-side schema not in this Sphinx tree.
+    ("py:class", "patcher_api.schemas.labels.GenerateLabelResponse"),
+    # Pydantic field on a Pydantic model: autodoc-pydantic renders it as an
+    # attribute the Python domain doesn't auto-register.
+    ("py:attr", "patcher.core.models.jamf.JamfCredentials.server"),
+]
+
+# Bare type-annotation names that autodoc emits from source signatures
+# (`def foo(p: Path)` shows up as `Path`, not `pathlib.Path`)
+nitpick_ignore_regex = [
+    ("py:class", r"^(Path|datetime|pd\.DataFrame)$"),
+]
 
 toc_object_entries_show_parents = "hide"
 
@@ -131,36 +154,13 @@ copybutton_prompt_text = r">>> |\.\.\. |\$ "
 copybutton_prompt_is_regexp = True
 
 # -- sphinx-sitemap ----------------------------------------------------------
-# Generates sitemap.xml at build time. Honors the canonical URL set in
-# html_baseurl. RTD's serving layer also injects robots.txt automatically.
 sitemap_url_scheme = "{link}"
 sitemap_excludes = ["404.html", "search.html", "genindex.html", "py-modindex.html"]
 
-# -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
-
-# Read the Docs serves under a version path (e.g. /en/latest/). Use the
-# canonical URL it exposes at build time so absolute links Shibuya
-# generates (e.g. the Copy page / View as Markdown buttons that point at
-# ``_sources/...``) resolve correctly. Falls back to the versioned latest
-# path for local builds.
+# -- RTD version awareness ---------------------------------------------------
 html_baseurl = os.environ.get(
     "READTHEDOCS_CANONICAL_URL", "https://docs.patcherctl.dev/en/latest/"
 )
-html_theme = "shibuya"
-html_favicon = "_static/v2-logo-favicon.svg"
-html_static_path = ["_static"]
-html_title = f"Patcher {release}"
-
-html_css_files = [
-    "css/custom.css",
-    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"
-]
-
-# -- RTD version awareness ---------------------------------------------------
-# READTHEDOCS_VERSION_NAME is set by Read the Docs at build time (e.g. "latest",
-# "develop", or a tag like "v2.4.0"). Used to pick a branch-appropriate banner
-# fed into Shibuya's ``announcement`` theme option.
 rtd_version = os.environ.get("READTHEDOCS_VERSION_NAME", "")
 
 if rtd_version == "develop":
@@ -172,6 +172,19 @@ if rtd_version == "develop":
     )
 else:
     _announcement = None
+
+# -- Options for HTML output -------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
+
+html_theme = "shibuya"
+html_favicon = "_static/v2-logo-favicon.svg"
+html_static_path = ["_static"]
+html_title = f"Patcher {release}"
+
+html_css_files = [
+    "css/custom.css",
+    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"
+]
 
 html_theme_options = {
     "color_mode": "auto",

@@ -2,10 +2,11 @@
 
 (child-logger)=
 
-```{autoclass} patcher.core.logger.PatcherLog
-:members:
+```{eval-rst}
+.. autoclass:: patcher.core.logger.PatcherLog
+   :members:
 ```
-
-```{autoclass} patcher.core.logger.LogMe
-:members:
+```{eval-rst}
+.. autoclass:: patcher.core.logger.LogMe
+   :members:
 ```

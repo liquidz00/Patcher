@@ -4,13 +4,13 @@ description: "Export Jamf patch reports as Excel, PDF, HTML, or JSON. Covers the
 
 (export)=
 
-# Export reports
+# Exporting Reports
 
 :::{rst-class} lead
-Pull patch data from Jamf and write it to disk as Excel, PDF, HTML, or JSON, from either the CLI or the library.
+Exporting patch management information into varying formats.
 :::
 
-By default, a single invocation writes the patch report in all four formats: Excel, PDF, HTML, and JSON. Pass `--format` (or `formats=` from the library) to narrow it down to one or two.
+By default, a single invocation writes the patch report in all four formats: Excel, PDF, HTML, and JSON. Restricting the output to one or two formats is one option away.
 
 ## Options
 
@@ -90,7 +90,7 @@ The PDF header date format defaults to `Month-Day-Year` (e.g. `January 31 2026`)
 
 ### Concurrency
 
-The `--concurrency` flag (and the `concurrency=` library kwarg) controls how many Jamf API requests Patcher runs in parallel. Default is `5`.
+Patcher fans out Jamf API requests in parallel, capped at 5 concurrent in-flight by default. Increase the cap for faster fetches on instances that can take the load, or lower it for tenants behind aggressive rate limiting.
 
 :::{warning}
 Cranking concurrency too high can starve other workloads on your Jamf server. **Stay at or below 5** unless you've coordinated with whoever owns the Jamf instance. See [Jamf's API scalability best practices](https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices).
@@ -99,7 +99,7 @@ Cranking concurrency too high can starve other workloads on your Jamf server. **
 ## Customizing report appearance
 
 :::{important}
-**UI configuration only applies to the PDF format.** Excel, HTML, and JSON exports render correctly without any UI configuration. If you're only generating machine-readable reports, you can skip the UI setup entirely.
+**UI configuration only applies to PDF and HTML formats.** Excel and JSON exports render correctly without any UI configuration. If you're only generating machine-readable reports, you can skip the UI setup entirely.
 
 If you request a PDF export without configuring UI settings first, `patcherctl` will print a warning and continue with placeholder header / footer text. Run `patcherctl reset UI` to configure, or omit `pdf` from `--format`.
 :::
