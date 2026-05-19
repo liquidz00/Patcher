@@ -103,7 +103,7 @@ api/                          # patcher-api workspace member (the API service)
 │   ├── main.py               # FastAPI app + lifespan (init_db + optional seed)
 │   ├── config.py             # Pydantic BaseSettings (env-driven, PATCHER_API_* prefix)
 │   ├── db.py                 # Async SQLAlchemy engine + session factory + init_db()
-│   ├── auth.py               # Bearer-token auth dependency (SHA-256 hashed at rest)
+│   ├── auth.py               # Deploy-token auth dependency for /admin (SHA-256 hashed at rest); /apps is public
 │   ├── seed.py               # Idempotent first-boot seeding from data.py
 │   ├── data.py               # In-memory SEED_APPS + SEED_SOURCES for bootstrap/tests
 │   ├── labels.py             # Installomator label generator (projects DB → label JSON)
@@ -111,9 +111,9 @@ api/                          # patcher-api workspace member (the API service)
 │   ├── routes/               # FastAPI routers (apps.py: list/get/sources/generate-label)
 │   ├── schemas/              # Pydantic request/response shapes
 │   ├── models/               # SQLAlchemy ORM (App, AppSourceDetail, HomebrewCask,
-│   │                         # InstallomatorLabel, Token)
+│   │                         # InstallomatorLabel, DeployToken)
 │   └── ingest/               # Upstream ingestion (homebrew.py, installomator.py)
-├── scripts/                  # Standalone CLI utilities: grant_token.py,
+├── scripts/                  # Standalone CLI utilities: grant_deploy_token.py,
 │                             # ingest_homebrew.py, ingest_installomator.py,
 │                             # stitch_catalog.py
 └── tests/                    # patcher-api tests (separate from patcherctl tests)
@@ -231,7 +231,7 @@ file an issue and tackle separately.
   knobs (`threshold`, `_normalize` rules). Adjust gingerly; consequences
   show up as missing or wrong label matches.
 - **The patcher-api ↔ patcherctl workspace coupling**: the API imports
-  `patcher.core.installomator` for `parse_fragment` and `resolve`, which
+  `patcher.clients.installomator` for `parse_fragment` and `resolve`, which
   pulls in patcherctl's full runtime dep tree (including `keyring`,
   `pandas`, `fpdf2`). Linux deployments must set
   `KEYRING_BACKEND=keyring.backends.null.Keyring` to avoid keyring's
@@ -246,7 +246,7 @@ User-facing docs are organized by audience-neutral topic under `docs/`:
 - `docs/usage/`: day-to-day commands and library calls (export, analyze, reset, automation)
 - `docs/integrations/`: Installomator and other data-source integrations
 - `docs/concepts/`: architecture, matching logic, local data storage
-- `docs/api/`: the hosted Patcher API service (private beta)
+- `docs/api/`: the hosted Patcher API service (public catalog; admin endpoints gated)
 - `docs/reference/`: auto-generated source-code reference (reStructuredText)
 - `docs/contributing/`, `docs/faq.md`, `docs/troubleshooting.md`
 
