@@ -71,7 +71,8 @@ docs = [
   "sphinx-copybutton",
   "sphinx-design",
   "sphinx-iconify>=0.3.0",
-  "sphinx-togglebutton",
+  "sphinx-sitemap>=2.6.0",
+  "sphinxcontrib-mermaid>=1.0.0",
   "sphinxcontrib-openapi>=0.8.4",
 ]
 
