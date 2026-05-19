@@ -30,34 +30,14 @@ html.dark {
     --yue-c-code-background: var(--gray-a3);
 }
 
-/* -- Announcement bar text alignment -------------------------------------
- * Center the announcement message. Shibuya's close button is already
- * absolutely positioned in the corner, so centering the inner container
- * doesn't disturb it. */
+/* Center the announcement message. */
 .announcement-inner {
     text-align: center;
 }
 
-/* -- Brand text in header -----------------------------------------------
- * Shibuya hides the ``<strong>Patcher</strong>`` title element when a
- * logo is present (``.sy-head-brand img+strong { display: none }`` in
- * the theme CSS). Restore it so the wordmark stays visible alongside
- * the logomark. */
-.sy-head-brand img + strong {
-    display: inline-block;
-    margin-left: 0.5rem;
-    font-size: 1.05rem;
-    color: var(--sy-c-heading);
-}
-
+/* Override hover when using sd-table directive */
 .sd-table tr:hover {
-    /* Override hover when using sd-table directive */
     background-color: unset !important;
-}
-
-.patcher-title {
-    font-size: 1.25rem;
-    font-weight: bold;
 }
 
 /* Custom "Optional" Admonition */
@@ -73,17 +53,4 @@ div.admonition.admonition-optional > .admonition-title {
 div.admonition.admonition-optional > .admonition-title::after {
     color: hsl(0 0% 30%);
     content: "\f08d";
-}
-
-.patcher-banner {
-    display: block;
-    margin: 20px;
-    max-width: 720px;
-    height: auto;
-    clear: both; /* Prevent text or floated elements from wrapping */
-}
-
-.patcher-banner + * {
-    clear: both;
-    margin-top: 20px;
 }
