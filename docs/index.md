@@ -1,12 +1,11 @@
 ---
 layout: landing
+# description:
+description: "Simplified patch management reporting for macOS fleets on Jamf Pro. Open-source Python CLI and library; PDF, HTML, Excel, and JSON exports."
 ---
+<div>
 
-<div align="center">
-
-```{image} _static/patcher-banner-readme.svg
-:width: 750
-```
+# Patcher
 
 ![](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=flat&logo=python&logoColor=white)
 ![](https://img.shields.io/github/v/release/liquidz00/Patcher?color=orange)
@@ -16,16 +15,34 @@ layout: landing
 
 </div>
 
-# Patcher Documentation
-
 :::{rst-class} lead
-Simplified patch management and reporting.
+A Python package and CLI for **patch analysis, reporting, and catalog access** on macOS fleets managed by Jamf Pro.
 :::
 
 :::{container} buttons
-[Get Started](getting-started/install.md)
+[Docs](getting-started/install.md)
 [GitHub](https://github.com/liquidz00/Patcher)
 :::
+
+::::{grid} 1 1 2 3
+:gutter: 2
+:padding: 0
+
+:::{grid-item-card} {iconify}`lucide:search` Patch analysis
+
+Cross-reference Jamf Pro's patch-management view of your fleet against [Installomator](https://github.com/Installomator/Installomator), [Homebrew](https://github.com/Homebrew/brew), [AutoPkg](https://github.com/autopkg/autopkg), and [Jamf App Installers](https://learn.jamf.com/r/en-US/jamf-pro-documentation-current/App_Installers).
+:::
+
+:::{grid-item-card} {iconify}`lucide:file-bar-chart` Reporting
+
+Export customizable reports in varying formats tailored to a tracked Jamf Pro instance.
+:::
+
+:::{grid-item-card} {iconify}`lucide:server` Catalog API
+
+A community-facing {doc}`JSON API </api/endpoints>` stitching the same upstream sources into a single queryable surface.
+:::
+::::
 
 ## License
 
@@ -34,107 +51,13 @@ Patcher is licensed under the Apache License 2.0. See the [LICENSE](https://gith
 <!-- TODO -->
 
 
-<!-- ## Features
-
-- **Real-Time Patch Information Export**: Quickly extract up-to-date patch data for analysis.
-- **Excel Spreadsheet Integration**: Seamlessly export patch information into Excel for in-depth analysis and record-keeping.
-- **PDF Reporting**: Generate neatly formatted PDFs for easy sharing and documentation of patch statuses.
-- **Customization Options**: Tailor the tool to match your organizations branding scheme with custom fonts and logo support.
-- **Analysis**: Quickly analyze Patch Reports to identify which software titles may need some extra TLC.
-
-::::{grid} 1 1 2 2
-:gutter: 2
-:padding: 2 2 0 0
-:class-container: sd-text-center
-
-:::{grid-item-card} {fas}`rocket;sd-text-primary` Getting Started
-:class-card: sd-card
-:class-title: patcher-title
-:shadow: md
-
-Connect Patcher to your Jamf Pro instance and run your first patch report.
-
-+++
-
-```{button-ref} getting-started/index
-:ref-type: myst
-:click-parent:
-:color: primary
-:expand:
-
-Get Started
-```
-
-:::
-
-:::{grid-item-card} {fas}`terminal;sd-text-primary` Usage
-:class-card: sd-card
-:class-title: patcher-title
-:shadow: md
-
-Day-to-day commands and library calls: export, analyze, reset, automate.
-
-+++
-
-```{button-ref} usage/index
-:ref-type: myst
-:click-parent:
-:color: primary
-:expand:
-
-Browse Usage
-```
-
-:::
-
-:::{grid-item-card} {fas}`puzzle-piece;sd-text-primary` Integrations
-:class-card: sd-card
-:class-title: patcher-title
-:shadow: md
-
-How Patcher enriches Jamf data with Installomator, Homebrew Cask, AutoPkg, and more.
-
-+++
-
-```{button-ref} integrations/index
-:ref-type: myst
-:click-parent:
-:color: primary
-:expand:
-
-See Integrations
-```
-
-:::
-
-:::{grid-item-card} {fas}`lightbulb;sd-text-primary` Concepts
-:class-card: sd-card
-:class-title: patcher-title
-:shadow: md
-
-How Patcher works under the hood: architecture, matching logic, local data storage.
-
-+++
-
-```{button-ref} concepts/index
-:ref-type: myst
-:click-parent:
-:color: primary
-:expand:
-
-Learn Concepts
-```
-
-:::
-:::: -->
-
 ```{toctree}
 :caption: Getting Started
 :hidden:
 
 getting-started/install
 getting-started/jamf-api
-getting-started/setup/index
+getting-started/setup
 getting-started/customization
 ```
 
@@ -145,25 +68,9 @@ getting-started/customization
 usage/export
 usage/analyze
 usage/reset
+usage/installomator
+usage/library
 usage/automation
-```
-
-```{toctree}
-:caption: Integrations
-:hidden:
-
-integrations/installomator
-integrations/homebrew-cask
-integrations/autopkg
-integrations/jamf-app-installers
-```
-
-```{toctree}
-:caption: Concepts
-:hidden:
-
-concepts/architecture
-concepts/data-storage
 ```
 
 ```{toctree}
@@ -175,9 +82,11 @@ api/examples
 ```
 
 ```{toctree}
-:caption: Support
+:caption: Development & Support
 :hidden:
 
+contributing/index
+support/data-storage
 support/faq
 support/troubleshooting
 ```

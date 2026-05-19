@@ -1,3 +1,7 @@
+---
+description: "Diagnose Patcher problems: debug mode, exit code lookup, TLS / corporate-proxy errors, keychain issues, and common Jamf API failures."
+---
+
 (support)=
 
 # Troubleshooting
@@ -65,7 +69,7 @@ Each log entry includes a timestamp, the {ref}`child logger <child-logger>` that
 2026-04-30 21:19:35,423 - Patcher.JamfClient - ERROR - Client error (401): [{'code': 'INVALID_TOKEN', 'description': 'Unauthorized', 'id': '0', 'field': None}]
 ```
 
-The child logger here is {class}`~patcher.client.jamf.JamfClient`. **Include the child logger in bug reports**; it tells us which component raised the error.
+The child logger here is {class}`~patcher.clients.jamf.JamfClient`. **Include the child logger in bug reports**; it tells us which component raised the error.
 :::
 
 :::{card} Debug & info

@@ -1,3 +1,7 @@
+---
+description: "Frequently asked questions about Patcher: name origin, license, supported Jamf APIs, deployment patterns, and other quick answers."
+---
+
 (faq)=
 
 # Frequently Asked Questions

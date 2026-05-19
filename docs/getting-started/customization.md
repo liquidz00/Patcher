@@ -1,3 +1,7 @@
+---
+description: "Customize Patcher's PDF and HTML report branding. Header, footer, font, logo, and HTML accent color via the CLI wizard, plist, or PatcherClient."
+---
+
 (customization)=
 
 # Customization
@@ -6,7 +10,7 @@
 Tailor Patcher's PDF and HTML reports to match your organization's branding.
 :::
 
-Patcher's PDF and HTML reports support a small set of branding tweaks: header and footer text, the PDF font, an optional company logo, and the HTML report's header color. The sample below shows where each element ends up.
+Customizable branding covers the header and footer text, the PDF font, an optional company logo, and the HTML report's header color. The sample below shows where each element ends up.
 
 ```{image} ../_static/example_pdf.png
 :alt: Example PDF
@@ -47,11 +51,11 @@ $ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:header_text 'AnyOrg Pat
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 ```
 
-Per-key examples are in the sections below. For the full plist schema (including non-UI keys), see {doc}`/concepts/data-storage`.
+Per-key examples are in the sections below. For the full plist schema (including non-UI keys), see {ref}`property_list_file`.
 
 :::
 
-:::{tab-item} {iconify}`devicon:python` Library
+:::{tab-item} {iconify}`material-icon-theme:python` Library
 :sync: library
 
 Pass a `ui_config` dict when constructing {class}`~patcher.PatcherClient`. Values stay in memory for the lifetime of the client; nothing is written to disk.
@@ -243,4 +247,4 @@ The path is consulted at export time. Make sure the file is readable by whatever
 
 When you customize via the CLI (wizard or `PlistBuddy`), values are written to Patcher's property list at `~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist` and persist across runs. When you customize via the library (`ui_config=`), values stay in memory for the lifetime of the `PatcherClient` and disappear when the process exits.
 
-For the full plist schema, the v2 format-change history, and details on every other key Patcher stores there, see {doc}`/concepts/data-storage`.
+For the full plist schema, the v2 format-change history, and details on every other key Patcher stores there, see {ref}`property_list_file`.

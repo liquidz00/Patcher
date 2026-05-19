@@ -1,3 +1,7 @@
+---
+description: "Reset Patcher's persisted state: credentials, UI configuration, cache, or all of it. Covers the patcherctl reset command and PatcherClient.reset."
+---
+
 (reset)=
 (resetting_patcher)=
 
@@ -80,19 +84,40 @@ Removes all cache files from the cache directory.
 
 ## From the library
 
-Most `reset` operations are CLI conveniences. Library callers typically manage their own credentials and UI preferences, so there's no high-level `PatcherClient.reset()` method.
+{meth}`PatcherClient.reset <patcher.core.patcher_client.PatcherClient.reset>` mirrors the CLI's four reset kinds. The library version doesn't re-launch the setup wizard after a `"full"` reset — re-construct a `PatcherClient` yourself once you've populated new credentials.
 
-The one exception is the patch-data cache, which is exposed on the `data` collaborator:
+::::{tab-set}
+:sync-group: surface
+
+:::{tab-item} {iconify}`material-icon-theme:console` CLI
+:sync: cli
+
+```console
+$ patcherctl reset cache
+$ patcherctl reset UI
+$ patcherctl reset creds
+$ patcherctl reset creds --credential url
+$ patcherctl reset full
+```
+:::
+
+:::{tab-item} {iconify}`material-icon-theme:python` Library
+:sync: library
 
 ```python
-from patcher import PatcherClient
-
-async with PatcherClient(client_id=..., client_secret=..., server=...) as patcher:
-    patcher.data.reset_cache()
+async with PatcherClient.from_state() as patcher:
+    await patcher.reset("cache")
+    await patcher.reset("UI")
+    await patcher.reset("creds")
+    await patcher.reset("creds", credential="url")
+    await patcher.reset("full")
 ```
 
-`reset_cache()` is synchronous and returns `True` if all cached files were removed successfully.
+The `"creds"`, `"UI"`, and `"full"` kinds require keychain-backed credentials and raise {class}`~patcher.PatcherError` when called on a client constructed with in-memory credentials.
+:::
+
+::::
 
 :::{seealso}
-For more about cached data and where Patcher stores it, see {doc}`/concepts/data-storage`.
+For more about cached data and where Patcher stores it, see {doc}`/support/data-storage`.
 :::

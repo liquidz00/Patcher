@@ -7,15 +7,10 @@ import os
 import patcher
 import sys
 import warnings
-from pathlib import Path
 
-from sphinx.locale import _
 from patcher.__about__ import __version__
 
-sys.path.insert(0, os.path.abspath(".."))
-sys.path.insert(0, os.path.abspath("../src"))
 sys.path.insert(0, os.path.abspath("./ext"))
-sys.path.append(str(Path(".").resolve()))
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -33,14 +28,15 @@ release = f"v{__version__}"
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosectionlabel",
-    "sphinx.ext.autosummary",
     "sphinx.ext.intersphinx",
     "sphinx.ext.linkcode",
     "sphinxcontrib.autodoc_pydantic",
+    "sphinxcontrib.mermaid",
+    "sphinxcontrib.openapi",
     "sphinx_copybutton",
     "sphinx_design",
     "sphinx_iconify",
-    "sphinx_togglebutton",
+    "sphinx_sitemap",
     "myst_parser",
     "ghwiki",
 ]
@@ -62,13 +58,6 @@ intersphinx_mapping = {
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
-# Suppress specific warnings
-suppress_warnings = [
-    "autodoc",                # Suppress duplicate object warnings from autodoc
-    "myst.xref_ambiguous",    # Suppress ambiguous cross-reference warnings
-    "autosectionlabel.*",     # Suppress duplicate label warnings
-]
-
 # Autodoc options
 add_module_names = False
 autodoc_typehints = "both"
@@ -82,21 +71,8 @@ autodoc_pydantic_model_show_json = False
 autodoc_pydantic_model_show_field_summary = False
 
 # MyST Options
-myst_enable_extensions = [
-    "colon_fence",
-    "substitution",
-    "attrs_block",
-    "attrs_inline"
-]
-
-# Heading anchors
+myst_enable_extensions = ["colon_fence"]
 myst_heading_anchors = 4
-
-# MyST Substitutions
-myst_substitutions = {
-    "version": __version__,
-    "release": release,
-}
 
 # -- Link Code  --------------------------------------------------------------
 # based on pandas doc/source/conf.py
@@ -154,9 +130,11 @@ def linkcode_resolve(domain, info):
 copybutton_prompt_text = r">>> |\.\.\. |\$ "
 copybutton_prompt_is_regexp = True
 
-# -- sphinx_togglebutton options ---------------------------------------------
-togglebutton_hint = str(_("Click to expand"))
-togglebutton_hint_hide = str(_("Click to collapse"))
+# -- sphinx-sitemap ----------------------------------------------------------
+# Generates sitemap.xml at build time. Honors the canonical URL set in
+# html_baseurl. RTD's serving layer also injects robots.txt automatically.
+sitemap_url_scheme = "{link}"
+sitemap_excludes = ["404.html", "search.html", "genindex.html", "py-modindex.html"]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -170,7 +148,6 @@ html_baseurl = os.environ.get(
     "READTHEDOCS_CANONICAL_URL", "https://docs.patcherctl.dev/en/latest/"
 )
 html_theme = "shibuya"
-html_logo = "_static/v2-logo.svg"
 html_favicon = "_static/v2-logo-favicon.svg"
 html_static_path = ["_static"]
 html_title = f"Patcher {release}"
@@ -202,22 +179,13 @@ html_theme_options = {
     "announcement": _announcement,
     "accent_color": "violet",
     "globaltoc_expand_depth": 1,
-    "light_logo": "_static/v2-logo.svg",
-    "dark_logo": "_static/v2-logo-dark.svg",
+    "light_logo": "_static/logo-light.svg",
+    "dark_logo": "_static/logo-dark.svg",
     "open_in_chatgpt": True,
     "open_in_claude": True,
     "open_in_perplexity": True,
     "discussion_url": "https://github.com/liquidz00/Patcher/discussions",
     "nav_links": [
-        {
-            "title": "Contributing",
-            "url": "contributing/index",
-        },
-        {
-            "title": "Changelog",
-            "url": "https://github.com/liquidz00/Patcher/blob/main/CHANGELOG.md",
-            "external": True,
-        },
         {
             "title": "MacAdmin Resources",
             "children": [
@@ -234,6 +202,11 @@ html_theme_options = {
                     "url": "https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Jamf_Pro_Documentation.html",
                 },
             ]
+        },
+        {
+            "title": "Changelog",
+            "url": "https://github.com/liquidz00/Patcher/blob/main/CHANGELOG.md",
+            "external": True,
         },
     ],
 }

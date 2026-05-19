@@ -1,12 +1,16 @@
+---
+description: "Export Jamf patch reports as Excel, PDF, HTML, or JSON. Covers the CLI, the PatcherClient library, sort and omit flags, and concurrency tuning."
+---
+
 (export)=
 
-# Export patch reports
+# Export reports
 
 :::{rst-class} lead
 Pull patch data from Jamf and write it to disk as Excel, PDF, HTML, or JSON, from either the CLI or the library.
 :::
 
-The `export` command (and {meth}`PatcherClient.export <patcher.core.patcher_client.PatcherClient.export>`) pulls patch management data from Jamf and writes reports to disk in Excel, PDF, HTML, and JSON formats. By default Patcher writes all four; pass `--format` (or the library `formats=` arg) to narrow it down.
+By default, a single invocation writes the patch report in all four formats: Excel, PDF, HTML, and JSON. Pass `--format` (or `formats=` from the library) to narrow it down to one or two.
 
 ## Options
 
@@ -24,8 +28,9 @@ The `export` command (and {meth}`PatcherClient.export <patcher.core.patcher_clie
 ## Examples
 
 ::::{tab-set}
+:sync-group: surface
 
-:::{tab-item} CLI
+:::{tab-item} {iconify}`material-icon-theme:console` CLI
 :sync: cli
 
 ```console
@@ -41,14 +46,14 @@ $ patcherctl export --path ~/reports --device-details
 ```
 :::
 
-:::{tab-item} Library
+:::{tab-item} {iconify}`material-icon-theme:python` Library
 :sync: library
 
 ```python
 from pathlib import Path
 from patcher import PatcherClient
 
-async with PatcherClient(client_id=..., client_secret=..., server=...) as patcher:
+async with PatcherClient.from_state() as patcher:
     titles = await patcher.fetch_patches(
         sort_by="Released",
         omit_recent_hours=48,
@@ -99,7 +104,7 @@ Cranking concurrency too high can starve other workloads on your Jamf server. **
 If you request a PDF export without configuring UI settings first, `patcherctl` will print a warning and continue with placeholder header / footer text. Run `patcherctl reset UI` to configure, or omit `pdf` from `--format`.
 :::
 
-PDF report styling (header text, footer text, custom font, logo, HTML header color) is configured via Patcher's property list. See {doc}`/concepts/data-storage` for the full plist schema, valid keys, and how to modify them.
+PDF report styling (header text, footer text, custom font, logo, HTML header color) is configured via Patcher's property list. See {ref}`property_list_file` for the full plist schema, valid keys, and how to modify them.
 
 A quick summary of what's customizable:
 
@@ -119,8 +124,8 @@ A quick summary of what's customizable:
 
 Passing `--ios` (CLI) or `include_ios=True` (library) appends iOS / mobile device data to the report so you can see what's running on your fleet alongside the macOS patch coverage. Behind the scenes Patcher calls three Jamf APIs:
 
-- {meth}`~patcher.client.jamf.JamfClient.get_device_ids` pulls the IDs of all enrolled mobile devices.
-- {meth}`~patcher.client.jamf.JamfClient.get_device_os_versions` resolves each ID to its current OS version.
-- {meth}`~patcher.client.jamf.JamfClient.get_sofa_feed` fetches the latest released iOS/iPadOS versions from the [SOFA feed](https://sofa.macadmins.io/) to determine "on the latest" vs "behind."
+- {meth}`~patcher.clients.jamf.JamfClient.get_device_ids` pulls the IDs of all enrolled mobile devices.
+- {meth}`~patcher.clients.jamf.JamfClient.get_device_os_versions` resolves each ID to its current OS version.
+- {meth}`~patcher.clients.jamf.JamfClient.get_sofa_feed` fetches the latest released iOS/iPadOS versions from the [SOFA feed](https://sofa.macadmins.io/) to determine "on the latest" vs "behind."
 
 The aggregate appears in the report as a count of mobile devices on the latest OS. Useful for the same SLA / compliance reporting workflows that drive `--omit` and the `recent-release` analyze criterion.

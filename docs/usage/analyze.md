@@ -1,3 +1,7 @@
+---
+description: "Filter and trend Patcher data by criterion. Covers the patcherctl analyze command, FilterCriteria and TrendCriteria values, and library equivalents."
+---
+
 (analyze)=
 
 # Analyze data
@@ -33,7 +37,7 @@ Criteria names are case-insensitive and dash/underscore-flexible. `most-installe
 | `zero-completion` | Titles with 0% completion |
 | `top-performers` | Titles with completion above 90% |
 | `high-missing` | Titles where missing patches are >50% of total hosts |
-| `installomator` | Titles that match an [Installomator](/integrations/installomator) label. Helpful for identifying automation-ready software |
+| `installomator` | Titles that match an [Installomator](/usage/installomator) label. Helpful for identifying automation-ready software |
 
 ### Trend criteria
 
@@ -48,8 +52,9 @@ Requires `--all-time` and at least two cached datasets to compare.
 ## Examples
 
 ::::{tab-set}
+:sync-group: surface
 
-:::{tab-item} CLI
+:::{tab-item} {iconify}`material-icon-theme:console` CLI
 :sync: cli
 
 ```console
@@ -64,7 +69,7 @@ $ patcherctl analyze --criteria installomator
 To analyze a specific Excel file instead of the latest cached report:
 
 ```console
-$ patcherctl analyze /path/to/report.xlsx --criteria most-installed
+$ patcherctl analyze --excel-file /path/to/report.xlsx --criteria most-installed
 ```
 
 Trend analysis across all cached datasets:
@@ -76,13 +81,13 @@ $ patcherctl analyze --all-time --criteria completion-trends
 ```
 :::
 
-:::{tab-item} Library
+:::{tab-item} {iconify}`material-icon-theme:python` Library
 :sync: library
 
 ```python
 from patcher import FilterCriteria, PatcherClient
 
-async with PatcherClient(client_id=..., client_secret=..., server=...) as patcher:
+async with PatcherClient.from_state() as patcher:
     titles = await patcher.fetch_patches()
 
     # Threshold filter
@@ -95,18 +100,59 @@ async with PatcherClient(client_id=..., client_secret=..., server=...) as patche
     high_missing = await patcher.analyze(titles, criteria="high-missing", top_n=10)
 ```
 
-`patcher.analyze()` accepts either a {class}`~patcher.core.analyze.FilterCriteria` enum member or its CLI string form. It returns the filtered list of {class}`~patcher.core.models.patch.PatchTitle` objects, ready for further processing, export, or storage.
+Filter a saved Excel report directly (skip `fetch_patches`):
+
+```python
+async with PatcherClient.from_state() as patcher:
+    stale = await patcher.analyze_excel(
+        "/path/to/report.xlsx",
+        criteria="most-installed",
+    )
+```
+
+Trend analysis across cached datasets returns a `pandas.DataFrame`:
+
+```python
+async with PatcherClient.from_state() as patcher:
+    trend = await patcher.analyze_trend("patch-adoption")
+    print(trend.head())
+```
+
+{meth}`analyze <patcher.core.patcher_client.PatcherClient.analyze>` accepts either the enum or its CLI string form and returns the filtered list of {class}`~patcher.core.models.patch.PatchTitle` objects. {meth}`analyze_excel <patcher.core.patcher_client.PatcherClient.analyze_excel>` and {meth}`analyze_trend <patcher.core.patcher_client.PatcherClient.analyze_trend>` cover the `--excel-file` and `--all-time` flows respectively.
 :::
 
 ::::
 
 ## Generating a summary
 
-Pass `--summary` along with `--output-dir` to generate an HTML report in addition to the stdout table. Summary files follow the naming pattern `patch-analysis-<date>.html` (or `trend-analysis-<criteria>.html` for trend analysis).
+Pass `--summary` along with `--output-dir` (CLI) or `save_to=...` (library) to write an HTML version of the analysis alongside the stdout table or returned DataFrame. Summary files follow the naming pattern `patch-analysis-<date>.html` (or `trend-analysis-<criteria>.html` for trend analysis).
+
+::::{tab-set}
+:sync-group: surface
+
+:::{tab-item} {iconify}`material-icon-theme:console` CLI
+:sync: cli
 
 ```console
 $ patcherctl analyze --criteria below-threshold --threshold 80.0 --summary --output-dir ~/Reports
 ```
+:::
+
+:::{tab-item} {iconify}`material-icon-theme:python` Library
+:sync: library
+
+```python
+async with PatcherClient.from_state() as patcher:
+    trend = await patcher.analyze_trend(
+        "patch-adoption",
+        save_to="~/Reports/trend-adoption.html",
+    )
+```
+
+The DataFrame is returned regardless of whether `save_to` is provided. If the DataFrame is empty (e.g. no cached data matches the criterion), no file is written.
+:::
+
+::::
 
 :::{tip}
 `recent-release` pairs well with SLA / compliance reporting. Pull all patches released in the last week to confirm coverage against a 7-day SLA.

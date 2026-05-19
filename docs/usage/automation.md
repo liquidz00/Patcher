@@ -1,10 +1,14 @@
+---
+description: "Run Patcher unattended via launchd or in CI. Covers non-interactive mode, the KEYRING_BACKEND requirement for Linux runners, and a GitHub Actions example."
+---
+
 # Automation
 
 :::{rst-class} lead
 Run Patcher unattended, either locally on a schedule with `launchd` or in CI/CD pipelines.
 :::
 
-Patcher is designed to run unattended: on a workstation via `launchd`, in CI/CD pipelines, or anywhere else that needs scheduled patch reports. This page covers both patterns.
+Two patterns cover most automation needs: a `launchd` LaunchAgent on a workstation for time-of-day scheduling, or non-interactive invocations on ephemeral runners (GitHub Actions, Linux build agents, anything without a keychain).
 
 ## Scheduling locally with `launchd`
 
@@ -91,7 +95,7 @@ To ensure the LaunchAgent is working:
 
 ## CI/CD & non-interactive mode
 
-For ephemeral environments (GitHub Actions runners, Linux build agents, etc.), Patcher runs in **non-interactive mode**. No keychain access, no setup wizard, no persistent state.
+For ephemeral environments (GitHub Actions runners, Linux build agents, etc.), Patcher runs in **non-interactive mode** — also called `in_memory_credentials` mode internally; the same mode {class}`PatcherClient <patcher.PatcherClient>` engages when library callers pass `client_id`, `client_secret`, and `server` directly. No keychain access, no setup wizard, no persistent state.
 
 ### Engaging non-interactive mode
 
@@ -105,10 +109,45 @@ Provide all three credentials via CLI flags **or** environment variables (mix-an
 
 In non-interactive mode, Patcher:
 
-- **Holds credentials in memory only** for the lifetime of the invocation. The macOS keychain is never read or written.
-- **Skips every interactive prompt.** Setup type, Installomator support, and UI configuration are all bypassed.
-- **Does not persist setup completion** to disk. The next invocation must provide credentials again, which is exactly what you want on ephemeral runners.
-- **Runs the requested subcommand immediately** after fetching an access token.
+::::{tab-set}
+
+:::{tab-item} {iconify}`lucide:key-round` Memory-only credentials
+:sync: creds
+
+Credentials are held in memory for the lifetime of the invocation. The macOS keychain is never read or written. Right for ephemeral runners and Docker containers where there's no persistent secret store anyway.
+:::
+
+:::{tab-item} {iconify}`lucide:skip-forward` Skips every interactive prompt
+:sync: prompts
+
+Setup type, Installomator support, and UI configuration are all bypassed. Any code path that would normally pause for input proceeds with sane defaults instead.
+:::
+
+:::{tab-item} {iconify}`lucide:eraser` No completion persistence
+:sync: no-persist
+
+Setup completion is not written to disk. The next invocation must provide credentials again, which is exactly what you want on ephemeral runners that wipe their filesystem between jobs.
+:::
+
+:::{tab-item} {iconify}`lucide:zap` Runs immediately
+:sync: immediate
+
+The requested subcommand executes as soon as an access token is fetched. No wizard, no prompts, no waiting.
+:::
+
+::::
+
+(linux-keyring)=
+
+### {iconify}`simple-icons:linux` Linux runners: keyring backend
+
+`patcherctl` imports the [`keyring`](https://pypi.org/project/keyring/) library as part of its credential plumbing. On Linux, `keyring` requires a backend that talks to a session keyring (typically Secret Service via D-Bus); CI runners and headless servers don't have one, which historically meant the import would crash before Patcher had a chance to run.
+
+Patcher now handles this automatically. On any non-macOS platform, importing `patcher` installs the no-op `keyring.backends.null.Keyring` so that CI runners, Docker containers, scheduled cron jobs on Linux servers, and Windows hosts all just work — no env-var dance required. Non-interactive mode never reads or writes the keychain anyway, so the null backend has no behavioral cost.
+
+```{important}
+If you want a specific custom backend (e.g. a real Secret Service backend on a graphical Linux desktop), set `KEYRING_BACKEND` explicitly. Patcher honors an existing `KEYRING_BACKEND` env var and does not overwrite it.
+```
 
 ### Quick example
 
@@ -180,6 +219,38 @@ jobs:
 ```
 
 JSON pairs well with downstream automation. Feed it into a job that posts to Slack, ingests into a dashboard, or triggers patching policies based on coverage thresholds.
+
+### Library equivalent
+
+The CLI invocation in the workflow above is a convenience over the library API. Drop in a Python script if you'd rather build the report logic in-process — useful when you want to filter / transform titles before exporting, or you're integrating Patcher into an existing automation runtime:
+
+```python
+import asyncio
+import os
+from pathlib import Path
+
+from patcher import PatcherClient
+
+
+async def main() -> None:
+    async with PatcherClient(
+        client_id=os.environ["PATCHER_CLIENT_ID"],
+        client_secret=os.environ["PATCHER_CLIENT_SECRET"],
+        server=os.environ["PATCHER_URL"],
+        disable_cache=True,  # ephemeral runner; no on-disk cache wanted
+    ) as patcher:
+        titles = await patcher.fetch_patches(sort_by="released")
+        await patcher.export(
+            titles,
+            output_dir=Path("./reports"),
+            formats={"json"},
+        )
+
+
+asyncio.run(main())
+```
+
+Same `KEYRING_BACKEND` requirement applies — set it before invoking `python`. Library callers benefit from one additional advantage: arbitrary transforms between `fetch_patches()` and `export()` (filter to a subset, decorate titles, push to multiple destinations) without piping through the CLI's output formats.
 
 ### Security considerations
 

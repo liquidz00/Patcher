@@ -1,4 +1,8 @@
-# Configure Jamf Pro API
+---
+description: "Create the Jamf Pro API role and client Patcher needs. Step-by-step setup for standard accounts and SSO-protected Jamf instances."
+---
+
+# Jamf Configuration
 
 :::{rst-class} lead
 Prepare your Jamf Pro instance for Patcher: software titles, an API role, and an OAuth client.
@@ -68,7 +72,7 @@ You now have everything Patcher needs: a **Jamf URL**, a **Client ID**, and a **
 ## Token lifetime
 
 :::{note}
-You don't need to generate access tokens yourself. Patcher's {class}`~patcher.client.token_manager.TokenManager` handles obtaining and refreshing tokens automatically.
+You don't need to generate access tokens yourself. Patcher's {class}`~patcher.clients.token_manager.TokenManager` handles obtaining and refreshing tokens automatically.
 :::
 
 When configuring the API client's access token lifetime, **at least 5 minutes** is recommended. Longer durations reduce regeneration frequency and administrative overhead, but should align with your organization's security policies.
@@ -105,7 +109,7 @@ security add-generic-password -a "TOKEN_EXPIRATION" -s "Patcher" -w "$expires_in
 
 ::::
 
-::::{tab-item} {iconify}`devicon:python` Python
+::::{tab-item} {iconify}`material-icon-theme:python` Python
 :sync: python
 
 Requires `httpx` and `keyring`. Both are already installed with `patcherctl`.
@@ -141,7 +145,7 @@ keyring.set_password("Patcher", "TOKEN_EXPIRATION", str(data["expires_in"]))
 
 ## SSO considerations
 
-Patcher's [setup wizard](setup/cli.md) can create the API role and client for you automatically, but only if your Jamf Pro account [doesn't use SSO](https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#authentication-and-authorization). If SSO is in play, you have two options:
+Patcher's [setup wizard](setup.md) can create the API role and client for you automatically, but only if your Jamf Pro account [doesn't use SSO](https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#authentication-and-authorization). If SSO is in play, you have two options:
 
 ### Option 1: Create the role and client manually
 
