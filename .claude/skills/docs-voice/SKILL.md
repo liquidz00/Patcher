@@ -9,8 +9,8 @@ description: |
 
   Invoke when the user says: "/docs-voice <path>", "voice check <path>", "rewrite
   voice in <path>", "audit voice in <path>", "fix tone in <path>", or similar.
-  Path is the single required argument; can be a file (`docs/usage/export.md`) or
-  a glob (`docs/usage/*.md`, `docs/**/*.md`).
+  Path is the single required argument; can be a file (`docs/guides/export.md`) or
+  a glob (`docs/guides/*.md`, `docs/**/*.md`).
 ---
 
 # docs-voice
@@ -25,8 +25,8 @@ file (or glob) against those rules and proposes rewrites.
 
 A file path or glob, relative to the repo root or absolute. Examples:
 
-- `docs/usage/export.md` - single file
-- `docs/usage/*.md` - section
+- `docs/guides/export.md` - single file
+- `docs/guides/*.md` - section
 - `docs/**/*.md` - whole docs tree (use sparingly; output gets long)
 
 Resolve the path before reading. If it doesn't exist, say so and stop.
@@ -148,7 +148,7 @@ using "surface" as a noun isn't.
 For each file reviewed, emit a block like this:
 
 ```
-docs/usage/export.md
+docs/guides/export.md
 ─────────────────────────────────────────────────────────────
 
 L9  rule 2 (heading-restating) + rule 5 (jargon)

@@ -41,19 +41,19 @@ The topic of the new page. Examples:
 | Section | Use for |
 |---|---|
 | `getting-started/` | First-time setup, install, initial credentials, customization out of the box. Reader is brand new. |
-| `usage/` | Task-oriented how-to: "how do I X". CLI and library both shown via tab-sets. Reader knows the basics. |
+| `guides/` | Task-oriented how-to: "how do I X". CLI and library both shown via tab-sets. Reader knows the basics. |
 | `concepts/` | Explanations of *how it works*: architecture, data flow, the Installomator matching strategy. Reader wants the mental model. |
 | `api/` | The Patcher API service (FastAPI under `api/`). Endpoints, curl/Python examples, OpenAPI schema integration. |
 | `support/` | FAQ, troubleshooting, known issues. Short entries, problem-first. |
 | `reference/` | Module-by-module reference, mostly autodoc. Add new `.rst` files via the `reference/index.md` toctree. |
 | `roadmap` | Single top-level page; only edit if the user explicitly says "roadmap". |
 
-When the topic is ambiguous (e.g., "Installomator" could be `usage/`, `concepts/`,
+When the topic is ambiguous (e.g., "Installomator" could be `guides/`, `concepts/`,
 or `getting-started/`), ask the user with a short choice list before writing.
 
 ## Page template
 
-Every new page in `getting-started/`, `usage/`, or `concepts/` follows this shape:
+Every new page in `getting-started/`, `guides/`, or `concepts/` follows this shape:
 
 ```markdown
 ({SLUG})=
@@ -74,7 +74,7 @@ walk away with? Don't restate the H1.}
 
 Notes on the template:
 
-- **Target anchor** `({SLUG})=` - emitted for `getting-started/`, `usage/`, and
+- **Target anchor** `({SLUG})=` - emitted for `getting-started/`, `guides/`, and
   `concepts/` pages so other docs can `{ref}` to them. Skip for `support/`, `api/`,
   and `reference/`.
 - **Lead paragraph** - keep it ≤ 25 words. Burning that budget on "Patcher
@@ -83,7 +83,7 @@ Notes on the template:
   docs; matches the styled larger-text opener.
 
 For `api/` pages, look at `docs/api/endpoints.md` as the template. For `support/`
-pages, look at `docs/support/troubleshooting.md`.
+pages, look at `docs/project/troubleshooting.md`.
 
 For `reference/` pages (autodoc-only), follow the `.rst` pattern in
 `docs/reference/jamf_client.rst` and friends. Keep them mechanical.
@@ -115,19 +115,19 @@ the new entry in the logical position for that section (alphabetical isn't
 required; read the existing order, since pages are typically ordered by reader
 flow, not name).
 
-Example: adding `usage/library-async.md` to the Usage section:
+Example: adding `guides/library-async.md` to the Usage section:
 
 ```diff
  ```{toctree}
  :caption: Usage
  :hidden:
 
- usage/export
- usage/analyze
- usage/reset
- usage/automation
- usage/library
-+usage/library-async
+ guides/export
+ guides/analyze
+ guides/reset
+ guides/automation
+ guides/library
++guides/library-async
  ```
 ```
 
@@ -165,7 +165,7 @@ already wired.
 
 ## Edge cases
 
-- **Topic is a question** ("how do I configure SSO?"): treat as a `usage/` page;
+- **Topic is a question** ("how do I configure SSO?"): treat as a `guides/` page;
   rewrite the heading to imperative ("Configure SSO").
 - **Section doesn't exist yet**: the user wants a new section. Don't create one
   silently. Flag it and ask whether they want to add a new toctree caption to
