@@ -1,0 +1,741 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Patcher API",
+    "description": "Community catalog of macOS app patching metadata.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/apps": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "List Apps",
+        "description": "List apps in the catalog with optional filters and pagination.\n\nAll filters (``vendor``, ``source``, ``exclude_source``) and the\n``limit``/``offset`` pagination push down into a single SQL statement\nso the database does the filtering before paginating. Earlier versions\nof this endpoint filtered ``source``/``exclude_source`` in Python after\nmaterializing every row that matched ``vendor``, which made ``limit``\ndescribe the post-fetch slice rather than the actual page size.\n\nResults are ordered by ``slug`` so pagination is deterministic across\nrequests.\n\n:param vendor: Case-insensitive exact vendor match. None disables.\n:param source: Include only rows whose ``sources`` contains this token.\n:param exclude_source: Drop rows whose ``sources`` contains this token.\n:param limit: Maximum rows to return. Default 100, max 1000.\n:param offset: Number of filtered rows to skip before returning. Default 0.",
+        "operationId": "list_apps_apps_get",
+        "parameters": [
+          {
+            "name": "vendor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vendor"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "name": "exclude_source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Exclude Source"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/App"
+                  },
+                  "title": "Response List Apps Apps Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{slug}": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Get App",
+        "operationId": "get_app_apps__slug__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/App"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{slug}/sources": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Get App Sources",
+        "operationId": "get_app_sources_apps__slug__sources_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppSources"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{slug}/generate-label": {
+      "post": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Generate Label",
+        "description": "Generate an Installomator label for ``slug``.\n\nProjects the app's Homebrew Cask + Installomator source payloads into\nan Installomator label fragment that consumers can drop into their\nInstallomator deployments. Returns the label plus provenance metadata\n(which sources contributed) and any warnings about fields that couldn't\nbe resolved (most commonly ``expectedTeamID`` for Cask-only apps).\n\n:param slug: URL-friendly app identifier.\n:type slug: str\n:param session: Async SQLAlchemy session (injected).\n:type session: sqlalchemy.ext.asyncio.AsyncSession\n:raises HTTPException: 404 if ``slug`` doesn't exist; 422 if the app has\n    no source detail attached (rare \u2014 usually a leftover seed record).\n:return: The generated label content + metadata.\n:rtype: :class:`patcher_api.schemas.labels.GenerateLabelResponse`",
+        "operationId": "generate_label_apps__slug__generate_label_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateLabelResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "App": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "bundle_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bundle Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor"
+          },
+          "current_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Version"
+          },
+          "latest_release_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Release Date"
+          },
+          "download_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2083,
+                "minLength": 1,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Download Url"
+          },
+          "install_method": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstallMethod"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "cves": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cves",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "sources"
+        ],
+        "title": "App"
+      },
+      "AppSources": {
+        "properties": {
+          "installomator": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstallomatorSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "homebrew_cask": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HomebrewCaskSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "autopkg": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutopkgSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mas": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MasSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "jamf_app_installer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JamfAppInstallerSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "AppSources"
+      },
+      "AutopkgRecipeEntry": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "shortname": {
+            "type": "string",
+            "title": "Shortname"
+          },
+          "repo": {
+            "type": "string",
+            "title": "Repo"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "parent_identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Identifier"
+          },
+          "inferred_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inferred Type"
+          },
+          "recipe_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2083,
+                "minLength": 1,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipe Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "name",
+          "shortname",
+          "repo",
+          "path"
+        ],
+        "title": "AutopkgRecipeEntry",
+        "description": "Single recipe attached to an app via the AutoPkg index."
+      },
+      "AutopkgSource": {
+        "properties": {
+          "recipes": {
+            "items": {
+              "$ref": "#/components/schemas/AutopkgRecipeEntry"
+            },
+            "type": "array",
+            "title": "Recipes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recipes"
+        ],
+        "title": "AutopkgSource",
+        "description": "All AutoPkg recipes matched to an app via the recipe index.\n\nAutoPkg coverage is multi-recipe by nature: a single app like Firefox\ntypically has download, munki, pkg, jamf, and intune variants across\nmultiple maintainer repos. Each match is preserved as a separate\n:class:`AutopkgRecipeEntry`."
+      },
+      "GenerateLabelResponse": {
+        "properties": {
+          "label_name": {
+            "type": "string",
+            "title": "Label Name"
+          },
+          "content": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Content"
+          },
+          "sources_used": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sources Used"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label_name",
+          "content",
+          "sources_used",
+          "warnings"
+        ],
+        "title": "GenerateLabelResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HomebrewCaskSource": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "cask_json": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Cask Json"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "cask_json"
+        ],
+        "title": "HomebrewCaskSource"
+      },
+      "InstallMethod": {
+        "type": "string",
+        "enum": [
+          "dmg",
+          "pkg",
+          "zip",
+          "tbz",
+          "pkgInDmg",
+          "pkgInZip",
+          "appInDmgInZip"
+        ],
+        "title": "InstallMethod",
+        "description": "Mirrors Installomator's `type` variable.\n\nSee https://github.com/Installomator/Installomator/wiki/Label-Variables-Reference\nfor the upstream definition."
+      },
+      "InstallomatorSource": {
+        "properties": {
+          "label_name": {
+            "type": "string",
+            "title": "Label Name"
+          },
+          "label_url": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "Label Url"
+          },
+          "raw": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Raw"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label_name",
+          "label_url",
+          "raw"
+        ],
+        "title": "InstallomatorSource"
+      },
+      "JamfAppInstallerSource": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "source"
+        ],
+        "title": "JamfAppInstallerSource",
+        "description": "Coverage indicator for the Jamf App Installers catalog.\n\nMirrors the three fields in the public HTML catalog. When a real Jamf\nPro instance becomes available (the unlisted endpoint exposes\nbundle_id, version, download URL, and the Jamf Software Title ID),\nthis schema grows additional optional fields."
+      },
+      "MasSource": {
+        "properties": {
+          "bundle_id": {
+            "type": "string",
+            "title": "Bundle Id"
+          },
+          "store_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2083,
+                "minLength": 1,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Store Url"
+          },
+          "raw": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Raw"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bundle_id",
+          "raw"
+        ],
+        "title": "MasSource"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
