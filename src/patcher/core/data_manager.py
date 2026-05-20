@@ -35,8 +35,10 @@ def serialize_titles_to_dict(
             "titles": [<PatchTitle.model_dump()>, ...]
         }
 
-    :param patch_titles: List of :class:`PatchTitle` objects to serialize.
+    :param patch_titles: List of patch titles to serialize.
+    :type patch_titles: list[:class:`PatchTitle`]
     :param report_title: Optional title carried through to consumers.
+    :type report_titles: str | None
     :return: A dict ready for ``json.dump`` or direct programmatic use.
     """
     return {
@@ -361,7 +363,7 @@ class DataManager:
         device-level patch data.
 
         :param excel_path: Path where Excel file will be saved.
-        :type excel_path: Path
+        :type excel_path: ~pathlib.Path
         :param patch_data_df: DataFrame containing patch title data (from PatchTitle objects).
         :type patch_data_df: pd.DataFrame
         :param device_reports: Dictionary mapping title IDs to lists of PatchDevice objects.
@@ -420,7 +422,7 @@ class DataManager:
         Exports a DataFrame to an Excel file, optionally including per-title device sheets.
 
         :param output_dir: Directory to save the Excel file.
-        :type output_dir: Path
+        :type output_dir: ~pathlib.Path
         :param df: The summary DataFrame to export.
         :type df: pd.DataFrame
         :param analysis: Whether this is an analysis report.
@@ -430,7 +432,7 @@ class DataManager:
         :param device_reports: Optional dictionary mapping title IDs to device lists.
         :type device_reports: dict[str, list[:class:`~patcher.core.models.patch.PatchDevice`]] | None
         :return: Path to the exported Excel file.
-        :rtype: Path
+        :rtype: ~pathlib.Path
         """
         excel_path = self._generate_filename(output_dir, "xlsx", analysis)
 
@@ -469,7 +471,7 @@ class DataManager:
         :param patch_titles: A list of ``PatchTitle`` objects to include in the report. Defaults to ``self.titles`` if not provided
         :type patch_titles: list [:class:`~patcher.core.models.patch.PatchTitle`]
         :param output_dir: The directory in which to save the exported report(s).
-        :type output_dir: str | Path
+        :type output_dir: str | ~pathlib.Path
         :param report_title: The title to use for the header in exported report(s). Defaults to ``HEADER_TEXT`` key in ``com.liquidzoo.patcher.plist`` file.
         :type report_title: str
         :param analysis: Denotes whether this is analysis report (affects HTML output path).
@@ -579,7 +581,7 @@ class DataManager:
         Load all cached data files into a list of DataFrames.
 
         :return: list of pandas DataFrame objects with cached data.
-        :rtype: list[pandas.DataFrame]
+        :rtype: list[~pandas.DataFrame]
         """
         dataframes = []
         cached_files = self.get_cached_files()
@@ -597,7 +599,7 @@ class DataManager:
         Retrieves all cached file Paths.
 
         :return: A list of ``Path`` objects pointing to cached files.
-        :rtype: list[Path]
+        :rtype: list[~pathlib.Path]
         """
         return [file for file in self.cache_dir.iterdir() if file.suffix == ".pkl"]
 
@@ -608,7 +610,7 @@ class DataManager:
         If a tracked Excel file is available, it is preferred. Otherwise, searches the cache directory.
 
         :return: Path to the latest dataset (Excel or pickle file), or None if no dataset is found.
-        :rtype: Path | None
+        :rtype: ~pathlib.Path | None
         """
         if self.latest_excel_file and self.latest_excel_file.exists():
             self.log.info(f"Using latest tracked Excel file: {self.latest_excel_file}")

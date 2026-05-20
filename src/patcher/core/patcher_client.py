@@ -328,10 +328,10 @@ class PatcherClient:
         :param save_to: Optional path. When provided, the trend DataFrame is
             also written to disk as HTML. Parent directories are created if
             needed.
-        :type save_to: str | :class:`pathlib.Path` | None
-        :return: Trend results as a :class:`pandas.DataFrame`. Empty if no
+        :type save_to: str | ~pathlib.Path | None
+        :return: Trend results as a ~pandas.DataFrame. Empty if no
             data is available for the requested criterion.
-        :rtype: pandas.DataFrame
+        :rtype: ~pandas.DataFrame
         """
         if isinstance(criteria, str):
             criteria = TrendCriteria.from_cli(criteria)

@@ -240,7 +240,7 @@ class Analyzer:
         :param data_manager: The ``DataManager`` instance for retrieving and managing patch data.
         :type data_manager: :class:`~patcher.core.data_manager.DataManager`
         :param excel_path: Path to the Excel file.
-        :type excel_path: Path | str | None
+        :type excel_path: ~pathlib.Path | str | None
         """
         self.log = LogMe(self.__class__.__name__)
         self.data_manager = data_manager
@@ -294,9 +294,9 @@ class Analyzer:
         Initializes a DataFrame by reading the Excel file from the provided path.
 
         :param excel_path: The path to the Excel file, either as a string or a Path object.
-        :type excel_path: Path | str
+        :type excel_path: ~pathlib.Path | str
         :return: A pandas DataFrame loaded from the Excel file.
-        :rtype: `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+        :rtype: ~pandas.DataFrame
         :raises PatcherError: If the passed ``excel_file`` could not be validated (does not exist, or is not a file).
         :raises PatcherError: If the excel file could not be read, if the file is empty, or if the file could not be parsed properly.
         """
@@ -460,13 +460,13 @@ class Analyzer:
         :param criteria: The trend analysis criteria to use.
         :type criteria: :class:`~patcher.core.analyze.TrendCriteria`
         :param datasets: A list of DataFrames or file paths to analyze. If None, uses cached data.
-        :type datasets: list[Path | str | pd.DataFrame] | None
+        :type datasets: list[~pathlib.Path | str | ~pandas.DataFrame] | None
         :param sort_by: A column to sort the results by.
         :type sort_by: str | None
         :param ascending: Sorting order (ascending if True, descending if False).
         :type ascending: bool
         :return: A DataFrame with the trend analysis results.
-        :rtype: `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+        :rtype: ~pandas.DataFrame
         :raises PatcherError: If criteria is invalid or data loading fails.
         """
         if datasets is None:

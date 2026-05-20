@@ -33,10 +33,10 @@ def ensure_default_fonts(target_dir: Path) -> dict[str, Path]:
 
     :param target_dir: Directory to drop the ``.ttf`` files into. Created
         with ``parents=True`` if missing.
-    :type target_dir: Path
+    :type target_dir: ~pathlib.Path
     :return: Mapping ``{"regular": Path, "bold": Path}`` of the on-disk
         font files.
-    :rtype: dict[str, Path]
+    :rtype: dict[str, ~pathlib.Path]
     :raises PatcherError: If a download or write fails.
     """
     log = LogMe("ensure_default_fonts")

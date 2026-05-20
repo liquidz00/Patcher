@@ -62,30 +62,9 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # Autodoc options
 add_module_names = False
 autodoc_typehints = "both"
-autodoc_typehints_format = "fully-qualified"
 autodoc_member_order = "bysource"
+autoclass_content = "both"
 autosectionlabel_prefix_document = True
-
-nitpick_ignore = [
-    ("py:class", "annotated_types.MinLen"),
-    ("py:class", "min_length=1"),
-    ("py:class", "TracebackType"),
-    ("py:class", "fpdf.fpdf.FPDF"),
-    ("py:class", "truststore.SSLContext"),
-    ("py:class", "httpx.AsyncClient"),
-    ("py:func", "httpx.get"),
-    # patcher_api server-side schema not in this Sphinx tree.
-    ("py:class", "patcher_api.schemas.labels.GenerateLabelResponse"),
-    # Pydantic field on a Pydantic model: autodoc-pydantic renders it as an
-    # attribute the Python domain doesn't auto-register.
-    ("py:attr", "patcher.core.models.jamf.JamfCredentials.server"),
-]
-
-# Bare type-annotation names that autodoc emits from source signatures
-# (`def foo(p: Path)` shows up as `Path`, not `pathlib.Path`)
-nitpick_ignore_regex = [
-    ("py:class", r"^(Path|datetime|pd\.DataFrame)$"),
-]
 
 toc_object_entries_show_parents = "hide"
 

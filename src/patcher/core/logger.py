@@ -32,7 +32,7 @@ class PatcherLog:
         :param level: Logging level for the file handler. Defaults to INFO.
         :type level: int | None
         :return: The configured logger.
-        :rtype: logging.Logger
+        :rtype: ~logging.Logger
         """
         logger_name = name if name else PatcherLog.LOGGER_NAME
         os.makedirs(PatcherLog.LOG_DIR, exist_ok=True)
@@ -63,7 +63,7 @@ class PatcherLog:
         :param loggerName: The name of the parent logger, defaults to ``"Patcher"``.
         :type loggerName: str | None
         :return: The configured child logger.
-        :rtype: logging.Logger
+        :rtype: ~logging.Logger
         """
         name = loggerName if loggerName else PatcherLog.LOGGER_NAME
         return logging.getLogger(name).getChild(childName)
@@ -84,11 +84,11 @@ class PatcherLog:
         process exits 130). All other uncaught exceptions are logged at ERROR.
 
         :param exc_type: The class of the exception raised.
-        :type exc_type: Type[BaseException]
+        :type exc_type: ~typing.Type[BaseException]
         :param exc_value: The instance of the exception raised.
         :type exc_value: BaseException
         :param exc_traceback: The traceback object associated with the exception.
-        :type exc_traceback: TracebackType | None
+        :type exc_traceback: ~types.TracebackType | None
         """
         parent_logger = logging.getLogger(PatcherLog.LOGGER_NAME)
         child_logger = parent_logger.getChild("UnhandledException")

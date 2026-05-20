@@ -66,7 +66,7 @@ class HTTPClient:
         consumers should for clean shutdown.
 
         :return: The shared ``httpx.AsyncClient`` for this instance.
-        :rtype: httpx.AsyncClient
+        :rtype: ``httpx.AsyncClient``
 
         .. note::
             Not thread-safe. HTTPClient is intended for single-event-loop use.

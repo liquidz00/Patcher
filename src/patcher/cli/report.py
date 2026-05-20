@@ -65,7 +65,7 @@ async def process_reports(
         ``JamfClient``, ``DataManager``, and ``InstallomatorClient`` collaborators.
     :type patcher: :class:`~patcher.core.patcher_client.PatcherClient`
     :param path: Output directory for the generated reports.
-    :type path: str | Path
+    :type path: str | ~pathlib.Path
     :param formats: Export formats to write (``excel``, ``html``, ``pdf``, ``json``).
     :type formats: set[str]
     :param sort: Optional column name to sort by (e.g. ``released``).

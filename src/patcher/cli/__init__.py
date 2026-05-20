@@ -84,7 +84,7 @@ def initialize_cache(cache_dir: Path) -> None:
     Ensures the cache directory exists while avoiding creating system-managed directories.
 
     :param cache_dir: The full path to the cache directory (e.g., ~/Library/Caches/Patcher).
-    :type cache_dir: :py:obj:`~pathlib.Path`
+    :type cache_dir: ~pathlib.Path
     """
     log = LogMe(inspect.currentframe().f_code.co_name)
 
@@ -601,7 +601,7 @@ async def analyze(
     :param summary: Flag to generate a summary file in HTML format.
     :type summary: bool
     :param output_dir: Directory to save generated summary, only if `--summary` flag passed.
-    :type output_dir: str | Path | None
+    :type output_dir: str | ~pathlib.Path | None
     :param all_time: Flag to analyze trends across all cached data.
     :type all_time: bool
     """
