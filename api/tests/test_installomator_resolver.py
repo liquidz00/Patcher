@@ -316,6 +316,62 @@ class TestSubprocessFallback:
         assert isinstance(result, Resolved)
         assert result.value == "hello"
 
+    def test_nonzero_exit_returns_unresolvable_with_truncated_stderr(self):
+        """Pipeline exits non-zero -> Unresolvable carrying a truncated stderr.
+
+        The fallback caps stderr at 200 chars in the reason string so a
+        chatty failure can't blow up logs. Exercises the actual subprocess
+        path with a real bash command that writes a long stderr and exits 1.
+        """
+        long_msg = "x" * 500
+        result = resolve(
+            f'$(bash -c "echo {long_msg} >&2; exit 1")',
+            allow_subprocess_fallback=True,
+        )
+        assert isinstance(result, Unresolvable)
+        # The truncation happens inside _subprocess_fallback (200-char cap).
+        # `Unresolvable.reason` contains the subprocess error text, which the
+        # outer dispatcher wraps but preserves verbatim.
+        assert "exited 1" in result.reason
+        # Truncation cap is 200 chars; full 500-x string should never appear.
+        assert "x" * 500 not in result.reason
+
+    def test_subprocess_timeout_returns_unresolvable(self, monkeypatch):
+        """A pipeline that exceeds the 30s timeout returns Unresolvable.
+
+        Mocked rather than waiting 30s with a `sleep` pipeline. We patch
+        `subprocess.run` to raise TimeoutExpired and assert the failure
+        path translates it into Unresolvable.
+        """
+        import subprocess
+
+        from patcher_api import installomator_resolver
+
+        def fake_run(*_args, **_kwargs):
+            raise subprocess.TimeoutExpired(cmd="bash", timeout=30.0)
+
+        monkeypatch.setattr(installomator_resolver.subprocess, "run", fake_run)
+        result = resolve("$(plutil -extract foo raw bar.plist)", allow_subprocess_fallback=True)
+        assert isinstance(result, Unresolvable)
+        assert "timed out" in result.reason
+
+    def test_subprocess_os_error_returns_unresolvable(self, monkeypatch):
+        """OSError starting bash -> Unresolvable, not a crash.
+
+        Defends the path where the host has no /bin/bash (rare on POSIX,
+        but a real failure mode on stripped-down containers). Mocked because
+        we can't actually remove /bin/bash from a dev box for a test.
+        """
+        from patcher_api import installomator_resolver
+
+        def fake_run(*_args, **_kwargs):
+            raise OSError("[Errno 2] No such file or directory: '/bin/bash'")
+
+        monkeypatch.setattr(installomator_resolver.subprocess, "run", fake_run)
+        result = resolve("$(plutil -extract foo raw bar.plist)", allow_subprocess_fallback=True)
+        assert isinstance(result, Unresolvable)
+        assert "could not start bash" in result.reason
+
 
 class TestCurlBody:
     def test_simple_get(self):

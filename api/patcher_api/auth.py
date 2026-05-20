@@ -17,6 +17,7 @@ handling.
 """
 
 import hashlib
+from datetime import UTC, datetime
 
 from fastapi import Depends, HTTPException, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -68,5 +69,24 @@ async def get_current_deploy_token(
             detail="Invalid or revoked deploy token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Expiry. ``expires_at = NULL`` is treated as "never expires" so rows
+    # minted before this column existed continue to work; new tokens get a
+    # 90-day default from the grant script.
+    #
+    # SQLite stores DateTime(timezone=True) as TEXT and some driver/dialect
+    # combos return offset-naive datetimes on read. Normalize to UTC so the
+    # comparison doesn't blow up with `can't compare offset-naive and
+    # offset-aware datetimes`.
+    if token.expires_at is not None:
+        expires_at = token.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if expires_at <= datetime.now(UTC):
+            raise HTTPException(
+                status_code=401,
+                detail="Deploy token has expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     return token

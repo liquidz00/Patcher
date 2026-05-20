@@ -22,22 +22,30 @@ To revoke a deploy token later::
 import asyncio
 import secrets
 import sys
+from datetime import UTC, datetime
 
 from patcher_api.auth import hash_token
 from patcher_api.db import get_session_maker, init_db
-from patcher_api.models.deploy_token import DeployToken
+from patcher_api.models.deploy_token import DEFAULT_LIFETIME, DeployToken
 
 
-async def grant_deploy_token(user_id: str) -> str:
+async def grant_deploy_token(user_id: str) -> tuple[str, datetime]:
     await init_db()
 
     plaintext = secrets.token_urlsafe(32)
+    expires_at = datetime.now(UTC) + DEFAULT_LIFETIME
 
     async with get_session_maker()() as session:
-        session.add(DeployToken(user_id=user_id, token_hash=hash_token(plaintext)))
+        session.add(
+            DeployToken(
+                user_id=user_id,
+                token_hash=hash_token(plaintext),
+                expires_at=expires_at,
+            )
+        )
         await session.commit()
 
-    return plaintext
+    return plaintext, expires_at
 
 
 def main() -> None:
@@ -46,12 +54,13 @@ def main() -> None:
         sys.exit(1)
 
     user_id = sys.argv[1]
-    plaintext = asyncio.run(grant_deploy_token(user_id))
+    plaintext, expires_at = asyncio.run(grant_deploy_token(user_id))
 
     print()
     print(f"Deploy token granted for '{user_id}':")
     print(f"  {plaintext}")
     print()
+    print(f"Expires: {expires_at.isoformat()}  (default lifetime: {DEFAULT_LIFETIME.days} days)")
     print("Store this securely (GitHub Actions secret, 1Password, etc.)")
     print("It will not be shown again.")
 

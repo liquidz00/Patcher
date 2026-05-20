@@ -111,8 +111,9 @@ class JamfClient(HTTPClient):
         # Ensure token is valid
         await self.token_manager.ensure_valid_token()
         latest_token = self.token_manager.token
-        self.log.debug(f"Using token ending in {latest_token.token[-4:]}")
-        return {"accept": "application/json", "Authorization": f"Bearer {latest_token}"}
+        plaintext = latest_token.token.get_secret_value()
+        self.log.debug(f"Using token ending in {plaintext[-4:]}")
+        return {"accept": "application/json", "Authorization": f"Bearer {plaintext}"}
 
     async def get_policies(self) -> list[str]:
         """

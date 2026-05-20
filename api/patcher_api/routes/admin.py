@@ -13,12 +13,19 @@ import hashlib
 import logging
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from patcher_api.auth import get_current_deploy_token
 from patcher_api.config import get_settings
 from patcher_api.models.deploy_token import DeployToken
 
 log = logging.getLogger(__name__)
+
+# Reuses the per-IP limiter registered on app.state in main.py. Generous
+# enough for the daily catalog-refresh CI run plus the occasional manual
+# retry, tight enough that a leaked token + brute-force loop gets shut down.
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(
     prefix="/admin",
@@ -28,6 +35,7 @@ router = APIRouter(
 
 
 @router.post("/catalog/upload")
+@limiter.limit("12/hour")
 async def upload_catalog(
     request: Request,
     x_catalog_sha256: str | None = Header(None, alias="X-Catalog-SHA256"),

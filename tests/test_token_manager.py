@@ -14,7 +14,7 @@ def test_token_manager_initialization(mock_token, config_manager):
         token="mocked_token", expires=datetime(2030, 1, 1, tzinfo=timezone.utc)
     )
     token_manager = TokenManager(config=config_manager)
-    assert token_manager.token.token == "mocked_token"
+    assert token_manager.token.token.get_secret_value() == "mocked_token"
     assert token_manager.token.expires == datetime(2030, 1, 1, tzinfo=timezone.utc)
 
 

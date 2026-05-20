@@ -199,6 +199,82 @@ async def test_run_setup_sso(setup_instance):
         mock_mark_completion.assert_called_once_with(value=True)
 
 
+@pytest.mark.asyncio
+async def test_start_persists_credentials_via_jamf_credentials(setup_instance, mock_plist_manager):
+    """End-to-end exercise of ``Setup.start()`` running the *real* method body.
+
+    The earlier ``test_run_setup_standard`` and ``test_run_setup_sso`` mock
+    ``start()`` itself, so the credential-persistence block at the bottom of
+    ``start()`` never executes during tests. That hid a real bug for an
+    entire release cycle: the block was constructing ``JamfClient(...)``
+    (the HTTP client) instead of ``JamfCredentials(...)`` (the Pydantic
+    model expected by ``config.create_client``), and ``JamfClient`` wasn't
+    even imported, so the failure was a ``NameError`` for every user running
+    ``patcherctl --setup`` end-to-end.
+
+    This test runs the real ``start()`` with only the I/O collaborators
+    mocked (prompts, animator, token fetch) and asserts the
+    credential-persistence call sees a real ``JamfCredentials`` instance.
+    A future regression of the same shape (wrong class, missing import,
+    bad kwargs) fails this test immediately.
+    """
+    from src.patcher.core.models.jamf import JamfCredentials
+    from src.patcher.core.models.token import AccessToken
+
+    # setup_completed gate: not completed, so start() runs the body
+    mock_plist_manager.get.return_value = False
+
+    # No-op animator
+    animator = AsyncMock()
+
+    sso_creds = {
+        "URL": "https://test.jamfcloud.com",
+        "CLIENT_ID": "abc-123",
+        "CLIENT_SECRET": "secret-xyz",
+    }
+    creds_with_token = {
+        **sso_creds,
+        "TOKEN": "bearer-token-value",
+        "TOKEN_EXPIRATION": "2030-01-01T00:00:00+00:00",
+    }
+
+    # Mock every collaborator that does I/O or prompts. Leave the real
+    # credential-persistence block intact; that's the code under test.
+    with patch("src.patcher.cli.setup.click.prompt", new=AsyncMock(return_value=2)):
+        setup_instance.prompt_credentials = AsyncMock(return_value=sso_creds)
+        setup_instance.prompt_installomator = MagicMock()
+        setup_instance.validate_creds = MagicMock()
+        setup_instance._save_creds = MagicMock()
+        setup_instance.get_token = AsyncMock(return_value="dummy-basic-token")
+        setup_instance.prompt_ui_settings = AsyncMock()
+        setup_instance._mark_completion = MagicMock()
+        # _get_creds is called twice: once without token, once with.
+        setup_instance._get_creds = MagicMock(side_effect=[sso_creds, creds_with_token])
+
+        await setup_instance.start(fresh=True, animator=animator)
+
+    # The whole point of this test: config.create_client must receive a
+    # JamfCredentials instance, not JamfClient or some other class. If
+    # someone re-introduces ``JamfClient(...)`` in setup.py, this fails
+    # before reaching production.
+    setup_instance.config.create_client.assert_called_once()
+    call = setup_instance.config.create_client.call_args
+
+    credentials_arg = call.args[0]
+    assert isinstance(credentials_arg, JamfCredentials), (
+        f"Expected JamfCredentials, got {type(credentials_arg).__name__}"
+    )
+    assert credentials_arg.client_id == "abc-123"
+    assert credentials_arg.client_secret.get_secret_value() == "secret-xyz"
+    assert credentials_arg.server == "https://test.jamfcloud.com"
+
+    token_arg = call.kwargs["token"]
+    assert isinstance(token_arg, AccessToken)
+    assert token_arg.token.get_secret_value() == "bearer-token-value"
+
+    setup_instance._mark_completion.assert_called_once_with(value=True)
+
+
 # Non-interactive bootstrap (CI/CD path)
 
 

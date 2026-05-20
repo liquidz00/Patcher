@@ -1,9 +1,14 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from patcher_api.db import Base
+
+# Default lifetime applied when minting a new deploy token. 90 days balances
+# rotation hygiene with operational friction for the CI workflow that
+# consumes the token.
+DEFAULT_LIFETIME = timedelta(days=90)
 
 
 class DeployToken(Base):
@@ -19,7 +24,10 @@ class DeployToken(Base):
 
     Same plaintext-never-stored hygiene as :class:`Token`: SHA-256 hash on
     insert, plaintext shown once via :mod:`scripts.grant_deploy_token` and
-    re-issued if lost.
+    re-issued if lost. Tokens carry an ``expires_at`` (default 90 days from
+    creation) so a leaked token cannot live forever even if it's never
+    rotated; ``expires_at = NULL`` is treated as "never expires" for
+    backward compatibility with rows minted before this column existed.
     """
 
     __tablename__ = "deploy_tokens"
@@ -30,6 +38,10 @@ class DeployToken(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )
     revoked_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),

@@ -47,7 +47,7 @@ class TokenManager:
             except CredentialError:
                 self.log.warning("Failed to load token from keychain.")
             self.log.info(
-                f"Token ending in {self._token.token[-4:]}  loaded successfully from JamfCredentials."
+                f"Token ending in {self._token.token.get_secret_value()[-4:]}  loaded successfully from JamfCredentials."
             )
         return self._token
 
@@ -94,12 +94,18 @@ class TokenManager:
             )
             return client
         except ValidationError as e:
+            # Don't echo `str(e)`: Pydantic's default __str__ includes the offending
+            # field VALUES, which here would surface fragments of CLIENT_ID /
+            # CLIENT_SECRET / URL in logs and exception messages. Only the field
+            # names are safe to surface.
+            failing_fields = sorted({".".join(map(str, err["loc"])) for err in e.errors()})
+            field_summary = ", ".join(failing_fields) or "<unknown>"
             self.log.error(
-                f"Failed attaching JamfCredentials due to validation error. Details: {e}"
+                f"Failed attaching JamfCredentials due to validation error on field(s): {field_summary}"
             )
             raise PatcherError(
                 "Unable to attach JamfCredentials due to invalid configuration",
-                error_msg=str(e),
+                fields=field_summary,
             )
 
     async def fetch_token(self) -> AccessToken:
@@ -118,7 +124,7 @@ class TokenManager:
         data = {
             "client_id": self.client.client_id,
             "grant_type": "client_credentials",
-            "client_secret": self.client.client_secret,
+            "client_secret": self.client.client_secret.get_secret_value(),
         }
 
         try:
@@ -168,7 +174,7 @@ class TokenManager:
         """
         self.log.debug("Attempting to save retrieved AccessToken object.")
         try:
-            self.config.set_credential("TOKEN", token.token)
+            self.config.set_credential("TOKEN", token.token.get_secret_value())
             self.config.set_credential("TOKEN_EXPIRATION", token.expires.isoformat())
         except CredentialError as e:
             self.log.error(f"Unable to save AccessToken object to keychain. Details: {e}")
@@ -201,8 +207,15 @@ class TokenManager:
                     self.log.warning("Bearer token is invalid or expired, attempting to refresh...")
                     await self.fetch_token()
                 self.log.info(
-                    f"Token ending in ({self.token.token[-4:]}) retrieved successfully. Remaining seconds: {self.token.seconds_remaining}"
+                    f"Token ending in ({self.token.token.get_secret_value()[-4:]}) retrieved successfully. Remaining seconds: {self.token.seconds_remaining}"
                 )
                 return self.token
             except ValidationError as e:
-                raise TokenError("AccessToken failed validation", error_msg=str(e))
+                # Same hygiene as attach_client: never echo Pydantic's default
+                # `str(e)` because it includes raw input values (token bytes,
+                # expiration timestamps).
+                failing_fields = sorted({".".join(map(str, err["loc"])) for err in e.errors()})
+                raise TokenError(
+                    "AccessToken failed validation",
+                    fields=", ".join(failing_fields) or "<unknown>",
+                )

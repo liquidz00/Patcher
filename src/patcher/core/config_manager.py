@@ -149,9 +149,9 @@ class ConfigManager:
         self.log.debug(f"Storing credentials for client ending in: {(client.client_id[-4:])}")
         credentials = {
             "CLIENT_ID": client.client_id,
-            "CLIENT_SECRET": client.client_secret,
+            "CLIENT_SECRET": client.client_secret.get_secret_value(),
             "URL": client.base_url,
-            "TOKEN": token.token,
+            "TOKEN": token.token.get_secret_value(),
             "TOKEN_EXPIRATION": str(token.expires),
         }
         for k, v in credentials.items():

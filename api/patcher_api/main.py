@@ -5,6 +5,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy.engine.url import make_url
 from starlette.responses import Response
 
@@ -12,6 +15,11 @@ from patcher_api.config import get_settings
 from patcher_api.db import get_engine, get_session_maker, init_db
 from patcher_api.routes import admin, apps
 from patcher_api.seed import seed_database
+
+# Rate limiter scoped per-IP. Applied only to admin routes via per-route
+# decorators; /apps* (public catalog reads) and /health stay unlimited and
+# are protected by Cloudflare's own rate-limiting in production.
+limiter = Limiter(key_func=get_remote_address)
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +89,8 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.middleware("http")
@@ -112,13 +122,17 @@ async def catalog_etag(request: Request, call_next):
     etag = f'W/"{catalog_sha}"'
 
     # 304 short-circuit. Returning early means the route function isn't
-    # even called, saving the DB read entirely.
+    # even called, saving the DB read entirely. ``If-None-Match`` per RFC
+    # 7232 accepts either ``*`` (wildcard match) or a comma-separated list
+    # of ETags; both forms must match the current ETag to short-circuit.
     if_none_match = request.headers.get("if-none-match")
-    if if_none_match and if_none_match == etag:
-        return Response(
-            status_code=304,
-            headers={"ETag": etag, "Cache-Control": _CACHE_CONTROL},
-        )
+    if if_none_match:
+        candidates = [c.strip() for c in if_none_match.split(",")]
+        if "*" in candidates or etag in candidates:
+            return Response(
+                status_code=304,
+                headers={"ETag": etag, "Cache-Control": _CACHE_CONTROL},
+            )
 
     response = await call_next(request)
     response.headers["ETag"] = etag

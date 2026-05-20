@@ -163,3 +163,70 @@ async def test_upload_revoked_deploy_token_rejected(
     )
     assert response.status_code == 401
     assert "revoked" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_upload_expired_deploy_token_rejected(client, test_session, incoming_dir):
+    """A deploy token past its ``expires_at`` is rejected at the auth boundary.
+
+    Covers the Phase 3 ``DeployToken.expires_at`` column. Tokens minted with
+    a past expiration must surface a 401, not a 200.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    plaintext = secrets.token_urlsafe(32)
+    test_session.add(
+        DeployToken(
+            user_id="expired-test",
+            token_hash=hash_token(plaintext),
+            expires_at=datetime.now(UTC) - timedelta(seconds=1),
+        )
+    )
+    await test_session.commit()
+
+    response = await client.post(
+        "/admin/catalog/upload",
+        content=b"anything",
+        headers={"Authorization": f"Bearer {plaintext}"},
+    )
+    assert response.status_code == 401
+    assert "expired" in response.json()["detail"].lower()
+    # No artifact written when auth fails up-front
+    assert not (incoming_dir / "patcher_api.db.tmp").exists()
+    assert not (incoming_dir / "patcher_api.db").exists()
+
+
+@pytest.mark.asyncio
+async def test_upload_streaming_cap_enforced_without_content_length(
+    client, deploy_token, incoming_dir, monkeypatch
+):
+    """Content-Length is advisory; the streaming check is the actual gate.
+
+    A client that omits Content-Length (or lies about it) still cannot
+    upload more than ``max_upload_bytes`` worth of body. The cap fires
+    during streaming and the partial ``.tmp`` is cleaned up.
+    """
+    monkeypatch.setattr(get_settings(), "max_upload_bytes", 100)
+
+    # Stream the body via a generator so httpx omits Content-Length and
+    # the server can't reject up-front; it has to enforce the cap mid-stream.
+    async def streamer():
+        for _ in range(20):  # 20 * 50 bytes = 1000 > 100-byte cap
+            yield b"x" * 50
+
+    response = await client.post(
+        "/admin/catalog/upload",
+        content=streamer(),
+        headers={
+            "Authorization": f"Bearer {deploy_token}",
+            "Content-Type": "application/octet-stream",
+        },
+    )
+
+    assert response.status_code == 413
+    # Partial file from the streaming write must be cleaned up; otherwise
+    # a future upload could be confused by stale partial bytes.
+    assert not (incoming_dir / "patcher_api.db.tmp").exists()
+    # The cap fires mid-stream before the atomic rename, so no final file
+    # should ever exist either.
+    assert not (incoming_dir / "patcher_api.db").exists()

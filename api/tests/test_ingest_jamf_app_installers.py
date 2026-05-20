@@ -96,6 +96,59 @@ def test_parse_returns_empty_list_on_no_matching_cells():
     assert rows == []
 
 
+def test_parse_warns_when_cell_count_not_divisible_by_three(caplog):
+    """Upstream malformed: cells modulo 3 != 0 -> warning + still parse what we can.
+
+    Catches the regression class where Jamf adds/removes a column or drops
+    a cell mid-row. Without the warning the corruption is silent.
+    """
+    # Two complete rows + one stray "entry__1" cell with no following 2/3.
+    malformed = """
+    <table><tbody>
+        <tr><td headers="reference-7022__entry__1">App A</td>
+            <td headers="reference-7022__entry__2">Jamf</td>
+            <td headers="reference-7022__entry__3">--</td></tr>
+        <tr><td headers="reference-7022__entry__1">App B</td>
+            <td headers="reference-7022__entry__2">External</td>
+            <td headers="reference-7022__entry__3">b.example.com</td></tr>
+        <tr><td headers="reference-7022__entry__1">Trailing Half-Row</td></tr>
+    </tbody></table>
+    """
+    with caplog.at_level("WARNING"):
+        rows = parse_jamf_app_installers_table(malformed)
+
+    # The two well-formed rows still come back; the parser doesn't bail on
+    # the first sign of trouble.
+    assert len(rows) == 2
+    assert {r["title"] for r in rows} == {"App A", "App B"}
+
+    # The divisibility warning fires (7 cells, 7 % 3 != 0).
+    assert any("not divisible by 3" in rec.message for rec in caplog.records)
+    # And the trailing-row warning fires for the orphaned entry__1.
+    assert any("Trailing incomplete JAI row" in rec.message for rec in caplog.records)
+
+
+def test_parse_warns_on_out_of_order_cells_and_skips_incomplete(caplog):
+    """A row that re-enters entry__1 before completing the previous row
+    flags the previous one as incomplete and starts a new one."""
+    out_of_order = """
+    <table><tbody>
+        <tr><td headers="reference-7022__entry__1">First</td>
+            <td headers="reference-7022__entry__2">Jamf</td></tr>
+        <tr><td headers="reference-7022__entry__1">Second</td>
+            <td headers="reference-7022__entry__2">External</td>
+            <td headers="reference-7022__entry__3">s.example.com</td></tr>
+    </tbody></table>
+    """
+    with caplog.at_level("WARNING"):
+        rows = parse_jamf_app_installers_table(out_of_order)
+
+    # Only the complete second row makes it into the output.
+    assert rows == [{"title": "Second", "source": "External", "host": "s.example.com"}]
+    # The first one's incompleteness gets logged when entry__1 reappears.
+    assert any("Incomplete JAI row" in rec.message for rec in caplog.records)
+
+
 @pytest.mark.asyncio
 async def test_ingest_stores_rows(test_session):
     rows = parse_jamf_app_installers_table(FIXTURE_HTML)
