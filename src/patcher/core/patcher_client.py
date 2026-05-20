@@ -33,7 +33,7 @@ from .exceptions import PatcherError
 from .logger import LogMe
 from .matching import match_titles
 from .models.patch import PatchTitle
-from .models.ui import UIDefaults
+from .models.ui import UIConfigKeys, UIDefaults
 from .plist_manager import PropertylistManager
 
 
@@ -354,7 +354,7 @@ class PatcherClient:
         formats: set[str] | None = None,
         report_title: str | None = None,
         date_format: str = "%B %d %Y",
-        header_color: str | None = "#6432bdff",
+        header_color: str | None = None,
         analysis: bool = False,
         device_reports: dict[str, list] | None = None,
     ) -> dict[str, str]:
@@ -370,12 +370,13 @@ class PatcherClient:
             ``{"excel", "html", "pdf", "json"}``.
         :type formats: set[str] | None
         :param report_title: Title used in PDF/HTML headers. Defaults to the
-            ``HEADER_TEXT`` value from this client's ``ui_config``.
+            ``header_text`` value from this client's ``ui_config``.
         :type report_title: str | None
         :param date_format: Date format for PDF/HTML headers (strftime).
             Defaults to ``"%B %d %Y"``.
         :type date_format: str
         :param header_color: Hex color for the HTML report header background.
+            Falls back to :attr:`~patcher.core.models.ui.UIDefaults.header_color` when ``None``.
         :type header_color: str | None
         :param analysis: If True, treats this as an analysis report (affects
             HTML output path naming).
@@ -389,7 +390,8 @@ class PatcherClient:
         return await self.data.export(
             patch_titles=titles,
             output_dir=output_dir,
-            report_title=report_title or self.ui_config.get("HEADER_TEXT", "Patch Report"),
+            report_title=report_title
+            or self.ui_config.get(UIConfigKeys.HEADER.value, "Patch Report"),
             analysis=analysis,
             date_format=date_format,
             formats=formats,

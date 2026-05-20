@@ -462,7 +462,7 @@ class DataManager:
         analysis: bool = False,
         date_format: str = "%B %d %Y",
         formats: set[str] | None = None,
-        header_color: str | None = "#6432bdff",
+        header_color: str | None = None,
         device_reports: dict[str, list[PatchDevice]] | None = None,
     ) -> dict[str, str]:
         """
@@ -472,7 +472,7 @@ class DataManager:
         :type patch_titles: list [:class:`~patcher.core.models.patch.PatchTitle`]
         :param output_dir: The directory in which to save the exported report(s).
         :type output_dir: str | ~pathlib.Path
-        :param report_title: The title to use for the header in exported report(s). Defaults to ``HEADER_TEXT`` key in ``com.liquidzoo.patcher.plist`` file.
+        :param report_title: The title to use for the header in exported report(s). Defaults to the ``header_text`` key in ``com.liquidzoo.patcher.plist``.
         :type report_title: str
         :param analysis: Denotes whether this is analysis report (affects HTML output path).
         :type analysis: bool
@@ -480,7 +480,8 @@ class DataManager:
         :type date_format: str
         :param formats: A set of formats to export. Defaults to all ({"excel", "html", "pdf"}).
         :type formats: set | None
-        :param header_color: Hex color to use for HTML header table background (defaults to "#6432bdff")
+        :param header_color: Hex color to use for HTML header table background.
+            Falls back to :attr:`~patcher.core.models.ui.UIDefaults.header_color` when ``None``.
         :type header_color: str | None
         :param device_reports: Optional dictionary mapping title IDs to device lists for per-title detail sheets.
         :type device_reports: dict[str, list[:class:`~patcher.core.models.patch.PatchDevice`]] | None

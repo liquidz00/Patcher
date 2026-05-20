@@ -416,9 +416,9 @@ class TestExport:
 
     @pytest.mark.asyncio
     async def test_default_report_title_falls_back_to_ui_config(self, patcher):
-        """When report_title isn't passed, use ui_config['HEADER_TEXT']."""
+        """When report_title isn't passed, use ui_config['header_text']."""
         patcher.data.export = AsyncMock(return_value={})
-        patcher.ui_config = {"HEADER_TEXT": "Custom Header"}
+        patcher.ui_config = {"header_text": "Custom Header"}
 
         await patcher.export(["titles"], output_dir="/tmp")
 
@@ -427,7 +427,7 @@ class TestExport:
 
     @pytest.mark.asyncio
     async def test_default_report_title_when_ui_config_missing_header(self, patcher):
-        """When ui_config lacks HEADER_TEXT, fall back to the literal default."""
+        """When ui_config lacks header_text, fall back to the literal default."""
         patcher.data.export = AsyncMock(return_value={})
         patcher.ui_config = {}
 
