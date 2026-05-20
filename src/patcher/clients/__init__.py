@@ -97,6 +97,34 @@ class HTTPClient:
             await self._http_client.aclose()
             self._http_client = None
 
+    async def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        """
+        Single httpx call wrapped with the per-instance semaphore and translation
+        of ``httpx.RequestError`` to :class:`patcher.core.exceptions.APIResponseError`.
+
+        Subclasses use this to share the network-error handling without reimplementing
+        the semaphore + try/except plumbing. The caller is responsible for status-code
+        handling on the returned response.
+
+        :param method: HTTP method (e.g. ``"GET"``, ``"POST"``).
+        :type method: str
+        :param url: Fully-qualified URL.
+        :type url: str
+        :param kwargs: Forwarded to :meth:`httpx.AsyncClient.request`.
+        :return: The raw :class:`httpx.Response`.
+        :rtype: :class:`httpx.Response`
+        :raises APIResponseError: On any ``httpx.RequestError`` (network, DNS, timeout).
+        """
+        try:
+            async with self.semaphore:
+                return await self.http.request(method, url, **kwargs)
+        except httpx.RequestError as e:
+            raise APIResponseError(
+                "Network error contacting URL",
+                url=url,
+                error_msg=str(e),
+            )
+
     async def fetch_text(
         self,
         url: str,

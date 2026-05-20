@@ -251,28 +251,12 @@ class PatcherAPIClient(HTTPClient):
 
     async def _get(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
         url = f"{self.base_url}{path}"
-        try:
-            async with self.semaphore:
-                response = await self.http.get(url, params=params)
-        except httpx.RequestError as exc:
-            raise APIResponseError(
-                "Network error contacting Patcher API",
-                url=url,
-                error_msg=str(exc),
-            )
+        response = await self._request("GET", url, params=params)
         return self._parse(response, url)
 
     async def _post(self, path: str) -> Any:
         url = f"{self.base_url}{path}"
-        try:
-            async with self.semaphore:
-                response = await self.http.post(url)
-        except httpx.RequestError as exc:
-            raise APIResponseError(
-                "Network error contacting Patcher API",
-                url=url,
-                error_msg=str(exc),
-            )
+        response = await self._request("POST", url)
         return self._parse(response, url)
 
     @staticmethod

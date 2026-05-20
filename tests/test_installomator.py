@@ -22,10 +22,9 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
+from src.patcher.clients import HTTPClient
 from src.patcher.clients.installomator import InstallomatorClient
-from src.patcher.clients.jamf import JamfClient
 from src.patcher.core.exceptions import APIResponseError
-from src.patcher.core.models.patch import PatchTitle
 
 
 def _sample_fragment(
@@ -59,8 +58,7 @@ def iom(tmp_path: Path) -> InstallomatorClient:
     """
     instance = InstallomatorClient()
     instance.label_path = tmp_path / ".labels"
-    instance.review_file = tmp_path / "unmatched_apps.json"
-    instance.api = AsyncMock(spec=JamfClient)
+    instance.api = AsyncMock(spec=HTTPClient)
     return instance
 
 
@@ -75,20 +73,6 @@ def test_bare_construction_does_not_require_jamf_creds() -> None:
 
     iom = InstallomatorClient()
     assert isinstance(iom.api, HTTPClient)
-
-
-@pytest.mark.asyncio
-async def test_match_raises_without_jamf_client() -> None:
-    """
-    ``match()`` requires a JamfClient (it calls ``get_app_names``). When the
-    default ``HTTPClient`` is in place, surface a clear ``PatcherError``
-    pointing the caller at the fix rather than a cryptic AttributeError.
-    """
-    from src.patcher.core.exceptions import PatcherError
-
-    iom = InstallomatorClient()
-    with pytest.raises(PatcherError, match="requires a configured JamfClient"):
-        await iom.match([])
 
 
 @pytest.mark.asyncio
@@ -259,155 +243,3 @@ async def test_get_labels_skips_failed_fetches(iom: InstallomatorClient) -> None
 
     assert len(labels) == 1
     assert labels[0].name == "Google Chrome"
-
-
-def test_normalize_lowercases_strips_spaces_and_dots() -> None:
-    assert InstallomatorClient._normalize("Google Chrome") == "googlechrome"
-    assert InstallomatorClient._normalize("Node.js") == "nodejs"
-    assert InstallomatorClient._normalize("1Password 7") == "1password7"
-
-
-def test_match_directly_direct_hit(iom: InstallomatorClient) -> None:
-    matched = iom._match_directly(["googlechrome"], {"googlechrome", "firefox"})
-    assert matched == ["googlechrome"]
-
-
-def test_match_directly_normalized_hit(iom: InstallomatorClient) -> None:
-    matched = iom._match_directly(["Google Chrome"], {"googlechrome"})
-    assert matched == ["googlechrome"]
-
-
-def test_match_directly_no_duplicates(iom: InstallomatorClient) -> None:
-    """Direct + normalized matches against the same label shouldn't double up."""
-    matched = iom._match_directly(["googlechrome", "Google Chrome"], {"googlechrome"})
-    assert matched == ["googlechrome"]
-
-
-def test_match_directly_no_hit(iom: InstallomatorClient) -> None:
-    matched = iom._match_directly(["unknown-app"], {"googlechrome"})
-    assert matched == []
-
-
-def test_match_fuzzy_hits_above_threshold(iom: InstallomatorClient) -> None:
-    matched = iom._match_fuzzy(["google chrome"], {"googlechrome"})
-    # rapidfuzz.ratio("google chrome", "googlechrome") is high enough to clear 85
-    assert matched == ["googlechrome"]
-
-
-def test_match_fuzzy_misses_below_threshold(iom: InstallomatorClient) -> None:
-    matched = iom._match_fuzzy(["zzz-unrelated"], {"googlechrome"})
-    assert matched == []
-
-
-def _make_patch_title(title: str, title_id: str = "1") -> PatchTitle:
-    return PatchTitle(
-        title=title,
-        title_id=title_id,
-        released="2024-01-01",
-        hosts_patched=10,
-        missing_patch=2,
-        latest_version="1.0.0",
-    )
-
-
-@pytest.mark.asyncio
-async def test_match_attaches_labels_to_matched_titles(iom: InstallomatorClient) -> None:
-    iom.api.get_app_names = AsyncMock(
-        return_value=[{"Patch": "Google Chrome", "App Names": ["Google Chrome"]}]
-    )
-
-    async def fetch_text_side_effect(url: str, **kwargs) -> str:
-        if url.endswith("/Labels.txt"):
-            return "googlechrome\n"
-        return _sample_fragment()
-
-    iom.api.fetch_text.side_effect = fetch_text_side_effect
-
-    patch_titles = [_make_patch_title("Google Chrome")]
-    await iom.match(patch_titles)
-
-    assert len(patch_titles[0].install_label) == 1
-    assert patch_titles[0].install_label[0].name == "Google Chrome"
-
-
-@pytest.mark.asyncio
-async def test_match_persists_unmatched_apps(iom: InstallomatorClient) -> None:
-    iom.api.get_app_names = AsyncMock(
-        return_value=[{"Patch": "Mystery App", "App Names": ["Mystery App"]}]
-    )
-
-    async def fetch_text_side_effect(url: str, **kwargs) -> str:
-        if url.endswith("/Labels.txt"):
-            return "googlechrome\n"
-        return _sample_fragment()
-
-    iom.api.fetch_text.side_effect = fetch_text_side_effect
-
-    patch_titles = [_make_patch_title("Mystery App")]
-    await iom.match(patch_titles)
-
-    assert iom.review_file.exists()
-    import json
-
-    with iom.review_file.open() as f:
-        review = json.load(f)
-    assert review == [{"Patch": "Mystery App", "App Names": ["Mystery App"]}]
-
-
-@pytest.mark.asyncio
-async def test_match_skips_ignored_title_patterns(iom: InstallomatorClient) -> None:
-    """Apple macOS *, Oracle Java SE *, etc. should be skipped wholesale."""
-    iom.api.get_app_names = AsyncMock(
-        return_value=[
-            {"Patch": "Apple macOS Ventura", "App Names": ["macOS Ventura"]},
-            {"Patch": "Apple Safari", "App Names": ["Safari"]},
-        ]
-    )
-    iom.api.fetch_text.return_value = "googlechrome\n"  # Labels.txt only — no fragments fetched
-
-    patch_titles = [
-        _make_patch_title("Apple macOS Ventura"),
-        _make_patch_title("Apple Safari", title_id="2"),
-    ]
-    await iom.match(patch_titles)
-
-    for pt in patch_titles:
-        assert pt.install_label == []
-    # Only Labels.txt was fetched; ignored titles never trigger fragment fetches
-    assert iom.api.fetch_text.call_count == 1
-
-
-@pytest.mark.asyncio
-async def test_match_second_pass_finds_normalized_title(iom: InstallomatorClient) -> None:
-    """A title with no app_name matches should still match via normalized title text."""
-    iom.api.get_app_names = AsyncMock(
-        return_value=[{"Patch": "Google Chrome", "App Names": ["totally-unrelated"]}]
-    )
-
-    async def fetch_text_side_effect(url: str, **kwargs) -> str:
-        if url.endswith("/Labels.txt"):
-            return "googlechrome\n"
-        return _sample_fragment()
-
-    iom.api.fetch_text.side_effect = fetch_text_side_effect
-
-    patch_titles = [_make_patch_title("Google Chrome")]
-    await iom.match(patch_titles)
-
-    # Second-pass picked it up by normalizing the patch title text
-    assert len(patch_titles[0].install_label) == 1
-    assert patch_titles[0].install_label[0].name == "Google Chrome"
-
-
-@pytest.mark.asyncio
-async def test_match_does_nothing_on_404_from_get_app_names(iom: InstallomatorClient) -> None:
-    """If get_app_names raises a 404 APIResponseError, match returns silently."""
-    from src.patcher.core.exceptions import APIResponseError
-
-    err = APIResponseError("not found", status_code=404, error="404", not_found=True)
-    iom.api.get_app_names = AsyncMock(side_effect=err)
-
-    patch_titles = [_make_patch_title("Google Chrome")]
-    await iom.match(patch_titles)  # must not raise
-
-    assert patch_titles[0].install_label == []

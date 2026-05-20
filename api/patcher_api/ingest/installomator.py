@@ -39,7 +39,7 @@ import httpx
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from patcher.clients.installomator import parse_fragment
+from patcher_api.ingest._label_parser import parse_fragment
 from patcher_api.installomator_resolver import (
     InvalidOutput,
     Resolved,

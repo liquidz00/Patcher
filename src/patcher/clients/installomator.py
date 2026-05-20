@@ -1,20 +1,15 @@
 import asyncio
-import fnmatch
-import json
 import re
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
-from rapidfuzz import fuzz, process
 
 from ..core.exceptions import APIResponseError, PatcherError
 from ..core.logger import LogMe
 from ..core.models.label import Label
-from ..core.models.patch import PatchTitle
 from . import HTTPClient
-from .jamf import JamfClient
 
 IGNORED_TEAMS = ["Frydendal", "Media", "LL3KBL2M3A"]  # "LL3KBL2M3A" - lcadvancedvpnclient
 
@@ -106,19 +101,12 @@ class InstallomatorClient:
         self.log = LogMe(self.__class__.__name__)
         self.label_path = Path.home() / "Library/Application Support/Patcher/.labels"
         self.api = api if api is not None else HTTPClient(max_concurrency=concurrency)
-        self.threshold = 85
-        self.review_file = Path.home() / "Library/Application Support/Patcher/unmatched_apps.json"
 
         # Session-scoped caches. `_available_names` holds the parsed Labels.txt
         # contents (a set of script names). `_labels_by_name` holds Label
         # objects keyed by script name as they are fetched.
         self._available_names: set[str] | None = None
         self._labels_by_name: dict[str, Label] = {}
-
-    @staticmethod
-    def _parse(fragment: str) -> dict[str, Any]:
-        """Parses the passed fragment string and returns dictionary of formatted key-values."""
-        return parse_fragment(fragment)
 
     def _build_label_from_content(self, content: str, script_name: str) -> Label | None:
         """
@@ -127,7 +115,7 @@ class InstallomatorClient:
         Returns ``None`` if the fragment's expected Team ID is in
         :data:`IGNORED_TEAMS` or if Pydantic validation fails.
         """
-        fragment_dict = self._parse(content)
+        fragment_dict = parse_fragment(content)
 
         expected_team_id = fragment_dict.get("expectedTeamID")
         if expected_team_id in IGNORED_TEAMS:
@@ -262,185 +250,3 @@ class InstallomatorClient:
         tasks = [self.get_label(name) for name in names_iter]
         results = await asyncio.gather(*tasks)
         return [label for label in results if label is not None]
-
-    @staticmethod
-    def _normalize(app_name: str) -> str:
-        """Normalizes app names to better match Installomator labels (e.g. nodejs)."""
-        return app_name.lower().replace(" ", "").replace(".", "")
-
-    def _match_directly(self, app_names: list[str], available: set[str]) -> list[str]:
-        """Direct and normalized name matching against the available script-name set."""
-        matched: list[str] = []
-        for app_name in app_names:
-            lower = app_name.lower()
-            if lower in available and lower not in matched:
-                matched.append(lower)
-            normalized = self._normalize(app_name)
-            if normalized in available and normalized not in matched:
-                matched.append(normalized)
-        return matched
-
-    def _match_fuzzy(self, app_names: list[str], available: set[str]) -> list[str]:
-        """Fuzzy match (rapidfuzz ratio) against the available script-name set."""
-        matched: list[str] = []
-        choices = list(available)
-        for app_name in app_names:
-            result = process.extractOne(app_name.lower(), choices, scorer=fuzz.ratio)  # type: ignore
-            if result:
-                best_match, score, _ = result
-                if best_match and score >= self.threshold and best_match not in matched:
-                    matched.append(best_match)
-        return matched
-
-    async def _second_pass(
-        self,
-        unmatched_apps: list[dict[str, Any]],
-        available: set[str],
-        patch_titles: list[PatchTitle],
-    ) -> int:
-        """Retry unmatched apps using normalized + fuzzy matching on the patch title itself."""
-        matched_count = 0
-        still_unmatched: list[dict[str, Any]] = []
-
-        for entry in unmatched_apps:
-            patch_name = entry["Patch"]
-            normalized_patch = self._normalize(patch_name)
-            patch_title = next((pt for pt in patch_titles if pt.title == patch_name), None)
-
-            target_name: str | None = None
-            if normalized_patch in available:
-                target_name = normalized_patch
-                self.log.debug(f"Second-pass normalized match for {patch_name} → {target_name}")
-            else:
-                result = process.extractOne(normalized_patch, list(available), scorer=fuzz.ratio)  # type: ignore
-                if result:
-                    best_match, score, _ = result
-                    if best_match and score >= self.threshold:
-                        target_name = best_match
-                        self.log.debug(
-                            f"Second-pass fuzzy match for {patch_name} → {target_name} (score {score})"
-                        )
-
-            if target_name and patch_title is not None:
-                label = await self.get_label(target_name)
-                if label is not None:
-                    patch_title.install_label.append(label)
-                    matched_count += 1
-                    continue
-
-            still_unmatched.append(entry)
-
-        unmatched_apps[:] = still_unmatched
-        return matched_count
-
-    def _save_unmatched_apps(self, unmatched_apps: list[dict[str, Any]]) -> None:
-        """Saves unmatched apps to a JSON file for later review."""
-        self.review_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.review_file, "w") as file:
-            json.dump(unmatched_apps, file, indent=4)  # type: ignore
-
-    async def match(self, patch_titles: list[PatchTitle]) -> None:
-        """
-        Match Jamf patch titles to Installomator labels.
-
-        Flow:
-
-        1. Fetch the set of available label script names via :meth:`list_available_labels` (one HTTP call).
-        2. Pull each patch title's associated app names via :meth:`~patcher.clients.jamf.JamfClient.get_app_names`.
-        3. Match each title's app names against the available script names (direct, then normalized, then fuzzy).
-        4. Fetch the matched label fragments in parallel via :meth:`get_labels` and attach them to ``PatchTitle.install_label``.
-        5. Run a second-pass attempt on still-unmatched titles, keyed on the patch title text itself.
-        6. Persist any remaining unmatched apps to ``unmatched_apps.json`` for manual review.
-
-        :param patch_titles: The list of ``PatchTitle`` objects to match. Each
-            successfully matched title has its ``install_label`` attribute
-            extended in place.
-        :type patch_titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
-        :raises PatcherError: If this :class:`InstallomatorClient` was not
-            constructed with a :class:`~patcher.clients.jamf.JamfClient` (the
-            default ``HTTPClient`` cannot call Jamf's ``get_app_names``
-            endpoint). Pass ``api=<JamfClient>`` at construction, or use
-            :class:`~patcher.core.patcher_client.PatcherClient` which wires
-            this automatically.
-        """
-        if not isinstance(self.api, JamfClient):
-            raise PatcherError(
-                "InstallomatorClient.match() requires a configured JamfClient. "
-                "Construct InstallomatorClient(api=<JamfClient>) or use PatcherClient.",
-            )
-
-        self.log.debug("Starting label-patch title matching process.")
-
-        IGNORED_TITLES = [  # noqa: N806
-            "Apple macOS *",
-            "Oracle Java SE *",
-            "Eclipse Temurin *",
-            "Apple Safari",
-            "Apple Xcode",
-            "Microsoft Visual Studio",  # Support deprecated
-        ]
-
-        try:
-            software_titles = await self.api.get_app_names(patch_titles=patch_titles)
-        except APIResponseError as e:
-            if getattr(e, "not_found", False):
-                return  # Exit early, do not stop process
-            raise  # Non-404 errors get re-raised
-
-        available = await self.list_available_labels()
-
-        # Compute matches per patch title, gathering all unique script names we'll need
-        per_title_matches: dict[str, list[str]] = {}
-        unmatched_apps: list[dict[str, Any]] = []
-
-        for patch_title in patch_titles:
-            if any(fnmatch.fnmatch(patch_title.title, pattern) for pattern in IGNORED_TITLES):
-                self.log.info(f"Ignoring {patch_title.title}")
-                continue
-
-            app_name_entry = next(
-                (entry for entry in software_titles if entry["Patch"] == patch_title.title), None
-            )
-            app_names = app_name_entry["App Names"] if app_name_entry else []
-
-            if not app_names:
-                self.log.warning(f"Skipping {patch_title.title} - No app names found.")
-                unmatched_apps.append({"Patch": patch_title.title, "App Names": []})
-                continue
-
-            matched_names = self._match_directly(app_names, available) or self._match_fuzzy(
-                app_names, available
-            )
-
-            if matched_names:
-                per_title_matches[patch_title.title] = matched_names
-            else:
-                unmatched_apps.append({"Patch": patch_title.title, "App Names": app_names})
-
-        # Single batched fetch for every distinct matched script name
-        all_matched_names: set[str] = {n for names in per_title_matches.values() for n in names}
-        if all_matched_names:
-            await self.get_labels(all_matched_names)
-
-        matched_count = 0
-        for patch_title in patch_titles:
-            names = per_title_matches.get(patch_title.title)
-            if not names:
-                continue
-            labels_for_title = [self._labels_by_name[n] for n in names if n in self._labels_by_name]
-            if labels_for_title:
-                patch_title.install_label.extend(labels_for_title)
-                matched_count += 1
-
-        # Second pass on unmatched: try normalized patch title + fuzzy
-        matched_count += await self._second_pass(unmatched_apps, available, patch_titles)
-
-        self._save_unmatched_apps(unmatched_apps)
-
-        self.log.info(
-            f"Matching process finished. {matched_count} PatchTitle objects were updated."
-        )
-        if unmatched_apps:
-            self.log.warning(
-                f"{len(unmatched_apps)} PatchTitle objects had no matches. Review: {self.review_file}"
-            )

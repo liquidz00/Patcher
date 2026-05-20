@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +28,7 @@ from rapidfuzz import fuzz, process
 
 from ..clients.jamf import JamfClient
 from ..clients.patcher_api import PatcherAPIClient
-from .exceptions import APIResponseError
+from .exceptions import APIResponseError, InstallomatorWarning
 from .logger import LogMe
 from .models.label import Label
 from .models.patch import PatchTitle
@@ -184,6 +185,19 @@ async def match_titles(
         log.warning(f"{len(unmatched_apps)} PatchTitle objects had no matches.")
         if review_file is not None:
             _save_unmatched(review_file, unmatched_apps)
+        # Surface to library callers via the Python warnings system so they
+        # can catch / escalate independently of log level. The CLI installs
+        # ``warnings.simplefilter("always", InstallomatorWarning)`` so end
+        # users see the message; library callers can suppress with a
+        # ``warnings.filterwarnings("ignore", category=InstallomatorWarning)``.
+        warnings.warn(
+            f"{len(unmatched_apps)} patch title(s) had no Installomator match. "
+            f"See {review_file} for the list."
+            if review_file is not None
+            else f"{len(unmatched_apps)} patch title(s) had no Installomator match.",
+            InstallomatorWarning,
+            stacklevel=2,
+        )
 
 
 async def _second_pass(

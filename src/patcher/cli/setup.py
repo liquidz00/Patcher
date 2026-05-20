@@ -10,6 +10,7 @@ from ..clients.token_manager import TokenManager
 from ..core.config_manager import ConfigManager
 from ..core.exceptions import APIResponseError, PatcherError, SetupError, TokenError
 from ..core.logger import LogMe
+from ..core.models.jamf import JamfCredentials
 from ..core.models.token import AccessToken
 from ..core.models.ui import UIConfigKeys, UIDefaults
 from ..core.plist_manager import PropertylistManager
@@ -475,13 +476,13 @@ class Setup:
         client_creds = self._get_creds()
         await self.get_token(setup_type=SetupType.SSO, creds=client_creds)
 
-        await animator.update_msg("Creating JamfClient...")
+        await animator.update_msg("Persisting credentials...")
         client_creds = self._get_creds(include_token=True)
         token = AccessToken(
             token=client_creds.get("TOKEN"), expires=client_creds.get("TOKEN_EXPIRATION")
         )
         self.config.create_client(
-            JamfClient(
+            JamfCredentials(
                 client_id=client_creds.get("CLIENT_ID"),
                 client_secret=client_creds.get("CLIENT_SECRET"),
                 server=client_creds.get("URL"),
