@@ -136,8 +136,10 @@ class ApiRoleModel(Model):
 
 class ApiClientModel(Model):
     """
-    The ``JamfClient`` class defines the configuration for an API client, including its
-    authentication scopes, display name, whether it is enabled, and the token lifetime.
+    Configuration for a Jamf Pro API client (auth scopes, display name,
+    enabled flag, token lifetime). Constructed during ``patcherctl --setup``
+    when Patcher creates the API client on the Jamf side via the Standard
+    setup flow.
 
     :ivar auth_scopes: A list of authentication scopes assigned to the API client. These
                        scopes define the level of access the client has.
