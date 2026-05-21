@@ -7,7 +7,7 @@ class PatcherError(Exception):
     ``message (key1: val1 | key2: val2)``.
 
     .. important::
-        **Each keyword in ``**kwargs`` is also set as an instance attribute**
+        **Each keyword** in ``kwargs`` **is also set as an instance attribute**
         (see the loop below). This is load-bearing; multiple callers rely
         on ``getattr(err, "not_found", False)`` to short-circuit on 404
         responses (notably :meth:`patcher.clients.installomator.InstallomatorClient.match`).
