@@ -23,7 +23,7 @@
 
 A python library and CLI for turning patch reports into something other than a spreadsheet you'll never open again. Read the full project documentation [on our project homepage](https://docs.patcherctl.dev).
 
-<p align="left">
+<p align="center">
     <img src="docs/_static/example_pdf.png" width="750" alt="Sample Patcher PDF report"/>
     <br>
     <sub><i>An exported PDF report for "AnyOrg". See <a href="https://docs.patcherctl.dev/en/latest/getting-started/customization.html">Customization</a> in the project docs for more.</i></sub>
