@@ -1,4 +1,4 @@
-<div align="left">
+<div align="center">
     <a href="https://docs.patcherctl.dev/">
         <picture>
             <source media="(prefers-color-scheme: dark)" srcset="docs/_static/logo-dark.svg">
@@ -13,7 +13,7 @@
 ![](https://img.shields.io/pypi/v/patcherctl?logo=pypi&logoColor=white&color=yellow)
 ![](https://img.shields.io/badge/macOS-10.13%2B-blueviolet?logo=apple&logoColor=white&logoSize=auto)
 
-<p align="left">
+<p align="center">
     <img src="https://cdn.worldvectorlogo.com/logos/slack-new-logo.svg" width="16" style="vertical-align: middle; margin-right: 5px;"/>
     Find us in the <code>#patcher</code> channel in the <a href="https://www.macadmins.org">MacAdmins Slack</a>
 </p>
