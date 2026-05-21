@@ -7,10 +7,10 @@ description: "Filter and trend Patcher data by criterion. Covers the patcherctl 
 # Analyzing Data
 
 :::{rst-class} lead
-Filter, rank, and trend patch data to surface the software titles that need attention.
+Filter, rank, and trend patch data to surface the titles that need attention.
 :::
 
-Analyze patch report data (either a single Excel report or trends across all cached datasets) to surface software titles that need attention.
+Two flavors: point it at a single Excel report for one-shot filtering, or trend across every cached dataset. Either way the goal is the same: tell you which titles are lagging and which are humming.
 
 `patcherctl analyze` works against the latest exported report by default; pass an explicit Excel path to analyze a different one. From the library, call {meth}`PatcherClient.analyze <patcher.core.patcher_client.PatcherClient.analyze>` with a list of {class}`~patcher.core.models.patch.PatchTitle` objects.
 
@@ -19,9 +19,9 @@ Analyze patch report data (either a single Excel report or trends across all cac
 Two criteria families drive analyze, used in different contexts:
 
 - {class}`~patcher.core.analyze.FilterCriteria` for analyzing a **single** patch report
-- {class}`~patcher.core.analyze.TrendCriteria` for analyzing patch data **over time** (requires the `--all-time` flag on the CLI)
+- {class}`~patcher.core.analyze.TrendCriteria` for analyzing patch data **over time**, comparing across multiple cached datasets
 
-:::{note}
+:::{tip}
 Criteria names are case-insensitive and dash/underscore-flexible. `most-installed`, `most_installed`, and `MOST-INSTALLED` all resolve to the same option.
 :::
 
@@ -30,9 +30,9 @@ Criteria names are case-insensitive and dash/underscore-flexible. `most-installe
 | Criteria | Description |
 |---|---|
 | `most-installed` | Software titles with the highest number of total installations |
-| `least-installed` | Top 5 least-installed titles (use `--top-n` to change) |
+| `least-installed` | Top N least-installed titles (default 5; configurable) |
 | `oldest-least-complete` | Oldest patches with the lowest completion percent |
-| `below-threshold` | Titles with completion below the specified `--threshold` |
+| `below-threshold` | Titles with completion below the configured threshold (default 70%) |
 | `recent-release` | Patches released in the last week |
 | `zero-completion` | Titles with 0% completion |
 | `top-performers` | Titles with completion above 90% |
@@ -41,13 +41,24 @@ Criteria names are case-insensitive and dash/underscore-flexible. `most-installe
 
 ### Trend criteria
 
-Requires `--all-time` and at least two cached datasets to compare.
+Requires at least two cached datasets to compare.
 
 | Criteria | Description |
 |---|---|
 | `patch-adoption` | Completion rates over time for each software title |
 | `release-frequency` | Frequency of updates per software title |
 | `completion-trends` | Correlation between release dates and completion percentages |
+
+## Options
+
+| Flag | Library kwarg / method | Description |
+|---|---|---|
+| `--criteria X` | `criteria=X` (positional on `analyze` / `analyze_trend`) | Filter or trend criterion. Accepts the enum or its CLI string form. |
+| `--top-n N` | `top_n=N` | Cap result size for top-N criteria. Ignored by `below-threshold` and `zero-completion` (those return all matching titles). |
+| `--threshold X` | `threshold=X` | Completion-percent cutoff for `below-threshold`. Default `70.0`. |
+| `--excel-file <path>` | call `analyze_excel(path, ...)` instead of `analyze(titles, ...)` | Operate on a specific Excel report rather than the latest cached one. |
+| `--all-time` | call `analyze_trend(criterion, ...)` instead of `analyze(...)` | Switch from single-report filtering to trend analysis across every cached dataset. |
+| `--summary` + `--output-dir <path>` | `save_to=<path>` (on `analyze_trend`) | Write an HTML version of the analysis alongside the printed table or returned DataFrame. |
 
 ## Examples
 
@@ -118,7 +129,7 @@ async with PatcherClient.from_state() as patcher:
     print(trend.head())
 ```
 
-{meth}`analyze <patcher.core.patcher_client.PatcherClient.analyze>` accepts either the enum or its CLI string form and returns the filtered list of {class}`~patcher.core.models.patch.PatchTitle` objects. {meth}`analyze_excel <patcher.core.patcher_client.PatcherClient.analyze_excel>` and {meth}`analyze_trend <patcher.core.patcher_client.PatcherClient.analyze_trend>` cover the `--excel-file` and `--all-time` flows respectively.
+{meth}`analyze <patcher.core.patcher_client.PatcherClient.analyze>` accepts either the enum or its CLI string form and returns the filtered list of {class}`~patcher.core.models.patch.PatchTitle` objects. {meth}`analyze_excel <patcher.core.patcher_client.PatcherClient.analyze_excel>` operates on a specific Excel file instead of the latest cached report; {meth}`analyze_trend <patcher.core.patcher_client.PatcherClient.analyze_trend>` operates across cached datasets over time.
 :::
 
 ::::

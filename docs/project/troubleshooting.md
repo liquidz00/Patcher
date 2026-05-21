@@ -7,7 +7,7 @@ description: "Diagnose Patcher problems: debug mode, exit code lookup, TLS / cor
 # Troubleshooting
 
 :::{rst-class} lead
-Diagnose problems quickly: debug mode, exit codes, log interpretation, and the most common fixes.
+Debug mode, exit codes, log interpretation, and the most common fixes for quick troubleshooting.
 :::
 
 ## Quick diagnostics

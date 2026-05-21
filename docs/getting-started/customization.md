@@ -44,7 +44,7 @@ The wizard prompts for header text, footer text, font choice, optional logo, and
 :::{tab-item} {iconify}`material-icon-theme:xml` Manual plist edit
 :sync: plist
 
-Best for scripted provisioning (Jamf policy, Munki, Workspace ONE, etc.) where you want to seed Patcher's branding before any user runs the wizard. Use `PlistBuddy` to write directly to the property list:
+Best for scripted provisioning where you want to seed Patcher's branding before any user runs the wizard. Use `PlistBuddy` to write directly to the property list:
 
 ```console
 $ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:header_text 'AnyOrg Patch Report'" \

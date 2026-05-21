@@ -7,16 +7,18 @@ description: "Assembled Patcher workflows: Slack DM patch summary to a CISO, CI 
 # Recipes
 
 :::{rst-class} lead
-Assembled scripts that combine fetch, analyze, and export into complete programs.
+End-to-end scripts for the workflows people actually wire up. Copy, tweak, deploy.
 :::
 
-The per-command pages ({doc}`export`, {doc}`analyze`) document one thing in isolation. The recipes below combine `fetch_patches`, `export`, `analyze`, and {class}`~patcher.clients.patcher_api.PatcherAPIClient` into complete programs you'd actually deploy.
+The per-command pages ({doc}`export`, {doc}`analyze`) cover one thing in isolation. The recipes below stitch `fetch_patches`, `export`, `analyze`, and {class}`~patcher.clients.patcher_api.PatcherAPIClient` into complete programs you'd actually point at production.
 
 ## Sending Summaries via Slack DM
 
 Say you wanted to message your CISO weekly with patch reports; here's how. Following recipe posts directly to a Slack user (not a channel) using a Slack Bot Token and Block Kit formatting.
 
-```python
+```{code-block} python
+:caption: slack_summary.py
+
 import asyncio
 import os
 
@@ -83,7 +85,9 @@ Channel-wide alerting (a `#patch-state` channel rather than a person's DMs) is t
 
 Stream patch state to a logging platform as structured log events. The example below targets Datadog's HTTP intake; [Scanner](https://scanner.dev) and any other HTTP-intake log platform accept the same shape if you swap the URL and auth header.
 
-```python
+```{code-block} python
+:caption: logging_exporter.py
+
 import asyncio
 import os
 from datetime import datetime, timezone
@@ -146,7 +150,9 @@ Datadog's HTTP intake has a 5 MB body cap and 1 000 events per batch. A typical 
 
 The Patcher catalog stitches Homebrew Cask, Installomator, AutoPkg, JAI, and MAS into one view. For apps that exist in Cask but have no Installomator label, the catalog's `generate-label` endpoint projects Cask's metadata into a label-shaped object. You can pipe that into Installomator's {ghwiki}`valuesfromarguments <Installomator:Configuration-and-Variables#install-without-a-label>` mode to install the app without writing a real label first.
 
-```python
+```{code-block} python
+:caption: generate_label.py
+
 """Print a runnable Installomator command for any catalog slug.
 
 Usage: python generate_label.py <slug>

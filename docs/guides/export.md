@@ -7,10 +7,10 @@ description: "Export Jamf patch reports as Excel, PDF, HTML, or JSON. Covers the
 # Exporting Reports
 
 :::{rst-class} lead
-Exporting patch management information into varying formats.
+Pulling patch data out of Jamf and into formats you can actually share.
 :::
 
-By default, a single invocation writes the patch report in all four formats: Excel, PDF, HTML, and JSON. Restricting the output to one or two formats is one option away.
+By default, a single invocation writes the patch report in all four formats: Excel, PDF, HTML, and JSON. If you only need one or two, narrowing the output is one option away.
 
 ## Options
 
@@ -114,7 +114,7 @@ A quick summary of what's customizable:
 | `footer_text` | PDF footer (page number is appended automatically) |
 | `font_name`, `reg_font_path`, `bold_font_path` | PDF font (defaults to [Google's Assistant](https://fonts.google.com/specimen/Assistant)) |
 | `logo_path` | PDF logo (PNG/JPEG/Pillow-supported formats) |
-| `header_color` | HTML report header color (hex; default `#6432bdff`) |
+| `header_color` | HTML report header color (hex; falls back to `UIDefaults().header_color` when unset) |
 
 `patcherctl reset UI` re-prompts for these settings interactively. See {doc}`reset` for details.
 

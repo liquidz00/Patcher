@@ -1,5 +1,5 @@
 ---
-description: "How Patcher matches Jamf titles against Installomator labels. Covers the three-pass matching algorithm, unmatched-apps review, and toggling the integration."
+description: "How Patcher matches Jamf titles against Installomator labels via the Patcher API catalog. Covers the matching algorithm, unmatched-apps review, ignored titles, and disabling the integration."
 ---
 
 (installomator)=
@@ -7,10 +7,10 @@ description: "How Patcher matches Jamf titles against Installomator labels. Cove
 # Installomator Integration
 
 :::{rst-class} lead
-Each Jamf patch title gets a flag for "an Installomator label exists for this app" so reports can highlight what's automation-ready and what isn't.
+Highlighting what's automation-ready and what isn't.
 :::
 
-[Installomator](https://github.com/Installomator/Installomator) is an open-source tool for automated software installation on macOS, widely used by MacAdmins to streamline application deployment via Jamf Pro and other MDMs. Patcher matches each Jamf patch title against Installomator's label catalog; titles that match show up with an `install_label` entry on the {class}`~patcher.core.models.patch.PatchTitle`, which downstream filters and report columns use to surface "this app has an automation path."
+[Installomator](https://github.com/Installomator/Installomator) is the open-source tool a lot of MacAdmins use to automate macOS app installs, usually wired up through Jamf Pro or another MDM. Patcher matches each Jamf patch title against Installomator's label catalog; titles that match get an `install_label` entry on the {class}`~patcher.core.models.patch.PatchTitle`, and downstream filters and report columns use that to surface "this one has an automation path; this one you're installing by hand."
 
 :::{admonition} Disclaimer
 :class: warning
@@ -18,27 +18,19 @@ Each Jamf patch title gets a flag for "an Installomator label exists for this ap
 While Patcher matches titles as accurately as possible, **Installomator is the source of truth** for label definitions. If you're unsure about a match, verify the label directly in the [Installomator repository](https://github.com/Installomator/Installomator).
 :::
 
-## Label cache
-
-Each Installomator label is fetched once and written to `~/Library/Application Support/Patcher/.labels/<label>.sh`. Subsequent runs read from disk and skip the HTTP call entirely. The discovery list (Installomator's `Labels.txt`) is also fetched once per `patcherctl` process and held in memory for the duration of that run; it is not written to disk.
-
-There is no automatic expiry. To refresh the cache (e.g. to pick up a newly-added Installomator label), delete the `.labels/` directory and re-run `patcherctl`:
-
-```bash
-rm -rf ~/Library/Application\ Support/Patcher/.labels
-```
-
-Cache size is bounded by the number of labels you've matched against. Typical fleets see 50–200 cached fragments at a few KB each, so the directory stays well under 1 MB.
-
 ## How matching works
 
-When matching a Jamf software title against the local label set, Patcher tries three strategies in order:
+`PatcherClient.fetch_patches` calls {func}`~patcher.core.matching.match_titles` to enrich each Jamf patch title with Installomator metadata. The slug set comes from the Patcher API catalog (one HTTP call to `api.patcherctl.dev/apps?source=installomator&limit=1000`) rather than fetching `Labels.txt` and per-label `.sh` fragments from GitHub directly. Match quality is the same; latency is lower and there is no per-label disk cache for the normal flow to maintain.
 
-1. **Direct match.** The software title's name (or any `appName` returned by Jamf) is compared case-insensitively against Installomator label names. Implemented by {meth}`~patcher.clients.installomator.InstallomatorClient._match_directly`.
-2. **Fuzzy match.** If no direct hit, [`rapidfuzz`](https://rapidfuzz.github.io/RapidFuzz/) computes a similarity score against all labels. The best-scoring label above the threshold wins. Implemented by {meth}`~patcher.clients.installomator.InstallomatorClient._match_fuzzy`.
-3. **Normalized match.** As a last resort, the title name is normalized (punctuation stripped, lowercased) before comparison, so `Node.js` becomes `nodejs` and matches the label of the same name.
+For each patch title, matching runs in three stages:
 
-The full algorithm (including how multiple `appName` values are resolved against multiple labels per title) is in {meth}`~patcher.clients.installomator.InstallomatorClient.match`.
+1. **Direct + normalized match.** Each Jamf-side app name is compared against the slug set both case-insensitively (`Google Chrome` → `google chrome`) and in a normalized form with spaces and dots stripped (`Node.js` → `nodejs`). Both happen in one pass via {func}`~patcher.core.matching.match_directly`.
+2. **Fuzzy match.** If no direct hit, [`rapidfuzz`](https://rapidfuzz.github.io/RapidFuzz/) scores each app name against the full slug set; matches at or above the 85 threshold are kept. {func}`~patcher.core.matching.match_fuzzy`.
+3. **Second pass on the patch title text.** Titles still unmatched after stages 1–2 get one more attempt using the *patch title* itself (not just the Jamf-side app names): normalized first, then fuzzy. Catches cases where the Jamf app names diverged from the title but the title itself maps cleanly to a label.
+
+Anything still unmatched after stage 3 is written to `~/Library/Application Support/Patcher/unmatched_apps.json` for review, and an `InstallomatorWarning` is emitted via Python's `warnings` module so library callers can catch / escalate programmatically. The CLI installs `warnings.simplefilter("always", InstallomatorWarning)` so end users always see the message.
+
+When an app matches multiple labels (e.g. `zulujdk8`, `zulujdk9`), all matched labels are attached to the `PatchTitle.install_label` list.
 
 ### Why matching can be tricky
 
@@ -71,13 +63,15 @@ To handle this, Patcher pulls Application Names from Jamf via the `/api/v2/patch
 }
 ```
 
-All `appName` values are collected alongside the software title name. The full set is what Patcher hands to the matching strategies above.
+All `appName` values are collected alongside the software title name. The full set is what `match_directly` and `match_fuzzy` evaluate.
 
 ## Unmatched applications
 
-Software titles that don't match any label after all three strategies are written to `~/Library/Application Support/Patcher/unmatched_apps.json`:
+Software titles that don't match any label after all three stages are written to `~/Library/Application Support/Patcher/unmatched_apps.json`:
 
-```json
+```{code-block} json
+:caption: ~/Library/Application Support/Patcher/unmatched_apps.json
+
 [
     {
         "Patch": "Appium",
@@ -95,16 +89,14 @@ Each entry contains:
 - **`Patch`**: the `title` attribute of the {class}`~patcher.core.models.patch.PatchTitle`.
 - **`App Names`**: the Application Names extracted from the [Jamf API response](#app_name_response).
 
-This file lets you spot gaps and either {ghwiki}`author new Installomator labels <Installomator:Label Variables Reference#Building a new label>` for the missing apps or report missing mappings upstream. If a label is later added, the entry will be removed automatically on the next match.
-
-When an app has multiple matching labels (e.g. `zulujdk8`, `zulujdk9`), all labels are stored in the {class}`~patcher.core.models.patch.PatchTitle`'s `install_label` list.
+This file lets you spot gaps and either {ghwiki}`author new Installomator labels <Installomator:Label Variables Reference#Building a new label>` for the missing apps or report missing mappings upstream. The file is rewritten on every match run, so titles that gain a label upstream simply drop out next run.
 
 ## Ignored software titles
 
-Some titles are explicitly skipped because they're not patchable through Installomator. Typically system software, deprecated apps, or anything that requires manual licensing intervention.
+A small fixed list of titles is skipped before matching runs because they aren't patchable through Installomator. The list lives at module scope in `patcher.core.matching` as `_IGNORED_TITLES`:
 
 ```python
-IGNORED_TITLES = [
+_IGNORED_TITLES = [
     "Apple macOS *",
     "Oracle Java SE *",
     "Eclipse Temurin *",
@@ -114,9 +106,7 @@ IGNORED_TITLES = [
 ]
 ```
 
-:::{warning}
-Any title matching this list **won't be matched** to an Installomator label, even if a label exists.
-:::
+Patterns use `fnmatch` semantics, so `Apple macOS *` skips every Apple macOS title regardless of version. Skipped titles never get an `install_label` even if a corresponding label exists.
 
 Reasoning:
 
@@ -144,11 +134,28 @@ Reasoning:
 
 ::::
 
+## Working with `InstallomatorClient` directly
+
+If you only need to enumerate or fetch labels (without the Jamf side or the matching pipeline), use {class}`~patcher.clients.installomator.InstallomatorClient` directly. The client fetches Installomator's `Labels.txt` once per session (held in memory) and caches each fetched `.sh` fragment to `~/Library/Application Support/Patcher/.labels/<label>.sh` so subsequent reads skip the HTTP round-trip:
+
+```python
+from patcher import InstallomatorClient
+
+iom = InstallomatorClient()
+labels = await iom.list_available_labels()  # set of slug names from Labels.txt
+firefox = await iom.get_label("firefox")    # parsed Label model
+many = await iom.get_labels({"firefox", "googlechrome"})  # bulk fetch
+```
+
+To refresh that on-disk cache (e.g. to pick up a newly-added Installomator label), delete `~/Library/Application Support/Patcher/.labels/` and re-run.
+
+The normal `patcherctl export` flow does **not** populate this cache; matching goes through the Patcher API catalog, not GitHub directly. The cache is only relevant if you call `InstallomatorClient` methods yourself.
+
 (disabling_installomator_support)=
 
 ## Disabling Installomator support
 
-If Installomator doesn't fit your environment, turn the integration off entirely. When disabled, no catalog calls are made and the `install_label` field on every {class}`~patcher.core.models.patch.PatchTitle` stays empty.
+If Installomator-style matching doesn't fit your environment, turn the catalog client off entirely. When disabled, no catalog calls are made and the `install_label` field on every {class}`~patcher.core.models.patch.PatchTitle` stays empty.
 
 ::::{tab-set}
 :sync-group: surface
@@ -162,7 +169,7 @@ Patcher reads `enable_installomator` from its property list. Set it to `false`:
 $ defaults write ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist enable_installomator -bool false
 ```
 
-The next `patcherctl` invocation skips Installomator-sourced matching entirely.
+The next `patcherctl` invocation skips the catalog match entirely.
 :::
 
 :::{tab-item} {iconify}`material-icon-theme:python` Library
@@ -179,7 +186,7 @@ patcher = PatcherClient(
 )
 ```
 
-With `enable_installomator=False`, `PatcherClient.api` is `None` and `match_titles` is never called.
+With `enable_installomator=False`, `PatcherClient.api` is `None` and `match_titles` is never called from `fetch_patches`.
 :::
 
 ::::

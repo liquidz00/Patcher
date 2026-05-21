@@ -7,7 +7,7 @@ description: "Configure Jamf credentials for both patcherctl and the PatcherClie
 # Setup
 
 :::{rst-class} lead
-Configure Patcher for your environment. The same credentials power both the CLI and the library; set them up once.
+Configuring the settings that power Patcher.
 :::
 
 Set up your Jamf credentials once and both `patcherctl` and `PatcherClient` use them. The CLI's setup wizard writes to the macOS keychain; library callers pass credentials in-memory and skip the keychain entirely.
@@ -114,7 +114,7 @@ Library callers skip the setup wizard entirely. Credentials are passed in-memory
 
 ### Your first call
 
-The headline class is {class}`~patcher.core.patcher_client.PatcherClient`. It composes the per-service clients ({class}`~patcher.clients.jamf.JamfClient`, {class}`~patcher.clients.installomator.InstallomatorClient`) and a {class}`~patcher.core.data_manager.DataManager` into a single object:
+The headline class is {class}`~patcher.core.patcher_client.PatcherClient`. It composes a {class}`~patcher.clients.jamf.JamfClient`, a {class}`~patcher.clients.patcher_api.PatcherAPIClient` (exposed as `patcher.api`), and a {class}`~patcher.core.data_manager.DataManager` into a single object. Library callers who've already run `patcherctl --setup` on the workstation can construct via {meth}`PatcherClient.from_state <patcher.core.patcher_client.PatcherClient.from_state>` to pick up keychain-backed credentials and persisted UI configuration automatically; everyone else passes credentials directly:
 
 ```python
 import asyncio
@@ -147,7 +147,7 @@ A few things to know:
 |---|---|---|
 | `client_id`, `client_secret`, `server` | required | Jamf API credentials |
 | `concurrency` | `5` | Max concurrent Jamf API requests |
-| `enable_installomator` | `True` | Set to `False` to skip Installomator label matching entirely. `patcher.installomator` becomes `None`. |
+| `enable_installomator` | `True` | Set to `False` to skip the catalog client entirely. `patcher.api` becomes `None` and `match_titles` is never called during `fetch_patches`. |
 | `disable_cache` | `False` | Disable on-disk caching under `~/Library/Application Support/Patcher/`. Useful for stateless / CI runs. |
 
 ```python
@@ -198,13 +198,7 @@ firefox = await iom.get_label("firefox")
 print(firefox.expected_team_id, firefox.download_url)
 ```
 
-Calling `match()` on a bare `InstallomatorClient()` (no `api=` argument) raises a clear {class}`~patcher.core.exceptions.PatcherError`. Matching requires a configured Jamf client.
-
-### What's next
-
-- {doc}`/guides/export`: fetch and export patch reports
-- {doc}`/guides/analyze`: filter and trend cached data
-- {doc}`/reference/index`: full method signatures for every public class
+The client covers label discovery (`list_available_labels`), single-label fetch (`get_label`), and bulk fetch (`get_labels`). Matching Jamf patch titles against the Installomator catalog is a separate module-level function, {func}`patcher.core.matching.match_titles`, which `PatcherClient.fetch_patches` runs automatically against the public Patcher API catalog rather than fetching `Labels.txt` directly.
 
 ::::::
 

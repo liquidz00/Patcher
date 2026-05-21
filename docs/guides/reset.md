@@ -8,10 +8,14 @@ description: "Reset Patcher's persisted state: credentials, UI configuration, ca
 # Resetting Configuration
 
 :::{rst-class} lead
-Wipe credentials, UI config, cached data, or everything at once. Granular control over Patcher's state.
+Controlling Patcher's state granularly.
 :::
 
 The `reset` command restores specific configurations in Patcher. By default a **full reset** clears everything and re-runs the setup wizard. You can also reset individual components (credentials, UI settings, or cached data) without touching the rest.
+
+:::{note}
+Options are case-insensitive. `full`, `Full`, and `FULL` all work.
+:::
 
 ## Options
 
@@ -22,11 +26,7 @@ The `reset` command restores specific configurations in Patcher. By default a **
 | `creds` | Keychain credentials (URL, Client ID, Client Secret), all of them or just one |
 | `cache` | Cached patch data under `~/Library/Caches/Patcher` |
 
-:::{note}
-Options are case-insensitive. `full`, `Full`, and `FULL` all work.
-:::
-
-:::{important}
+:::{caution}
 A full credential reset prompts for **all three** values (URL, Client ID, Client Secret). Only run it if you have access to the new credentials, particularly if your environment doesn't use SSO, or you originally relied on Patcher's automatic setup wizard.
 :::
 
@@ -63,7 +63,7 @@ Reset all three credentials:
 $ patcherctl reset creds
 ```
 
-Or just one. Pass `--credential` with `url`, `client_id`, or `client_secret`:
+Or scope to a single credential by name (one of `url`, `client_id`, `client_secret`):
 
 ```console
 $ patcherctl reset creds --credential url

@@ -14,23 +14,24 @@ Where Patcher writes on your Mac, and how to inspect, modify, or reset each piec
 
 Patcher stores information locally for session persistence:
 
-::::{grid} 3
+::::{grid} 1
 :gutter: 2
 :padding: 0
+:class-row: surface
 
-:::{grid-item-card} {iconify}`material-icon-theme:folder-content` `~/Library/Application Support/Patcher/`
-
-Property list (configuration), cached Installomator labels, unmatched-apps file, custom fonts and logo
-:::
-
-:::{grid-item-card} {iconify}`material-icon-theme:folder-assembly` `~/Library/Caches/Patcher/`
-
-Cached patch report data
-:::
-
-:::{grid-item-card} {iconify}`material-icon-theme:lock` Login keychain (service `Patcher`)
+:::{grid-item-card} {iconify}`octicon:shield-lock-16` Login keychain (service `Patcher`)
 
 Jamf API URL, Client ID, Client Secret, OAuth token + expiration
+:::
+
+:::{grid-item-card} {iconify}`octicon:file-directory-16` `~/Library/Application Support/Patcher/`
+
+Property list, cached Installomator labels, unmatched-apps file, custom fonts and logo
+:::
+
+:::{grid-item-card} {iconify}`octicon:file-binary-16` `~/Library/Caches/Patcher/`
+
+Cached patch report data in `.pkl` format
 :::
 
 ::::
@@ -144,7 +145,7 @@ Don't edit `setup_completed` by hand. To re-run setup, use `patcherctl --fresh` 
 
 ## Patch data cache
 
-Patch report data fetched from Jamf is cached at `~/Library/Caches/Patcher/`. This is what powers Patcher's analysis functionality against "the latest report" without re-fetching, and what `--all-time` trend analysis reads across.
+Patch report data fetched from Jamf is cached at `~/Library/Caches/Patcher/`. This powers Patcher's analysis functionality against "the latest report" without re-fetching, and what trend analysis reads across when comparing multiple snapshots over time.
 
 To wipe the cache: `patcherctl reset cache` (CLI) or `patcher.data.reset_cache()` (library). To skip caching entirely on a per-invocation basis, construct {class}`~patcher.core.patcher_client.PatcherClient` with `disable_cache=True`.
 
@@ -163,5 +164,7 @@ Jamf credentials live in the macOS login keychain under the service name `Patche
 | `TOKEN_EXPIRATION` | Token expiration timestamp (managed by Patcher) |
 
 The CLI's setup wizard writes the first three; the {class}`~patcher.clients.token_manager.TokenManager` manages the last two automatically. Library callers pass credentials in-memory to {class}`~patcher.core.patcher_client.PatcherClient` and bypass the keychain entirely (see {doc}`/getting-started/setup`).
+
+The values on disk are plaintext; the in-process model wraps `CLIENT_SECRET` and `TOKEN` in `pydantic.SecretStr` so accidental `repr`, `model_dump`, or traceback rendering shows the masked placeholder rather than the secret. Library code reaching the raw value calls `.get_secret_value()` explicitly (see `PatcherClient.fetch_patches` and the OAuth refresh path in `TokenManager.fetch_token`).
 
 To inspect the entries: open **Keychain Access**, switch to the **login** keychain, and filter by `Patcher`. To clear them: `patcherctl reset creds` (all) or `patcherctl reset creds --credential url` (one at a time).

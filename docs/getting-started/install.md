@@ -39,6 +39,10 @@ For OAuth client credential creation and patch title management
 :::
 ::::
 
+```{tip}
+Patcher also ships a [Claude Code](https://claude.com/claude-code) skill that looks up Mac apps across Installomator, Homebrew Cask, AutoPkg, and vendor deployment docs with one slash command. See {doc}`claude-code` for install and usage.
+```
+
 ## Install
 
 :::::{tab-set}
@@ -61,10 +65,6 @@ python3 -m pip install --upgrade patcherctl
 
 ::::
 :::::
-
-```{tip}
-Patcher also ships a [Claude Code](https://claude.com/claude-code) skill that looks up Mac apps across Installomator, Homebrew Cask, AutoPkg, and vendor deployment docs with one slash command. See {doc}`claude-code` for install and usage.
-```
 
 ## Nuances
 

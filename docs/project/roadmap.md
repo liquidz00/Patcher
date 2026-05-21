@@ -23,7 +23,7 @@ This page is the source of truth for work that is scoped but not yet shipped. It
 Pull Cask metadata (bundle ID, canonical name, vendor) as a second matching dimension alongside Installomator.
 :::
 
-:::{grid-item-card} {iconify}`lucide:workflow` AutoPkg {iconify}`lucide:circle style=color:#9ca3af`
+:::{grid-item-card} {iconify}`lucide:workflow` AutoPkg {iconify}`lucide:circle-check style=color:#16a34a`
 :link: roadmap-autopkg
 :link-type: ref
 

@@ -7,10 +7,10 @@ description: "Use Patcher's bundled Claude Code skill to look up Mac apps across
 # Claude Code skill
 
 :::{rst-class} lead
-A bundled skill that queries every Mac patching ecosystem for one app and prints a consolidated report.
+Use Patcher within Claude Code sessions.
 :::
 
-Patcher ships a [Claude Code](https://claude.com/claude-code) skill at `.claude/skills/patcher/`. It's a read-only lookup utility: given an app name, it checks Installomator, Homebrew Cask, and AutoPkg in parallel, surfaces vendor and Jamf deployment documentation, and prints one report. No database writes, no Jamf access required.
+Patcher ships a [Claude Code](https://claude.com/claude-code) skill at `.claude/skills/patcher/`. It's a read-only lookup utility: given an app name, it checks Installomator, Homebrew Cask, and AutoPkg in parallel, surfaces a Jamf App Installer placeholder (the catalog endpoint requires tenant access, so the skill reports "skipped" with a pointer to the public JAI catalog), and pulls vendor and Jamf deployment documentation into one report. No database writes, no Jamf access required.
 
 It's useful when you're:
 
@@ -32,8 +32,11 @@ If you've already cloned Patcher and run `make dev`, the skill is in place and C
 ```{code-block} console
 $ cd ~/path/to/Patcher
 $ claude
-# then in the Claude Code prompt:
-/patcher Slack
+...
+──────────────────────────────────────────────────────────────────────
+❯ /patcher Slack
+──────────────────────────────────────────────────────────────────────
+  ? for shortcuts · ← for agents  
 ```
 
 ::::
@@ -104,9 +107,3 @@ The Installomator section uses three confidence flags:
 - **Web search filters aggressively.** The Deployment docs section prefers vendor admin docs, `learn.jamf.com`, and `community.jamf.com` accepted solutions. Blog posts and YouTube tutorials are rejected by design. If nothing high-quality surfaces, the section reports `(no official deployment docs surfaced)` rather than fabricating links.
 - **Read-only.** The skill doesn't propose or write canonical-app-DB entries. That's intentional; it's a lookup utility, not an ingest tool.
 - **Not a version source.** For current versions, install commands, and CVE data, use the `patcherctl` CLI or {class}`~patcher.clients.patcher_api.PatcherAPIClient` against `api.patcherctl.dev`.
-
-## What's next
-
-- {doc}`install` for the CLI and library install
-- {doc}`setup` to wire Patcher up against your Jamf tenant
-- {doc}`/guides/recipes` for assembled scripts that combine the package, the CLI, and the catalog API

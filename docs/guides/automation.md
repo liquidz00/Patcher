@@ -1,11 +1,11 @@
 ---
-description: "Run Patcher unattended via launchd or in CI. Covers non-interactive mode, the KEYRING_BACKEND requirement for Linux runners, and a GitHub Actions example."
+description: "Run Patcher unattended via launchd or in CI. Covers non-interactive mode, keyring-backend behavior on non-macOS runners, and a GitHub Actions example."
 ---
 
 # Automating Patcher
 
 :::{rst-class} lead
-Run Patcher unattended, either locally on a schedule with `launchd` or in CI/CD pipelines.
+Running Patcher on a schedule with `launchd` or in CI/CD pipelines.
 :::
 
 Two patterns cover most automation needs: a `launchd` LaunchAgent on a workstation for time-of-day scheduling, or non-interactive invocations on ephemeral runners (GitHub Actions, Linux build agents, anything without a keychain).
@@ -28,7 +28,7 @@ Customize the example below. The two key fields:
 - **`StartCalendarInterval`**: the schedule. [Launched](https://launched.zerowidth.com/) is a great helper for building these.
 
 ```{code-block} xml
-:caption: Run on the 1st of each month at 09:00
+:caption: ~/Library/LaunchAgents/com.liquidzoo.patcher.plist
 
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -64,15 +64,15 @@ Customize the example below. The two key fields:
 ### 2. Deploy and load
 
 ```bash
-cp com.liquidzoo.patcher-export.plist ~/Library/LaunchAgents/
-chmod 644 ~/Library/LaunchAgents/com.liquidzoo.patcher-export.plist
-launchctl load ~/Library/LaunchAgents/com.liquidzoo.patcher-export.plist
+$ cp com.liquidzoo.patcher-export.plist ~/Library/LaunchAgents/
+$ chmod 644 ~/Library/LaunchAgents/com.liquidzoo.patcher-export.plist
+$ launchctl load ~/Library/LaunchAgents/com.liquidzoo.patcher-export.plist
 ```
 
-Verify it's active:
+#### Verify it's active
 
 ```bash
-launchctl list | grep com.liquidzoo.patcher-export
+$ launchctl list | grep com.liquidzoo.patcher-export
 ```
 
 ### 3. Testing the Configuration
@@ -88,11 +88,13 @@ To ensure the LaunchAgent is working:
 
 ## CI/CD & non-interactive mode
 
-For ephemeral environments (GitHub Actions runners, Linux build agents, etc.), Patcher runs in **non-interactive mode** — also called `in_memory_credentials` mode internally; the same mode {class}`PatcherClient <patcher.core.patcher_client.PatcherClient>` engages when library callers pass `client_id`, `client_secret`, and `server` directly. No keychain access, no setup wizard, no persistent state.
+For ephemeral environments (GitHub Actions runners, Linux build agents, etc.), Patcher can run in **non-interactive mode**. The same mode {class}`PatcherClient <patcher.core.patcher_client.PatcherClient>` engages when library callers pass `client_id`, `client_secret`, and `server` directly. No keychain access, no setup wizard, no persistent state.
 
 ### Engaging non-interactive mode
 
-Provide all three credentials via CLI flags **or** environment variables (mix-and-match is fine; flags take precedence):
+:::{note}
+Credentials can be set via command line flags **or** environment variables. If both are used, command line flags take precedence.
+:::
 
 | CLI flag | Environment variable | Description |
 |---|---|---|
@@ -100,29 +102,31 @@ Provide all three credentials via CLI flags **or** environment variables (mix-an
 | `--client-secret` | `PATCHER_CLIENT_SECRET` | Jamf Pro API client secret |
 | `--url` | `PATCHER_URL` | Jamf Pro instance URL |
 
+#### Important considerations
+
 In non-interactive mode, Patcher:
 
 ::::{tab-set}
 
-:::{tab-item} {iconify}`lucide:key-round` Memory-only credentials
+:::{tab-item} {iconify}`octicon:key-16` Memory-only credentials
 :sync: creds
 
 Credentials are held in memory for the lifetime of the invocation. The macOS keychain is never read or written. Right for ephemeral runners and Docker containers where there's no persistent secret store anyway.
 :::
 
-:::{tab-item} {iconify}`lucide:skip-forward` Skips every interactive prompt
+:::{tab-item} {iconify}`octicon:skip-16` Skips every interactive prompt
 :sync: prompts
 
 Setup type, Installomator support, and UI configuration are all bypassed. Any code path that would normally pause for input proceeds with sane defaults instead.
 :::
 
-:::{tab-item} {iconify}`lucide:eraser` No completion persistence
+:::{tab-item} {iconify}`octicon:repo-deleted-16` No completion persistence
 :sync: no-persist
 
 Setup completion is not written to disk. The next invocation must provide credentials again, which is exactly what you want on ephemeral runners that wipe their filesystem between jobs.
 :::
 
-:::{tab-item} {iconify}`lucide:zap` Runs immediately
+:::{tab-item} {iconify}`octicon:zap-16` Runs immediately
 :sync: immediate
 
 The requested subcommand executes as soon as an access token is fetched. No wizard, no prompts, no waiting.
@@ -172,9 +176,11 @@ patcherctl export --path=/tmp/reports --format=json
 
 ### GitHub Actions workflow
 
-Runs Patcher on a schedule and uploads the JSON report as a build artifact. Adjust schedule, output path, and retention to suit.
+Runs Patcher on a schedule and uploads the JSON report as a build artifact. Adjust schedule, output path, and retention to fit your needs.
 
-```yaml
+```{code-block} yaml
+:caption: .github/workflows/patch-report.yml
+
 name: Patch Report
 
 on:
@@ -215,7 +221,7 @@ JSON pairs well with downstream automation. Feed it into a job that posts to Sla
 
 ### Library equivalent
 
-The CLI invocation in the workflow above is a convenience over the library API. Drop in a Python script if you'd rather build the report logic in-process — useful when you want to filter / transform titles before exporting, or you're integrating Patcher into an existing automation runtime:
+The CLI invocation in the workflow above is a convenience over the library API. Drop in a Python script if you'd rather build the report logic in-process. This can be useful when you want to filter or transform titles before exporting, or you're integrating Patcher into an existing automation.
 
 ```python
 import asyncio
@@ -243,7 +249,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Same `KEYRING_BACKEND` requirement applies — set it before invoking `python`. Library callers benefit from one additional advantage: arbitrary transforms between `fetch_patches()` and `export()` (filter to a subset, decorate titles, push to multiple destinations) without piping through the CLI's output formats.
+Library callers benefit from one additional advantage: arbitrary transforms between `fetch_patches()` and `export()` (filter to a subset, decorate titles, push to multiple destinations) without piping through the CLI's output formats. No environment-variable dance is required: importing `patcher` installs the null `keyring` backend on non-macOS platforms automatically (see [Linux runners: keyring backend](#linux-runners-keyring-backend) above), and library callers that pass `client_id` / `client_secret` / `server` directly to `PatcherClient(...)` bypass the keyring entirely regardless of platform. Set `KEYRING_BACKEND` only if you specifically want a different backend than the null default.
 
 ### Security considerations
 

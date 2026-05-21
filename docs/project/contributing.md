@@ -10,7 +10,9 @@ description: "Contribute to Patcher: bug reports, feature requests, PR workflow,
 Contributions are welcome and don't require writing Python.
 :::
 
-We firmly believe that diverse backgrounds strengthen a product. Share your ideas regardless of your programming experience — half the time the most valuable contribution is naming a problem clearly.
+We firmly believe that diverse backgrounds strengthen a product. Share your ideas regardless of your programming experience, half the time the most valuable contribution is naming a problem clearly.
+
+<!-- Snippet here about MacAdmins and Imposter Syndrome, we want to hear from EVERYONE. Especially if you have imposter syndrome, we don't judge !-->
 
 ## How to contribute
 

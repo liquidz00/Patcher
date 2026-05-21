@@ -5,8 +5,10 @@ description: "Patcher's internal architecture: the clients / core / cli package 
 # Architecture
 
 :::{rst-class} lead
-Patcher is organized as three internal packages (`clients/`, `core/`, `cli/`) with a small public surface in ``patcher``. The CLI is a thin wrapper around `PatcherClient`; both surfaces share the same domain code.
+How Patcher is configured and why.
 :::
+
+Three internal packages, with the classes you'd actually reach for re-exported at the top level. `patcherctl` and `PatcherClient` share the same domain code by design. Feature parity isn't an afterthought, it's the whole point.
 
 ## The three internal packages
 
@@ -38,10 +40,10 @@ src/patcher/
     └── ui_manager.py       # PDF UI config (header/footer/font/logo) + interactive prompts
 ```
 
-The boundary direction is one-way: `core/` never imports from `cli/`; `clients/` never imports from `core/` or `cli/`. Anything CLI-flavored (animation, interactive prompts, click-styled output) stays in `cli/`. That separation is what makes library use viable — `core/` can be imported without dragging in asyncclick prompts.
+Imports only flow in one direction. `core/` never reaches into `cli/`, and `clients/` never reaches into either. CLI-only pieces like animation, interactive prompts, and click-styled output all live in `cli/`. This allows the library to be usable independently and separates concerns appropriately.
 
 :::{note}
-The single exception worth knowing: `cli/setup.py` imports from `clients/` and `core/` to drive the wizard. That's the expected direction.
+`cli/setup.py` is the *one* exception to this rule as it must import from `clients/` and `core/` to drive the setup wizard.
 :::
 
 ## `PatcherClient`: the entry point
@@ -78,7 +80,7 @@ async with PatcherClient(
     await patcher.export(filtered, ...)              # uses data
 ```
 
-The three top-level methods (`fetch_patches`, `analyze`, `export`) exist so library callers don't have to know which collaborator owns what. They're convenience orchestrators over the underlying primitives.
+The three top-level methods (`fetch_patches`, `analyze`, `export`) exist so library callers don't have to remember which collaborator owns what. They're shortcuts; the underlying primitives are still right there if you want to wire things up by hand.
 
 ## Matching pipeline
 
@@ -89,7 +91,7 @@ The three top-level methods (`fetch_patches`, `analyze`, `export`) exist so libr
 3. For each title, match its Jamf-side app names against the slug set in three passes: direct → normalized (lowercase, dots stripped) → fuzzy (rapidfuzz ratio, threshold 85).
 4. Attach name-only `Label` stubs to matched titles' `install_label` list.
 5. Run a second pass on still-unmatched titles using the patch-title text itself.
-6. Write everything that never matched to `~/Library/Application Support/Patcher/unmatched_apps.json` for review.
+6. Write everything that never matched to `~/Library/Application Support/Patcher/unmatched_apps.json` for review, and emit an `InstallomatorWarning` via Python's `warnings` module so library callers can catch / escalate programmatically. The CLI installs `warnings.simplefilter("always", InstallomatorWarning)` at import time so end users always see the message.
 
 ```{mermaid}
 flowchart TD
@@ -107,7 +109,7 @@ flowchart TD
     S -- miss --> U[Write to unmatched_apps.json]
 ```
 
-The slug set comes from the API (one HTTP call) rather than fetching `Labels.txt` and per-label `.sh` fragments from GitHub directly. Match quality is the same; latency is lower.
+The slug set comes from the API in one HTTP call instead of pulling `Labels.txt` and a fragment per label straight from GitHub. Same match quality, lower latency, and fewer GitHub rate-limit headaches on a busy fleet.
 
 ## CLI as a thin wrapper
 
@@ -120,7 +122,7 @@ The slug set comes from the API (one HTTP call) rather than fetching `Labels.txt
 
 For example, `patcherctl export` resolves config, builds a `PatcherClient`, then delegates the actual fetch+export work to `process_reports()` in `cli/report.py`. The orchestration in `cli/report.py` is small. It threads CLI args into `PatcherClient` method calls and wraps the whole thing in an animation.
 
-**What this means in practice:** if a feature can be expressed as "call this method on `PatcherClient`," it works the same from `patcherctl` and from a Python script. The CLI doesn't have private capabilities the library lacks.
+**What this means in practice:** if a feature can be expressed as "call this method on `PatcherClient`," it works the same from `patcherctl` and from a Python script. There's no private CLI-only menu the library is locked out of.
 
 ## Async-first
 
@@ -145,7 +147,7 @@ Jamf API access uses an OAuth2 bearer token issued by Jamf. {class}`~patcher.cli
 
 1. On first call, exchanges `client_id` + `client_secret` for an access token and writes `TOKEN` + `TOKEN_EXPIRATION` to the macOS keychain.
 2. On subsequent calls, reads the cached token and checks its expiration with a 5-minute safety margin.
-3. Refreshes proactively when the margin is hit; library callers never deal with token expiry directly.
+3. Refreshes proactively when the margin is hit. Library callers never have to think about token expiry; the TokenManager handles the whole "your bearer is about to expire" dance behind the scenes.
 
 Library callers using `in_memory_credentials` (see {ref}`below <in-memory-credentials>`) get the same flow without keychain writes. The token still gets cached on the `JamfClient` instance for the process lifetime.
 
@@ -158,7 +160,7 @@ Library callers using `in_memory_credentials` (see {ref}`below <in-memory-creden
 - **Keychain mode** (the default for `patcherctl`): credentials live in the macOS login keychain under service name `Patcher`. The setup wizard writes them; the `TokenManager` updates `TOKEN` and `TOKEN_EXPIRATION` automatically.
 - **In-memory mode** (`in_memory_credentials=True`): credentials are held only on the `ConfigManager` instance for the duration of the process. Engaged automatically when `patcherctl` is invoked with all three of `--client-id`, `--client-secret`, `--url` (or the matching `PATCHER_*` env vars), and used directly by library callers who pass credentials to `PatcherClient.__init__`. See {ref}`ci-cd` for the non-interactive flow.
 
-There's no multi-tenant story today — a `PatcherClient` instance is bound to one Jamf instance via one credential set. Running against multiple Jamf instances means constructing multiple `PatcherClient` objects.
+There's no multi-tenant story today. A `PatcherClient` instance is bound to one Jamf instance via one credential set. If you need to hit two Jamf tenants from the same script, that's two `PatcherClient` objects.
 
 ## Public surface
 
@@ -188,6 +190,8 @@ Anything reachable via deeper paths (`patcher.cli.*`, `patcher.clients.HTTPClien
 
 `patcher-api` is a separate workspace member living under `api/` in the monorepo. It's a FastAPI service that exposes a public catalog of macOS app patching metadata stitched from five sources (Installomator, Homebrew Cask, AutoPkg, MAS, and the Jamf App Installers index). The service is deployed at <https://api.patcherctl.dev>; the catalog reads are public, with only the admin `/admin/*` endpoints gated behind deploy tokens.
 
-The workspace imports `patcher.clients.installomator.parse_fragment` for label parsing (so both sides agree on what a label looks like). Everything else — the resolver that evaluates shell pipelines, the per-source ingest modules, the stitch logic, the FastAPI app itself — lives in `api/patcher_api/` and has its own dependencies, tests, and deploy pipeline.
+Admin-route hardening: deploy tokens carry an `expires_at` column (90-day default for new tokens; legacy NULL = never expires), and the `/admin/*` routes apply a `slowapi` per-IP rate limit (12 requests per hour) on top of the token check. Catalog reads on `/apps*` use a weak ETag whose value is the SHA-256 of the underlying SQLite catalog, with `If-None-Match` parsed per RFC 7232 (multi-value list and the `*` wildcard both honored).
+
+The workspace keeps its own copy of `parse_fragment` at `api/patcher_api/ingest/_label_parser.py`, deliberately duplicated from `patcher.clients.installomator.parse_fragment` so the api side ships on its own schedule without pulling in the library. The two copies are documented as intentional twins; if parsing behavior changes, update both on purpose. Everything else (the resolver that evaluates shell pipelines, the per-source ingest modules, the stitch logic, the FastAPI app itself) lives under `api/patcher_api/` with its own dependencies, tests, and deploy pipeline.
 
 For library users, the hosted API is what `PatcherClient.fetch_patches` queries through `patcher.api`. You don't need to know about the workspace to use the library; the workspace exists because deploying the catalog service is independent from shipping the patcherctl Python package. See {doc}`/reference/api/endpoints` for the API surface.

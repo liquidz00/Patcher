@@ -52,7 +52,7 @@ ETag: W/"4f7b...e2a1"
 Cache-Control: public, max-age=300, stale-while-revalidate=3600
 ```
 
-Clients that send `If-None-Match` matching the current ETag get a `304 Not Modified` short-circuit with no body. Cloudflare also caches across users between deploys, so a hot path typically never reaches the origin. Recommended client pattern: store the ETag on first response, send it back on subsequent requests, accept either 200 + new body or 304 + reuse cached body.
+Clients that send `If-None-Match` matching the current ETag get a `304 Not Modified` short-circuit with no body. The header is parsed per [RFC 7232](https://www.rfc-editor.org/rfc/rfc7232#section-3.2): pass a single ETag value, a comma-separated list of ETags (useful when you've cached multiple catalog versions and want a hit on any of them), or the wildcard `*` for unconditional revalidation. Cloudflare also caches across users between deploys, so a hot path typically never reaches the origin. Recommended client pattern: store the ETag on first response, send it back on subsequent requests, accept either 200 + new body or 304 + reuse cached body.
 
 ETag headers are applied to `GET` requests under `/apps*` only. `/health` and admin endpoints bypass.
 
