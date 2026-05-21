@@ -161,3 +161,9 @@ cython_debug/
 # Project-specific
 /coverage/
 pytest.ini
+api/data/
+api/coverage/
+api/*.db
+api/*.db-journal
+api/*.db-wal
+api/*.db-shm

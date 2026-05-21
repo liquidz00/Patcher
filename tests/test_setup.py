@@ -1,8 +1,8 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from src.patcher.client.setup import Setup, SetupStage, SetupType
-from src.patcher.utils.exceptions import SetupError
+from src.patcher.cli.setup import Setup, SetupType
+from src.patcher.core.exceptions import SetupError
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
@@ -49,9 +49,8 @@ def test_setup_type_enum():
 
 @pytest.mark.asyncio
 async def testprompt_credentials_standard(setup_instance):
-    # Mock the entire prompt_credentials method to avoid asyncclick complexity.
     # ``prompt_credentials`` is async because it awaits ``click.prompt`` (which
-    # is an ``async def`` in asyncclick 8.2+).
+    # is an ``async def`` in asyncclick 8.2+). See #58.
     expected_creds = {
         "URL": "https://example.com",
         "USERNAME": "username",
@@ -75,23 +74,23 @@ async def testprompt_credentials_sso(setup_instance):
 
 
 def test_methods_with_click_prompt_are_async():
-    """Regression for #58 — ``click.prompt`` is ``async def`` in asyncclick 8.2+;
+    """
+    Regression for #58 — ``click.prompt`` is ``async def`` in asyncclick 8.2+;
     methods that call it must be ``async def`` so they can ``await`` it.
 
-    The original bug was that ``Setup.prompt_credentials`` and
-    ``UIConfigManager.setup_ui``/``configure_font``/``configure_logo`` called
-    ``click.prompt`` synchronously, producing un-awaited coroutines that
-    silently broke setup with ``RuntimeWarning`` and then ``RecursionError``.
+    The original bug was that ``Setup.prompt_credentials``,
+    ``prompt_ui_settings``, ``prompt_font_config``, and ``prompt_logo_config``
+    called ``click.prompt`` synchronously, producing un-awaited coroutines
+    that silently broke setup with ``RuntimeWarning`` and then
+    ``RecursionError``.
     """
     import inspect
 
-    from src.patcher.client.ui_manager import UIConfigManager
-
     for method in (
         Setup.prompt_credentials,
-        UIConfigManager.setup_ui,
-        UIConfigManager.configure_font,
-        UIConfigManager.configure_logo,
+        Setup.prompt_ui_settings,
+        Setup.prompt_font_config,
+        Setup.prompt_logo_config,
     ):
         assert inspect.iscoroutinefunction(method), (
             f"{method.__qualname__} calls click.prompt and must be async. See issue #58."
@@ -99,7 +98,8 @@ def test_methods_with_click_prompt_are_async():
 
 
 def test_setup_start_does_not_self_recurse():
-    """Regression for #58 — ``Setup.start()`` must retry invalid input via a loop,
+    """
+    Regression for #58 — ``Setup.start()`` must retry invalid input via a loop,
     not by calling itself recursively. The recursion was the mechanism that
     turned the unawaited-coroutine bug into a stack-exhausting RecursionError.
     """
@@ -200,66 +200,79 @@ async def test_run_setup_sso(setup_instance):
 
 
 @pytest.mark.asyncio
-async def test_resume_from_has_token(setup_instance):
-    """Test resuming setup from HAS_TOKEN stage"""
-    setup_instance._stage = SetupStage.HAS_TOKEN
+async def test_start_persists_credentials_via_jamf_credentials(setup_instance, mock_plist_manager):
+    """End-to-end exercise of ``Setup.start()`` running the *real* method body.
 
-    mock_mark_completion = MagicMock()
-    setup_instance._mark_completion = mock_mark_completion
+    The earlier ``test_run_setup_standard`` and ``test_run_setup_sso`` mock
+    ``start()`` itself, so the credential-persistence block at the bottom of
+    ``start()`` never executes during tests. That hid a real bug for an
+    entire release cycle: the block was constructing ``JamfClient(...)``
+    (the HTTP client) instead of ``JamfCredentials(...)`` (the Pydantic
+    model expected by ``config.create_client``), and ``JamfClient`` wasn't
+    even imported, so the failure was a ``NameError`` for every user running
+    ``patcherctl --setup`` end-to-end.
 
-    async def mock_start(animator=None, fresh=False):
-        # Simulate resuming from HAS_TOKEN stage
-        setup_instance.config.create_client(MagicMock(), token=MagicMock())
-        mock_mark_completion(value=True)
+    This test runs the real ``start()`` with only the I/O collaborators
+    mocked (prompts, animator, token fetch) and asserts the
+    credential-persistence call sees a real ``JamfCredentials`` instance.
+    A future regression of the same shape (wrong class, missing import,
+    bad kwargs) fails this test immediately.
+    """
+    from src.patcher.core.models.jamf import JamfCredentials
+    from src.patcher.core.models.token import AccessToken
 
-    with patch.object(setup_instance, "start", side_effect=mock_start):
-        await setup_instance.start()
-        setup_instance.config.create_client.assert_called_once()
-        mock_mark_completion.assert_called_once_with(value=True)
+    # setup_completed gate: not completed, so start() runs the body
+    mock_plist_manager.get.return_value = False
 
+    # No-op animator
+    animator = AsyncMock()
 
-@pytest.mark.asyncio
-async def test_invalid_stage_value_fallback(setup_instance):
-    """Test that invalid stage value raises SetupError"""
-    # Force a bad stage to test fallback
-    setup_instance._stage = "cordyceps"  # Type spoofing on purpose
+    sso_creds = {
+        "URL": "https://test.jamfcloud.com",
+        "CLIENT_ID": "abc-123",
+        "CLIENT_SECRET": "secret-xyz",
+    }
+    creds_with_token = {
+        **sso_creds,
+        "TOKEN": "bearer-token-value",
+        "TOKEN_EXPIRATION": "2030-01-01T00:00:00+00:00",
+    }
 
-    async def mock_start(animator=None, fresh=False):
-        # Check the stage and raise error
-        if setup_instance._stage not in setup_instance.stage_map:
-            raise SetupError("Missing handler for saved stage", stage=setup_instance._stage)
+    # Mock every collaborator that does I/O or prompts. Leave the real
+    # credential-persistence block intact; that's the code under test.
+    with patch("src.patcher.cli.setup.click.prompt", new=AsyncMock(return_value=2)):
+        setup_instance.prompt_credentials = AsyncMock(return_value=sso_creds)
+        setup_instance.prompt_installomator = MagicMock()
+        setup_instance.validate_creds = MagicMock()
+        setup_instance._save_creds = MagicMock()
+        setup_instance.get_token = AsyncMock(return_value="dummy-basic-token")
+        setup_instance.prompt_ui_settings = AsyncMock()
+        setup_instance._mark_completion = MagicMock()
+        # _get_creds is called twice: once without token, once with.
+        setup_instance._get_creds = MagicMock(side_effect=[sso_creds, creds_with_token])
 
-    with patch.object(setup_instance, "start", side_effect=mock_start):
-        with pytest.raises(SetupError, match="Missing handler for saved stage"):
-            await setup_instance.start()
+        await setup_instance.start(fresh=True, animator=animator)
 
+    # The whole point of this test: config.create_client must receive a
+    # JamfCredentials instance, not JamfClient or some other class. If
+    # someone re-introduces ``JamfClient(...)`` in setup.py, this fails
+    # before reaching production.
+    setup_instance.config.create_client.assert_called_once()
+    call = setup_instance.config.create_client.call_args
 
-@pytest.mark.asyncio
-async def test_token_fetch_failure(setup_instance):
-    """Test that token fetch failure raises SetupError"""
-    setup_instance._stage = SetupStage.API_CREATED
+    credentials_arg = call.args[0]
+    assert isinstance(credentials_arg, JamfCredentials), (
+        f"Expected JamfCredentials, got {type(credentials_arg).__name__}"
+    )
+    assert credentials_arg.client_id == "abc-123"
+    assert credentials_arg.client_secret.get_secret_value() == "secret-xyz"
+    assert credentials_arg.server == "https://test.jamfcloud.com"
 
-    async def mock_start(animator=None, fresh=False):
-        # Simulate token fetch failure
-        raise SetupError("token failure")
+    token_arg = call.kwargs["token"]
+    assert isinstance(token_arg, AccessToken)
+    assert token_arg.token.get_secret_value() == "bearer-token-value"
 
-    with patch.object(setup_instance, "start", side_effect=mock_start):
-        with pytest.raises(SetupError, match="token failure"):
-            await setup_instance.start()
-
-
-@pytest.mark.asyncio
-async def test_create_client_failure(setup_instance):
-    """Test that create_client failure raises Exception"""
-    setup_instance._stage = SetupStage.HAS_TOKEN
-
-    async def mock_start(animator=None, fresh=False):
-        # Simulate create_client failure
-        raise Exception("boom")
-
-    with patch.object(setup_instance, "start", side_effect=mock_start):
-        with pytest.raises(Exception, match="boom"):
-            await setup_instance.start()
+    setup_instance._mark_completion.assert_called_once_with(value=True)
 
 
 # Non-interactive bootstrap (CI/CD path)
@@ -270,7 +283,7 @@ async def test_bootstrap_noninteractive_success(setup_instance):
     """Bootstrap saves creds, fetches a token, and marks completion in memory."""
     setup_instance.config.set_credential.reset_mock()
 
-    with patch("src.patcher.client.setup.TokenManager") as MockTokenManager:
+    with patch("src.patcher.cli.setup.TokenManager") as MockTokenManager:
         mock_tm = MagicMock()
         mock_tm.fetch_token = MagicMock()
 
@@ -302,9 +315,9 @@ async def test_bootstrap_noninteractive_success(setup_instance):
 @pytest.mark.asyncio
 async def test_bootstrap_noninteractive_token_failure_raises_setuperror(setup_instance):
     """If the token fetch fails, a SetupError is raised with a clear message."""
-    from src.patcher.utils.exceptions import TokenError
+    from src.patcher.core.exceptions import TokenError
 
-    with patch("src.patcher.client.setup.TokenManager") as MockTokenManager:
+    with patch("src.patcher.cli.setup.TokenManager") as MockTokenManager:
         mock_tm = MagicMock()
 
         async def boom():

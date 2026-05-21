@@ -2,8 +2,8 @@ from unittest.mock import patch
 
 import pytest
 from keyring.errors import KeyringError
-from src.patcher.client.config_manager import ConfigManager
-from src.patcher.utils.exceptions import CredentialError
+from src.patcher.core.config_manager import ConfigManager
+from src.patcher.core.exceptions import CredentialError
 
 
 @pytest.fixture
@@ -51,9 +51,9 @@ def test_delete_credential_failure(real_config_manager):
         assert result is False
 
 
-def test_create_client_success(real_config_manager, mock_jamf_client, mock_access_token):
+def test_create_client_success(real_config_manager, mock_jamf_credentials, mock_access_token):
     with patch.object(real_config_manager, "set_credential") as mock_set_credential:
-        real_config_manager.create_client(mock_jamf_client, mock_access_token)
+        real_config_manager.create_client(mock_jamf_credentials, mock_access_token)
 
         mock_set_credential.assert_any_call("CLIENT_ID", "mocked_client_id")
         mock_set_credential.assert_any_call("CLIENT_SECRET", "mocked_client_secret")

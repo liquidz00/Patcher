@@ -3,51 +3,12 @@ UV 				:= uv
 PYPROJECT 		:= pyproject.toml
 VENV_DIR 		:= .venv
 
-.PHONY: docs all clean test install pre-commit pre-commit-run pre-commit-update
+.PHONY: docs openapi-schema all clean test install pre-commit pre-commit-run pre-commit-update
 
-# Export Python path for script resolution
-export PYTHONPATH := $(shell pwd)
+help:  ## Show this help message
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
 
-help:
-	@echo "Available commands:"
-	@echo ""
-	@echo "  Installation & Setup:"
-	@echo "    make venv             - Create virtual environment"
-	@echo "    make install          - Install base dependencies"
-	@echo "    make install-dev      - Install dev dependencies (includes docs)"
-	@echo "    make uninstall        - Remove virtual environment"
-	@echo "    make sync             - Alias for 'make install'"
-	@echo ""
-	@echo "  Development:"
-	@echo "    make lint             - Check code style with ruff"
-	@echo "    make format           - Auto-format code with ruff"
-	@echo "    make pre-commit       - Install pre-commit hooks"
-	@echo "    make pre-commit-run   - Run pre-commit on all files"
-	@echo "    make pre-commit-update - Update pre-commit hooks to latest versions"
-	@echo ""
-	@echo "  Testing:"
-	@echo "    make test             - Run all tests (verbose)"
-	@echo "    make test-unit        - Run unit tests only"
-	@echo "    make test-integration - Run integration tests only"
-	@echo "    make test-fast        - Run fast tests (exclude slow)"
-	@echo "    make test-quick       - Run all tests (quiet mode)"
-	@echo "    make test-cov         - Run tests with coverage report"
-	@echo "    make test-cov-html    - Generate HTML coverage report"
-	@echo ""
-	@echo "  Building & Documentation:"
-	@echo "    make build            - Build distribution packages (wheel & sdist)"
-	@echo "    make docs             - Build Sphinx documentation"
-	@echo ""
-	@echo "  Dependency Management:"
-	@echo "    make lock             - Update uv.lock file"
-	@echo "    make upgrade          - Upgrade all dependencies to latest versions"
-	@echo ""
-	@echo "  Cleanup:"
-	@echo "    make clean            - Remove build artifacts and cache files"
-	@echo "    make flush            - Deep clean (remove all generated files)"
-	@echo "    make restore          - Full cleanup (clean + flush)"
-
-venv:
+venv:  ## Create virtual environment if missing
 	@if [ ! -d "$(VENV_DIR)" ]; then \
 		echo "Creating virtual environment..."; \
 		$(UV) venv; \
@@ -55,91 +16,77 @@ venv:
 		echo "Virtual environment already exists at $(VENV_DIR)"; \
 	fi
 
-install: venv
+install: venv  ## Install base dependencies (Patcher only)
 	$(UV) sync
 
-install-dev: venv
-	$(UV) sync --extra dev
+dev: venv  ## Install everything for monorepo development (Patcher + API + all extras)
+	$(UV) sync --all-packages --all-extras
 
-uninstall:
+uninstall:  ## Remove the .venv directory
 	rm -rf $(VENV_DIR)
 
-restore: clean flush
-	@echo "Full cleanup completed"
+clean:  ## Remove caches, build artifacts, and the .venv
+	find . -type d -name __pycache__ -exec rm -rf {} +
+	find . -type d -name .pytest_cache -exec rm -rf {} +
+	find . -type d -name .ruff_cache -exec rm -rf {} +
+	find . -type d -name "*.egg-info" -exec rm -rf {} +
+	rm -rf .venv coverage/ dist/ build/ .coverage htmlcov/ docs/_build/
 
-sync: install
-
-clean:
-	rm -rf docs/_build/*
-	find . -name "*.pyc" -delete
-	find . -name "__pycache__" -delete
-
-flush:
-	rm -rf build/ dist/ src/*.egg-info **/__pycache__ .coverage .pytest_cache/ .ruff_cache/ htmlcov/
-
-lint:
+lint:  ## Check code style with ruff
 	$(UV) run ruff format --check .
 	$(UV) run ruff check .
 
-format:
+format:  ## Auto-format code with ruff
 	$(UV) run ruff format .
 	$(UV) run ruff check . --fix
 
-lock:
+lock:  ## Update uv.lock
 	$(UV) lock
 
-upgrade:
+upgrade:  ## Upgrade all dependencies to latest versions
 	$(UV) lock --upgrade
-	$(UV) sync --extra dev
+	$(UV) sync --all-packages --all-extras
 
-test:
-	@echo "Running all tests..."
-	$(UV) run pytest tests/ -v
+test:  ## Run Patcher unit tests (excludes integration)
+	$(UV) run pytest tests/ -v -m "not integration"
 
-test-unit:
-	@echo "Running unit tests only..."
-	$(UV) run pytest tests/ -v -m unit
-
-test-integration:
-	@echo "Running integration tests only..."
+test-integration:  ## Run Patcher integration tests only
 	$(UV) run pytest tests/ -v -m integration
 
-test-fast:
-	@echo "Running fast tests (excluding slow tests)..."
-	$(UV) run pytest tests/ -v -m "not slow"
+smoke-test:  ## Hand-run smoke check of PatcherClient against a live Jamf instance
+	$(UV) run python tests/integration/smoke.py
 
-test-quick:
-	@echo "Running unit tests (quiet mode)..."
-	$(UV) run pytest tests/ -q
+test-api:  ## Run Patcher API tests
+	cd api && $(UV) run pytest
 
-test-cov:
-	@echo "Running unit tests with coverage..."
-	$(UV) run pytest tests/ --cov=src --cov-report=term-missing
+serve-api:  ## Run Patcher API locally with hot-reload
+	cd api && $(UV) run uvicorn patcher_api.main:app --reload
 
-test-cov-html:
-	@echo "Generating HTML coverage report..."
-	$(UV) run pytest tests/ --cov=src --cov-report=html
-	@echo "Coverage report generated in htmlcov/index.html"
-
-pre-commit:
-	@echo "Installing pre-commit hooks..."
+pre-commit:  ## Install pre-commit hooks
 	@if [ ! -d "$(VENV_DIR)" ]; then \
 		echo "Virtual environment not found. Creating and installing dev dependencies..."; \
-		$(MAKE) install-dev; \
+		$(MAKE) dev; \
 	fi
 	$(UV) run pre-commit install
-	@echo "Pre-commit hooks installed successfully!"
 
-pre-commit-run:
-	@echo "Running pre-commit on all files..."
+pre-commit-run:  ## Run pre-commit on all files
 	$(UV) run pre-commit run --all-files
 
-pre-commit-update:
-	@echo "Updating pre-commit hooks to latest versions..."
+pre-commit-update:  ## Update pre-commit hooks to latest versions
 	$(UV) run pre-commit autoupdate
 
-build:
+build:  ## Build distribution packages (sdist + wheel)
 	$(UV) build --sdist --wheel
 
-docs:
+docs: openapi-schema  ## Build Sphinx documentation
 	$(UV) run sphinx-build -b html docs/ docs/_build/
+
+openapi-schema:  ## Regenerate docs/_generated/openapi.json from FastAPI app
+	$(UV) run python api/scripts/generate_openapi.py
+
+init-vendor-docs:  ## One-time after clone - pull submodule content
+	git submodule update --init --recursive
+
+update-vendor-docs:  ## Refresh vendor docs to latest upstream (Installomator/Autopkg Wikis)
+	git submodule update --remote --merge
+	@echo "Don't forget to commit the submodule bump if you want to share the new state."

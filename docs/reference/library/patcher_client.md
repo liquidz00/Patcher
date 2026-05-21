@@ -1,0 +1,6 @@
+# PatcherClient
+
+```{eval-rst}
+.. autoclass:: patcher.core.patcher_client.PatcherClient
+   :members:
+```

@@ -1,7 +1,8 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from src.patcher.utils.exceptions import PatcherError
+from src.patcher.cli.report import process_reports
+from src.patcher.core.exceptions import PatcherError
 
 
 # Test successful report processing
@@ -9,8 +10,9 @@ from src.patcher.utils.exceptions import PatcherError
 async def test_process_reports_success(
     stop_event_fixture, patcher_instance, mock_policy_response, mock_summary_response
 ):
-    with patch.object(patcher_instance.data_manager, "export") as mock_export_to_excel:
-        await patcher_instance.process_reports(
+    with patch.object(patcher_instance, "export") as mock_export_to_excel:
+        await process_reports(
+            patcher_instance,
             path="~/",
             formats={"excel", "html"},
             sort=None,
@@ -35,8 +37,9 @@ async def test_process_reports_invalid_path(
     mock_summary_response,
 ):
     mock_isfile.return_value = True
-    with patch.object(patcher_instance.data_manager, "export") as mock_error:
-        await patcher_instance.process_reports(
+    with patch.object(patcher_instance, "export") as mock_error:
+        await process_reports(
+            patcher_instance,
             path="/invalid/path",
             formats={"excel", "html"},
             sort=None,
@@ -56,8 +59,9 @@ async def test_invalid_sort(
     patcher_instance,
 ):
     with pytest.raises(PatcherError):
-        with patch.object(patcher_instance.data_manager, "export") as mock_error:
-            await patcher_instance.process_reports(
+        with patch.object(patcher_instance, "export") as mock_error:
+            await process_reports(
+                patcher_instance,
                 path="~/",
                 formats={"excel", "html"},
                 sort="sort_column",

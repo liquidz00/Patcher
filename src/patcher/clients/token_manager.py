@@ -1,0 +1,221 @@
+import asyncio
+from datetime import datetime, timedelta, timezone
+
+from pydantic import ValidationError
+
+from ..core.config_manager import ConfigManager
+from ..core.exceptions import APIResponseError, CredentialError, PatcherError, TokenError
+from ..core.logger import LogMe
+from ..core.models.jamf import JamfCredentials
+from ..core.models.token import AccessToken
+from . import HTTPClient
+
+
+class TokenManager:
+    def __init__(self, config: ConfigManager):
+        """
+        The ``TokenManager`` class handles all operations related to the token lifecycle, including fetching,
+        saving, and validating the access token.
+
+        It is initialized with a :class:`~patcher.core.config_manager.ConfigManager` instance, which
+        provides the necessary credentials.
+
+        :param config: A ``ConfigManager`` instance for managing credentials and configurations.
+        :type config: :class:`~patcher.core.config_manager.ConfigManager`
+        """
+        self.log = LogMe(self.__class__.__name__)
+        self.config = config
+        self.api_client = HTTPClient()
+        self._client = None  # lazy load creds
+        self._token = None
+        self.lock = asyncio.Lock()
+
+    @property
+    def client(self):
+        if not self._client:
+            self.log.debug("Attempting to attach JamfCredentials.")
+            self._client = self.attach_client()
+            self.log.info(f"JamfCredentials initialized with base URL: {self._client.base_url}")
+        return self._client
+
+    @property
+    def token(self) -> AccessToken:
+        if not self._token:
+            self.log.debug("Attempting to load AccessToken.")
+            try:
+                self._token = self.load_token()
+            except CredentialError:
+                self.log.warning("Failed to load token from keychain.")
+            self.log.info(
+                f"Token ending in {self._token.token.get_secret_value()[-4:]}  loaded successfully from JamfCredentials."
+            )
+        return self._token
+
+    def load_token(self) -> AccessToken:
+        """
+        Loads the ``AccessToken`` and its expiration from the keyring.
+
+        If either the AccessToken string or AccessToken expiration cannot
+        be retrieved, a :exc:`~patcher.core.exceptions.CredentialError` is raised.
+
+        :return: An AccessToken object containing the token and its expiration date.
+        :rtype: :class:`~patcher.core.models.token.AccessToken`
+        """
+        self.log.debug("Attempting to load token and expiration from keychain.")
+        try:
+            token = self.config.get_credential("TOKEN") or ""
+            expires = (
+                self.config.get_credential("TOKEN_EXPIRATION")
+                or datetime(1970, 1, 1, tzinfo=timezone.utc).isoformat()
+            )
+            self.log.info("Token and expiration loaded from keychain")
+            return AccessToken(token=token, expires=expires)  # type: ignore
+        except CredentialError as e:
+            self.log.error("Token or expiration is missing, loading failed.")
+            raise TokenError("Unable to load token from keychain.", error_msg=str(e))
+
+    def attach_client(self) -> JamfCredentials:
+        """
+        Creates and returns a ``JamfCredentials`` object using the stored credentials.
+
+        :return: The ``JamfCredentials`` object if validation is successful.
+        :rtype: :class:`~patcher.core.models.jamf.JamfCredentials`
+        :raises PatcherError: If ``JamfCredentials`` object fails pydantic validation.
+        """
+        self.log.debug("Attempting to attach JamfCredentials with stored credentials")
+        try:
+            client = JamfCredentials(
+                client_id=self.config.get_credential("CLIENT_ID"),
+                client_secret=self.config.get_credential("CLIENT_SECRET"),
+                server=self.config.get_credential("URL"),
+            )
+            self.log.info(
+                f"JamfCredentials ending in {client.client_id[-4:]} attached successfully"
+            )
+            return client
+        except ValidationError as e:
+            # Don't echo `str(e)`: Pydantic's default __str__ includes the offending
+            # field VALUES, which here would surface fragments of CLIENT_ID /
+            # CLIENT_SECRET / URL in logs and exception messages. Only the field
+            # names are safe to surface.
+            failing_fields = sorted({".".join(map(str, err["loc"])) for err in e.errors()})
+            field_summary = ", ".join(failing_fields) or "<unknown>"
+            self.log.error(
+                f"Failed attaching JamfCredentials due to validation error on field(s): {field_summary}"
+            )
+            raise PatcherError(
+                "Unable to attach JamfCredentials due to invalid configuration",
+                fields=field_summary,
+            )
+
+    async def fetch_token(self) -> AccessToken:
+        """
+        Asynchronously fetches a new access token from the Jamf API. The token is then
+        saved and returned for use.
+
+        :return: The fetched ``AccessToken`` instance.
+        :rtype: :class:`~patcher.core.models.token.AccessToken`
+        :raises TokenError: If a token cannot be retrieved from the Jamf API.
+        """
+        self.log.debug("Attempting to fetch new AccessToken.")
+        url = f"{self.client.base_url}/api/oauth/token"
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+
+        data = {
+            "client_id": self.client.client_id,
+            "grant_type": "client_credentials",
+            "client_secret": self.client.client_secret.get_secret_value(),
+        }
+
+        try:
+            response = await self.api_client.fetch_json(
+                url, headers=headers, method="POST", data=data
+            )
+            self.log.info("Received valid response from Jamf API for AccessToken call.")
+        except APIResponseError as e:
+            self.log.error(f"Failed to fetch a token from {url}. Details: {e}")
+            raise TokenError(
+                "Unable to retrieve AccessToken from Jamf instance.",
+                url=url,
+                error_msg=str(e),
+            )
+
+        return self._parse_token_response(response)
+
+    def _parse_token_response(self, response: dict) -> AccessToken:
+        """
+        Private method that parses the Jamf API Token response and extracts the
+        token string and token expiration.
+
+        :param response: The API response payload from Jamf.
+        :type response: dict
+        :return: The extracted ``AccessToken`` object.
+        :rtype: :class:`~patcher.core.models.token.AccessToken`
+        """
+        self.log.debug("Attempting to parse API response for AccessToken.")
+        token = response.get("access_token")
+        expires_in = response.get("expires_in")
+
+        expiration = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+        access_token = AccessToken(token=token, expires=expiration)
+
+        self.save_token(token=access_token)
+        self.log.info("New token fetched and saved successfully")
+        return access_token
+
+    def save_token(self, token: AccessToken):
+        """
+        This method stores the access token and its expiration date in the keyring
+        for later retrieval.
+
+        :param token: The ``AccessToken`` instance containing the token and its expiration date.
+        :type token: :class:`~patcher.core.models.token.AccessToken`
+        :raises TokenError: If either the token string or expiration could not be saved.
+        """
+        self.log.debug("Attempting to save retrieved AccessToken object.")
+        try:
+            self.config.set_credential("TOKEN", token.token.get_secret_value())
+            self.config.set_credential("TOKEN_EXPIRATION", token.expires.isoformat())
+        except CredentialError as e:
+            self.log.error(f"Unable to save AccessToken object to keychain. Details: {e}")
+            raise TokenError("Unable to save AccessToken object to keychain.", error_msg=str(e))
+
+        self._token = None  # clear cache; force reload on next access
+        self.log.info("AccessToken object updated in keychain")
+
+    async def ensure_valid_token(self) -> AccessToken:
+        """
+        Verify the current access token is valid (present and not expired);
+        refresh it if not. Pydantic ``ValidationError`` from the
+        underlying token or client objects is translated to
+        :exc:`~patcher.core.exceptions.TokenError` so callers see a single, consistent exception
+        type for token-validation failures.
+
+        Called by :meth:`~patcher.clients.jamf.JamfClient._headers` on
+        every Jamf request. Every API method on ``JamfClient`` builds its
+        headers via that method, so token validation runs exactly once per
+        request without a separate decorator.
+
+        :return: The ``AccessToken`` object by way of ``self.token`` property.
+        :rtype: :class:`~patcher.core.models.token.AccessToken`
+        :raises TokenError: If the access token or jamf client fail
+            pydantic validation, or if a refresh attempt fails.
+        """
+        async with self.lock:
+            try:
+                if self.token.is_expired:
+                    self.log.warning("Bearer token is invalid or expired, attempting to refresh...")
+                    await self.fetch_token()
+                self.log.info(
+                    f"Token ending in ({self.token.token.get_secret_value()[-4:]}) retrieved successfully. Remaining seconds: {self.token.seconds_remaining}"
+                )
+                return self.token
+            except ValidationError as e:
+                # Same hygiene as attach_client: never echo Pydantic's default
+                # `str(e)` because it includes raw input values (token bytes,
+                # expiration timestamps).
+                failing_fields = sorted({".".join(map(str, err["loc"])) for err in e.errors()})
+                raise TokenError(
+                    "AccessToken failed validation",
+                    fields=", ".join(failing_fields) or "<unknown>",
+                )

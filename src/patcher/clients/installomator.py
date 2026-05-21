@@ -1,0 +1,252 @@
+import asyncio
+import re
+from collections.abc import Iterable
+from pathlib import Path
+from typing import Any
+
+from pydantic import ValidationError
+
+from ..core.exceptions import APIResponseError, PatcherError
+from ..core.logger import LogMe
+from ..core.models.label import Label
+from . import HTTPClient
+
+IGNORED_TEAMS = ["Frydendal", "Media", "LL3KBL2M3A"]  # "LL3KBL2M3A" - lcadvancedvpnclient
+
+# Installomator hosts a flat list of every label name in Labels.txt at the
+# repo root. Parsing this file before fetching individual fragments lets us
+# avoid the ~700-call directory-listing + mass-download fan-out that the
+# previous implementation performed on first run.
+_INSTALLOMATOR_RAW_BASE = (
+    "https://raw.githubusercontent.com/Installomator/Installomator/refs/heads/main"
+)
+_LABELS_TXT_URL = f"{_INSTALLOMATOR_RAW_BASE}/Labels.txt"
+_FRAGMENT_URL_TEMPLATE = f"{_INSTALLOMATOR_RAW_BASE}/fragments/labels/{{name}}.sh"
+
+
+def parse_fragment(fragment: str) -> dict[str, Any]:
+    """
+    Parse an Installomator label fragment into a dict of variable assignments.
+
+    Module-level so consumers outside :class:`InstallomatorClient` (notably
+    Patcher API's ingestion) can call the same parser without instantiating
+    the class. The original ``InstallomatorClient._parse`` delegates here.
+
+    Recognized syntaxes:
+
+    - ``key="quoted value"``: string values, surrounding quotes stripped.
+    - ``key=$(shell expression)``: preserved verbatim as the literal expression string.
+    - ``key=(arr "values" here)``: bash arrays returned as Python lists.
+
+    Lines starting with ``#`` and blank lines are skipped. The opening
+    ``<label>)`` header and trailing ``;;`` separator are stripped before parsing.
+
+    :param fragment: Raw ``.sh`` fragment content as fetched from the Installomator repo.
+    :type fragment: str
+    :return: Variable name → value (string for kv pairs, list for arrays).
+    :rtype: dict[str, Any]
+    """
+    fragment = re.sub(r"^\w+\)\s*", "", fragment).strip()  # Remove opening key
+    fragment = re.sub(r";;\s*$", "", fragment).strip()  # Remove trailing ;;
+
+    data: dict[str, Any] = {}
+    lines = fragment.splitlines()
+
+    kv_pattern = re.compile(r'^(\w+)=(".*?"|\$\(.*?\)|\S+)')
+    array_pattern = re.compile(r"^(\w+)=\((.*?)\)$")
+
+    for line in lines:
+        line = line.strip()
+        if line.startswith("#") or not line:
+            continue
+
+        array_match = array_pattern.match(line)
+        if array_match:
+            key, array_values = array_match.groups()
+            pairs = re.findall(r'"(.*?)"|(\S+)', array_values)
+            data[key] = [val[0] or val[1] for val in pairs]
+            continue
+
+        kv_match = kv_pattern.match(line)
+        if kv_match:
+            key, value = kv_match.groups()
+            value = value.strip('"')
+            data[key] = value
+            continue
+
+    return data
+
+
+class InstallomatorClient:
+    def __init__(self, concurrency: int = 5, api: HTTPClient | None = None):
+        """
+        Wrapper around the `Installomator <https://github.com/Installomator/Installomator>`_ project (the macOS automated-installer script set).
+
+        This class provides methods for discovering, fetching, and matching Installomator labels to ``PatchTitle`` objects. Discovery uses the lightweight ``Labels.txt`` file at the Installomator repo root; individual ``.sh`` fragments are fetched lazily and only for matches.
+
+        :param concurrency: Maximum concurrent requests for label fetches. Defaults to 5.
+        :type concurrency: int
+        :param api: HTTP client used for fetches against Installomator's GitHub.
+            Defaults to a fresh :class:`~patcher.clients.HTTPClient`. No Jamf
+            credentials required, so library callers can use
+            ``InstallomatorClient()`` standalone to enumerate or fetch labels.
+            When :meth:`match` is needed, pass a configured
+            :class:`~patcher.clients.jamf.JamfClient` instead (it inherits
+            from ``HTTPClient`` and adds the Jamf-specific
+            :meth:`~patcher.clients.jamf.JamfClient.get_app_names` call that
+            ``match()`` requires). :class:`PatcherClient` injects its
+            shared ``JamfClient`` automatically.
+        :type api: :class:`~patcher.clients.HTTPClient` | None
+        """
+        self.log = LogMe(self.__class__.__name__)
+        self.label_path = Path.home() / "Library/Application Support/Patcher/.labels"
+        self.api = api if api is not None else HTTPClient(max_concurrency=concurrency)
+
+        # Session-scoped caches. `_available_names` holds the parsed Labels.txt
+        # contents (a set of script names). `_labels_by_name` holds Label
+        # objects keyed by script name as they are fetched.
+        self._available_names: set[str] | None = None
+        self._labels_by_name: dict[str, Label] = {}
+
+    def _build_label_from_content(self, content: str, script_name: str) -> Label | None:
+        """
+        Parse a fragment's raw .sh content into a ``Label`` object.
+
+        Returns ``None`` if the fragment's expected Team ID is in
+        :data:`IGNORED_TEAMS` or if Pydantic validation fails.
+        """
+        fragment_dict = parse_fragment(content)
+
+        expected_team_id = fragment_dict.get("expectedTeamID")
+        if expected_team_id in IGNORED_TEAMS:
+            self.log.warning(f"Skipping label {script_name} (ignored Team ID: {expected_team_id})")
+            return None
+
+        try:
+            return Label.from_dict(fragment_dict, installomator_label=script_name)
+        except ValidationError as e:
+            self.log.warning(
+                f"Skipping invalid Installomator label: {script_name} due to validation error: {e}"
+            )
+            return None
+
+    async def list_available_labels(self) -> set[str]:
+        """
+        Return the set of every label name currently available in Installomator.
+
+        Fetches and parses ``_LABELS_TXT_URL``. The result is cached on the instance for the session; subsequent calls do not re-fetch.
+
+        :return: A set of label script names (e.g. ``{"googlechrome", "1password8", ...}``).
+        :rtype: set[str]
+        :raises PatcherError: If the labels file cannot be fetched.
+        """
+        if self._available_names is not None:
+            return self._available_names
+
+        self.log.debug(f"Fetching Installomator Labels.txt from {_LABELS_TXT_URL}")
+        try:
+            content = await self.api.fetch_text(_LABELS_TXT_URL)
+        except APIResponseError as e:
+            raise PatcherError("Unable to retrieve Installomator Labels.txt", error_msg=str(e))
+
+        # Labels.txt is one label name per line. Strip whitespace, drop blanks
+        # and comments (lines starting with '#'), normalize to lowercase to
+        # match the rest of the matching pipeline.
+        names = {
+            line.strip().lower()
+            for line in content.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        }
+        self._available_names = names
+        self.log.info(f"Discovered {len(names)} Installomator labels.")
+        return names
+
+    async def get_label(self, name: str) -> Label | None:
+        """
+        Fetch and parse a single Installomator label by script name.
+
+        Lookup order:
+
+        1. Instance cache (``self._labels_by_name``)
+        2. On-disk cache (``~/Library/Application Support/Patcher/.labels/<name>.sh``)
+        3. HTTP fetch from ``_FRAGMENT_URL_TEMPLATE``
+
+        :param name: The Installomator script name (e.g. ``"googlechrome"``).
+            Case-insensitive; normalized to lowercase before lookup.
+        :type name: str
+        :return: The constructed ``Label`` object, or ``None`` if the fragment
+            cannot be fetched, is ignored by Team ID, or fails validation.
+        :rtype: :class:`~patcher.core.models.label.Label` | None
+        """
+        key = name.lower()
+        if key in self._labels_by_name:
+            return self._labels_by_name[key]
+
+        # On-disk cache
+        cache_path = self.label_path / f"{key}.sh"
+        if cache_path.exists():
+            try:
+                content = cache_path.read_text()
+                label = self._build_label_from_content(content, key)
+                if label is not None:
+                    self._labels_by_name[key] = label
+                return label
+            except OSError as e:
+                self.log.warning(
+                    f"Could not read cached fragment {cache_path}; will refetch. Details: {e}"
+                )
+
+        # HTTP fetch. `fetch_text` raises `patcher.core.exceptions.APIResponseError` on non-2xx
+        # (with `not_found=True` on 404) so we don't silently parse "404:
+        # Not Found" bodies as labels. Treat any fetch failure as
+        # best-effort: log and return None so a single broken label
+        # doesn't kill the batch.
+        url = _FRAGMENT_URL_TEMPLATE.format(name=key)
+        self.log.debug(f"Fetching Installomator fragment from {url}")
+        try:
+            content = await self.api.fetch_text(url)
+        except APIResponseError as e:
+            self.log.warning(f"Failed to fetch Installomator fragment for '{name}': {e}")
+            return None
+
+        if not content:
+            return None
+
+        # Best-effort cache write; failure here doesn't prevent returning the label
+        try:
+            self.label_path.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text(content)
+        except OSError as e:
+            self.log.warning(f"Could not write fragment cache to {cache_path}: {e}")
+
+        label = self._build_label_from_content(content, key)
+        if label is not None:
+            self._labels_by_name[key] = label
+        return label
+
+    async def get_labels(self, names: Iterable[str] | None = None) -> list[Label]:
+        """
+        Fetch and parse multiple Installomator labels in parallel.
+
+        :param names: Specific label script names to fetch. If ``None`` (the
+            default), fetches **every** label listed in ``_LABELS_TXT_URL``,
+            typically ~700 HTTP calls on first run and served from disk cache
+            on subsequent runs. Prefer passing a concrete name list when you
+            know what you need.
+        :type names: Iterable[str] | None
+        :return: List of successfully parsed ``Label`` objects. Labels that
+            fail to fetch, hit an ignored Team ID, or fail validation are
+            silently omitted (warnings are logged).
+        :rtype: list[:class:`~patcher.core.models.label.Label`]
+        """
+        if names is None:
+            names_iter = await self.list_available_labels()
+        else:
+            names_iter = {n.lower() for n in names}
+
+        if not names_iter:
+            return []
+
+        tasks = [self.get_label(name) for name in names_iter]
+        results = await asyncio.gather(*tasks)
+        return [label for label in results if label is not None]

@@ -1,0 +1,6 @@
+[submodule "vendor-docs/installomator"]
+	path = vendor-docs/installomator
+	url = https://github.com/Installomator/Installomator.wiki.git
+[submodule "vendor-docs/autopkg"]
+	path = vendor-docs/autopkg
+	url = https://github.com/autopkg/autopkg.wiki.git

@@ -6,17 +6,15 @@ from unittest.mock import AsyncMock, MagicMock
 import pandas as pd
 import pytest
 from fpdf import FPDF
-from src.patcher.client import BaseAPIClient
-from src.patcher.client.api_client import ApiClient
-from src.patcher.client.plist_manager import PropertylistManager
-from src.patcher.client.report_manager import ReportManager
-from src.patcher.client.token_manager import TokenManager
-from src.patcher.client.ui_manager import UIConfigManager
-from src.patcher.models.jamf_client import JamfClient
-from src.patcher.models.patch import PatchTitle
-from src.patcher.models.token import AccessToken
-from src.patcher.utils.data_manager import DataManager
-from src.patcher.utils.pdf_report import PDFReport
+from src.patcher.clients import HTTPClient
+from src.patcher.clients.jamf import JamfClient
+from src.patcher.clients.token_manager import TokenManager
+from src.patcher.core.data_manager import DataManager
+from src.patcher.core.models.jamf import JamfCredentials
+from src.patcher.core.models.patch import PatchTitle
+from src.patcher.core.models.token import AccessToken
+from src.patcher.core.pdf_report import PDFReport
+from src.patcher.core.plist_manager import PropertylistManager
 
 
 @pytest.fixture
@@ -267,8 +265,8 @@ def mock_access_token():
 
 
 @pytest.fixture
-def mock_jamf_client():
-    return JamfClient(
+def mock_jamf_credentials():
+    return JamfCredentials(
         client_id="mocked_client_id",
         client_secret="mocked_client_secret",
         server="https://mocked.url",
@@ -297,28 +295,36 @@ def stop_event_fixture():
 
 @pytest.fixture
 def patcher_instance(
-    mock_policy_response, mock_patch_title_response, config_manager, mock_installomator
+    mock_policy_response, mock_patch_title_response, config_manager, mock_patcher_api
 ):
-    api_client = AsyncMock()
+    """
+    Mock-shaped PatcherClient for tests that exercise process_reports.
 
-    api_client.get_policies.return_value = mock_policy_response
-    api_client.get_summaries.return_value = mock_patch_title_response
+    Wires a mock ``jamf`` (with canned policy + summary responses), a mock
+    ``data`` (with mocked export), and the mock Patcher API client. No
+    legacy ReportManager — the helpers it once held now live as standalone
+    functions in :mod:`patcher.core.analyze`.
+    """
+    jamf = AsyncMock()
+    jamf.get_policies.return_value = mock_policy_response
+    jamf.get_summaries.return_value = mock_patch_title_response
 
-    data_manager = AsyncMock()
-
-    return ReportManager(
-        api_client=api_client,
-        data_manager=data_manager,
-        debug=True,
-        installomator=mock_installomator,
-    )
+    patcher = MagicMock()
+    patcher.jamf = jamf
+    patcher.data = AsyncMock()
+    patcher.api = mock_patcher_api
+    patcher.ui_config = {"header_text": "", "header_color": ""}
+    patcher.debug = True
+    # ``patcher.export`` is a top-level convenience method (delegates to
+    # ``patcher.data.export``). The CLI's ``process_reports`` calls it directly.
+    patcher.export = AsyncMock()
+    return patcher
 
 
 @pytest.fixture
-def mock_installomator():
-    mock = AsyncMock()
-    mock.match.return_value = None
-    return mock
+def mock_patcher_api():
+    """Mock PatcherAPIClient used by the matching pipeline."""
+    return AsyncMock()
 
 
 @pytest.fixture
@@ -329,8 +335,8 @@ def token_manager(config_manager, mock_access_token):
 
 
 @pytest.fixture
-def base_api_client():
-    return BaseAPIClient(max_concurrency=3)
+def http_client():
+    return HTTPClient(max_concurrency=3)
 
 
 @pytest.fixture
@@ -401,9 +407,9 @@ def mock_plist(mock_font_paths):
 
 
 @pytest.fixture
-def mock_ui_config_manager():
-    mock_ui = MagicMock(spec=UIConfigManager)
-    mock_ui.config = {
+def mock_ui_config_dict():
+    """Plain dict matching the shape PDFReport expects (post-Phase 6 refactor)."""
+    return {
         "header_text": "Default header text",
         "footer_text": "Default footer text",
         "font_name": "Helvetica",
@@ -411,19 +417,18 @@ def mock_ui_config_manager():
         "bold_font_path": "",
         "logo_path": "",
     }
-    return mock_ui
 
 
 @pytest.fixture
-def mock_pdf_report(mock_ui_config_manager, monkeypatch):
+def mock_pdf_report(mock_ui_config_dict, monkeypatch):
     with monkeypatch.context() as m:
         m.setattr(FPDF, "add_font", lambda *args, **kwargs: None)
-        return PDFReport(ui_config=mock_ui_config_manager)
+        return PDFReport(ui_config=mock_ui_config_dict)
 
 
 @pytest.fixture
 def api_client(config_manager):
-    return ApiClient(
+    return JamfClient(
         config=config_manager,
         concurrency=10,
     )

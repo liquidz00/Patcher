@@ -7,13 +7,55 @@ alwaysApply: true
 # Rule: Sphinx-Style Docstring Enforcement
 
 - For every function and method, write the docstring in reStructuredText (Sphinx) style.
-- Always include `:param param_name: description` and `:type param_name: type` for *each* parameter.
+- Always include `:param param_name: description` and `:type param_name: type` for *each* documented parameter.
 - If the function returns a value, document it using `:return: description` and `:rtype: type`.
 - If the function raises exceptions, document these using `:raises ExceptionType: description`.
 - Do NOT use Google, NumPy, or EpyText docstring formats.
-- Docstrings MUST always start and end on their own lines.
-- The opening """ MUST be on a new line immediately after the function or class definition.
-- Do not use single-line docstring formatting (`"""Docstring..."""`) even for short summaries.
+- The opening `"""` for a multi-line docstring MUST be on a new line immediately after the function/class definition.
+
+## Single-line docstrings
+
+A single-line docstring (`"""Description."""` all on one line) is acceptable **only** when **both** conditions hold:
+
+1. The function/method takes no documented parameters (i.e. it has no parameters beyond `self` / `cls`, or its parameters genuinely don't warrant `:param:` lines).
+2. The full description fits on a single line within the configured line length (100 chars).
+
+Any function/method that takes parameters, returns a non-obvious value, or whose description needs more than one line MUST use the multi-line form with the opening `"""` on its own line.
+
+### Example (CORRECT single-line)
+
+```python
+@pytest.fixture
+def integration_url() -> str:
+    """Jamf instance URL for integration tests. Override via PATCHER_INTEGRATION_URL."""
+    return os.environ.get("PATCHER_INTEGRATION_URL", _DUMMY_URL)
+```
+
+### Example (INCORRECT — has parameters, must be multi-line)
+
+```python
+def divide(a, b):
+    """Divide two numbers."""  # ← WRONG: takes parameters, needs :param:/:return:
+    return a / b
+```
+
+## Private methods/functions
+
+Names prefixed with `_` (private helpers) follow the same conventions in spirit but with **relaxed enforcement**:
+
+- Multi-line Sphinx-style is preferred where the function takes parameters.
+- Minimal or even absent docstrings are acceptable for trivial internal helpers.
+- The same single-line exception applies: parameterless helpers with a one-line description can use the inline form.
+
+Private methods generally don't appear in the generated Sphinx API reference, so the cost of imperfect docs is low — clarity for future maintainers is the goal, not strict compliance.
+
+## Tests
+
+Tests follow the same docstring spirit but with **further relaxed enforcement**:
+
+- Test function names + an Arrange/Act/Assert structure should make intent clear without rigorous docstrings.
+- Per-test docstrings are welcome but not required.
+- Module-level docstrings explaining the file's role are encouraged.
 
 ## Example (CORRECT)
 
@@ -57,4 +99,4 @@ def divide(a, b):
     return a / b
 ```
 
-Only use Sphinx-style as showin in the CORRECT example above.
+Only use Sphinx-style as shown in the CORRECT example above.

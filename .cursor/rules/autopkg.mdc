@@ -1,0 +1,83 @@
+---
+description: Reference for AutoPkg recipes — discovery, trust info, repo conventions, identity matching for cross-ecosystem app DBs.
+globs: ["**/*.py"]
+alwaysApply: false
+---
+
+# AutoPkg rules
+
+## Sources of truth
+
+- **Repository**: https://github.com/autopkg/autopkg
+- **Wiki**: https://github.com/autopkg/autopkg/wiki
+
+There is no canonical "all-recipes" index. Recipes are scattered across many GitHub repos under the `autopkg/` org and various community orgs. Discovery happens via:
+
+- `autopkg search <query>` (CLI)
+- GitHub code search across `autopkg/*` and known community repos
+- Community knowledge / MacAdmins Slack
+
+## Actively maintained recipe repos (subset)
+
+The most reliable repos for common Mac app coverage:
+
+- `autopkg/recipes` — seed repo curated by AutoPkg maintainers
+- `autopkg/keeleysam-recipes`
+- `autopkg/homebysix-recipes` (Elliot Jordan)
+- `autopkg/grahampugh-recipes`
+- `autopkg/dataJAR-recipes`
+- `autopkg/scriptingosx-recipes`
+- `autopkg/jss-recipes` — Jamf-targeted (largely deprecated in favor of Jamf App Installers, but still in use)
+
+## Recipe file format
+
+Recipe files use `.recipe` (XML plist) or `.recipe.yaml` extensions. Type is encoded in the filename suffix:
+
+| Suffix | Purpose |
+|---|---|
+| `.download.recipe` | Fetches an installer from the vendor |
+| `.pkg.recipe` | Wraps `.download`; produces a `.pkg` |
+| `.install.recipe` | Installs locally (rare in production) |
+| `.munki.recipe` | Munki-compatible payload |
+| `.jss.recipe` | JSSImporter for Jamf Pro (deprecated path) |
+| `.intune.recipe` | Microsoft Intune |
+| `.filewave.recipe` | FileWave |
+
+Each recipe has a parent (`ParentRecipe` key) — recipes chain. `.pkg` parents `.download`; `.munki` parents `.pkg`; etc.
+
+## Trust info
+
+AutoPkg recipes can invoke processors fetched from third-party repos at run time. Trust enforcement:
+
+- `autopkg trust-info <recipe>` — show recorded SHA256 of parent recipes + processor source
+- `autopkg update-trust-info <recipe>` — re-record trust after intentional changes
+- A recipe refuses to run when trust info is missing or mismatched — this is a real attack-surface concern, not a nuisance
+
+When integrating AutoPkg metadata into the Patcher API DB, **recipe identity must include the repo + recipe filename**, not just the recipe name — multiple repos can have a `GoogleChrome.download.recipe` with subtly different behavior.
+
+## CLI cheat sheet
+
+```bash
+autopkg search <query>          # find recipes
+autopkg info <recipe>           # recipe details
+autopkg run <recipe>            # execute
+autopkg trust-info <recipe>     # show trust
+autopkg update-trust-info <r>   # re-record trust
+autopkg list-recipes            # local recipes
+autopkg repo-add <github-path>  # add a recipe repo locally
+```
+
+## Identity / matching for the canonical apps DB
+
+AutoPkg has no canonical app ID. Recipes are named ad hoc (`GoogleChrome`, `Google Chrome`, `GoogleChromePro`, etc.) and the same app may appear in multiple repos with different recipes. When mapping a canonical app to AutoPkg recipes:
+
+1. Try direct name match (normalized: lowercase, strip spaces and punctuation) against recipe filename stems.
+2. Check `Input.NAME` in the recipe plist for the human-readable name.
+3. Cross-reference with the recipe's `Identifier` (reverse-DNS style: `com.github.<author>.download.GoogleChrome`).
+4. **Manually curate when ambiguous** — there's no high-confidence automated mapping. The match-confidence field in the join table is where you record your level of certainty.
+
+## What NOT to do
+
+- Don't assume a single recipe per app. Multiple variants (download + pkg + munki) are normal and may all be valid.
+- Don't scrape the AutoPkg wiki — it's narrative documentation, not data.
+- Don't depend on `autopkg run` succeeding at DB-population time — recipes can fail for reasons unrelated to the recipe itself (vendor URL drift, certificate expiry, etc.). Store metadata (recipe name, repo, identifier, last-verified date) and let consumers verify at use-time.

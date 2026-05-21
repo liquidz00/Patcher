@@ -1,0 +1,378 @@
+import csv
+import io
+from datetime import datetime
+from typing import Any
+
+from pydantic import ValidationError
+
+from ..core.config_manager import ConfigManager
+from ..core.exceptions import APIResponseError, PatcherError
+from ..core.logger import LogMe
+from ..core.models.patch import PatchDevice, PatchTitle
+from . import HTTPClient
+from .token_manager import TokenManager
+
+
+class JamfClient(HTTPClient):
+    def __init__(self, config: ConfigManager, concurrency: int):
+        """
+        Provides methods for interacting with the Jamf API, specifically fetching patch data, device information, and OS versions.
+
+        .. note::
+            All methods of the JamfClient class will raise an :exc:`~patcher.core.exceptions.APIResponseError` if the API call is unsuccessful.
+
+        :param config: Instance of ``ConfigManager`` for loading and storing credentials.
+        :type config: :class:`~patcher.core.config_manager.ConfigManager`
+        :param concurrency: Maximum number of concurrent API requests. See :ref:`concurrency <concurrency>` in Usage docs.
+        :type concurrency: int
+        """
+        self.log = LogMe(self.__class__.__name__)
+        self.config = config
+        self.token_manager = TokenManager(config)
+
+        # Creds can be loaded here as JamfClient objects can only exist after successful JamfClient creation.
+        self.jamf_credentials = self.token_manager.attach_client()
+        self.jamf_url = self.jamf_credentials.base_url
+
+        super().__init__(max_concurrency=concurrency)
+
+    @classmethod
+    def from_credentials(
+        cls,
+        client_id: str,
+        client_secret: str,
+        server: str,
+        concurrency: int = 5,
+    ) -> "JamfClient":
+        """
+        Construct an :class:`JamfClient` directly from credentials, bypassing
+        the macOS keychain. Intended for library and CI/CD use.
+
+        Wraps the inputs in an in-memory :class:`~patcher.core.config_manager.ConfigManager`
+        (the same path the CLI uses for non-interactive mode) so no keyring
+        backend is required and nothing is persisted to disk.
+
+        .. code-block:: python
+
+            from patcher import JamfClient
+
+            client = JamfClient.from_credentials(
+                client_id="...",
+                client_secret="...",
+                server="https://myorg.jamfcloud.com",
+            )
+            summaries = await client.get_summaries(await client.get_policies())
+
+        :param client_id: Jamf Pro API client ID.
+        :type client_id: str
+        :param client_secret: Jamf Pro API client secret.
+        :type client_secret: str
+        :param server: Jamf Pro instance URL (e.g. ``https://myorg.jamfcloud.com``).
+        :type server: str
+        :param concurrency: Maximum concurrent API requests. Defaults to 5,
+            the recommended ceiling per the
+            `Jamf Developer Guide <https://developer.jamf.com/developer-guide/docs/jamf-pro-api-scalability-best-practices>`_.
+        :type concurrency: int
+        :return: A constructed ``JamfClient`` ready for use.
+        :rtype: :class:`JamfClient`
+        """
+        config = ConfigManager(
+            in_memory_credentials={
+                "CLIENT_ID": client_id,
+                "CLIENT_SECRET": client_secret,
+                "URL": server,
+            }
+        )
+        return cls(config=config, concurrency=concurrency)
+
+    def _convert_tz(self, utc_time_str: str) -> str:
+        """
+        Converts a UTC time string to a formatted string without timezone information.
+
+        :param utc_time_str: UTC time string in ISO 8601 format (e.g., "2023-08-09T12:34:56+0000").
+        :type utc_time_str: str
+        :return: Formatted date string (e.g., "Aug 09 2023") or None if the input format is invalid.
+        :rtype: str
+        :raises PatcherError: If the time format provided is invalid.
+        """
+        try:
+            utc_time = datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S%z")
+            return utc_time.strftime("%b %d %Y")
+        except ValueError as e:
+            self.log.error(f"Invalid time format provided. Details: {e}")
+            raise PatcherError(
+                "Invalid time format provided.",
+                time_str=utc_time_str,
+                error_msg=str(e),
+            )
+
+    async def _headers(self) -> dict[str, str]:
+        """Generates headers for API calls, ensuring the latest token is used."""
+        # Ensure token is valid
+        await self.token_manager.ensure_valid_token()
+        latest_token = self.token_manager.token
+        plaintext = latest_token.token.get_secret_value()
+        self.log.debug(f"Using token ending in {plaintext[-4:]}")
+        return {"accept": "application/json", "Authorization": f"Bearer {plaintext}"}
+
+    async def get_policies(self) -> list[str]:
+        """
+        Retrieves a list of patch software title IDs from the Jamf API.
+
+        :return: A list of software title IDs.
+        :rtype: list[str]
+        """
+        headers = await self._headers()
+        url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
+        try:
+            response = await self.fetch_json(url=url, headers=headers)
+        except APIResponseError:
+            raise
+        return [title.get("id") for title in response]
+
+    async def get_summaries(self, policy_ids: list[str]) -> list[PatchTitle]:
+        """
+        Retrieves patch summaries asynchronously for the specified policy IDs from the Jamf API.
+
+        :param policy_ids: list of policy IDs to retrieve summaries for.
+        :type policy_ids: list[str]
+        :return: list of ``PatchTitle`` objects containing patch summaries.
+        :rtype: list[:class:`~patcher.core.models.patch.PatchTitle`]
+        """
+        urls = [
+            f"{self.jamf_url}/api/v2/patch-software-title-configurations/{policy}/patch-summary"
+            for policy in policy_ids
+        ]
+        headers = await self._headers()
+        try:
+            summaries = await self.fetch_batch(urls, headers=headers)
+        except APIResponseError:
+            raise
+
+        patch_titles = [
+            PatchTitle(
+                title=summary.get("title"),
+                title_id=summary.get("softwareTitleId"),
+                released=self._convert_tz(summary.get("releaseDate")),
+                hosts_patched=summary.get("upToDate"),
+                missing_patch=summary.get("outOfDate"),
+                latest_version=summary.get("latestVersion"),
+            )
+            for summary in summaries
+            if summary
+        ]
+        return patch_titles
+
+    async def get_title_report_csv(self, title_id: str) -> list[PatchDevice]:
+        """
+        Retrieve the complete patch report for a specific software title using the CSV export endpoint.
+
+        This method fetches all device data in a single CSV request, avoiding pagination entirely.
+
+        :param title_id: The software title ID to retrieve the patch report for.
+        :type title_id: str
+        :return: List of all PatchDevice objects for the title.
+        :rtype: list[:class:`~patcher.core.models.patch.PatchDevice`]
+        :raises APIResponseError: If the CSV export fails or returns non-200 status.
+        """
+        headers = await self._headers()
+        headers["accept"] = "text/csv"
+        export_url = (
+            f"{self.jamf_url}/api/v2/patch-software-title-configurations/{title_id}/export-report"
+        )
+
+        csv_columns = [
+            "computerName",
+            "deviceId",
+            "username",
+            "operatingSystemVersion",
+            "lastContactTime",
+            "buildingName",
+            "departmentName",
+            "siteName",
+            "version",
+        ]
+        # list-of-tuples form preserves repeated `columns-to-export` keys;
+        # httpx URL-encodes each pair on its own.
+        query_params = [("columns-to-export", col) for col in csv_columns]
+
+        try:
+            csv_body = await self.fetch_text(export_url, headers=headers, params=query_params)
+        except APIResponseError as e:
+            self.log.error(f"Failed to fetch CSV export for title {title_id}: {e}")
+            raise APIResponseError(
+                "Failed to export patch report for title.", title_id=title_id, error_msg=str(e)
+            )
+
+        devices = []
+        csv_reader = csv.DictReader(io.StringIO(csv_body))
+
+        for row in csv_reader:
+            try:
+                device = PatchDevice(**row)
+                devices.append(device)
+            except (ValidationError, TypeError) as e:
+                self.log.warning(f"Failed to parse device row: {e}")
+                continue
+
+        self.log.info(f"Collected {len(devices)} devices from CSV export for title {title_id}")
+        return devices
+
+    async def get_title_reports(self, title_ids: list[str]) -> dict[str, list[PatchDevice]]:
+        """
+        Retrieves patch reports for multiple software titles.
+
+        Processes titles sequentially to avoid overwhelming the Jamf API. Each title's
+        pagination is handled by the underlying stream/fetch methods.
+
+        :param title_ids: List of software title IDs to retrieve reports for.
+        :type title_ids: list[str]
+        :return: Dictionary mapping title IDs to lists of PatchDevice objects.
+        :rtype: dict[str, list[:class:`~patcher.core.models.patch.PatchDevice`]]
+        """
+        self.log.debug(f"Fetching patch reports for {len(title_ids)} titles")
+        results = {}
+
+        for title_id in title_ids:
+            self.log.info(f"Processing patch report for title {title_id}")
+
+            try:
+                title_devices = await self.get_title_report_csv(title_id)
+                results[title_id] = title_devices
+            except APIResponseError as e:
+                self.log.error(f"Failed to fetch report for title {title_id}: {e}")
+                results[title_id] = []
+
+        total_devices = sum(len(devices) for devices in results.values())
+        self.log.info(f"Collected {total_devices} total devices across {len(title_ids)} titles")
+        return results
+
+    async def get_device_ids(self) -> list[int]:
+        """
+        Asynchronously fetches the list of mobile device IDs from the Jamf Pro API.
+
+        .. note::
+            This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
+
+        :return: A list of mobile device IDs.
+        :rtype: list[int]
+        """
+        url = f"{self.jamf_url}/api/v2/mobile-devices"
+        headers = await self._headers()
+        try:
+            response = await self.fetch_json(url=url, headers=headers)
+        except APIResponseError:
+            raise
+        devices = response.get("results")
+        return [device.get("id") for device in devices if device]
+
+    async def get_device_os_versions(self, device_ids: list[int]) -> list[dict[str, str]]:
+        """
+        Asynchronously fetches the OS version and serial number for each device ID provided.
+
+        .. note::
+            This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
+
+        :param device_ids: A list of mobile device IDs to retrieve information for.
+        :type device_ids: list[int]
+        :return: A list of dictionaries containing the serial numbers and OS versions.
+        :rtype: list[dict[str, str]]
+        """
+        urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
+        headers = await self._headers()
+        try:
+            subsets = await self.fetch_batch(urls, headers=headers)
+        except APIResponseError:
+            raise
+
+        devices = [
+            {
+                "SN": subset.get("serialNumber"),
+                "OS": subset.get("osVersion"),
+            }
+            for subset in subsets
+            if subset
+        ]
+        return devices
+
+    async def get_app_names(self, patch_titles: list[PatchTitle]) -> list[dict[str, Any]]:
+        """
+        Fetches all possible app names for each ``PatchTitle`` object provided.
+
+        :param patch_titles: list of ``PatchTitle`` objects.
+        :type patch_titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
+        :return: list of dictionaries containing the ``PatchTitle`` title and corresponding ``appName``
+        :rtype: list[dict[str, Any]]
+        """
+        title_ids = [patch.title_id for patch in patch_titles if patch.title_id != "iOS"]
+        urls = [
+            f"{self.jamf_url}/api/v2/patch-software-title-configurations/{title_id}/definitions"
+            for title_id in title_ids
+        ]
+        query_params = {"page-size": 1, "sort": "absoluteOrderId:asc"}
+        headers = await self._headers()
+        try:
+            batch_responses = await self.fetch_batch(
+                urls, headers=headers, query_params=query_params
+            )
+        except APIResponseError as e:
+            if getattr(e, "not_found", False):
+                return []
+            raise
+
+        app_names = []
+        for patch_title, response in zip(patch_titles, batch_responses):
+            results = response.get("results")
+            extracted_app_names = []
+
+            if results:
+                kill_apps = results[0].get("killApps")
+                extracted_app_names = [
+                    app.get("appName") for app in kill_apps if app.get("appName")
+                ]
+
+            app_names.append(
+                {
+                    "Patch": patch_title.title,
+                    "App Names": extracted_app_names,
+                }
+            )
+
+        return app_names
+
+    async def get_sofa_feed(self) -> list[dict[str, str]]:
+        """
+        Fetches iOS Data feeds from SOFA and extracts latest OS version information.
+
+        .. note::
+            This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
+
+        :return: A list of dictionaries containing base OS versions, latest iOS versions, and release dates.
+        :rtype: list[dict[str, str]]
+        :raises APIResponseError: If the SOFA feed cannot be fetched or parsed.
+        """
+        sofa_url = "https://sofafeed.macadmins.io/v1/ios_data_feed.json"
+
+        try:
+            result_json = await self.fetch_json(url=sofa_url)
+        except APIResponseError as e:
+            raise APIResponseError(
+                "Unable to retrieve SOFA feed",
+                url=sofa_url,
+                error_msg=str(e),
+            )
+
+        os_versions = result_json.get("OSVersions", [])
+
+        # Iterate over versions to obtain iOS 16 & iOS 17 datasets
+        latest_versions = []
+        for version in os_versions:
+            version_info = version.get("Latest", {})
+            latest_versions.append(
+                {
+                    "OSVersion": version.get("OSVersion"),
+                    "ProductVersion": version_info.get("ProductVersion"),
+                    "ReleaseDate": self._convert_tz(version_info.get("ReleaseDate")),
+                }
+            )
+        return latest_versions

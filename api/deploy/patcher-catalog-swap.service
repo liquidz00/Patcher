@@ -1,0 +1,20 @@
+[Unit]
+Description=Swap a freshly-uploaded Patcher catalog DB into place
+# patcher-api needs to be available so we can stop and restart it.
+After=patcher-api.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/patcher-api/env
+ExecStart=/usr/local/bin/swap-patcher-catalog.sh
+# The swap script needs to systemctl stop / start patcher-api and chown
+# files to the patcher user; root is appropriate here. The blast radius is
+# limited to what the script can do, and the script itself is read-only.
+User=root
+# Don't auto-restart; this is event-driven via the .path unit.
+RemainAfterExit=no
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

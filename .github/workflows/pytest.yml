@@ -31,7 +31,7 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install
-        run: make install-dev
+        run: make dev
 
       - name: Lint and format
         run: make lint
@@ -40,7 +40,8 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: echo "KEYRING_BACKEND=keyring.backends.null.Keyring" >> $GITHUB_ENV
 
-      - name: Run tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: make test-cov
+      - name: Run Patcher tests
+        run: make test
+
+      - name: Run API tests
+        run: make test-api

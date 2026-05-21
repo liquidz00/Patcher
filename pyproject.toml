@@ -18,12 +18,14 @@ dependencies = [
   "anyio>=4.11.0",
   "asyncclick>=8.1.7.2",
   "fpdf2>=2.7.8",
+  "httpx>=0.28.1",
   "keyring>=24.3.1",
   "openpyxl>=3.1.2",
   "pandas>=2.2.0",
   "pyarrow>=15.0.0",
   "pydantic>=2.7.4",
   "rapidfuzz>=3.12.1",
+  "truststore>=0.10",
 ]
 
 classifiers = [
@@ -42,10 +44,10 @@ classifiers = [
 
 
 [project.urls]
-Homepage = "https://patcher.readthedocs.io"
-Documentation = "https://patcher.readthedocs.io"
+Homepage = "https://docs.patcherctl.dev"
+Documentation = "https://docs.patcherctl.dev"
 Repository = "https://github.com/liquidz00/Patcher"
-Issues = "https://github.com/liquidz00/Patcher/issues/new?assignees=&labels=bug&projects=&template=issue.md&title=%5BISSUE%5D+Your+Issue+Title"
+Issues = "https://github.com/liquidz00/Patcher/issues/new?template=bug_report.yml"
 
 [project.scripts]
 patcherctl = "patcher.cli:cli"
@@ -64,11 +66,14 @@ dev = [
 docs = [
   "autodoc-pydantic",
   "myst-parser",
-  "pydata-sphinx-theme",
+  "shibuya>=2026.1.9",
   "sphinx>=7.3.7",
-  "sphinx-design",
   "sphinx-copybutton",
-  "sphinx-togglebutton",
+  "sphinx-design",
+  "sphinx-iconify>=0.3.0",
+  "sphinx-sitemap>=2.6.0",
+  "sphinxcontrib-mermaid>=1.0.0",
+  "sphinxcontrib-openapi>=0.8.4",
 ]
 
 [build-system]
@@ -83,7 +88,7 @@ package-dir = { "" = "src" }
 include-package-data = true
 
 [tool.setuptools.package-data]
-"patcher" = ["templates/*.html"]
+"patcher" = ["templates/*.html", "py.typed"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -94,7 +99,7 @@ readme = { file = ["README.md"], content-type = "text/markdown" }
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 src = ["src", "tests"]
 exclude = ["docs"]
 
@@ -153,3 +158,6 @@ markers = [
 
 [tool.coverage.run]
 omit = ["tests/*"]
+
+[tool.uv.workspace]
+members = ["api"]

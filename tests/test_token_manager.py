@@ -2,10 +2,10 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, call, patch
 
 import pytest
-from src.patcher.client.config_manager import ConfigManager
-from src.patcher.client.token_manager import TokenManager
-from src.patcher.models.token import AccessToken
-from src.patcher.utils.exceptions import TokenError
+from src.patcher.clients.token_manager import TokenManager
+from src.patcher.core.config_manager import ConfigManager
+from src.patcher.core.exceptions import TokenError
+from src.patcher.core.models.token import AccessToken
 
 
 @patch.object(TokenManager, "token", new_callable=PropertyMock)
@@ -14,7 +14,7 @@ def test_token_manager_initialization(mock_token, config_manager):
         token="mocked_token", expires=datetime(2030, 1, 1, tzinfo=timezone.utc)
     )
     token_manager = TokenManager(config=config_manager)
-    assert token_manager.token.token == "mocked_token"
+    assert token_manager.token.token.get_secret_value() == "mocked_token"
     assert token_manager.token.expires == datetime(2030, 1, 1, tzinfo=timezone.utc)
 
 

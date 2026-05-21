@@ -2,21 +2,14 @@ from pathlib import Path
 from unittest.mock import mock_open, patch
 
 import pytest
-from src.patcher.client.ui_manager import UIConfigKeys, UIConfigManager
-from src.patcher.utils.exceptions import PatcherError, ShellCommandError
+from src.patcher.cli.ui_manager import UIConfigKeys, UIConfigManager
+from src.patcher.core.exceptions import PatcherError
 
 
 @pytest.fixture
 def ui_manager(mock_plist_manager, monkeypatch):
-    with (
-        patch("src.patcher.client.ui_manager.BaseAPIClient") as mock_api_client,
-        patch("src.patcher.client.ui_manager.PropertylistManager", return_value=mock_plist_manager),
-    ):
-        mock_api = mock_api_client.return_value
-        mock_api.execute_sync.return_value = b"Mock response"
-
+    with patch("src.patcher.cli.ui_manager.PropertylistManager", return_value=mock_plist_manager):
         manager = UIConfigManager()
-        manager.api = mock_api
 
         monkeypatch.setattr(
             manager,
@@ -73,52 +66,30 @@ def test_config_load_default(ui_manager, mock_plist_manager):
         assert config == expected_config
 
 
-def test_download_font_success(ui_manager, monkeypatch):
+def test_download_font_delegates_to_core_fonts(ui_manager, monkeypatch):
+    """UIConfigManager._download_fonts delegates to core.fonts.ensure_default_fonts."""
     monkeypatch.setattr(
         ui_manager, "_download_fonts", UIConfigManager._download_fonts.__get__(ui_manager)
     )
 
     with (
         patch.object(ui_manager, "fonts_present", new_callable=lambda: False),
-        patch.object(ui_manager.api, "execute_sync", return_value=b"Success") as mock_exec,
+        patch("src.patcher.cli.ui_manager.ensure_default_fonts") as mock_ensure,
     ):
         ui_manager._download_fonts()
-        assert mock_exec.call_count == 2  # regular, bold
-
-        expected_calls = [
-            (
-                [
-                    "/usr/bin/curl",
-                    "-sL",
-                    ui_manager._FONT_URLS["regular"],
-                    "-o",
-                    str(ui_manager._get_font_paths()["regular"]),
-                ]
-            ),
-            (
-                [
-                    "/usr/bin/curl",
-                    "-sL",
-                    ui_manager._FONT_URLS["bold"],
-                    "-o",
-                    str(ui_manager._get_font_paths()["bold"]),
-                ]
-            ),
-        ]
-        mock_exec.assert_any_call(expected_calls[0])
-        mock_exec.assert_any_call(expected_calls[1])
+        mock_ensure.assert_called_once_with(ui_manager.font_dir)
 
 
-def test_download_font_failure(ui_manager, monkeypatch):
+def test_download_font_failure_propagates(ui_manager, monkeypatch):
+    """A PatcherError from ensure_default_fonts propagates through _download_fonts."""
     monkeypatch.setattr(
         ui_manager, "_download_fonts", UIConfigManager._download_fonts.__get__(ui_manager)
     )
     with (
         patch.object(ui_manager, "fonts_present", new_callable=lambda: False),
-        patch.object(
-            ui_manager.api,
-            "execute_sync",
-            side_effect=ShellCommandError("Command execution failed"),
+        patch(
+            "src.patcher.cli.ui_manager.ensure_default_fonts",
+            side_effect=PatcherError("Failed to download default font family."),
         ),
     ):
         with pytest.raises(PatcherError, match="Failed to download default font family"):
@@ -136,6 +107,6 @@ def test_reset_config_success(ui_manager):
 
 def test_reset_config_failure(ui_manager):
     with patch.object(
-        ui_manager.plist_manager, "remove", side_effect=Exception("Unexpected error")
+        ui_manager.plist_manager, "remove", side_effect=PatcherError("Unexpected error")
     ):
         assert ui_manager.reset_config() is False

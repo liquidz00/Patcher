@@ -1,0 +1,73 @@
+[project]
+name = "patcher-api"
+version = "0.1.0"
+description = "Patcher API -- community catalog of macOS app patching metadata"
+license = "Apache-2.0"
+authors = [
+    { name = "Andrew Lerman" },
+    { email = "info@liquidzoo.io" },
+]
+requires-python = ">=3.11"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "fastapi>=0.136.1",
+    "patcherctl",
+    "pydantic-settings>=2.14.0",
+    "slowapi>=0.1.9",
+    "sqlalchemy[asyncio]>=2.0.49",
+    "uvicorn[standard]>=0.46.0",
+]
+
+[tool.uv.sources]
+patcherctl = { workspace = true }
+
+[project.optional-dependencies]
+test = [
+    "httpx>=0.28.1",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.1.0",
+]
+
+[build-system]
+requires = [
+    "setuptools >= 61",
+    "wheel"
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["patcher_api"]
+
+[tool.ruff]
+extend = "../pyproject.toml"
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+minversion = "6.0"
+# API root on the path so tests can `from patcher_api.X import Y`.
+# Required after pytest 9 tightened implicit sys.path manipulation.
+pythonpath = ["."]
+addopts = [
+  "--durations=5",
+  "--color=yes",
+  "--cov=patcher_api",
+  "--cov-report=html:coverage/htmlcov",
+  "--cov-report=term-missing",
+]
+testpaths = ["./tests"]
+filterwarnings = [
+  "ignore::DeprecationWarning",
+  "ignore::RuntimeWarning",
+]
+markers = [
+  "unit: Fast unit tests that test individual components in isolation",
+  "integration: Tests that involve multiple components or external dependencies",
+  "slow: Tests that take longer than 1 second to run",
+  "asyncio: Tests that use async/await functionality",
+]
+
+[tool.coverage.run]
+omit = ["tests/*"]
+concurrency = ["greenlet", "thread"]

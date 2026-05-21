@@ -27,31 +27,59 @@ CLI entry point during development: `uv run patcherctl ...` (script defined in `
 
 ## Architecture
 
-The CLI is **async-first** — `cli.py` uses `asyncclick` and the entry point is `asyncio.run(cli())`. Treat every command callback as a coroutine.
+The CLI is **async-first** — `cli/__init__.py` uses `asyncclick` and the entry point is `asyncio.run(cli())`. Treat every command callback as a coroutine.
 
 ### Dependency wiring
 
-`cli.py` is the composition root. On every invocation it builds a context dict (`ctx.obj`) containing the long-lived collaborators that subcommands pull from:
+`cli/__init__.py` is the composition root. On every invocation it builds a context dict (`ctx.obj`) containing the long-lived collaborators that subcommands pull from:
 
 - `ConfigManager` — credential storage. **Two modes**: keychain-backed (default, via `keyring`) or `in_memory_credentials` (set when `--client-id/--client-secret/--url` or `PATCHER_*` env vars are all present). The in-memory mode is the **non-interactive / CI mode** — it bypasses keychain and skips every prompt. Reads fall through memory → keyring; writes in memory mode never touch keyring.
 - `PropertylistManager` — reads/writes `~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist` for UI/branding settings.
 - `UIConfigManager` — PDF header/footer, fonts, logo, header color.
-- `Setup` — drives first-run flow; tracks progress through `SetupStage` (NOT_STARTED → API_CREATED → HAS_TOKEN → JAMFCLIENT_SAVED → COMPLETED) so an aborted setup can resume. Non-interactive runs go through `Setup.bootstrap_noninteractive` instead of `Setup.start`.
+- `Setup` — drives first-run flow as a linear sequence (prompt creds → create API role/client on Jamf side for Standard / save existing creds for SSO → fetch token → save `JamfCredentials` → prompt UI settings → mark complete). Completion tracked by the `setup_completed` plist boolean; `--fresh` re-runs regardless. Non-interactive runs go through `Setup.bootstrap_noninteractive` instead of `Setup.start`.
 - `DataManager` — patch data caching, validation, export (Excel/PDF/HTML/JSON). Initialized **lazily** via `get_data_manager(ctx)`; cache disabled when `--disable-cache` is set. Cache lives at `~/Library/Caches/Patcher`.
 - `Animation` — terminal spinner; commands run inside `animation.error_handling()` async context manager which translates exceptions into formatted CLI errors.
 
 ### Layered API client
 
-`patcher.client.BaseAPIClient` (in `client/__init__.py`) is the foundation: it owns `asyncio.Semaphore`-bounded concurrency (default 5; **do not raise without cause** — Jamf scalability guidance), shells out to `/usr/bin/curl` via `asyncio.create_subprocess_exec`, sanitizes credentials in logs, and centralizes HTTP status handling (4xx/5xx → `APIResponseError`, with a `not_found=True` flag for 404).
+`patcher.client.HTTPClient` (in `client/__init__.py`) is the foundation: it owns `asyncio.Semaphore`-bounded concurrency (default 5; **do not raise without cause** — Jamf scalability guidance), wraps a lazily-constructed `httpx.AsyncClient` exposed via the `http` property (TLS via `truststore.SSLContext` so OS-installed CAs are honored automatically), and centralizes HTTP status handling (4xx/5xx → `APIResponseError`, with a `not_found=True` flag for 404). The three async entry points are `fetch_json`, `fetch_text`, and `fetch_basic_token`; one-shot sync downloads (default fonts) use `httpx.get` directly with the same truststore context.
 
-`ApiClient` extends it with Jamf-specific endpoints. `TokenManager` (used inside `ApiClient`) handles bearer token lifecycle and is decorated via `utils/decorators.check_token`. **Never instantiate `ApiClient` before setup completes** — its constructor calls `token_manager.attach_client()` which expects a saved `JamfClient`.
+`patcher.client.JamfClient` (in `client/jamf.py`) extends `HTTPClient` with Jamf-specific endpoints. `TokenManager` (used inside `JamfClient`) handles bearer token lifecycle; `JamfClient._headers()` calls `TokenManager.ensure_valid_token()` on every request, so token validation happens once per call without a decorator wrapping methods. **Never instantiate `JamfClient` before setup completes** — its constructor calls `token_manager.attach_client()` which returns a `JamfCredentials` Pydantic model (the credentials container; renamed from the legacy `JamfClient` model in Phase 5).
 
-### Models vs utils
+### Directory layout
 
-- `models/` — Pydantic models (`JamfClient`, `AccessToken`, `PatchTitle`, `PatchDevice`, `ApiClientModel`, `ApiRoleModel`, UI/Label/Fragment types). These are the validated wire/storage shapes.
-- `utils/` — leaf helpers: `logger.LogMe` (preferred over stdlib logging — wraps `PatcherLog`), `exceptions.PatcherError` and subclasses (all carry `**kwargs` context that gets formatted into the message), `data_manager`, `pdf_report`, `installomator`, `animation`, `decorators`.
+Source is organized into three layers under `src/patcher/`:
 
-### Exit codes (defined in `cli.py` docstring)
+- **`client/`** — HTTP transport, no CLI/keyring deps. `HTTPClient` (in `client/__init__.py` — generic httpx plumbing), `JamfClient` (in `client/jamf.py` — Jamf-specific endpoints), `TokenManager`.
+- **`core/`** — domain logic, managers, and the top-level library entry point. No `asyncclick` / `PIL` imports. `patcher_client` (the `PatcherClient` class — top-level library entry), `exceptions`, `logger` (stdlib only), `config_manager` (keyring lives here), `data_manager`, `pdf_report` (takes a UI config dict, falls back to Helvetica when font paths are absent), `analyze` (filter/sort/iOS-status transforms over `list[PatchTitle]` — these replaced the legacy `ReportManager` helpers), `installomator` (accepts `api=` for DI), `fonts` (standalone `ensure_default_fonts(target_dir)`), and the Pydantic `models/` subpackage.
+- **`cli/`** — CLI surface. `cli/__init__.py` is the click entry point and composition root; `cli/setup.py` holds the interactive setup flow and the UI prompts; `cli/report.py` holds `process_reports` (now takes a `PatcherClient`); `core/plist_manager.py` is the plist persistence (read/write only; no UI); `cli/ui_manager.py` is the plist-coupled UI config + interactive setup integration; `cli/animation.py` is the terminal spinner; `cli/terminal_logger.py` is the click-styled logging adapter installed when `--debug` runs.
+
+The repo root also contains an `api/` directory (sibling to `src/`) — the Patcher API service, a workspace member declaring its own `patcher-api` package. Imports `patcherctl` via `[tool.uv.sources] patcherctl = { workspace = true }` so it can reuse `patcher.clients.installomator.parse_fragment` for label parsing. The shell-pipeline resolver (the pyinstallomator port — `resolve`, `_exec_*`, etc.) lives at `patcher_api.installomator_resolver`; resolution is an ingest concern, not a package concern. The API itself is FastAPI-based, backed by SQLAlchemy 2.0 async + SQLite. `/apps*` is public; `/admin/*` is gated behind a deploy-token. See `api/patcher_api/` for routes/models/schemas/ingest/stitch logic.
+
+## Deployment
+
+The API is deployable to a Linux host, exposed via Cloudflare Tunnel. Architecture: `uvicorn` (running as a dedicated system user via systemd) ← `cloudflared tunnel` (outbound to Cloudflare, no inbound ports beyond 22/80/443) ← public URL. Auth happens at the API layer, not the tunnel. **Linux deployments require `KEYRING_BACKEND=keyring.backends.null.Keyring`** at runtime because the patcherctl import chain pulls in `keyring`, which fails without a backend on Linux. Transferable deployment docs are deferred to the v3 docs restructure.
+
+## Vendor docs
+
+Upstream documentation is included as git submodules under `vendor-docs/`:
+
+- `vendor-docs/installomator/` — [Installomator wiki](https://github.com/Installomator/Installomator/wiki)
+- `vendor-docs/autopkg/` — [AutoPkg wiki](https://github.com/autopkg/autopkg/wiki)
+
+**When working on Installomator- or AutoPkg-related code, consult these local docs first** rather than fetching from the web. The submodule state is pinned, so what you find here reflects the version of upstream docs accepted into the codebase. Running `make update-vendor-docs` bumps both to upstream latest, which then gets committed as a deliberate review action.
+
+Common reference points:
+
+- Installomator label variables (`name`, `type`, `downloadURL`, `appNewVersion`, `expectedTeamID`, `blockingProcesses`, etc.) — `vendor-docs/installomator/Label-Variables-Reference.md`
+- Installomator `valuesfromarguments` mechanism — search the Installomator wiki pages for usage examples; the docs are authoritative on argument names and accepted values.
+- AutoPkg recipe identifiers, processor pipeline, parent recipe inheritance — `vendor-docs/autopkg/` (entry point usually `Home.md`).
+
+**Don't infer behavior from code alone.** If you're about to make a claim about how an Installomator label variable behaves, or how AutoPkg resolves processor inputs, verify in the wiki pages first. The cost of being wrong (generating incorrect labels or recipes) is high; the cost of grepping the local docs is near-zero.
+
+If a contributor clones without `--recursive` and `vendor-docs/` looks empty, `make init-vendor-docs` fills it in.
+
+### Exit codes (defined in `cli/__init__.py` docstring)
 
 `0` success · `1` `PatcherError` · `2` unhandled · `3` `SetupError` · `4` `APIResponseError` · `130` Ctrl+C. Custom exceptions inherit from `PatcherError` and carry context kwargs (e.g. `raise APIResponseError("...", status_code=..., url=...)`); the formatter renders them as `message (key1: val1 | key2: val2)`.
 
