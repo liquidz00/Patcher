@@ -1,6 +1,10 @@
 <div align="center">
     <a href="https://docs.patcherctl.dev/">
-        <img src="docs/_static/patcher-banner-readme.svg" width="540"/>
+        <picture>
+            <source media="(prefers-color-scheme: dark)" srcset="docs/_static/logo-dark.svg">
+            <source media="(prefers-color-scheme: light)" srcset="docs/_static/logo-light.svg">
+            <img src="docs/_static/logo-light.svg" width="540" alt="Patcher">
+        </picture>
     </a>
 
 ![](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=flat&logo=python&logoColor=white)
