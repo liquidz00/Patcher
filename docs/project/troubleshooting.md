@@ -76,8 +76,8 @@ The child logger here is {class}`~patcher.clients.jamf.JamfClient`. **Include th
 :class-card: sd-card
 
 ```text
-2026-05-01 16:35:31,697 - Patcher.Analyzer - DEBUG - Attempting to filter titles by FilterCriteria.OLDEST_LEAST_COMPLETE.
-2026-05-01 16:35:31,704 - Patcher.Analyzer - INFO - Filtered 5 PatchTitles successfully based on FilterCriteria.OLDEST_LEAST_COMPLETE
+2026-05-01 16:35:31,697 - Patcher.TitleFilter - DEBUG - Applying filter 'oldest-least-complete'.
+2026-05-01 16:35:31,704 - Patcher.TitleFilter - INFO - Returned 5 PatchTitles after filtering.
 ```
 :::
 

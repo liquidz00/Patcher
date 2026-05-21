@@ -24,7 +24,7 @@ src/patcher/
 ├── core/           # Domain logic — no HTTP, no I/O outside the data manager
 │   ├── patcher_client.py   # PatcherClient (the headline composer)
 │   ├── matching.py         # Jamf title → catalog slug matching pipeline
-│   ├── analyze.py          # FilterCriteria / TrendCriteria, Analyzer
+│   ├── analyze.py          # TitleFilter / TrendAnalysis
 │   ├── data_manager.py     # On-disk patch-data cache + export pipeline
 │   ├── pdf_report.py       # PDF generation
 │   ├── config_manager.py   # Credential resolution (keyring or in-memory)
@@ -174,8 +174,8 @@ from patcher import (
     PatcherAPIClient,
     PatchTitle,            # return shapes
     PatchDevice,
-    FilterCriteria,        # analysis enums
-    TrendCriteria,
+    TitleFilter,           # analysis surface
+    TrendAnalysis,
     PatcherError,          # exception base
     APIResponseError,      # ... and friends
     CredentialError,

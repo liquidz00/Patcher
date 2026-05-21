@@ -13,7 +13,7 @@ from .__about__ import __version__
 from .clients.installomator import InstallomatorClient
 from .clients.jamf import JamfClient
 from .clients.patcher_api import PatcherAPIClient
-from .core.analyze import FilterCriteria, TrendCriteria
+from .core.analyze import TitleFilter, TrendAnalysis
 from .core.exceptions import (
     APIResponseError,
     CredentialError,
@@ -35,9 +35,9 @@ __all__ = [
     # Return shapes
     "PatchDevice",
     "PatchTitle",
-    # Analysis criteria enums (consumed by PatcherClient.analyze)
-    "FilterCriteria",
-    "TrendCriteria",
+    # Analysis surface (consumed by PatcherClient.analyze*)
+    "TitleFilter",
+    "TrendAnalysis",
     # Exceptions
     "APIResponseError",
     "CredentialError",

@@ -20,9 +20,8 @@ from typing import Any, Literal
 from ..clients.jamf import JamfClient
 from ..clients.patcher_api import PatcherAPIClient
 from .analyze import (
-    Analyzer,
-    FilterCriteria,
-    TrendCriteria,
+    TitleFilter,
+    TrendAnalysis,
     append_ios_status,
     omit_recent,
     sort_titles,
@@ -233,7 +232,7 @@ class PatcherClient:
     async def analyze(
         self,
         titles: list[PatchTitle],
-        criteria: FilterCriteria | str,
+        criteria: str,
         *,
         threshold: float | None = 70.0,
         top_n: int | None = None,
@@ -242,42 +241,41 @@ class PatcherClient:
         Filter and sort patch titles by a named criterion. The library
         equivalent of the CLI's ``analyze`` subcommand.
 
-        Accepts either a :class:`~patcher.core.analyze.FilterCriteria` enum value or a CLI-style
-        string (e.g. ``"most-installed"``, ``"below-threshold"``). String
-        inputs are normalized via :meth:`~patcher.core.analyze.FilterCriteria.from_cli`.
+        Accepts a CLI-style criterion string (e.g. ``"most-installed"``,
+        ``"below-threshold"``). Library callers who want type-checked,
+        autocomplete-friendly access should construct
+        :class:`~patcher.core.analyze.TitleFilter` directly and invoke the
+        matching method.
+
+        .. versionchanged:: 3.0
+           The ``criteria`` parameter no longer accepts ``FilterCriteria``
+           enum values; the enum was removed in favor of
+           :class:`~patcher.core.analyze.TitleFilter` methods. Pass the
+           kebab-case string form, or use ``TitleFilter`` directly.
 
         :param titles: Patch titles to analyze. Typically the output of
             :meth:`fetch_patches`.
         :type titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
-        :param criteria: The filtering/sorting criterion. See
-            :class:`~patcher.core.analyze.FilterCriteria` for available values.
-        :type criteria: :class:`~patcher.core.analyze.FilterCriteria` | str
-        :param threshold: Completion-percent threshold for ``below_threshold``
+        :param criteria: CLI-style criterion (e.g. ``"most-installed"``).
+            See :class:`~patcher.core.analyze.TitleFilter` for the full list.
+        :type criteria: str
+        :param threshold: Completion-percent threshold for ``below-threshold``
             criterion. Ignored by other criteria. Defaults to 70.0.
         :type threshold: float | None
         :param top_n: If provided, return at most ``top_n`` results. The
-            ``below_threshold`` and ``zero_completion`` criteria ignore this
+            ``below-threshold`` and ``zero-completion`` criteria ignore this
             (they return all matching titles).
         :type top_n: int | None
         :return: Filtered + sorted list of ``PatchTitle`` objects.
         :rtype: list[:class:`~patcher.core.models.patch.PatchTitle`]
         :raises PatcherError: If ``criteria`` is not a recognized value.
         """
-        if isinstance(criteria, str):
-            criteria = FilterCriteria.from_cli(criteria)
-
-        # Analyzer reads from data_manager.titles; stash the caller's list
-        # there so the existing filter_titles logic can run without a refactor.
-        # data.titles is a documented public setter, safe to assign to.
-        self.data.titles = titles
-
-        analyzer = Analyzer(self.data)
-        return analyzer.filter_titles(criteria, threshold=threshold, top_n=top_n)
+        return TitleFilter.apply(titles, criteria, threshold=threshold, top_n=top_n)
 
     async def analyze_excel(
         self,
         excel_path: str | Path,
-        criteria: FilterCriteria | str,
+        criteria: str,
         *,
         threshold: float | None = 70.0,
         top_n: int | None = None,
@@ -285,32 +283,32 @@ class PatcherClient:
         """
         Filter and sort patch titles loaded from a saved Excel report.
 
-        Library equivalent of ``patcherctl analyze --excel-file``. The Excel
-        file is loaded into a fresh DataFrame, hydrated into ``PatchTitle``
-        objects, and filtered exactly like :meth:`analyze`.
+        Library equivalent of ``patcherctl analyze --excel-file``.
+
+        .. note::
+           Excel-to-``PatchTitle`` hydration is parked for v3.0.1. Today this
+           method filters the currently cached ``data.titles`` and ignores
+           ``excel_path``. Behavior is unchanged from v2 to preserve existing
+           callers; the parking is purely about closing the no-op gap.
 
         :param excel_path: Path to a previously-exported Patcher Excel report.
+            Currently accepted but not read (see note).
         :type excel_path: str | :class:`pathlib.Path`
-        :param criteria: Filter criterion (enum or CLI string).
-        :type criteria: :class:`~patcher.core.analyze.FilterCriteria` | str
-        :param threshold: Completion-percent cutoff for ``below_threshold``.
+        :param criteria: CLI-style filter criterion.
+        :type criteria: str
+        :param threshold: Completion-percent cutoff for ``below-threshold``.
         :type threshold: float | None
-        :param top_n: Optional result cap. Ignored by ``below_threshold`` and
-            ``zero_completion``.
+        :param top_n: Optional result cap. Ignored by ``below-threshold`` and
+            ``zero-completion``.
         :type top_n: int | None
-        :return: Filtered + sorted titles loaded from the Excel file.
+        :return: Filtered + sorted titles.
         :rtype: list[:class:`~patcher.core.models.patch.PatchTitle`]
-        :raises PatcherError: If the file is missing, empty, or unparseable.
         """
-        if isinstance(criteria, str):
-            criteria = FilterCriteria.from_cli(criteria)
-
-        analyzer = Analyzer(excel_path=excel_path, data_manager=self.data)
-        return analyzer.filter_titles(criteria, threshold=threshold, top_n=top_n)
+        return TitleFilter.apply(self.data.titles, criteria, threshold=threshold, top_n=top_n)
 
     async def analyze_trend(
         self,
-        criteria: TrendCriteria | str,
+        criteria: str,
         *,
         save_to: str | Path | None = None,
     ):
@@ -321,23 +319,26 @@ class PatcherClient:
         Reads every cached snapshot in the data cache and builds a trend
         DataFrame keyed on the requested criterion.
 
-        :param criteria: Trend criterion (enum or CLI string, e.g.
+        .. versionchanged:: 3.0
+           The ``criteria`` parameter no longer accepts ``TrendCriteria``
+           enum values; the enum was removed in favor of
+           :class:`~patcher.core.analyze.TrendAnalysis` methods. Pass the
+           kebab-case string form, or use ``TrendAnalysis`` directly.
+
+        :param criteria: CLI-style trend criterion (e.g.
             ``"patch-adoption"``, ``"release-frequency"``,
             ``"completion-trends"``).
-        :type criteria: :class:`~patcher.core.analyze.TrendCriteria` | str
+        :type criteria: str
         :param save_to: Optional path. When provided, the trend DataFrame is
             also written to disk as HTML. Parent directories are created if
             needed.
         :type save_to: str | ~pathlib.Path | None
-        :return: Trend results as a ~pandas.DataFrame. Empty if no
-            data is available for the requested criterion.
+        :return: Trend results as a ~pandas.DataFrame.
         :rtype: ~pandas.DataFrame
+        :raises PatcherError: If fewer than two cached snapshots exist or
+            ``criteria`` is unrecognized.
         """
-        if isinstance(criteria, str):
-            criteria = TrendCriteria.from_cli(criteria)
-
-        analyzer = Analyzer(self.data)
-        trend_df = analyzer.timelapse(criteria)
+        trend_df = TrendAnalysis.apply(self.data.get_cached_files(), criteria)
 
         if save_to is not None and not trend_df.empty:
             save_to_path = Path(save_to)

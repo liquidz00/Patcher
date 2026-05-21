@@ -1,5 +1,5 @@
 ---
-description: "Filter and trend Patcher data by criterion. Covers the patcherctl analyze command, FilterCriteria and TrendCriteria values, and library equivalents."
+description: "Filter and trend Patcher data by criterion. Covers the patcherctl analyze command, TitleFilter and TrendAnalysis surfaces, and library equivalents."
 ---
 
 (analyze)=
@@ -18,11 +18,15 @@ Two flavors: point it at a single Excel report for one-shot filtering, or trend 
 
 Two criteria families drive analyze, used in different contexts:
 
-- {class}`~patcher.core.analyze.FilterCriteria` for analyzing a **single** patch report
-- {class}`~patcher.core.analyze.TrendCriteria` for analyzing patch data **over time**, comparing across multiple cached datasets
+- {class}`~patcher.core.analyze.TitleFilter` for analyzing a **single** patch report
+- {class}`~patcher.core.analyze.TrendAnalysis` for analyzing patch data **over time**, comparing across multiple cached datasets
+
+```{versionchanged} 3.0
+The `FilterCriteria` and `TrendCriteria` enums (plus the `Analyzer` dispatch wrapper) were replaced with `TitleFilter` and `TrendAnalysis`. Each former enum value is now a method on the respective class, so library callers can do `TitleFilter(titles).most_installed(top_n=10)` directly. CLI strings (`--criteria most-installed`) and `PatcherClient.analyze("most-installed", ...)` still work; only the enum surface was removed.
+```
 
 :::{tip}
-Criteria names are case-insensitive and dash/underscore-flexible. `most-installed`, `most_installed`, and `MOST-INSTALLED` all resolve to the same option.
+CLI criteria names are dash-flexible: `most-installed` and `most_installed` both resolve. Library method names use the underscore form (`TitleFilter(titles).most_installed()`).
 :::
 
 ### Filter criteria
@@ -53,7 +57,7 @@ Requires at least two cached datasets to compare.
 
 | Flag | Library kwarg / method | Description |
 |---|---|---|
-| `--criteria X` | `criteria=X` (positional on `analyze` / `analyze_trend`) | Filter or trend criterion. Accepts the enum or its CLI string form. |
+| `--criteria X` | `criteria="X"` (string on `analyze` / `analyze_trend`), or `TitleFilter(titles).X(...)` directly | Filter or trend criterion. CLI accepts dash or underscore form; library methods use the underscore form. |
 | `--top-n N` | `top_n=N` | Cap result size for top-N criteria. Ignored by `below-threshold` and `zero-completion` (those return all matching titles). |
 | `--threshold X` | `threshold=X` | Completion-percent cutoff for `below-threshold`. Default `70.0`. |
 | `--excel-file <path>` | call `analyze_excel(path, ...)` instead of `analyze(titles, ...)` | Operate on a specific Excel report rather than the latest cached one. |
@@ -96,19 +100,17 @@ $ patcherctl analyze --all-time --criteria completion-trends
 :sync: library
 
 ```python
-from patcher import FilterCriteria, PatcherClient
+from patcher import PatcherClient, TitleFilter
 
 async with PatcherClient.from_state() as patcher:
     titles = await patcher.fetch_patches()
 
-    # Threshold filter
-    below = await patcher.analyze(titles, criteria=FilterCriteria.BELOW_THRESHOLD, threshold=50.0)
+    # PatcherClient.analyze: kebab-case criterion string
+    below = await patcher.analyze(titles, criteria="below-threshold", threshold=50.0)
 
-    # Top-N filter
-    least = await patcher.analyze(titles, criteria=FilterCriteria.LEAST_INSTALLED, top_n=5)
-
-    # CLI-style string also accepted
-    high_missing = await patcher.analyze(titles, criteria="high-missing", top_n=10)
+    # Or call TitleFilter methods directly — same result, less indirection
+    least = TitleFilter(titles).least_installed(top_n=5)
+    high_missing = TitleFilter(titles).high_missing(top_n=10)
 ```
 
 Filter a saved Excel report directly (skip `fetch_patches`):
@@ -129,7 +131,9 @@ async with PatcherClient.from_state() as patcher:
     print(trend.head())
 ```
 
-{meth}`analyze <patcher.core.patcher_client.PatcherClient.analyze>` accepts either the enum or its CLI string form and returns the filtered list of {class}`~patcher.core.models.patch.PatchTitle` objects. {meth}`analyze_excel <patcher.core.patcher_client.PatcherClient.analyze_excel>` operates on a specific Excel file instead of the latest cached report; {meth}`analyze_trend <patcher.core.patcher_client.PatcherClient.analyze_trend>` operates across cached datasets over time.
+{meth}`analyze <patcher.core.patcher_client.PatcherClient.analyze>` takes a kebab-case criterion string and returns the filtered list of {class}`~patcher.core.models.patch.PatchTitle` objects. {meth}`analyze_excel <patcher.core.patcher_client.PatcherClient.analyze_excel>` is the saved-report variant (Excel hydration is parked for v3.0.1; today it filters the cached titles regardless of the path passed). {meth}`analyze_trend <patcher.core.patcher_client.PatcherClient.analyze_trend>` operates across cached datasets over time.
+
+For full method signatures see {class}`~patcher.core.analyze.TitleFilter` and {class}`~patcher.core.analyze.TrendAnalysis`.
 :::
 
 ::::

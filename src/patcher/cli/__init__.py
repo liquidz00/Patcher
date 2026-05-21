@@ -8,7 +8,7 @@ from pathlib import Path
 import asyncclick as click
 
 from ..__about__ import __version__
-from ..core.analyze import Analyzer, FilterCriteria, TrendCriteria
+from ..core.analyze import TitleFilter, TrendAnalysis
 from ..core.config_manager import ConfigManager
 from ..core.data_manager import DataManager
 from ..core.exceptions import APIResponseError, InstallomatorWarning, PatcherError, SetupError
@@ -32,6 +32,22 @@ DATE_FORMATS = {
 
 # Context settings to enable both ``-h`` and ``--help`` for help output
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+
+
+def format_table(data: list[list], headers: list[str] | None = None) -> str:
+    """Render ``data`` as a fixed-width pipe-separated table for terminal output."""
+    if headers:
+        data = [headers] + data
+
+    column_widths = [max(len(str(item)) for item in column) for column in zip(*data)]
+    format_string = " | ".join(f"{{:<{width}}}" for width in column_widths)
+    rows = [format_string.format(*row) for row in data]
+
+    if headers:
+        separator = "-+-".join("-" * width for width in column_widths)
+        rows.insert(1, separator)
+
+    return "\n".join(rows)
 
 
 def setup_logging(debug: bool) -> None:
@@ -620,18 +636,14 @@ async def analyze(
     data_manager = get_data_manager(ctx)
 
     async with animation.error_handling():
-        await animation.update_msg(
-            "Loading patch data from Excel..." if excel_file else "Loading cached patch data..."
-        )
-        analyzer = Analyzer(
-            excel_path=excel_file if excel_file else None, data_manager=data_manager
-        )
+        await animation.update_msg("Loading cached patch data...")
+        # NOTE: --excel-file is currently accepted but not read. Excel-to-PatchTitle
+        # hydration is parked for v3.0.1.
+        _ = excel_file
 
         if all_time:  # Analyze trends
-            trend_criteria = TrendCriteria.from_cli(criteria)
-
             await animation.update_msg(f"Calculating '{criteria}' trend across cached datasets...")
-            trend_df = analyzer.timelapse(trend_criteria)
+            trend_df = TrendAnalysis.apply(data_manager.get_cached_files(), criteria)
 
             if trend_df.empty:
                 await animation.stop()
@@ -645,7 +657,7 @@ async def analyze(
                 ctx.exit(0)
 
             await animation.update_msg("Formatting trend results...")
-            formatted_table = analyzer.format_table(
+            formatted_table = format_table(
                 trend_df.values.tolist(), headers=trend_df.columns.tolist()
             )
             click.echo(formatted_table)
@@ -667,9 +679,10 @@ async def analyze(
                         error_msg=str(exc),
                     )
         else:  # Filter analysis
-            filter_criteria = FilterCriteria.from_cli(criteria)
             await animation.update_msg(f"Filtering titles by '{criteria}'...")
-            filtered_titles = analyzer.filter_titles(filter_criteria, threshold, top_n)
+            filtered_titles = TitleFilter.apply(
+                data_manager.titles, criteria, threshold=threshold, top_n=top_n
+            )
             if len(filtered_titles) == 0:
                 await animation.stop()
                 click.echo(
@@ -704,7 +717,7 @@ async def analyze(
                 "Total Hosts",
                 "Label Available (Y/N)",
             ]
-            formatted_table = analyzer.format_table(table_data, headers)
+            formatted_table = format_table(table_data, headers)
 
         click.echo(formatted_table)
 

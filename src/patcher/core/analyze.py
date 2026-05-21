@@ -1,9 +1,8 @@
 import asyncio
+import inspect
 import pickle
 from datetime import datetime, timedelta
-from enum import Enum
 from pathlib import Path
-from typing import Callable
 
 import pandas as pd
 
@@ -179,374 +178,367 @@ def calculate_ios_on_latest(
         )
 
 
-class BaseEnum(Enum):
-    """Base class for Enum extensions with reusable CLI parsing."""
+class TitleFilter:
+    """
+    Apply named filters over a list of :class:`~patcher.core.models.patch.PatchTitle`.
+
+    Each filter is a method on the class. Library callers can chain construction
+    and method call: ``TitleFilter(titles).most_installed(top_n=10)``. The CLI
+    and :meth:`patcher.core.patcher_client.PatcherClient.analyze` route through
+    :meth:`apply`, which maps a CLI-style string (e.g. ``"most-installed"``)
+    onto the matching method.
+
+    .. versionchanged:: 3.0
+       Replaces the ``FilterCriteria`` enum and the ``Analyzer.filter_titles``
+       dispatch table. Each former enum value is now its own method with its
+       own signature (e.g. :meth:`below_threshold` accepts ``threshold``;
+       :meth:`zero_completion` accepts no extra arguments).
+
+    :param titles: PatchTitle objects to filter.
+    :type titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
+    """
+
+    def __init__(self, titles: list[PatchTitle]):
+        self._titles = list(titles)
+        self._log = LogMe(self.__class__.__name__)
+
+    def most_installed(self, top_n: int | None = None) -> list[PatchTitle]:
+        """Sort by ``total_hosts`` descending. ``top_n`` caps the result."""
+        result = sorted(self._titles, key=lambda pt: pt.total_hosts, reverse=True)
+        return self._cap(result, top_n)
+
+    def least_installed(self, top_n: int | None = None) -> list[PatchTitle]:
+        """Sort by ``total_hosts`` ascending. ``top_n`` caps the result."""
+        result = sorted(self._titles, key=lambda pt: pt.total_hosts)
+        return self._cap(result, top_n)
+
+    def oldest_least_complete(self, top_n: int | None = None) -> list[PatchTitle]:
+        """Sort by ``released`` then ``completion_percent`` ascending."""
+        result = sorted(self._titles, key=lambda pt: (pt.released, pt.completion_percent))
+        return self._cap(result, top_n)
+
+    def below_threshold(self, threshold: float = 70.0) -> list[PatchTitle]:
+        """
+        Titles with ``completion_percent`` strictly below ``threshold``. Sorted
+        by completion ascending. All matches are returned (no ``top_n`` cap).
+        """
+        return sorted(
+            [pt for pt in self._titles if pt.completion_percent < threshold],
+            key=lambda pt: pt.completion_percent,
+        )
+
+    def high_missing(self, top_n: int | None = None) -> list[PatchTitle]:
+        """Titles where ``missing_patch`` exceeds 50% of ``total_hosts``."""
+        result = sorted(
+            [pt for pt in self._titles if pt.missing_patch > (pt.total_hosts * 0.5)],
+            key=lambda pt: pt.missing_patch,
+        )
+        return self._cap(result, top_n)
+
+    def recent_release(self, top_n: int | None = None) -> list[PatchTitle]:
+        """Titles released within the last week, sorted newest first."""
+        cutoff = pd.Timestamp.now() - pd.DateOffset(weeks=1)
+        result = sorted(
+            [pt for pt in self._titles if pd.Timestamp(pt.released) >= cutoff],
+            key=lambda pt: pt.released,
+            reverse=True,
+        )
+        return self._cap(result, top_n)
+
+    def zero_completion(self) -> list[PatchTitle]:
+        """Titles with ``completion_percent`` exactly zero. No ``top_n`` cap."""
+        return [pt for pt in self._titles if pt.completion_percent == 0]
+
+    def top_performers(self, top_n: int | None = None) -> list[PatchTitle]:
+        """Titles with ``completion_percent`` above 90, sorted descending."""
+        result = sorted(
+            [pt for pt in self._titles if pt.completion_percent > 90],
+            key=lambda pt: pt.completion_percent,
+            reverse=True,
+        )
+        return self._cap(result, top_n)
+
+    def installomator(self, top_n: int | None = None) -> list[PatchTitle]:
+        """Titles that carry one or more Installomator labels."""
+        result = [pt for pt in self._titles if pt.install_label != []]
+        return self._cap(result, top_n)
 
     @classmethod
-    def from_cli(cls, value: str) -> "BaseEnum":
-        """
-        Maps CLI-friendly inputs (e.g., '--most-installed', '--release-frequency') to Enum values.
+    def criteria(cls) -> list[str]:
+        """List of CLI-flag-style names for every filter method on this class."""
+        return [name.replace("_", "-") for name in _filter_method_names(cls)]
 
-        :param value: CLI-friendly string.
-        :type value: str
-        :return: Corresponding Enum value
-        :rtype: :class:`~patcher.core.analyze.FilterCriteria` | :class:`~patcher.core.analyze.TrendCriteria`
-        :raises PatcherError: If the input is invalid
+    @classmethod
+    def apply(
+        cls,
+        titles: list[PatchTitle],
+        criterion: str,
+        *,
+        threshold: float | None = None,
+        top_n: int | None = None,
+    ) -> list[PatchTitle]:
         """
-        formatted_value = value.replace("-", "_")
-        try:
-            return cls(formatted_value)
-        except ValueError:
-            valid_values = ", ".join(c.value.replace("_", "-") for c in cls)
+        Resolve a CLI-style criterion string (e.g. ``"most-installed"``,
+        ``"below-threshold"``) to the corresponding filter method and invoke
+        it with whichever of ``threshold`` / ``top_n`` the method accepts.
+
+        Used by the CLI's ``analyze`` subcommand and by
+        :meth:`patcher.core.patcher_client.PatcherClient.analyze`. Library
+        callers that already know which filter they want should construct
+        directly: ``TitleFilter(titles).most_installed(top_n=10)``.
+        """
+        method = _resolve_method(cls, titles, criterion)
+        kwargs = _accepted_kwargs(method, threshold=threshold, top_n=top_n)
+        return method(**kwargs)
+
+    def _cap(self, result: list[PatchTitle], top_n: int | None) -> list[PatchTitle]:
+        if top_n is not None and len(result) > top_n:
+            return result[:top_n]
+        return result
+
+
+class TrendAnalysis:
+    """
+    Compose trend analyses across multiple cached patch datasets.
+
+    Combines datasets on construction and exposes one method per trend
+    criterion. Library callers can chain: ``TrendAnalysis(datasets).patch_adoption()``.
+    The CLI and :meth:`patcher.core.patcher_client.PatcherClient.analyze_trend`
+    route through :meth:`apply`, which maps a CLI-style string onto the
+    matching method.
+
+    .. versionchanged:: 3.0
+       Replaces the ``TrendCriteria`` enum and ``Analyzer.timelapse``. Each
+       former enum value is now its own method.
+
+    :param datasets: Pickle / Excel paths or pre-loaded DataFrames. Must
+        contain at least two datasets to produce a meaningful trend.
+    :type datasets: list[~pandas.DataFrame | ~pathlib.Path | str]
+    :raises PatcherError: If fewer than two datasets are provided, or if a
+        dataset has an unsupported file type.
+    """
+
+    def __init__(self, datasets: list[pd.DataFrame | Path | str]):
+        if len(datasets) < 2:
             raise PatcherError(
-                "Invalid criteria provided.", received=value, supported_values=valid_values
+                "Insufficient data to analyze trends.",
+                amount_found=len(datasets),
             )
+        self._log = LogMe(self.__class__.__name__)
+        self._combined = self._combine_datasets(datasets)
 
+    @classmethod
+    def from_cache(cls, data_manager: DataManager) -> "TrendAnalysis":
+        """Construct from every cached snapshot the ``DataManager`` has on disk."""
+        return cls(data_manager.get_cached_files())
 
-class FilterCriteria(BaseEnum):
-    """Enumeration for filtering criteria used in patch data analysis."""
-
-    MOST_INSTALLED = "most_installed"
-    LEAST_INSTALLED = "least_installed"
-    OLDEST_LEAST_COMPLETE = "oldest_least_complete"
-    BELOW_THRESHOLD = "below_threshold"
-    HIGH_MISSING = "high_missing"
-    RECENT_RELEASE = "recent_release"
-    ZERO_COMPLETION = "zero_completion"
-    TOP_PERFORMERS = "top_performers"
-    INSTALLOMATOR = "installomator"
-
-
-class TrendCriteria(BaseEnum):
-    """Enumeration for trend analysis criteria."""
-
-    PATCH_ADOPTION = "patch_adoption"
-    RELEASE_FREQUENCY = "release_frequency"
-    COMPLETION_TRENDS = "completion_trends"
-    # HOST_TRENDS = "host_trends"  # Adding for later
-
-
-class Analyzer:
-    def __init__(
-        self,
-        data_manager: DataManager,
-        excel_path: Path | str | None = None,
-    ):
+    def patch_adoption(self, sort_by: str | None = None, ascending: bool = True) -> pd.DataFrame:
         """
-        Performs analysis on patch data retrieved via :class:`~patcher.core.data_manager.DataManager`.
+        Per-title average completion plus the most recent release date.
 
-        ``Analyzer`` class objects are initialized with a :class:`~patcher.core.data_manager.DataManager` instance and optional Excel file path.
-
-        :param data_manager: The ``DataManager`` instance for retrieving and managing patch data.
-        :type data_manager: :class:`~patcher.core.data_manager.DataManager`
-        :param excel_path: Path to the Excel file.
-        :type excel_path: ~pathlib.Path | str | None
+        :return: DataFrame with columns ``Title``, ``Average Completion``,
+            ``Most Recent Release``.
         """
-        self.log = LogMe(self.__class__.__name__)
-        self.data_manager = data_manager
-        if excel_path:
-            self.df = self.initialize_dataframe(excel_path)
-        else:
-            self.df = pd.DataFrame([patch.model_dump() for patch in self.data_manager.titles])
+        df = (
+            self._combined.groupby("title", as_index=False)
+            .agg(
+                average_completion=("completion_percent", "mean"),
+                recent_release=("released", "max"),
+            )
+            .rename(
+                columns={
+                    "title": "Title",
+                    "average_completion": "Average Completion",
+                    "recent_release": "Most Recent Release",
+                }
+            )
+            .assign(
+                **{
+                    "Most Recent Release": lambda d: d["Most Recent Release"].dt.strftime(
+                        "%Y-%m-%d"
+                    ),
+                    "Average Completion": lambda d: d["Average Completion"].apply(
+                        lambda x: f"{x:.2f}%"
+                    ),
+                }
+            )
+        )
+        return self._maybe_sort(df, sort_by, ascending)
 
-    def _validate_path(self, file_path: Path | str) -> bool:
-        """Ensures the file path passed exists and is a file (not a directory)."""
-        self.log.debug(f"Validating file path: {file_path}")
-        if isinstance(file_path, str):
-            file_path = Path(file_path)
+    def release_frequency(self, sort_by: str | None = None, ascending: bool = True) -> pd.DataFrame:
+        """
+        Count of distinct release dates per title across the snapshots.
 
-        if not file_path.exists():
-            self.log.error(f"The specified file at {file_path} does not exist.")
-            return False
-        if not file_path.is_file():
-            self.log.error(f"The specified file {file_path} is not a file.")
-            return False
+        :return: DataFrame with columns ``Title``, ``Release Count``.
+        """
+        df = (
+            self._combined.groupby("title", as_index=False)
+            .agg(release_count=("released", "nunique"))
+            .rename(columns={"title": "Title", "release_count": "Release Count"})
+        )
+        return self._maybe_sort(df, sort_by, ascending)
 
-        self.log.info(f"File at {file_path} validated successfully.")
-        return True
+    def completion_trends(self, sort_by: str | None = None, ascending: bool = True) -> pd.DataFrame:
+        """
+        Per-release-date average completion across the snapshots.
+
+        :return: DataFrame with columns ``Release Date``, ``Title``,
+            ``Average Completion``.
+        """
+        df = (
+            self._combined.groupby(["released", "title"], as_index=False)
+            .agg(average_completion=("completion_percent", "mean"))
+            .rename(
+                columns={
+                    "title": "Title",
+                    "average_completion": "Average Completion",
+                    "released": "Release Date",
+                }
+            )
+            .assign(
+                **{
+                    "Release Date": lambda d: d["Release Date"].dt.strftime("%Y-%m-%d"),
+                    "Average Completion": lambda d: d["Average Completion"].apply(
+                        lambda x: f"{x:.2f}%"
+                    ),
+                }
+            )
+        )
+        return self._maybe_sort(df, sort_by, ascending)
+
+    @classmethod
+    def criteria(cls) -> list[str]:
+        """List of CLI-flag-style names for every trend method on this class."""
+        return [name.replace("_", "-") for name in _filter_method_names(cls)]
+
+    @classmethod
+    def apply(
+        cls,
+        datasets: list[pd.DataFrame | Path | str],
+        criterion: str,
+        *,
+        sort_by: str | None = None,
+        ascending: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Resolve a CLI-style criterion string to the corresponding trend
+        method and invoke it.
+
+        Used by the CLI and
+        :meth:`patcher.core.patcher_client.PatcherClient.analyze_trend`. Library
+        callers that already know which trend they want should construct
+        directly: ``TrendAnalysis(datasets).patch_adoption()``.
+        """
+        instance = cls(datasets)
+        method = _resolve_method_on_instance(instance, criterion)
+        kwargs = _accepted_kwargs(method, sort_by=sort_by, ascending=ascending)
+        return method(**kwargs)
 
     def _combine_datasets(self, datasets: list[pd.DataFrame | Path | str]) -> pd.DataFrame:
-        """Combines multiple datasets into a single DataFrame."""
         dataframes = []
         for dataset in datasets:
             if isinstance(dataset, pd.DataFrame):
-                dataframes.append(dataset)
+                df = dataset
             elif isinstance(dataset, (Path, str)):
-                self.log.debug(f"Loading dataset from: {dataset}")
-                file_path = Path(dataset)
-                if file_path.suffix == ".pkl":
-                    with open(file_path, "rb") as f:
-                        df = pickle.load(f)
-                elif file_path.suffix in [".xlsx", ".xls"]:
-                    df = self.initialize_dataframe(dataset)
+                self._log.debug(f"Loading dataset from: {dataset}")
+                df = self._read_file(Path(dataset))
+            else:
+                raise PatcherError(
+                    "Unsupported dataset type.",
+                    received=type(dataset).__name__,
+                )
 
             df.columns = [col.lower().replace(" ", "_") for col in df.columns]
             if "released" in df.columns:
                 df["released"] = pd.to_datetime(df["released"], format="%b %d %Y")
             dataframes.append(df)
 
-        combined_df = pd.concat(dataframes, ignore_index=True)
-        self.log.info(f"Combined {len(dataframes)} datasets into a single DataFrame.")
-        return combined_df
+        combined = pd.concat(dataframes, ignore_index=True)
+        self._log.info(f"Combined {len(dataframes)} datasets into a single DataFrame.")
+        return combined
 
-    def initialize_dataframe(self, excel_path: Path | str) -> pd.DataFrame:
-        """
-        Initializes a DataFrame by reading the Excel file from the provided path.
-
-        :param excel_path: The path to the Excel file, either as a string or a Path object.
-        :type excel_path: ~pathlib.Path | str
-        :return: A pandas DataFrame loaded from the Excel file.
-        :rtype: ~pandas.DataFrame
-        :raises PatcherError: If the passed ``excel_file`` could not be validated (does not exist, or is not a file).
-        :raises PatcherError: If the excel file could not be read, if the file is empty, or if the file could not be parsed properly.
-        """
-        self.log.debug(f"Attempting to initialize DataFrame from {excel_path}")
-        if not self._validate_path(excel_path):
-            raise PatcherError("Excel file provided failed validation", file_path=excel_path)
-
-        try:
-            df = pd.read_excel(excel_path)
-            self.log.info(f"DataFrame successfully initialized from {excel_path}.")
-            return df
-        except PermissionError as e:
-            self.log.error(f"Permission denied when trying to read {excel_path}. Details: {e}")
+    def _read_file(self, file_path: Path) -> pd.DataFrame:
+        if not file_path.exists() or not file_path.is_file():
             raise PatcherError(
-                "Unable to read CSV file due to permissions issues.",
-                path=excel_path,
-                error_msg=str(e),
-            )
-        except pd.errors.EmptyDataError as e:
-            self.log.error(f"The file at {excel_path} is empty. Details: {e}")
-            raise PatcherError(
-                "The Excel file provided is empty.",
-                path=excel_path,
-                error_msg=str(e),
-            )
-        except pd.errors.ParserError as e:
-            self.log.error(f"Failed to parse the Excel file at {excel_path}. Details: {e}")
-            raise PatcherError(
-                "Unable to parse the Excel file properly.",
-                path=excel_path,
-                error_msg=str(e),
+                "Dataset path is not a readable file.",
+                path=str(file_path),
             )
 
-    @staticmethod
-    def format_table(data: list[list[str]], headers: list[str] | None = None) -> str:
-        """
-        Formats the data passed into a table for CLI output.
-
-        :param data: The data to display in the table.
-        :type data: list[list[str]]
-        :param headers: Header names for the columns of the tables.
-        :type headers: list[str] | None
-        :return: The formatted table as a string.
-        :rtype: str
-        """
-        if headers:
-            data = [headers] + data
-
-        column_widths = [max(len(str(item)) for item in column) for column in zip(*data)]
-        format_string = " | ".join([f"{{:<{width}}}" for width in column_widths])
-        table = [format_string.format(*row) for row in data]
-
-        if headers:
-            header_separator = "-+-".join("-" * width for width in column_widths)
-            table.insert(1, header_separator)
-
-        return "\n".join(table)
-
-    def filter_titles(
-        self,
-        criteria: FilterCriteria,
-        threshold: float | None = 70.0,
-        top_n: int | None = None,
-    ) -> list[PatchTitle]:
-        """
-        Filters and sorts PatchTitle objects based on specified criteria.
-
-        :param criteria: The criteria to filter and sort by.
-
-                Options include:
-
-                - 'most_installed': Returns the most installed software by total_hosts.
-                - 'least_installed': Returns the least installed software by total_hosts.
-                - 'oldest_least_complete': Returns the oldest patches with the least completion percent.
-                - 'below_threshold': Returns patches below a certain completion percentage.
-                - 'high_missing': Titles where missing patches are greater than 50% of total hosts.
-                - 'zero_completion': Titles with zero completion percentage.
-                - 'top_performers': Titles with completion percentage greater than 90%.
-                - 'installomator': Titles that have InstallomatorClient labels. See :ref:`InstallomatorClient <installomator>`
-
-        :type criteria: :class:`~patcher.core.analyze.FilterCriteria`
-        :param threshold: The threshold for filtering completion percentages, default is 70.0.
-        :type threshold: float | None
-        :param top_n: Number of results to return. If None (default), return all matching results.
-        :type top_n: int | None
-        :return: Filtered and sorted list of ``PatchTitle`` objects.
-        :rtype: list[:class:`~patcher.core.models.patch.PatchTitle`]
-        """
-        self.log.debug(f"Attempting to filter titles by {criteria}.")
-
-        titles = self.data_manager.titles
-        sort_criteria: dict[FilterCriteria, Callable[[], list[PatchTitle]]] = {
-            FilterCriteria.MOST_INSTALLED: lambda: sorted(
-                titles, key=lambda pt: pt.total_hosts, reverse=True
-            ),
-            FilterCriteria.LEAST_INSTALLED: lambda: sorted(titles, key=lambda pt: pt.total_hosts),
-            FilterCriteria.OLDEST_LEAST_COMPLETE: lambda: sorted(
-                titles, key=lambda pt: (pt.released, pt.completion_percent)
-            ),
-            FilterCriteria.BELOW_THRESHOLD: lambda: sorted(
-                [pt for pt in titles if pt.completion_percent < threshold],
-                key=lambda pt: pt.completion_percent,
-            ),
-            FilterCriteria.HIGH_MISSING: lambda: sorted(
-                [pt for pt in titles if pt.missing_patch > (pt.total_hosts * 0.5)],
-                key=lambda pt: pt.missing_patch,
-            ),
-            FilterCriteria.RECENT_RELEASE: lambda: sorted(
-                [
-                    pt
-                    for pt in titles
-                    if pd.Timestamp(pt.released) >= pd.Timestamp.now() - pd.DateOffset(weeks=1)
-                ],
-                key=lambda pt: pt.released,
-                reverse=True,
-            ),
-            FilterCriteria.ZERO_COMPLETION: lambda: [
-                pt for pt in titles if pt.completion_percent == 0
-            ],
-            FilterCriteria.TOP_PERFORMERS: lambda: sorted(
-                [pt for pt in titles if pt.completion_percent > 90],
-                key=lambda pt: pt.completion_percent,
-                reverse=True,
-            ),
-            FilterCriteria.INSTALLOMATOR: lambda: [pt for pt in titles if pt.install_label != []],
-        }
-
-        # Check for valid criteria
-        if criteria not in sort_criteria:
-            raise PatcherError(
-                f"Invalid criteria '{criteria}'",
-                supported_criteria=(", ".join(c.value for c in FilterCriteria)),
-            )
-
-        # Apply sorting/filtering strategy
-        filtered_titles = sort_criteria[criteria]()
-
-        if top_n is not None and len(filtered_titles) > top_n:
-            filtered_titles = (
-                # All results should show (regardless of top_n) for 'below_threshold' and 'zero_completion'
-                filtered_titles[:top_n]
-                if criteria not in [FilterCriteria.BELOW_THRESHOLD, FilterCriteria.ZERO_COMPLETION]
-                else filtered_titles
-            )
-
-        self.log.info(
-            f"Filtered {len(filtered_titles)} PatchTitles successfully based on {criteria}"
-        )
-        return filtered_titles
-
-    def timelapse(
-        self,
-        criteria: TrendCriteria,
-        datasets: list[Path | str | pd.DataFrame] | None = None,
-        sort_by: str | None = None,
-        ascending: bool = True,
-    ) -> pd.DataFrame:
-        """
-        Analyzes trends across multiple datasets based on specified criteria.
-
-        :param criteria: The trend analysis criteria to use.
-        :type criteria: :class:`~patcher.core.analyze.TrendCriteria`
-        :param datasets: A list of DataFrames or file paths to analyze. If None, uses cached data.
-        :type datasets: list[~pathlib.Path | str | ~pandas.DataFrame] | None
-        :param sort_by: A column to sort the results by.
-        :type sort_by: str | None
-        :param ascending: Sorting order (ascending if True, descending if False).
-        :type ascending: bool
-        :return: A DataFrame with the trend analysis results.
-        :rtype: ~pandas.DataFrame
-        :raises PatcherError: If criteria is invalid or data loading fails.
-        """
-        if datasets is None:
-            datasets = self.data_manager.get_cached_files()
-
-        if len(datasets) < 2:
-            raise PatcherError(
-                "Insufficient cache data to analyze trends.", amount_found=len(datasets)
-            )
-
-        combined_df = self._combine_datasets(datasets)
-
-        trend_criteria: dict[TrendCriteria, Callable[[], pd.DataFrame]] = {
-            TrendCriteria.PATCH_ADOPTION: lambda: (
-                combined_df.groupby("title", as_index=False)
-                .agg(
-                    average_completion=("completion_percent", "mean"),
-                    recent_release=("released", "max"),
-                )
-                .rename(
-                    columns={
-                        "title": "Title",
-                        "average_completion": "Average Completion",
-                        "recent_release": "Most Recent Release",
-                    }
-                )
-                .assign(
-                    **{
-                        "Most Recent Release": lambda df: df["Most Recent Release"].dt.strftime(
-                            "%Y-%m-%d"
-                        ),
-                        "Average Completion": lambda df: df["Average Completion"].apply(
-                            lambda x: f"{x:.2f}%"
-                        ),
-                    }
-                )
-            ),
-            TrendCriteria.RELEASE_FREQUENCY: lambda: (
-                combined_df.groupby("title", as_index=False)
-                .agg(release_count=("released", "nunique"))
-                .rename(columns={"title": "Title", "release_count": "Release Count"})
-            ),
-            TrendCriteria.COMPLETION_TRENDS: lambda: (
-                combined_df.groupby(["released", "title"], as_index=False)
-                .agg(average_completion=("completion_percent", "mean"))
-                .rename(
-                    columns={
-                        "title": "Title",
-                        "average_completion": "Average Completion",
-                        "released": "Release Date",
-                    }
-                )
-                .assign(
-                    **{
-                        "Release Date": lambda df: df["Release Date"].dt.strftime("%Y-%m-%d"),
-                        "Average Completion": lambda df: df["Average Completion"].apply(
-                            lambda x: f"{x:.2f}%"
-                        ),
-                    }
-                )
-            ),
-        }
-
-        if criteria not in trend_criteria:
-            raise PatcherError(
-                "Invalid criteria passed.",
-                received=criteria,
-                supported_criteria=(", ".join(c.value for c in TrendCriteria)),
-            )
-
-        trend_df = trend_criteria[criteria]()
-
-        if sort_by:
-            if sort_by not in trend_df.columns:
+        suffix = file_path.suffix.lower()
+        if suffix == ".pkl":
+            with open(file_path, "rb") as f:
+                return pickle.load(f)
+        if suffix in (".xlsx", ".xls"):
+            try:
+                return pd.read_excel(file_path)
+            except pd.errors.EmptyDataError as e:
                 raise PatcherError(
-                    "Invalid sorting provided.",
-                    received=sort_by,
-                    expected=(", ".join(trend_df.columns)),
+                    "The Excel file provided is empty.",
+                    path=str(file_path),
+                    error_msg=str(e),
                 )
-            trend_df = trend_df.sort_values(by=sort_by, ascending=ascending)
+            except pd.errors.ParserError as e:
+                raise PatcherError(
+                    "Unable to parse the Excel file properly.",
+                    path=str(file_path),
+                    error_msg=str(e),
+                )
 
-        self.log.info(f"Performed '{criteria.value}' trend analysis successfully.")
-        return trend_df
+        raise PatcherError(
+            "Unsupported dataset file type.",
+            path=str(file_path),
+            supported=".pkl, .xlsx, .xls",
+        )
+
+    def _maybe_sort(self, df: pd.DataFrame, sort_by: str | None, ascending: bool) -> pd.DataFrame:
+        if sort_by is None:
+            return df
+        if sort_by not in df.columns:
+            raise PatcherError(
+                "Invalid sorting provided.",
+                received=sort_by,
+                expected=", ".join(df.columns),
+            )
+        return df.sort_values(by=sort_by, ascending=ascending)
+
+
+def _filter_method_names(cls: type) -> list[str]:
+    """
+    Public method names on ``cls`` that correspond to filter/trend criteria.
+
+    Excludes dunders, private methods, and the class-level helpers
+    ``apply`` / ``criteria`` so :meth:`TitleFilter.criteria` and
+    :meth:`TrendAnalysis.criteria` reflect only the criterion surface.
+    """
+    skip = {"apply", "criteria", "from_cache"}
+    return [
+        name
+        for name in vars(cls)
+        if not name.startswith("_") and name not in skip and callable(vars(cls)[name])
+    ]
+
+
+def _resolve_method(cls: type, titles: list[PatchTitle], criterion: str):
+    instance = cls(titles)
+    return _resolve_method_on_instance(instance, criterion)
+
+
+def _resolve_method_on_instance(instance, criterion: str):
+    method_name = criterion.replace("-", "_")
+    if method_name.startswith("_") or method_name not in _filter_method_names(type(instance)):
+        raise PatcherError(
+            "Invalid criteria provided.",
+            received=criterion,
+            supported=", ".join(type(instance).criteria()),
+        )
+    return getattr(instance, method_name)
+
+
+def _accepted_kwargs(method, **kwargs) -> dict:
+    """Return only the kwargs ``method`` accepts and that aren't ``None``."""
+    sig = inspect.signature(method)
+    return {
+        name: value
+        for name, value in kwargs.items()
+        if value is not None and name in sig.parameters
+    }

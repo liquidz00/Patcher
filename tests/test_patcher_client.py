@@ -13,7 +13,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from src.patcher.core.analyze import FilterCriteria
 from src.patcher.core.exceptions import PatcherError
 from src.patcher.core.patcher_client import PatcherClient
 
@@ -127,125 +126,73 @@ class TestFetchPatches:
 
 class TestAnalyze:
     @pytest.mark.asyncio
-    async def test_string_criteria_converted_to_enum(self, patcher, mocker):
-        """A CLI-style string ``'most-installed'`` should resolve to MOST_INSTALLED."""
-        # Replace data.titles' setter side effect to be safe; the Analyzer
-        # instantiation reads from data so we mock it at the class level.
-        mock_analyzer_cls = mocker.patch("src.patcher.core.patcher_client.Analyzer")
-        mock_analyzer_cls.return_value.filter_titles.return_value = ["result"]
-
-        patcher.data = MagicMock()  # plain MagicMock to allow setting .titles
+    async def test_string_criteria_dispatches_via_title_filter_apply(self, patcher, mocker):
+        """analyze() routes through TitleFilter.apply with the kebab-case criterion."""
+        mock_apply = mocker.patch("src.patcher.core.patcher_client.TitleFilter.apply")
+        mock_apply.return_value = ["result"]
 
         result = await patcher.analyze(["titles"], criteria="most-installed")
 
-        # Analyzer was constructed with the data manager
-        mock_analyzer_cls.assert_called_once_with(patcher.data)
-        # filter_titles received the enum form (string was converted)
-        mock_analyzer_cls.return_value.filter_titles.assert_called_once_with(
-            FilterCriteria.MOST_INSTALLED, threshold=70.0, top_n=None
-        )
+        mock_apply.assert_called_once_with(["titles"], "most-installed", threshold=70.0, top_n=None)
         assert result == ["result"]
 
     @pytest.mark.asyncio
-    async def test_enum_criteria_passed_through_unchanged(self, patcher, mocker):
-        mock_analyzer_cls = mocker.patch("src.patcher.core.patcher_client.Analyzer")
-        mock_analyzer_cls.return_value.filter_titles.return_value = ["result"]
-        patcher.data = MagicMock()
-
-        await patcher.analyze(["titles"], criteria=FilterCriteria.TOP_PERFORMERS)
-
-        mock_analyzer_cls.return_value.filter_titles.assert_called_once_with(
-            FilterCriteria.TOP_PERFORMERS, threshold=70.0, top_n=None
-        )
-
-    @pytest.mark.asyncio
     async def test_threshold_and_top_n_threaded_through(self, patcher, mocker):
-        mock_analyzer_cls = mocker.patch("src.patcher.core.patcher_client.Analyzer")
-        mock_analyzer_cls.return_value.filter_titles.return_value = []
-        patcher.data = MagicMock()
+        mock_apply = mocker.patch("src.patcher.core.patcher_client.TitleFilter.apply")
+        mock_apply.return_value = []
 
-        await patcher.analyze(
-            ["titles"],
-            criteria=FilterCriteria.BELOW_THRESHOLD,
-            threshold=85.0,
-            top_n=5,
-        )
+        await patcher.analyze(["titles"], criteria="below-threshold", threshold=85.0, top_n=5)
 
-        mock_analyzer_cls.return_value.filter_titles.assert_called_once_with(
-            FilterCriteria.BELOW_THRESHOLD, threshold=85.0, top_n=5
-        )
+        mock_apply.assert_called_once_with(["titles"], "below-threshold", threshold=85.0, top_n=5)
 
     @pytest.mark.asyncio
     async def test_invalid_string_criteria_raises_patcher_error(self, patcher):
         with pytest.raises(PatcherError, match="Invalid criteria"):
-            await patcher.analyze(["titles"], criteria="not-a-real-criterion")
-
-    @pytest.mark.asyncio
-    async def test_stashes_titles_on_data_manager(self, patcher, mocker):
-        """Analyzer reads from data.titles; analyze() must set it before instantiating."""
-        mock_analyzer_cls = mocker.patch("src.patcher.core.patcher_client.Analyzer")
-        mock_analyzer_cls.return_value.filter_titles.return_value = []
-        patcher.data = MagicMock()
-
-        await patcher.analyze(["my-titles"], criteria=FilterCriteria.MOST_INSTALLED)
-
-        # The setter side of `patcher.data.titles = ["my-titles"]` should fire.
-        # MagicMock records attribute assignment via __setattr__; we just verify
-        # construction order — Analyzer is built AFTER the assignment.
-        assert mock_analyzer_cls.call_count == 1
+            await patcher.analyze([], criteria="not-a-real-criterion")
 
 
 class TestAnalyzeExcel:
     @pytest.mark.asyncio
-    async def test_analyzer_constructed_with_excel_path(self, patcher, mocker):
-        mock_analyzer_cls = mocker.patch("src.patcher.core.patcher_client.Analyzer")
-        mock_analyzer_cls.return_value.filter_titles.return_value = ["from-excel"]
+    async def test_dispatches_via_title_filter_apply_on_data_titles(self, patcher, mocker):
+        """Pre-v3.0.1: --excel-file is accepted but unread; we filter data.titles."""
+        mock_apply = mocker.patch("src.patcher.core.patcher_client.TitleFilter.apply")
+        mock_apply.return_value = ["filtered"]
+        patcher.data = MagicMock()
+        patcher.data.titles = ["cached-titles"]
 
-        result = await patcher.analyze_excel(
-            "/tmp/report.xlsx", criteria=FilterCriteria.MOST_INSTALLED
+        result = await patcher.analyze_excel("/tmp/report.xlsx", criteria="most-installed")
+
+        mock_apply.assert_called_once_with(
+            ["cached-titles"], "most-installed", threshold=70.0, top_n=None
         )
-
-        mock_analyzer_cls.assert_called_once_with(
-            excel_path="/tmp/report.xlsx", data_manager=patcher.data
-        )
-        assert result == ["from-excel"]
-
-    @pytest.mark.asyncio
-    async def test_cli_string_criteria_converts(self, patcher, mocker):
-        mock_analyzer_cls = mocker.patch("src.patcher.core.patcher_client.Analyzer")
-        mock_analyzer_cls.return_value.filter_titles.return_value = []
-
-        await patcher.analyze_excel("/tmp/r.xlsx", criteria="below-threshold")
-
-        mock_analyzer_cls.return_value.filter_titles.assert_called_once_with(
-            FilterCriteria.BELOW_THRESHOLD, threshold=70.0, top_n=None
-        )
+        assert result == ["filtered"]
 
 
 class TestAnalyzeTrend:
     @pytest.mark.asyncio
     async def test_returns_trend_dataframe(self, patcher, mocker):
-        from src.patcher.core.analyze import TrendCriteria
-
-        mock_analyzer_cls = mocker.patch("src.patcher.core.patcher_client.Analyzer")
+        mock_apply = mocker.patch("src.patcher.core.patcher_client.TrendAnalysis.apply")
         fake_df = mocker.MagicMock()
         fake_df.empty = False
-        mock_analyzer_cls.return_value.timelapse.return_value = fake_df
+        mock_apply.return_value = fake_df
+
+        patcher.data = MagicMock()
+        patcher.data.get_cached_files.return_value = ["snap1", "snap2"]
 
         result = await patcher.analyze_trend("patch-adoption")
 
-        mock_analyzer_cls.assert_called_once_with(patcher.data)
-        mock_analyzer_cls.return_value.timelapse.assert_called_once_with(
-            TrendCriteria.PATCH_ADOPTION
-        )
+        mock_apply.assert_called_once_with(["snap1", "snap2"], "patch-adoption")
         assert result is fake_df
 
     @pytest.mark.asyncio
     async def test_save_to_writes_html(self, patcher, mocker, tmp_path):
-        mock_analyzer_cls = mocker.patch("src.patcher.core.patcher_client.Analyzer")
+        mock_apply = mocker.patch("src.patcher.core.patcher_client.TrendAnalysis.apply")
         fake_df = mocker.MagicMock()
         fake_df.empty = False
-        mock_analyzer_cls.return_value.timelapse.return_value = fake_df
+        mock_apply.return_value = fake_df
+
+        patcher.data = MagicMock()
+        patcher.data.get_cached_files.return_value = ["snap1", "snap2"]
 
         out = tmp_path / "trend.html"
         await patcher.analyze_trend("patch-adoption", save_to=out)
@@ -254,10 +201,13 @@ class TestAnalyzeTrend:
 
     @pytest.mark.asyncio
     async def test_save_to_skipped_on_empty_dataframe(self, patcher, mocker, tmp_path):
-        mock_analyzer_cls = mocker.patch("src.patcher.core.patcher_client.Analyzer")
+        mock_apply = mocker.patch("src.patcher.core.patcher_client.TrendAnalysis.apply")
         fake_df = mocker.MagicMock()
         fake_df.empty = True
-        mock_analyzer_cls.return_value.timelapse.return_value = fake_df
+        mock_apply.return_value = fake_df
+
+        patcher.data = MagicMock()
+        patcher.data.get_cached_files.return_value = ["snap1", "snap2"]
 
         await patcher.analyze_trend("patch-adoption", save_to=tmp_path / "trend.html")
 
