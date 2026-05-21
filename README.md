@@ -1,4 +1,4 @@
-<div align="left">
+<div align="center">
     <a href="https://docs.patcherctl.dev/">
         <picture>
             <source media="(prefers-color-scheme: dark)" srcset="docs/_static/logo-dark.svg">
