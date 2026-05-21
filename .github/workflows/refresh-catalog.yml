@@ -81,7 +81,7 @@ jobs:
       # diagnosing "the upload looked weird, what was actually in it?"
       # without having to re-run the full ingest pipeline.
       - name: Upload DB as workflow artifact
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45581b  # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: patcher_api.db
           path: api/patcher_api.db
