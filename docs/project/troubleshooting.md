@@ -10,6 +10,8 @@ description: "Diagnose Patcher problems: debug mode, exit code lookup, TLS / cor
 Debug mode, exit codes, log interpretation, and the most common fixes for quick troubleshooting.
 :::
 
+---
+
 ## Quick diagnostics
 
 (exit-codes)=

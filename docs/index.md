@@ -6,14 +6,16 @@ description: "Simplified patch management reporting for macOS fleets on Jamf Pro
 # Patcher
 
 ![](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=flat&logo=python&logoColor=white)
-![](https://img.shields.io/github/v/release/liquidz00/Patcher?color=orange)
-![](https://github.com/liquidz00/patcher/actions/workflows/pytest.yml/badge.svg)
-![](https://img.shields.io/pypi/v/patcherctl?color=yellow)
-![](https://img.shields.io/badge/macOS-10.13%2B-blueviolet?logo=apple&logoSize=auto)
+![](https://img.shields.io/github/v/release/liquidz00/Patcher?logo=github&logoColor=white&color=orange)
+![](https://img.shields.io/github/actions/workflow/status/liquidz00/Patcher/pytest.yml?logo=github&logoColor=white&label=Run+Tests)
+![](https://img.shields.io/pypi/v/patcherctl?logo=pypi&logoColor=white&color=yellow)
+![](https://img.shields.io/badge/macOS-10.13%2B-blueviolet?logo=apple&logoColor=white&logoSize=auto)
 
 :::{rst-class} lead
 A Python package and CLI for **patch analysis and reporting** on macOS fleets managed by [Jamf Pro](https://jamf.com/products/jamf-pro/).
 :::
+
+---
 
 :::{container} buttons
 [Docs](getting-started/install.md)
@@ -68,6 +70,47 @@ Set it and forget it; recipes for automating Patcher with `launchd` and GitHub A
 
 PDF and HTML reports take your header text, footer, fonts, logo and accent color to bring reports to life.
 :::
+::::
+
+## Quick Start
+
+::::{tab-set}
+:sync-group: surface
+
+:::{tab-item} {iconify}`material-icon-theme:console` CLI
+:sync: cli
+
+```{code-block} console
+$ uv pip install patcherctl
+$ patcherctl
+```
+
+First run launches the interactive setup wizard for your Jamf URL, API client ID, and secret. After that, `patcherctl export --path ./reports` writes a full patch report. SSO intance? See {doc}`Setup </getting-started/setup>` for the manual API-client path.
+:::
+
+:::{tab-item} {iconify}`material-icon-theme:python` Library
+:sync: library
+
+```{code-block} python
+
+import asyncio
+from patcher import PatcherClient
+
+async def main():
+    async with PatcherClient(
+        client_id="...",
+        client_secret="...",
+        server="https://yourorg.jamfcloud.com",
+    ) as patcher:
+        titles = await patcher.fetch.patches()
+        await patcher.export(titles, output_dir="./reports", formats={"pdf"})
+
+asyncio.run(main())
+```
+
+Credentials are set in memory, no keyring touched. If you've already run setup on this Mac, swap to {meth}`PatcherClient.from_state() <patcher.core.patcher_client.PatcherClient.from_state>` to pick up keychain-backed creds.
+:::
+
 ::::
 
 ## Getting Help

@@ -10,6 +10,8 @@ description: "Install Patcher on macOS via PyPI with uv or pip. Covers PATH gotc
 Getting Patcher onto your Mac in a single command.
 :::
 
+---
+
 Patcher ships as a single PyPI package (`patcherctl`) that exposes both the `patcherctl` CLI and the importable `patcher` Python library. One install gives you both surfaces; pick whichever fits your workflow.
 
 ```{note}

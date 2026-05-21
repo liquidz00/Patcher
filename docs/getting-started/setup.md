@@ -10,6 +10,8 @@ description: "Configure Jamf credentials for both patcherctl and the PatcherClie
 Configuring the settings that power Patcher.
 :::
 
+---
+
 Set up your Jamf credentials once and both `patcherctl` and `PatcherClient` use them. The CLI's setup wizard writes to the macOS keychain; library callers pass credentials in-memory and skip the keychain entirely.
 
 :::::::{tab-set}

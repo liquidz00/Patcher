@@ -8,6 +8,8 @@ description: "Patcher's internal architecture: the clients / core / cli package 
 How Patcher is configured and why.
 :::
 
+---
+
 Three internal packages, with the classes you'd actually reach for re-exported at the top level. `patcherctl` and `PatcherClient` share the same domain code by design. Feature parity isn't an afterthought, it's the whole point.
 
 ## The three internal packages

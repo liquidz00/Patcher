@@ -10,6 +10,8 @@ description: "How Patcher matches Jamf titles against Installomator labels via t
 Highlighting what's automation-ready and what isn't.
 :::
 
+---
+
 [Installomator](https://github.com/Installomator/Installomator) is the open-source tool a lot of MacAdmins use to automate macOS app installs, usually wired up through Jamf Pro or another MDM. Patcher matches each Jamf patch title against Installomator's label catalog; titles that match get an `install_label` entry on the {class}`~patcher.core.models.patch.PatchTitle`, and downstream filters and report columns use that to surface "this one has an automation path; this one you're installing by hand."
 
 :::{admonition} Disclaimer

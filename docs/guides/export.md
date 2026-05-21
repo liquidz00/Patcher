@@ -10,6 +10,8 @@ description: "Export Jamf patch reports as Excel, PDF, HTML, or JSON. Covers the
 Pulling patch data out of Jamf and into formats you can actually share.
 :::
 
+---
+
 By default, a single invocation writes the patch report in all four formats: Excel, PDF, HTML, and JSON. If you only need one or two, narrowing the output is one option away.
 
 ## Options

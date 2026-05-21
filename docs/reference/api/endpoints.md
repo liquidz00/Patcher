@@ -8,6 +8,8 @@ description: "Patcher API endpoint reference. Lists, filters, per-source payload
 Read the stitched macOS app catalog without standing up your own ingestion pipeline.
 :::
 
+---
+
 ```{note}
 The Patcher API catalog is **public** — no authentication required for any `/apps*` endpoint. Admin endpoints used to upload fresh catalog data are gated behind a separate deploy token and not documented publicly.
 ```

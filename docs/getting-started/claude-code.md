@@ -10,6 +10,8 @@ description: "Use Patcher's bundled Claude Code skill to look up Mac apps across
 Use Patcher within Claude Code sessions.
 :::
 
+---
+
 Patcher ships a [Claude Code](https://claude.com/claude-code) skill at `.claude/skills/patcher/`. It's a read-only lookup utility: given an app name, it checks Installomator, Homebrew Cask, and AutoPkg in parallel, surfaces a Jamf App Installer placeholder (the catalog endpoint requires tenant access, so the skill reports "skipped" with a pointer to the public JAI catalog), and pulls vendor and Jamf deployment documentation into one report. No database writes, no Jamf access required.
 
 It's useful when you're:

@@ -10,6 +10,8 @@ description: "Where Patcher writes on your Mac: the Application Support director
 Where Patcher writes on your Mac, and how to inspect, modify, or reset each piece.
 :::
 
+---
+
 ## How Patcher Stores Data Locally
 
 Patcher stores information locally for session persistence:

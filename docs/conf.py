@@ -167,7 +167,6 @@ html_css_files = [
 
 html_theme_options = {
     "color_mode": "auto",
-    "dark_code": True,
     "announcement": _announcement,
     "accent_color": "violet",
     "globaltoc_expand_depth": 1,

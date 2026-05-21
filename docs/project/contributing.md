@@ -10,9 +10,13 @@ description: "Contribute to Patcher: bug reports, feature requests, PR workflow,
 Contributions are welcome and don't require writing Python.
 :::
 
+---
+
 We firmly believe that diverse backgrounds strengthen a product. Share your ideas regardless of your programming experience, half the time the most valuable contribution is naming a problem clearly.
 
-<!-- Snippet here about MacAdmins and Imposter Syndrome, we want to hear from EVERYONE. Especially if you have imposter syndrome, we don't judge !-->
+```{important}
+The MacAdmin community is full of people who quietly believe they're the only one who doesn't actually know what they're doing. If you've ever second-guessed whether you should create an issue or reach out, or ever thought "it's not worth it", **consider this an invitation to send the next one**. Seriously. Reports of all types and all experiences are not only welcomed but genuinely encouraged.
+```
 
 ## How to contribute
 
@@ -28,7 +32,7 @@ Standard [GitHub flow](https://docs.github.com/en/get-started/using-github/githu
 4. Pull the latest `develop` before opening your PR.
 5. Open the PR against `develop`.
 
-```{important}
+```{note}
 PRs go to the `develop` branch, not `main`. The `main` branch tracks stable releases; ongoing development lands on `develop` and is merged to `main` as part of the release cut. Tests must pass on the [pytest workflow](https://github.com/liquidz00/Patcher/blob/main/.github/workflows/pytest.yml) before a PR can merge.
 ```
 

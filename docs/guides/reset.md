@@ -11,6 +11,8 @@ description: "Reset Patcher's persisted state: credentials, UI configuration, ca
 Controlling Patcher's state granularly.
 :::
 
+---
+
 The `reset` command restores specific configurations in Patcher. By default a **full reset** clears everything and re-runs the setup wizard. You can also reset individual components (credentials, UI settings, or cached data) without touching the rest.
 
 :::{note}

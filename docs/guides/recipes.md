@@ -10,6 +10,8 @@ description: "Assembled Patcher workflows: Slack DM patch summary to a CISO, CI 
 End-to-end scripts for the workflows people actually wire up. Copy, tweak, deploy.
 :::
 
+---
+
 The per-command pages ({doc}`export`, {doc}`analyze`) cover one thing in isolation. The recipes below stitch `fetch_patches`, `export`, `analyze`, and {class}`~patcher.clients.patcher_api.PatcherAPIClient` into complete programs you'd actually point at production.
 
 ## Sending Summaries via Slack DM

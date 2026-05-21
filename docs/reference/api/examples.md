@@ -8,6 +8,8 @@ description: "End-to-end curl and PatcherAPIClient examples for the Patcher API.
 End-to-end `curl` and {class}`~patcher.clients.patcher_api.PatcherAPIClient` examples for talking to the Patcher API.
 :::
 
+---
+
 ```{note}
 The catalog is public, no authentication required. Examples below talk to `api.patcherctl.dev`. Python users should reach for {class}`~patcher.clients.patcher_api.PatcherAPIClient` from the `patcher` package, which wraps the same endpoints with typed Pydantic models. If you can't take the `patcher` dependency, the raw HTTP shape is straightforward; see the `bash` tabs (or use `httpx` / `requests` with the same URLs and params).
 ```

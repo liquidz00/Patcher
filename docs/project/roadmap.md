@@ -8,6 +8,8 @@ description: "Features and source integrations planned for upcoming Patcher rele
 Features and source integrations planned for upcoming Patcher releases.
 :::
 
+---
+
 This page is the source of truth for work that is scoped but not yet shipped. Items here are tracked in the [Patcher repository](https://github.com/liquidz00/Patcher); the API surface for some of them is already partially in place (the `App` model in the catalog reserves fields like `cves` that no ingest currently populates).
 
 **Status legend:** {iconify}`lucide:circle-dot style=color:#ea580c` In progress &nbsp;&nbsp; {iconify}`lucide:circle style=color:#9ca3af` Planned &nbsp;&nbsp; {iconify}`lucide:circle-check style=color:#16a34a` Shipped

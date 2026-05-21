@@ -10,6 +10,8 @@ description: "Customize Patcher's PDF and HTML report branding. Header, footer, 
 Tailor Patcher's PDF and HTML reports to match your organization's branding.
 :::
 
+---
+
 Customizable branding covers the header and footer text, the PDF font, an optional company logo, and the HTML report's header color. The sample below shows where each element ends up.
 
 ```{image} ../_static/example_pdf.png

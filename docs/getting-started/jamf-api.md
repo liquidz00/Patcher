@@ -8,6 +8,8 @@ description: "Create the Jamf Pro API role and client Patcher needs. Step-by-ste
 Preparing your Jamf Pro Instance for usage with Patcher.
 :::
 
+---
+
 Patcher talks to Jamf via the Jamf API. Before Patcher can read any data, three things have to be in place on the Jamf side:
 
 1. **Patch management software titles** configured for the apps you want to track.

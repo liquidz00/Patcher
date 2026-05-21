@@ -8,6 +8,8 @@ description: "Run Patcher unattended via launchd or in CI. Covers non-interactiv
 Running Patcher on a schedule with `launchd` or in CI/CD pipelines.
 :::
 
+---
+
 Two patterns cover most automation needs: a `launchd` LaunchAgent on a workstation for time-of-day scheduling, or non-interactive invocations on ephemeral runners (GitHub Actions, Linux build agents, anything without a keychain).
 
 ## Scheduling locally with `launchd`

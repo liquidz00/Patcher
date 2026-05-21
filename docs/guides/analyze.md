@@ -10,6 +10,8 @@ description: "Filter and trend Patcher data by criterion. Covers the patcherctl 
 Filter, rank, and trend patch data to surface the titles that need attention.
 :::
 
+---
+
 Two flavors: point it at a single Excel report for one-shot filtering, or trend across every cached dataset. Either way the goal is the same: tell you which titles are lagging and which are humming.
 
 `patcherctl analyze` works against the latest exported report by default; pass an explicit Excel path to analyze a different one. From the library, call {meth}`PatcherClient.analyze <patcher.core.patcher_client.PatcherClient.analyze>` with a list of {class}`~patcher.core.models.patch.PatchTitle` objects.
