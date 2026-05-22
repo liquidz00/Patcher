@@ -51,31 +51,11 @@ jobs:
       - name: Configure keyring backend
         run: echo "KEYRING_BACKEND=keyring.backends.null.Keyring" >> $GITHUB_ENV
 
-      - name: Ingest Installomator (with resolver enabled)
+      - name: Run full ingest + stitch pipeline
         working-directory: api
         env:
           PATCHER_API_RESOLVE_INGEST: "true"
-        run: uv run python scripts/ingest_installomator.py
-
-      - name: Ingest Homebrew Cask
-        working-directory: api
-        run: uv run python scripts/ingest_homebrew.py
-
-      - name: Ingest Mac App Store
-        working-directory: api
-        run: uv run python scripts/ingest_mas.py
-
-      - name: Ingest AutoPkg recipe index
-        working-directory: api
-        run: uv run python scripts/ingest_autopkg.py
-
-      - name: Ingest Jamf App Installers catalog
-        working-directory: api
-        run: uv run python scripts/ingest_jamf_app_installers.py
-
-      - name: Stitch catalog
-        working-directory: api
-        run: uv run python scripts/stitch_catalog.py
+        run: uv run python scripts/ingest.py all
 
       # Save the built DB as a workflow artifact for ~7 days. Useful for
       # diagnosing "the upload looked weird, what was actually in it?"

@@ -68,6 +68,18 @@ _DEFAULT_REF = "refs/heads/main"
 # blasting 700 simultaneous requests is rude.
 _FETCH_CONCURRENCY = 10
 
+# Limit concurrent resolve operations during ingest. Each resolve can spawn a
+# bash subprocess (for unsupported pipelines) or hit upstream vendor sites,
+# so this is a CPU + network-bound mix. The previous implementation processed
+# labels serially, taking ~5min for a full Installomator catalog. Override via
+# PATCHER_API_RESOLVE_CONCURRENCY for tuning on tighter hosts.
+_RESOLVE_CONCURRENCY = int(os.environ.get("PATCHER_API_RESOLVE_CONCURRENCY", "25"))
+
+# Progress-logging cadence: emit a line every N labels during fetch and resolve
+# phases. Keep noisy enough to feel responsive, not so noisy that journalctl
+# becomes a paginated wall of text.
+_PROGRESS_EVERY = 100
+
 # Opt-in: when set, shell-expression downloadURL/appNewVersion values are
 # evaluated via pyinstallomator's resolve() instead of being nulled out.
 # Off by default because resolution is HTTP-bound and OOMs small hosts.
@@ -216,22 +228,36 @@ async def fetch_installomator_labels(
             if line.strip() and not line.strip().startswith("#")
         }
 
+        total = len(names)
+        log.info(
+            "Fetching %d Installomator label fragments (concurrency=%d, ref=%s)...",
+            total,
+            _FETCH_CONCURRENCY,
+            ref or _installomator_ref(),
+        )
+
         semaphore = asyncio.Semaphore(_FETCH_CONCURRENCY)
         missing = errored = 0
         name_to_content: dict[str, str] = {}
+        completed = 0
 
         async def fetch_one(name: str) -> tuple[str, str | None, str]:
-            nonlocal missing, errored
+            nonlocal completed
             async with semaphore:
                 try:
                     response = await client.get(_fragment_url(name, ref))
                     if response.status_code == 404:
-                        return name, None, "missing"
-                    response.raise_for_status()
-                    return name, response.text, "ok"
+                        outcome = (name, None, "missing")
+                    else:
+                        response.raise_for_status()
+                        outcome = (name, response.text, "ok")
                 except httpx.HTTPError as exc:
                     log.warning("Unexpected error fetching label %r: %s", name, exc)
-                    return name, None, "errored"
+                    outcome = (name, None, "errored")
+            completed += 1
+            if completed % _PROGRESS_EVERY == 0 or completed == total:
+                log.info("Installomator fetch: %d/%d labels", completed, total)
+            return outcome
 
         results = await asyncio.gather(*(fetch_one(name) for name in names))
         for name, content, status in results:
@@ -241,6 +267,13 @@ async def fetch_installomator_labels(
                 missing += 1
             else:
                 errored += 1
+
+        log.info(
+            "Installomator fetch complete: ok=%d, missing=%d, errored=%d",
+            len(name_to_content),
+            missing,
+            errored,
+        )
 
         return name_to_content, missing, errored
     finally:
@@ -275,6 +308,7 @@ async def ingest_installomator_labels(
     :rtype: tuple[int, int, int]
     """
     ingested = skipped = failed = 0
+    total = len(name_to_content)
 
     # One shared httpx.Client for all resolutions in this batch — only when
     # resolution is enabled. Creating a fresh client per resolve() call (the
@@ -285,23 +319,32 @@ async def ingest_installomator_labels(
     # PATCHER_API_RESOLVE_INGEST isn't set, since _resolve_or_null short-
     # circuits without touching the network.
     resolver_client = httpx.Client(timeout=30.0) if _RESOLVE_ON_INGEST else None
-    try:
-        for name, content in name_to_content.items():
+
+    # ----- Phase 1: parse + resolve in parallel -----
+    #
+    # ``_resolve_or_null`` can spawn bash subprocesses (for unsupported
+    # pipelines) and hit upstream vendor sites. Doing this serially across
+    # ~700 labels takes ~5min on a CI runner. We fan out to N concurrent
+    # resolvers (default 25, env-tunable) and gather the results. DB writes
+    # stay serial because AsyncSession isn't safe for concurrent ops.
+
+    resolve_semaphore = asyncio.Semaphore(_RESOLVE_CONCURRENCY)
+    resolve_completed = 0
+
+    async def resolve_one(
+        name: str, content: str
+    ) -> tuple[str, dict[str, Any] | None, str | None, str | None]:
+        """Parse a label fragment and resolve its downloadURL + appNewVersion.
+
+        Returns ``(name, parsed_or_None_if_skip, resolved_download_url, resolved_app_new_version)``.
+        A ``parsed`` of ``None`` signals the persist phase should count this as skipped.
+        """
+        nonlocal resolve_completed
+        async with resolve_semaphore:
             parsed = parse_fragment(content)
-            if not parsed:
-                skipped += 1
-                continue
-
-            if parsed.get("expectedTeamID") in IGNORED_TEAMS:
-                skipped += 1
-                continue
-
-            try:
-                now = datetime.now(UTC)
-                # Resolve shell-expression values via pyinstallomator. Both
-                # downloadURL and appNewVersion frequently contain pipelines
-                # that need evaluation. Run in a worker thread so the event
-                # loop stays free while curl-style pipelines hit upstream sites.
+            if not parsed or parsed.get("expectedTeamID") in IGNORED_TEAMS:
+                outcome = (name, None, None, None)
+            else:
                 raw_download_url = _scalar_for_column(parsed.get("downloadURL"))
                 raw_app_new_version = _scalar_for_column(parsed.get("appNewVersion"))
                 resolved_download_url, resolved_app_new_version = await asyncio.gather(
@@ -310,6 +353,34 @@ async def ingest_installomator_labels(
                     ),
                     asyncio.to_thread(_resolve_or_null, raw_app_new_version, resolver_client),
                 )
+                outcome = (name, parsed, resolved_download_url, resolved_app_new_version)
+        resolve_completed += 1
+        if resolve_completed % _PROGRESS_EVERY == 0 or resolve_completed == total:
+            log.info("Installomator resolve: %d/%d labels", resolve_completed, total)
+        return outcome
+
+    log.info(
+        "Resolving %d Installomator labels (concurrency=%d, resolver=%s)...",
+        total,
+        _RESOLVE_CONCURRENCY,
+        "enabled" if _RESOLVE_ON_INGEST else "disabled",
+    )
+
+    try:
+        resolved_records = await asyncio.gather(
+            *(resolve_one(name, content) for name, content in name_to_content.items())
+        )
+
+        # ----- Phase 2: persist serially -----
+        log.info("Persisting %d Installomator label rows...", total)
+        for name, parsed, resolved_download_url, resolved_app_new_version in resolved_records:
+            if parsed is None:
+                # Filtered in resolve_one (empty parse or excluded team ID).
+                skipped += 1
+                continue
+
+            try:
+                now = datetime.now(UTC)
                 stmt = insert(InstallomatorLabel).values(
                     name=name,
                     display_name=_scalar_for_column(parsed.get("name")),
@@ -344,5 +415,12 @@ async def ingest_installomator_labels(
     finally:
         if resolver_client is not None:
             resolver_client.close()
+
+    log.info(
+        "Installomator ingest complete: ingested=%d, skipped=%d, failed=%d",
+        ingested,
+        skipped,
+        failed,
+    )
 
     return ingested, skipped, failed
