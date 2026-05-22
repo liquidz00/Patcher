@@ -9,11 +9,19 @@ Usage::
 
     uv run python scripts/ingest.py installomator
     uv run python scripts/ingest.py homebrew
-    uv run python scripts/ingest.py mas
     uv run python scripts/ingest.py autopkg
     uv run python scripts/ingest.py jai
     uv run python scripts/ingest.py stitch
     uv run python scripts/ingest.py all
+
+The Mac App Store (MAS) source is intentionally absent from this entry
+point. The ingest module (:mod:`patcher_api.ingest.mas`) and its
+``mas_apps`` table remain in the codebase for potential future
+re-enablement, but the empirical signal-to-noise ratio (15 records from
+a 20-bundle-ID seed, no bundle_id overlap with Installomator, no
+download URL) and the rate-limited sequential lookup making it the
+slowest pipeline step led to dropping it from routine refreshes. Stitch's
+MAS phase no-ops gracefully against an empty ``mas_apps`` table.
 
 Each subcommand corresponds to a single upstream source (or the stitch
 phase that joins them). ``all`` runs every ingest in sequence, then
@@ -59,19 +67,32 @@ from patcher_api.ingest.jamf_app_installers import (
     ingest_jamf_app_installers,
     parse_jamf_app_installers_table,
 )
-from patcher_api.ingest.mas import MAS_SEED_BUNDLE_IDS, fetch_mas_lookup, ingest_mas_apps
 from patcher_api.stitch import stitch_catalog
 
 log = logging.getLogger("ingest")
 
 
 def _configure_logging(verbose: bool = False) -> None:
-    """One-time logging setup. Subcommands inherit this config."""
+    """One-time logging setup. Subcommands inherit this config.
+
+    Root stays at WARNING so third-party libraries (httpx, httpcore,
+    urllib3, sqlalchemy, asyncio) don't drown our progress messages in
+    per-request INFO chatter. Patcher's own loggers (``patcher_api.*``
+    and the top-level ``ingest`` logger this script uses) are bumped to
+    INFO by default and DEBUG when ``-v`` is passed; third-party libs
+    follow one level behind so ``-v`` users still get useful network
+    detail without flipping a separate switch.
+    """
+    own_level = logging.DEBUG if verbose else logging.INFO
+    third_party_level = logging.INFO if verbose else logging.WARNING
+
     logging.basicConfig(
-        level=logging.DEBUG if verbose else logging.INFO,
+        level=third_party_level,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         stream=sys.stderr,
     )
+    logging.getLogger("patcher_api").setLevel(own_level)
+    logging.getLogger("ingest").setLevel(own_level)
 
 
 async def cmd_installomator() -> None:
@@ -101,20 +122,6 @@ async def cmd_homebrew() -> None:
     async with get_session_maker()() as session:
         ingested, skipped = await ingest_homebrew_casks(session, raw_records)
     log.info("Homebrew summary: ingested=%d, skipped=%d", ingested, skipped)
-
-
-async def cmd_mas() -> None:
-    await init_db()
-    log.info("=== Mac App Store ingest ===")
-    log.info(
-        "Looking up %d seed bundle IDs (rate-limited to ~20 req/min)...",
-        len(MAS_SEED_BUNDLE_IDS),
-    )
-    raw_records = await fetch_mas_lookup(MAS_SEED_BUNDLE_IDS)
-    log.info("Fetched %d records. Ingesting...", len(raw_records))
-    async with get_session_maker()() as session:
-        ingested, skipped = await ingest_mas_apps(session, raw_records)
-    log.info("MAS summary: ingested=%d, skipped=%d", ingested, skipped)
 
 
 async def cmd_autopkg() -> None:
@@ -177,7 +184,6 @@ async def cmd_all() -> None:
     log.info("=== Full pipeline ===")
     await cmd_installomator()
     await cmd_homebrew()
-    await cmd_mas()
     await cmd_autopkg()
     await cmd_jai()
     await cmd_stitch()
@@ -187,7 +193,6 @@ async def cmd_all() -> None:
 COMMANDS: dict[str, Callable[[], Awaitable[None]]] = {
     "installomator": cmd_installomator,
     "homebrew": cmd_homebrew,
-    "mas": cmd_mas,
     "autopkg": cmd_autopkg,
     "jai": cmd_jai,
     "stitch": cmd_stitch,
