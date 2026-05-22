@@ -114,8 +114,9 @@ api/                          # patcher-api workspace member (the API service)
 │   │                         # InstallomatorLabel, DeployToken)
 │   └── ingest/               # Upstream ingestion (homebrew.py, installomator.py)
 ├── scripts/                  # Standalone CLI utilities: grant_deploy_token.py,
-│                             # ingest_homebrew.py, ingest_installomator.py,
-│                             # stitch_catalog.py
+│                             # generate_openapi.py, ingest.py (unified entry
+│                             # point with `installomator|homebrew|mas|autopkg|
+│                             # jai|stitch|all` subcommands)
 └── tests/                    # patcher-api tests (separate from patcherctl tests)
 
 tests/                        # patcherctl tests (flat, conftest.py for shared fixtures)

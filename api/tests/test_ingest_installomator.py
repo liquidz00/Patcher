@@ -409,9 +409,12 @@ async def test_ingest_row_failure_does_not_poison_remaining_batch(test_session, 
         {"firefoxpkg": FIREFOX_FRAGMENT, "googlechromepkg": GOOGLECHROME_FRAGMENT},
     )
 
-    # One row succeeds (the first); the second blows up and is counted as failed.
+    # Exactly one row survives the batch; the other fails on the flaky
+    # scalar. Which one fails depends on call ordering across the parallel
+    # resolve phase and the serial persist phase, so the test asserts the
+    # batch-survival invariant rather than a specific victim.
     assert ingested == 1
     assert failed == 1
     labels = (await test_session.scalars(select(InstallomatorLabel))).all()
     assert len(labels) == 1
-    assert labels[0].name == "firefoxpkg"
+    assert labels[0].name in {"firefoxpkg", "googlechromepkg"}
