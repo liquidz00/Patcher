@@ -29,6 +29,7 @@ Usage::
 from __future__ import annotations
 
 import json
+import os
 from datetime import date
 from enum import StrEnum
 from typing import Any
@@ -39,7 +40,8 @@ from pydantic import BaseModel, ConfigDict, HttpUrl
 from ..core.exceptions import APIResponseError
 from . import HTTPClient
 
-DEFAULT_BASE_URL = "https://api.patcherctl.dev"
+# allow env var override for local testing
+DEFAULT_BASE_URL = os.environ.get("PATCHER_API_URL", "https://api.patcherctl.dev")
 
 
 class InstallMethod(StrEnum):
