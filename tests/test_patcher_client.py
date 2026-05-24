@@ -214,6 +214,122 @@ class TestAnalyzeTrend:
         fake_df.to_html.assert_not_called()
 
 
+class TestDiff:
+    @pytest.mark.asyncio
+    async def test_default_routes_through_live_vs_cache(self, patcher, mocker):
+        """No flags: fetch_patches + Diff.live_vs_cache."""
+
+        fake_titles = ["t1", "t2"]
+        mocker.patch.object(patcher, "fetch_patches", AsyncMock(return_value=fake_titles))
+        fake_diff = mocker.MagicMock()
+        fake_diff.compute.return_value = "result"
+        mock_live = mocker.patch(
+            "src.patcher.core.patcher_client.Diff.live_vs_cache",
+            return_value=fake_diff,
+        )
+        mock_from_cache = mocker.patch(
+            "src.patcher.core.patcher_client.Diff.from_cache",
+        )
+
+        result = await patcher.diff()
+
+        mock_live.assert_called_once_with(fake_titles, patcher.data, since=None, all_time=False)
+        mock_from_cache.assert_not_called()
+        assert result == "result"
+
+    @pytest.mark.asyncio
+    async def test_no_fetch_routes_through_from_cache(self, patcher, mocker):
+        fake_fetch = mocker.patch.object(patcher, "fetch_patches", AsyncMock())
+        fake_diff = mocker.MagicMock()
+        fake_diff.compute.return_value = "result"
+        mock_from_cache = mocker.patch(
+            "src.patcher.core.patcher_client.Diff.from_cache",
+            return_value=fake_diff,
+        )
+
+        await patcher.diff(no_fetch=True)
+
+        fake_fetch.assert_not_called()
+        mock_from_cache.assert_called_once_with(patcher.data, since=None, all_time=False)
+
+    @pytest.mark.asyncio
+    async def test_between_routes_through_from_cache_with_pair(self, patcher, mocker):
+        from datetime import date
+
+        fake_fetch = mocker.patch.object(patcher, "fetch_patches", AsyncMock())
+        fake_diff = mocker.MagicMock()
+        fake_diff.compute.return_value = "result"
+        mock_from_cache = mocker.patch(
+            "src.patcher.core.patcher_client.Diff.from_cache",
+            return_value=fake_diff,
+        )
+
+        dates = (date(2026, 5, 17), date(2026, 5, 21))
+        await patcher.diff(between=dates)
+
+        fake_fetch.assert_not_called()
+        mock_from_cache.assert_called_once_with(patcher.data, between=dates)
+
+    @pytest.mark.asyncio
+    async def test_since_threaded_through_to_live_vs_cache(self, patcher, mocker):
+        from datetime import timedelta
+
+        mocker.patch.object(patcher, "fetch_patches", AsyncMock(return_value=["t"]))
+        fake_diff = mocker.MagicMock()
+        fake_diff.compute.return_value = "result"
+        mock_live = mocker.patch(
+            "src.patcher.core.patcher_client.Diff.live_vs_cache",
+            return_value=fake_diff,
+        )
+
+        await patcher.diff(since=timedelta(days=30))
+
+        mock_live.assert_called_once_with(
+            ["t"], patcher.data, since=timedelta(days=30), all_time=False
+        )
+
+    @pytest.mark.asyncio
+    async def test_all_time_threaded_through_to_live_vs_cache(self, patcher, mocker):
+        mocker.patch.object(patcher, "fetch_patches", AsyncMock(return_value=["t"]))
+        fake_diff = mocker.MagicMock()
+        fake_diff.compute.return_value = "result"
+        mock_live = mocker.patch(
+            "src.patcher.core.patcher_client.Diff.live_vs_cache",
+            return_value=fake_diff,
+        )
+
+        await patcher.diff(all_time=True)
+
+        mock_live.assert_called_once_with(["t"], patcher.data, since=None, all_time=True)
+
+    @pytest.mark.asyncio
+    async def test_since_and_all_time_mutually_exclusive(self, patcher):
+        from datetime import timedelta
+
+        with pytest.raises(PatcherError, match="mutually exclusive"):
+            await patcher.diff(since=timedelta(days=30), all_time=True)
+
+    @pytest.mark.asyncio
+    async def test_between_cannot_combine_with_since(self, patcher):
+        from datetime import date, timedelta
+
+        with pytest.raises(PatcherError, match="cannot be combined"):
+            await patcher.diff(
+                between=(date(2026, 5, 17), date(2026, 5, 21)),
+                since=timedelta(days=30),
+            )
+
+    @pytest.mark.asyncio
+    async def test_between_redundant_with_no_fetch(self, patcher):
+        from datetime import date
+
+        with pytest.raises(PatcherError, match="redundant"):
+            await patcher.diff(
+                between=(date(2026, 5, 17), date(2026, 5, 21)),
+                no_fetch=True,
+            )
+
+
 class TestReset:
     @pytest.mark.asyncio
     async def test_cache_calls_data_reset(self, patcher):
