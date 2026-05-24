@@ -70,6 +70,44 @@ def test_extract_versions_skips_installomator_shell_expression():
     assert extract_versions(detail) == {}
 
 
+def test_extract_versions_skips_installomator_parameter_expansion():
+    """``${appNewVersion:0:-3}`` references another variable; never literal."""
+    detail = _detail(installomator=_inst("${appNewVersion:0:-3}"))
+    assert extract_versions(detail) == {}
+
+
+def test_extract_versions_skips_installomator_parameter_expansion_with_transform():
+    """``${rawVersion// build /.}`` is a parameter expansion with replacement."""
+    detail = _detail(installomator=_inst("${rawVersion// build /.}"))
+    assert extract_versions(detail) == {}
+
+
+def test_extract_versions_skips_installomator_pipeline():
+    """A truncated ``$()`` exposing the raw pipeline still has ``|`` to catch it."""
+    detail = _detail(
+        installomator=_inst("curl -fsI ${downloadURL} | tr -d '\\r' | grep -i ^location")
+    )
+    assert extract_versions(detail) == {}
+
+
+def test_extract_versions_skips_installomator_backtick_substitution():
+    detail = _detail(installomator=_inst("`curl -fs https://example.test/version`"))
+    assert extract_versions(detail) == {}
+
+
+def test_extract_versions_keeps_unusual_but_real_versions():
+    """Versions with commas, dates, suffixes are legitimate — must not be skipped."""
+    cases = [
+        "2.14,2026.03",  # silentknight-style resolved
+        "0.2026.05.20.09.21.stable_03",  # warp-style resolved
+        "5.2.2.32209",  # beyondcompare-style resolved
+        "1.5.4",  # plain semver
+    ]
+    for version in cases:
+        detail = _detail(installomator=_inst(version))
+        assert extract_versions(detail) == {"installomator": version}, version
+
+
 def test_extract_versions_skips_cask_latest_sentinel():
     """Cask's ``:latest`` means no versioning declared, not a real version."""
     detail = _detail(homebrew_cask=_cask("latest"))

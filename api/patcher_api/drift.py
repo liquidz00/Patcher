@@ -101,9 +101,13 @@ def _extract_installomator_version(payload: dict[str, Any] | None) -> str | None
     """
     Pull ``appNewVersion`` out of an Installomator source payload.
 
-    Skips shell-expression values (``$(curl ...)``) — they're unresolved
-    at ingest time and can't be compared. Returns ``None`` if the field
-    is missing, empty, or a shell expression.
+    Skips unresolved shell expressions — command substitution
+    (``$(...)``), parameter expansion (``${...}``), pipelines, and
+    legacy backtick substitution. These reference variables or external
+    commands that aren't evaluated at ingest time, so the literal stored
+    value isn't a real version and would only generate drift noise.
+    Returns ``None`` if the field is missing, empty, or such an
+    expression.
     """
     if not payload:
         return None
@@ -111,9 +115,23 @@ def _extract_installomator_version(payload: dict[str, Any] | None) -> str | None
     value = raw.get("appNewVersion")
     if not isinstance(value, str) or not value.strip():
         return None
-    if value.lstrip().startswith("$("):
+    value = value.strip()
+    if _is_shell_expression(value):
         return None
-    return value.strip()
+    return value
+
+
+def _is_shell_expression(value: str) -> bool:
+    """
+    True if ``value`` looks like an unresolved bash expression.
+
+    Real version strings are alphanumeric with ``.``, ``-``, ``_``, and
+    occasional commas (e.g. ``2.14,2026.03``). They never contain ``$``
+    (parameter expansion / command substitution), ``|`` (pipelines), or
+    backticks (legacy substitution), so any of those characters anywhere
+    in the string is a reliable "this isn't a version" signal.
+    """
+    return any(ch in value for ch in ("$", "|", "`"))
 
 
 def _extract_homebrew_cask_version(payload: dict[str, Any] | None) -> str | None:
