@@ -54,6 +54,56 @@ async def test_export_to_excel_success(sample_patch_reports, temp_output_dir, mo
 
 
 @pytest.mark.asyncio
+async def test_export_adds_homebrew_column_when_matched(temp_output_dir, mock_formats):
+    """A Homebrew coverage column appears (showing cask tokens) only when titles matched a cask."""
+    from src.patcher.core.models.cask import CaskMatch
+
+    matched = PatchTitle(
+        title="Firefox",
+        title_id="1",
+        released="2026-01-01",
+        hosts_patched=5,
+        missing_patch=5,
+        latest_version="1.0",
+        homebrew_cask=[CaskMatch(name="Firefox", token="firefox", version="1.0")],
+    )
+    unmatched = PatchTitle(
+        title="Acme",
+        title_id="2",
+        released="2026-01-01",
+        hosts_patched=1,
+        missing_patch=1,
+        latest_version="2.0",
+    )
+    data_manager = DataManager(disable_cache=True)
+
+    exported = await data_manager.export(
+        [matched, unmatched], temp_output_dir, "Test Report", formats=mock_formats
+    )
+    df = pd.read_excel(exported["excel"])
+
+    assert "Homebrew" in df.columns
+    assert df.loc[df["Title"] == "Firefox", "Homebrew"].iloc[0] == "firefox"
+    # Raw list-of-dicts field is never surfaced as a column.
+    assert "Homebrew Cask" not in df.columns
+
+
+@pytest.mark.asyncio
+async def test_export_omits_homebrew_column_without_matches(
+    sample_patch_reports, temp_output_dir, mock_formats
+):
+    """Default (Installomator-only) exports gain no Homebrew column."""
+    data_manager = DataManager(disable_cache=True)
+
+    exported = await data_manager.export(
+        sample_patch_reports, temp_output_dir, "Test Report", formats=mock_formats
+    )
+    df = pd.read_excel(exported["excel"])
+
+    assert "Homebrew" not in df.columns
+
+
+@pytest.mark.asyncio
 async def test_export_to_excel_dataframe_creation_error(
     mock_data_manager, temp_output_dir, mock_formats
 ):

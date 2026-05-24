@@ -565,6 +565,11 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
     is_flag=True,
     help="Include per-title device detail sheets in Excel export (Excel format only).",
 )
+@click.option(
+    "--homebrew/--no-homebrew",
+    default=False,
+    help="Also match titles against the Homebrew Cask catalog (a second matching dimension alongside Installomator). Adds a Homebrew coverage column to reports.",
+)
 @click.pass_context
 async def export(
     ctx: click.Context,
@@ -576,6 +581,7 @@ async def export(
     ios: bool,
     concurrency: int,
     device_details: bool,
+    homebrew: bool,
 ) -> None:
     """
     Collects patch management data from Jamf API calls and exports data to Excel and optional
@@ -606,6 +612,8 @@ async def export(
     :type concurrency: int
     :param device_details: If True, includes per-title device detail sheets in Excel export.
     :type device_details: bool
+    :param homebrew: If True, also match titles against the Homebrew Cask catalog and add a Homebrew coverage column to reports.
+    :type homebrew: bool
     """
     ui_config, plist_manager = ctx.obj.get("ui_config"), ctx.obj.get("plist_manager")
 
@@ -615,6 +623,7 @@ async def export(
         disable_cache=ctx.obj.get("disable_cache"),
         debug=ctx.obj.get("debug"),
         enable_installomator=bool(plist_manager.get("enable_installomator")),
+        enable_homebrew=homebrew,
         ui_config=ui_config.config,
     )
     ctx.obj["data_manager"] = patcher.data  # Store in context for analyze
@@ -657,6 +666,7 @@ async def export(
         date_format=actual_format,
         report_title=patcher.ui_config.get("header_text"),
         enable_iom=patcher.api is not None,
+        enable_homebrew=patcher.enable_homebrew,
         header_color=patcher.ui_config.get("header_color"),
         device_details=device_details,
     )

@@ -51,6 +51,7 @@ class PatcherClient:
         disable_cache: bool = False,
         debug: bool = False,
         enable_installomator: bool = True,
+        enable_homebrew: bool = False,
         ui_config: dict | None = None,
     ):
         """
@@ -109,6 +110,14 @@ class PatcherClient:
             API catalog) is skipped. Kept under the legacy name for
             backward compatibility with existing CLI flags.
         :type enable_installomator: bool
+        :param enable_homebrew: Default for whether :meth:`fetch_patches`
+            also matches titles against the Homebrew Cask source (a second
+            matching dimension), populating
+            :attr:`~patcher.core.models.patch.PatchTitle.homebrew_cask`. Has
+            no effect when :attr:`api` is ``None`` (i.e.
+            ``enable_installomator=False``), since matching rides on the same
+            catalog client. Defaults to False.
+        :type enable_homebrew: bool
         :param ui_config: Optional dict of UI settings (header text,
             footer, font paths, header color, etc.) for PDF/HTML report
             styling. Defaults to :class:`UIDefaults` values.
@@ -137,6 +146,7 @@ class PatcherClient:
         self.jamf = JamfClient(config=config, concurrency=concurrency)
         self.data = DataManager(disable_cache=disable_cache)
         self.api = PatcherAPIClient(max_concurrency=concurrency) if enable_installomator else None
+        self.enable_homebrew = enable_homebrew
         self.ui_config = ui_config if ui_config is not None else UIDefaults().model_dump()
 
     @classmethod
@@ -145,7 +155,8 @@ class PatcherClient:
         Construct a ``PatcherClient`` using state already persisted on this Mac.
 
         Reads Jamf credentials from the macOS keychain, UI customization
-        from the property list, and the ``enable_installomator`` toggle.
+        from the property list, and the ``enable_installomator`` /
+        ``enable_homebrew`` toggles.
         Equivalent to what the ``patcherctl`` CLI does on startup; useful
         for library callers running on a workstation that has already been
         through the setup wizard.
@@ -163,10 +174,12 @@ class PatcherClient:
         plist = PropertylistManager()
         ui_settings = plist.get("UserInterfaceSettings")
         enable_installomator = bool(plist.get("enable_installomator"))
+        enable_homebrew = bool(plist.get("enable_homebrew"))
 
         kwargs: dict[str, Any] = {
             "config": ConfigManager(),
             "enable_installomator": enable_installomator,
+            "enable_homebrew": enable_homebrew,
         }
         if ui_settings:
             kwargs["ui_config"] = ui_settings
@@ -178,6 +191,7 @@ class PatcherClient:
         self,
         *,
         match_installomator: bool = True,
+        match_homebrew: bool | None = None,
         include_ios: bool = False,
         sort_by: str | None = None,
         omit_recent_hours: int | None = None,
@@ -200,6 +214,14 @@ class PatcherClient:
             (:func:`~patcher.core.matching.match_titles`). No-op when
             ``enable_installomator=False`` was passed at construction time.
         :type match_installomator: bool
+        :param match_homebrew: Whether to also match titles against the
+            Homebrew Cask source, populating
+            :attr:`~patcher.core.models.patch.PatchTitle.homebrew_cask`.
+            ``None`` (default) falls back to the ``enable_homebrew`` value
+            set at construction time. Rides on the same match pass as
+            Installomator, so it is a no-op when ``match_installomator`` is
+            False or :attr:`api` is ``None``.
+        :type match_homebrew: bool | None
         :param include_ios: If True, append per-iOS-version summaries to the
             returned list. Costs additional Jamf API calls.
         :type include_ios: bool
@@ -219,7 +241,10 @@ class PatcherClient:
         titles = await self.jamf.get_summaries(policies)
 
         if match_installomator and self.api is not None:
-            await match_titles(titles, jamf=self.jamf, api=self.api)
+            include_homebrew = self.enable_homebrew if match_homebrew is None else match_homebrew
+            await match_titles(
+                titles, jamf=self.jamf, api=self.api, include_homebrew=include_homebrew
+            )
 
         if include_ios:
             titles = await append_ios_status(titles, self.jamf)

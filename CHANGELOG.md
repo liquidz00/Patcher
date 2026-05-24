@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`GET /apps/drift`** and **`GET /apps/{slug}/drift`** endpoints in the Patcher API. List endpoint paginates with `vendor`/`source`/`limit`/`offset`; single-app endpoint returns `null` for no drift and 404 for unknown slug.
 - **`PatcherAPIClient.list_drift()` and `get_app_drift()`** as typed wrappers, with `DriftResponse`, `DriftEntry`, and `SourceVersion` Pydantic models. Uses `packaging.Version` for semantic comparison — `4.32` and `4.32.0` are treated as agreement, not drift.
 - **`PatcherClient.detect_drift()`** as the high-level library entry point. Routes to list or single-app mode based on whether `slug` is set; constructs its own `PatcherAPIClient` when `enable_installomator=False`.
+- **Homebrew Cask as a second matching dimension.** `patcherctl export --homebrew` (and `PatcherClient(enable_homebrew=True)` / `fetch_patches(match_homebrew=True)`) widens title matching to the catalog's Homebrew Cask source. Matches route by provenance: Installomator-sourced slugs populate `install_label` as before, Cask-sourced slugs populate the new `PatchTitle.homebrew_cask` field, and dual-source slugs populate both. Reports gain a `Homebrew` coverage column showing matched cask tokens; the JSON export carries the structured matches. Off by default, so existing exports are unchanged.
+- **`CaskMatch` model** (`patcher.core.models.cask`) as the Homebrew analogue of the `Label` stub. Kept separate from `Label` so the Installomator-only meaning of `install_label` stays intact.
 
 ## [v3.0.0] - 2026-05-21
 ### Added

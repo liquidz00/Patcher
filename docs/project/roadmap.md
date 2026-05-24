@@ -18,11 +18,11 @@ This page is the source of truth for work that is scoped but not yet shipped. It
 :gutter: 2
 :padding: 0
 
-:::{grid-item-card} {iconify}`simple-icons:homebrew` Homebrew Cask {iconify}`lucide:circle-dot style=color:#ea580c`
+:::{grid-item-card} {iconify}`simple-icons:homebrew` Homebrew Cask {iconify}`lucide:circle-check style=color:#16a34a`
 :link: roadmap-homebrew-cask
 :link-type: ref
 
-Pull Cask metadata (bundle ID, canonical name, vendor) as a second matching dimension alongside Installomator.
+Cask metadata (bundle ID, canonical name, vendor) joined into the catalog and matchable as a second dimension alongside Installomator.
 :::
 
 :::{grid-item-card} {iconify}`lucide:workflow` AutoPkg {iconify}`lucide:circle-check style=color:#16a34a`
@@ -52,13 +52,13 @@ Attach known CVE identifiers to catalog records so reports highlight titles with
 
 ## Homebrew Cask
 
-Pull metadata from the [Homebrew Cask](https://github.com/Homebrew/homebrew-cask) catalog as a second matching dimension alongside Installomator. Cask carries fields Installomator labels often omit (bundle ID, canonical app name, vendor) and covers apps with no Installomator label at all.
+Metadata from the [Homebrew Cask](https://github.com/Homebrew/homebrew-cask) catalog is now a second matching dimension alongside Installomator. Cask carries fields Installomator labels often omit (bundle ID, canonical app name, vendor) and covers apps with no Installomator label at all.
 
-**Planned scope**
+**Shipped**
 
-- Per-Cask token ingestion (`api/patcher_api/ingest/homebrew.py` already exists in skeleton form).
-- Stitch logic that joins Cask records into the `apps` catalog when bundle IDs or normalized slugs match an existing record.
-- A toggle on the `patcherctl` matching pipeline so callers can opt in or out of Cask-sourced matches.
+- Per-Cask token ingestion (`api/patcher_api/ingest/homebrew.py`) into the `homebrew_casks` table.
+- Stitch logic that joins Cask records into the `apps` catalog (by token and by artifact `.app` name) and creates Cask-only rows for apps no Installomator label covers.
+- An opt-in toggle on the `patcherctl` matching pipeline: `patcherctl export --homebrew` (and `PatcherClient(enable_homebrew=True)`) populates `PatchTitle.homebrew_cask` and adds a `Homebrew` coverage column to reports. See {ref}`Homebrew matching <homebrew>`.
 
 (roadmap-autopkg)=
 

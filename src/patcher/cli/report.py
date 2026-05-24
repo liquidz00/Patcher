@@ -49,6 +49,7 @@ async def process_reports(
     header_color: str,
     date_format: str = "%B %d %Y",
     enable_iom: bool = True,
+    enable_homebrew: bool = False,
     device_details: bool = False,
 ) -> None:
     """
@@ -82,6 +83,12 @@ async def process_reports(
     :type date_format: str
     :param enable_iom: If False, skip Installomator label matching.
     :type enable_iom: bool
+    :param enable_homebrew: If True, also match titles against the Homebrew
+        Cask source, populating
+        :attr:`~patcher.core.models.patch.PatchTitle.homebrew_cask`. Rides on
+        the same match pass as Installomator, so it is a no-op when
+        ``enable_iom`` is False.
+    :type enable_homebrew: bool
     :param device_details: If True, include per-title device sheets in Excel export.
     :type device_details: bool
     """
@@ -119,9 +126,19 @@ async def process_reports(
             patch_reports = await append_ios_status(patch_reports, patcher.jamf)
 
         if enable_iom and patcher.api is not None:
-            await animation.update_msg("Identifying Installomator support for titles...")
+            msg = (
+                "Identifying Installomator and Homebrew support for titles..."
+                if enable_homebrew
+                else "Identifying Installomator support for titles..."
+            )
+            await animation.update_msg(msg)
             try:
-                await match_titles(patch_reports, jamf=patcher.jamf, api=patcher.api)
+                await match_titles(
+                    patch_reports,
+                    jamf=patcher.jamf,
+                    api=patcher.api,
+                    include_homebrew=enable_homebrew,
+                )
             except APIResponseError as e:
                 if not getattr(e, "not_found", False):
                     raise

@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from . import Model
+from .cask import CaskMatch
 from .label import Label
 
 
@@ -27,6 +28,8 @@ class PatchTitle(Model):
     :ivar total_hosts: The total number of hosts.
     :type total_hosts: int
     :ivar install_label: The corresponding `InstallomatorClient <https://github.com/InstallomatorClient/InstallomatorClient>`_ label(s) if available.
+    :ivar homebrew_cask: The corresponding `Homebrew Cask <https://github.com/Homebrew/homebrew-cask>`_ coverage stub(s) if available. Populated only when Homebrew matching is enabled; an independent signal from ``install_label``.
+    :type homebrew_cask: list[:class:`~patcher.core.models.cask.CaskMatch`] | None
     """
 
     title: str
@@ -38,6 +41,7 @@ class PatchTitle(Model):
     completion_percent: float = 0.0
     total_hosts: int = 0
     install_label: list[Label] | None = []  # account for variants (e.g., zulujdk8, zulujdk9)
+    homebrew_cask: list[CaskMatch] | None = []  # second matching dimension, opt-in
 
     def __str__(self):
         return f"{self.title} ({self.latest_version})"

@@ -1,6 +1,6 @@
 ---
 layout: focused
-description: "Pydantic data shapes returned by the library entry-point clients: PatchTitle, PatchDevice, Label, UIConfig, AccessToken."
+description: "Pydantic data shapes returned by the library entry-point clients: PatchTitle, PatchDevice, Label, CaskMatch, UIConfig, AccessToken."
 ---
 
 # Data Models
@@ -37,6 +37,13 @@ Pydantic shapes covering Jamf API integration. `JamfCredentials` for connection 
 Parsed Installomator label. Captures the fields Installomator's bash labels expose (download URL, expected team ID, type, etc.) as typed attributes.
 :::
 
+:::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `CaskMatch`
+:link: cask
+:link-type: doc
+
+Homebrew Cask coverage stub attached to `PatchTitle.homebrew_cask` when `--homebrew` matching is enabled. The Cask analogue of `Label`; records the matched cask token, version, and download URL.
+:::
+
 :::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `UI`
 :link: ui
 :link-type: doc
@@ -58,6 +65,7 @@ Parsed Installomator label. Captures the fields Installomator's bash labels expo
 patch
 jamf_models
 label
+cask
 ui
 token
 ```

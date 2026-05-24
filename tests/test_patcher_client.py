@@ -56,8 +56,34 @@ class TestFetchPatches:
             patcher.jamf.get_summaries.return_value,
             jamf=patcher.jamf,
             api=patcher.api,
+            include_homebrew=False,
         )
         assert result == patcher.jamf.get_summaries.return_value
+
+    @pytest.mark.asyncio
+    async def test_match_homebrew_override_widens_match(self, patcher, mocker):
+        """match_homebrew=True overrides the (default False) enable_homebrew toggle."""
+        mock_match = mocker.patch(
+            "src.patcher.core.patcher_client.match_titles",
+            new_callable=AsyncMock,
+        )
+
+        await patcher.fetch_patches(match_homebrew=True)
+
+        assert mock_match.await_args.kwargs["include_homebrew"] is True
+
+    @pytest.mark.asyncio
+    async def test_match_homebrew_defaults_to_enable_homebrew(self, patcher, mocker):
+        """When match_homebrew is None, the construction-time enable_homebrew default applies."""
+        mock_match = mocker.patch(
+            "src.patcher.core.patcher_client.match_titles",
+            new_callable=AsyncMock,
+        )
+        patcher.enable_homebrew = True
+
+        await patcher.fetch_patches()
+
+        assert mock_match.await_args.kwargs["include_homebrew"] is True
 
     @pytest.mark.asyncio
     async def test_skips_match_when_disabled(self, patcher, mocker):
@@ -486,6 +512,7 @@ class TestFromState:
         mock_plist.get.side_effect = lambda key: {
             "UserInterfaceSettings": {"header_text": "Org Header"},
             "enable_installomator": True,
+            "enable_homebrew": True,
         }.get(key)
         mock_config_cls = mocker.patch("src.patcher.core.patcher_client.ConfigManager")
         mock_client_cls = mocker.patch.object(PatcherClient, "__init__", return_value=None)
@@ -495,6 +522,7 @@ class TestFromState:
         mock_client_cls.assert_called_once_with(
             config=mock_config_cls.return_value,
             enable_installomator=True,
+            enable_homebrew=True,
             ui_config={"header_text": "Org Header"},
         )
 
