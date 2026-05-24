@@ -3,9 +3,7 @@ Shared test fixtures.
 
 Each test gets a fresh in-memory SQLite database, seeded from
 :mod:`patcher_api.data`. The ``client`` fixture is an unauthenticated
-AsyncClient suitable for the public ``/apps*`` and ``/health`` routes;
-admin tests set their own Authorization header against a deploy token
-minted by the ``deploy_token`` fixture in ``test_admin.py``.
+AsyncClient suitable for the public ``/apps*`` and ``/health`` routes.
 """
 
 from collections.abc import AsyncIterator

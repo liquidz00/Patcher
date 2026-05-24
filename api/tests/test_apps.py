@@ -224,16 +224,6 @@ async def test_etag_not_applied_to_health(client, fixed_catalog_sha):
 
 
 @pytest.mark.asyncio
-async def test_etag_not_applied_to_admin(client, fixed_catalog_sha):
-    """Admin endpoints (catalog upload, etc.) shouldn't be cached."""
-    # 401 because no auth, but the response should still skip ETag headers
-    response = await client.post("/admin/catalog/upload", content=b"")
-
-    assert response.status_code == 401
-    assert "etag" not in response.headers
-
-
-@pytest.mark.asyncio
 async def test_get_app_returns_record_for_known_slug(client):
     response = await client.get("/apps/firefox")
 

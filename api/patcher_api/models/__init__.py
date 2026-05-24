@@ -9,7 +9,6 @@ regardless of which module triggered it.
 from patcher_api.models import (  # noqa: F401
     app,
     autopkg,
-    deploy_token,
     homebrew,
     installomator,
     jamf_app_installers,

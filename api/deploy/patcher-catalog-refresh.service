@@ -1,0 +1,30 @@
+[Unit]
+Description=Refresh Patcher API catalog (ingest + stitch, in place)
+Documentation=https://github.com/liquidz00/Patcher
+After=network-online.target patcher-api.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+# Run the ingest as `patcher` (the user that owns the live SQLite DB) so
+# writes succeed. The service unit itself runs as root so it can restart
+# patcher-api.service in ExecStartPost (an `app.state.catalog_sha` cache
+# is computed at lifespan startup and used in /apps* ETags; the restart
+# is what makes the new hash visible to clients).
+ExecStart=/usr/sbin/runuser -u patcher -- \
+    /opt/patcher/.venv/bin/python /opt/patcher/api/scripts/ingest.py all
+ExecStartPost=/bin/systemctl restart patcher-api.service
+
+# Ingest can take ~10-15 minutes today; 2h gives generous headroom for
+# upstream slowdowns without false-positive failures.
+TimeoutStartSec=2h
+
+# Working directory matters for any relative paths the ingest scripts
+# touch (mostly there should be none, but the ingest module is the
+# entry point that pydantic-settings hangs off).
+WorkingDirectory=/opt/patcher/api
+EnvironmentFile=/etc/patcher-api/env
+
+StandardOutput=journal
+StandardError=journal

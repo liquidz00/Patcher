@@ -1,147 +1,135 @@
 # Patcher API deployment
 
 Operational notes for the live Patcher API service on Linode. The systemd
-units in this directory (`patcher-catalog-swap.path`, `.service`, and the
-swap script) handle catalog refresh; this README covers the bits that
-aren't expressed in those units.
+units in this directory drive the catalog-refresh cadence; this README
+covers the bits that aren't expressed in those units.
+
+## Architecture
+
+The Patcher API runs as a long-lived `patcher-api.service` (uvicorn +
+FastAPI). Catalog refresh happens **in place** via a systemd timer:
+
+- `patcher-catalog-refresh.timer` fires daily at 04:00 UTC.
+- It triggers `patcher-catalog-refresh.service`, which runs
+  `ingest.py all` as the `patcher` user. The ingest module upserts rows
+  into the live SQLite DB, so reads stay consistent throughout.
+- After the ingest completes, the refresh service restarts
+  `patcher-api.service` so the FastAPI app picks up the new
+  `app.state.catalog_sha` for `/apps*` ETag responses. Restart takes <1
+  second.
+
+No GitHub Actions workflow, no upload endpoint, no deploy tokens. Earlier
+iterations had all three; they were over-engineered for a single-tenant
+deploy and the `deploy_tokens` table getting wiped by the wholesale-DB-swap
+flow caused recurring 401 outages on the catalog refresh path.
 
 ## Environment file
 
-Both the running API service and any operator scripts (notably
-`grant_deploy_token.py`) read configuration from environment variables
-prefixed with `PATCHER_API_`. On the Linode box, those live in:
-
-```
-/etc/patcher-api/env
-```
-
-The systemd unit pulls this in via `EnvironmentFile=`. **Operator scripts
-do not** unless you source it explicitly. To run any maintenance script
-against the live database state, source the env file first:
-
-```bash
-set -a
-. /etc/patcher-api/env
-set +a
-```
-
-`set -a` exports every variable defined for the rest of the shell session,
-which is what pydantic-settings reads.
-
-The most important variable is `PATCHER_API_DATABASE_URL`, which points at
-the live SQLite file:
+Both `patcher-api.service` and `patcher-catalog-refresh.service` read
+configuration from environment variables prefixed with `PATCHER_API_`,
+loaded from `/etc/patcher-api/env` via systemd's `EnvironmentFile=`. The
+most important variable:
 
 ```
 PATCHER_API_DATABASE_URL="sqlite+aiosqlite:////var/lib/patcher-api/patcher_api.db"
 ```
 
-(Note the four slashes after `sqlite+aiosqlite:` — three for the URL scheme
-separator plus the leading slash of the absolute path.)
+Note the four slashes after `sqlite+aiosqlite:` — three for the URL scheme
+separator plus the leading slash of the absolute path.
 
-## Minting a deploy token
+The `Settings` class in `patcher_api.config` also auto-loads from this
+path via pydantic-settings, so any maintenance script run as a user that
+can read the file (typically the `patcher` user) picks up the same
+configuration without sourcing anything explicitly.
 
-Deploy tokens authorize the `/admin/catalog/upload` endpoint used by the
-catalog-refresh GitHub Actions workflow. The mint script reads
-`/etc/patcher-api/env` automatically at startup (via pydantic-settings,
-same mechanism the service uses), so on the API host you don't need to
-source the file or pass `--database-url`. The one permission requirement
-is that the script must run as a user who can read that file. In practice
-that means running as the `patcher` user via `sudo -u patcher`.
+## One-time setup
 
 ```bash
-# Default 90-day expiry
-sudo -u patcher /opt/patcher/.venv/bin/python \
-    /opt/patcher/api/scripts/grant_deploy_token.py github-actions-runner
+# Install the systemd units
+sudo cp /opt/patcher/api/deploy/patcher-catalog-refresh.service \
+        /etc/systemd/system/
+sudo cp /opt/patcher/api/deploy/patcher-catalog-refresh.timer \
+        /etc/systemd/system/
 
-# Custom lifetime
-sudo -u patcher /opt/patcher/.venv/bin/python \
-    /opt/patcher/api/scripts/grant_deploy_token.py runner --expires-in-days 30
+# Pick up the new units
+sudo systemctl daemon-reload
 
-# Never-expires (use sparingly)
-sudo -u patcher /opt/patcher/.venv/bin/python \
-    /opt/patcher/api/scripts/grant_deploy_token.py runner --no-expiry
+# Enable + start the timer (Persistent=true so it catches up after reboots)
+sudo systemctl enable --now patcher-catalog-refresh.timer
 ```
 
-Copy the plaintext from stdout into the `PATCHER_DEPLOY_TOKEN` GitHub
-Actions secret. The token is shown once and never persisted server-side
-(only the SHA-256 hash hits the database).
-
-Verify the row landed:
+To migrate off the old swap setup, remove the obsolete units before the
+new ones land:
 
 ```bash
-sudo sqlite3 /var/lib/patcher-api/patcher_api.db \
-    "SELECT user_id, expires_at, revoked_at FROM deploy_tokens;"
+sudo systemctl disable --now patcher-catalog-swap.path
+sudo rm /etc/systemd/system/patcher-catalog-swap.{service,path}
+sudo rm -rf /var/lib/patcher-api/incoming  # no longer used
 ```
 
-### Overrides
+The `/var/lib/patcher-api/backups/` directory and its existing contents
+can stay as a historical record or be cleaned up; the new flow doesn't
+add new files there.
 
-`--database-url` and `PATCHER_API_DATABASE_URL` remain available for
-local testing or non-standard setups. Precedence (highest to lowest):
+## Manual refresh
 
-1. `--database-url` flag
-2. `PATCHER_API_DATABASE_URL` in the shell environment
-3. The env file at the path resolved from `PATCHER_API_ENV_FILE`
-   (defaults to `/etc/patcher-api/env`, auto-loaded if readable)
-4. `.env` in the script's working directory
-5. The relative default in `config.py` (triggers the warning below)
-
-The env file path itself is overridable. Set `PATCHER_API_ENV_FILE` to
-point at a different location if you've deployed to a non-standard
-path or are running a fork with its own convention:
+To trigger an out-of-band refresh:
 
 ```bash
-PATCHER_API_ENV_FILE=/opt/patcher/env sudo -u patcher \
-    /opt/patcher/.venv/bin/python /opt/patcher/api/scripts/grant_deploy_token.py runner
+sudo systemctl start patcher-catalog-refresh.service
 ```
 
-### The relative-fallback warning
-
-If none of the above sources provides a value, the script falls back to
-the relative-path default in `api/patcher_api/config.py`
-(`sqlite+aiosqlite:///./patcher_api.db`). That resolves against your
-current working directory and writes the token to an orphaned SQLite
-file that the systemd service will never read from. The script emits
-a loud warning when this fallback fires; the symptom if it slips past
-is a `401 Unauthorized` on `/admin/catalog/upload` despite a
-fresh-looking secret.
-
-The fix in production is almost always "run as the `patcher` user via
-`sudo -u patcher` so the env file is readable." Locally, set
-`PATCHER_API_DATABASE_URL` in your `.env` or pass `--database-url`
-explicitly.
-
-To inspect what the running service is configured against without
-having to read the env file yourself:
+This is synchronous from systemd's point of view — the command returns
+when the ingest + restart cycle completes. To watch progress:
 
 ```bash
-sudo grep PATCHER_API_DATABASE_URL /etc/patcher-api/env
+sudo journalctl -u patcher-catalog-refresh.service -f
 ```
 
-## Revoking a deploy token
+## Observability
 
 ```bash
-sudo sqlite3 /var/lib/patcher-api/patcher_api.db \
-    "UPDATE deploy_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = '<user>';"
+# When will the next refresh fire?
+sudo systemctl list-timers patcher-catalog-refresh.timer
+
+# Did the most recent refresh succeed?
+sudo systemctl status patcher-catalog-refresh.service
+
+# Full log of the most recent refresh
+sudo journalctl -u patcher-catalog-refresh.service -n 200 --no-pager
+
+# Live tail during a manual run
+sudo journalctl -u patcher-catalog-refresh.service -f
 ```
 
-Revoked tokens fail authentication immediately. To rotate, mint a fresh
-token and update the GitHub Actions secret before revoking the old one.
+A failed refresh leaves `patcher-catalog-refresh.service` in
+`failed` state. The journal has the full stderr from `ingest.py` and the
+exit status of the `runuser` invocation. Common failure modes:
 
-## Catalog swap automation
+- **Upstream rate-limit or transient network failure**: ingest exits
+  non-zero with an httpx exception in the journal. Re-run manually after
+  the upstream recovers; the next scheduled run will also retry.
+- **`patcher` user can't read `/etc/patcher-api/env`**: pydantic-settings
+  silently falls back to relative defaults and the ingest writes to the
+  wrong DB. Verify mode/ownership on the env file (`root:patcher 0640`
+  is the documented convention).
+- **Disk space**: the upserts are row-by-row; running out of space
+  mid-ingest leaves the DB partially updated. SQLite's `journal_mode=WAL`
+  + `synchronous=NORMAL` means the WAL is replayable on next read, so
+  the DB shouldn't corrupt — but the catalog will reflect a partial
+  state until the next successful refresh.
 
-The three systemd-related files in this directory implement the
-upload-and-swap flow:
+## Patcher service operations
 
-- `patcher-catalog-swap.path` — watches `/var/lib/patcher-api/incoming/patcher_api.db`
-  for `PathChanged` events.
-- `patcher-catalog-swap.service` — fires `swap-patcher-catalog.sh` when the
-  path unit triggers.
-- `swap-patcher-catalog.sh` — stops the API, backs up the live DB, moves
-  the staged file into place, restarts the API, prunes old backups. On
-  failure, attempts a best-effort rollback from the most recent backup
-  and opens a GitHub issue summarizing the failure.
+Standard systemd commands for the API itself:
 
-The catalog-refresh GitHub Actions workflow (`refresh-catalog.yml`)
-streams the freshly-stitched DB to `POST /admin/catalog/upload`, which
-writes it to the watched filename atomically. The path unit picks it up
-and the swap script handles the rest.
+```bash
+sudo systemctl status patcher-api.service
+sudo systemctl restart patcher-api.service
+sudo journalctl -u patcher-api.service -f
+```
+
+The refresh service handles the restart automatically after each ingest.
+Manual restarts are only needed when deploying code changes to the API
+itself (e.g., a `git pull` on `/opt/patcher` followed by a service
+restart to pick up the new code).

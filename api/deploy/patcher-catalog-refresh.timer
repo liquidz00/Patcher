@@ -1,0 +1,16 @@
+[Unit]
+Description=Trigger Patcher API catalog refresh daily
+Documentation=https://github.com/liquidz00/Patcher
+
+[Timer]
+# Daily at 04:00 UTC (mid-evening US, mid-morning EU).
+OnCalendar=*-*-* 04:00:00 UTC
+# Spread the start a bit to avoid stampeding the upstream catalogs at the
+# top of the hour (more theoretical than practical for a single-tenant
+# deploy, but courteous).
+RandomizedDelaySec=15min
+# If the box was offline at the scheduled time, run on next boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

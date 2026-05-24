@@ -111,12 +111,12 @@ api/                          # patcher-api workspace member (the API service)
 │   ├── routes/               # FastAPI routers (apps.py: list/get/sources/generate-label)
 │   ├── schemas/              # Pydantic request/response shapes
 │   ├── models/               # SQLAlchemy ORM (App, AppSourceDetail, HomebrewCask,
-│   │                         # InstallomatorLabel, DeployToken)
+│   │                         # InstallomatorLabel, AutoPkgRecipe, etc.)
 │   └── ingest/               # Upstream ingestion (homebrew.py, installomator.py)
-├── scripts/                  # Standalone CLI utilities: grant_deploy_token.py,
-│                             # generate_openapi.py, ingest.py (unified entry
-│                             # point with `installomator|homebrew|mas|autopkg|
-│                             # jai|stitch|all` subcommands)
+├── scripts/                  # Standalone CLI utilities: generate_openapi.py,
+│                             # ingest.py (unified entry point with
+│                             # `installomator|homebrew|autopkg|jai|stitch|all`
+│                             # subcommands)
 └── tests/                    # patcher-api tests (separate from patcherctl tests)
 
 tests/                        # patcherctl tests (flat, conftest.py for shared fixtures)

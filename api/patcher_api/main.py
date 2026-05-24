@@ -5,21 +5,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from sqlalchemy.engine.url import make_url
 from starlette.responses import Response
 
 from patcher_api.config import get_settings
 from patcher_api.db import get_engine, get_session_maker, init_db
-from patcher_api.routes import admin, apps
+from patcher_api.routes import apps
 from patcher_api.seed import seed_database
-
-# Rate limiter scoped per-IP. Applied only to admin routes via per-route
-# decorators; /apps* (public catalog reads) and /health stay unlimited and
-# are protected by Cloudflare's own rate-limiting in production.
-limiter = Limiter(key_func=get_remote_address)
 
 log = logging.getLogger(__name__)
 
@@ -64,11 +56,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         async with get_session_maker()() as session:
             await seed_database(session)
 
-    # Compute the catalog hash once per startup. The DB file is replaced
-    # wholesale on every catalog deploy and the API is restarted by the
-    # swap script immediately after, so this value is correct for the
-    # entire lifetime of the process. Used as the ETag for ``/apps*``
-    # responses; clients can revalidate without re-downloading the body.
+    # Compute the catalog hash once per startup. The catalog-refresh
+    # systemd unit restarts patcher-api.service after its ingest run
+    # completes, so this hash is current for the lifetime of the process.
+    # Used as the ETag for ``/apps*`` responses; clients can revalidate
+    # without re-downloading the body.
     catalog_path = _catalog_db_path()
     if catalog_path is not None and catalog_path.exists():
         app.state.catalog_sha = _hash_catalog_file(catalog_path)
@@ -89,8 +81,6 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.middleware("http")
@@ -107,8 +97,7 @@ async def catalog_etag(request: Request, call_next):
     hitting the origin. The combined effect typically takes 90%+ of read
     traffic off the origin.
 
-    Scoped to GET requests against ``/apps*``. Admin endpoints, /health,
-    and POSTs bypass.
+    Scoped to GET requests against ``/apps*``. /health and POSTs bypass.
     """
     if request.method != "GET" or not request.url.path.startswith(_CACHEABLE_PATH_PREFIX):
         return await call_next(request)
@@ -141,7 +130,6 @@ async def catalog_etag(request: Request, call_next):
 
 
 app.include_router(apps.router)
-app.include_router(admin.router)
 
 
 @app.get("/health")
