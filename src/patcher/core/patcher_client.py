@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from ..clients.jamf import JamfClient
-from ..clients.patcher_api import PatcherAPIClient
+from ..clients.patcher_api import DriftEntry, DriftResponse, PatcherAPIClient
 from .analyze import (
     Diff,
     DiffResult,
@@ -408,6 +408,63 @@ class PatcherClient:
 
         titles = await self.fetch_patches()
         return Diff.live_vs_cache(titles, self.data, since=since, all_time=all_time).compute()
+
+    async def detect_drift(
+        self,
+        *,
+        slug: str | None = None,
+        vendor: str | None = None,
+        source: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> DriftResponse | DriftEntry | None:
+        """
+        Cross-source version drift detection via the Patcher catalog API.
+
+        Without ``slug``: returns a :class:`~patcher.clients.patcher_api.DriftResponse`
+        listing apps whose upstream sources disagree on the current
+        version. With ``slug``: returns a :class:`~patcher.clients.patcher_api.DriftEntry`
+        for that single app, or ``None`` if the app doesn't exist or has
+        no drift.
+
+        Works without ``enable_installomator``; the catalog API is
+        constructed on demand when needed.
+
+        .. versionadded:: 3.1
+
+        :param slug: When set, narrow to a single app. Filters below are
+            ignored. ``None`` returns the paginated list.
+        :type slug: str | None
+        :param vendor: Case-insensitive exact vendor match for list mode.
+        :type vendor: str | None
+        :param source: Drop list entries where this source did not
+            participate in the disagreement.
+        :type source: str | None
+        :param limit: Max entries per list page.
+        :type limit: int
+        :param offset: Entries to skip before the list page.
+        :type offset: int
+        :return: Drift result. Shape depends on whether ``slug`` was set.
+        :rtype: :class:`~patcher.clients.patcher_api.DriftResponse` | :class:`~patcher.clients.patcher_api.DriftEntry` | None
+        :raises PatcherError: If list-mode filters are passed with a slug.
+        """
+        if slug is not None and (vendor is not None or source is not None):
+            raise PatcherError(
+                "List-mode filters (`vendor`, `source`) cannot be combined with `slug`.",
+            )
+
+        api = self.api
+        own_api = False
+        if api is None:
+            api = PatcherAPIClient()
+            own_api = True
+        try:
+            if slug is not None:
+                return await api.get_app_drift(slug)
+            return await api.list_drift(vendor=vendor, source=source, limit=limit, offset=offset)
+        finally:
+            if own_api:
+                await api.aclose()
 
     async def export(
         self,

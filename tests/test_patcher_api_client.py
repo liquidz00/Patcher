@@ -16,6 +16,8 @@ from src.patcher import PatcherAPIClient
 from src.patcher.clients.patcher_api import (
     App,
     AppSources,
+    DriftEntry,
+    DriftResponse,
     GeneratedLabel,
     InstallMethod,
 )
@@ -212,6 +214,152 @@ async def test_list_apps_rejects_non_array_payload():
     try:
         with pytest.raises(APIResponseError, match="JSON array"):
             await client.list_apps()
+    finally:
+        await client.aclose()
+
+
+_DRIFT_ENTRY = {
+    "slug": "slack",
+    "name": "Slack",
+    "vendor": "Slack",
+    "versions": [
+        {"source": "installomator", "version": "4.32.0", "parsed_ok": True},
+        {"source": "homebrew_cask", "version": "4.40.0", "parsed_ok": True},
+    ],
+    "leader": "homebrew_cask",
+    "laggard": "installomator",
+}
+
+
+@pytest.mark.asyncio
+async def test_list_drift_returns_parsed_response():
+    payload = {
+        "total_scanned": 5,
+        "total_with_drift": 1,
+        "entries": [_DRIFT_ENTRY],
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=payload)
+
+    client = _build_client(handler)
+    try:
+        result = await client.list_drift()
+    finally:
+        await client.aclose()
+
+    assert isinstance(result, DriftResponse)
+    assert result.total_scanned == 5
+    assert result.total_with_drift == 1
+    assert len(result.entries) == 1
+    assert result.entries[0].slug == "slack"
+    assert result.entries[0].leader == "homebrew_cask"
+
+
+@pytest.mark.asyncio
+async def test_list_drift_forwards_filter_params():
+    seen: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(dict(request.url.params))
+        return httpx.Response(200, json={"total_scanned": 0, "total_with_drift": 0, "entries": []})
+
+    client = _build_client(handler)
+    try:
+        await client.list_drift(
+            vendor="Slack",
+            source="installomator",
+            limit=10,
+            offset=5,
+        )
+    finally:
+        await client.aclose()
+
+    assert seen == {
+        "vendor": "Slack",
+        "source": "installomator",
+        "limit": "10",
+        "offset": "5",
+    }
+
+
+@pytest.mark.asyncio
+async def test_list_drift_hits_drift_path_not_slug():
+    """``/apps/drift`` must not collide with ``/apps/{slug}``."""
+    seen_paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_paths.append(request.url.path)
+        return httpx.Response(200, json={"total_scanned": 0, "total_with_drift": 0, "entries": []})
+
+    client = _build_client(handler)
+    try:
+        await client.list_drift()
+    finally:
+        await client.aclose()
+
+    assert seen_paths == ["/apps/drift"]
+
+
+@pytest.mark.asyncio
+async def test_get_app_drift_returns_parsed_entry():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_DRIFT_ENTRY)
+
+    client = _build_client(handler)
+    try:
+        result = await client.get_app_drift("slack")
+    finally:
+        await client.aclose()
+
+    assert isinstance(result, DriftEntry)
+    assert result.slug == "slack"
+    assert {v.source for v in result.versions} == {"installomator", "homebrew_cask"}
+
+
+@pytest.mark.asyncio
+async def test_get_app_drift_returns_none_for_null_body():
+    """Server signals "exists but no drift" with a 200 + ``null`` body."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=b"null",
+            headers={"content-type": "application/json"},
+        )
+
+    client = _build_client(handler)
+    try:
+        result = await client.get_app_drift("firefox")
+    finally:
+        await client.aclose()
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_app_drift_returns_none_on_404():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"detail": "App with slug 'nope' not found"})
+
+    client = _build_client(handler)
+    try:
+        result = await client.get_app_drift("nope")
+    finally:
+        await client.aclose()
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_app_drift_raises_on_non_404_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, json={"detail": "boom"})
+
+    client = _build_client(handler)
+    try:
+        with pytest.raises(APIResponseError):
+            await client.get_app_drift("firefox")
     finally:
         await client.aclose()
 

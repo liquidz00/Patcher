@@ -41,6 +41,15 @@ Pydantic models that mirror the API's wire format. Returned from the client meth
 .. autoclass:: patcher.clients.patcher_api.GeneratedLabel
    :members:
 
+.. autoclass:: patcher.clients.patcher_api.DriftResponse
+   :members:
+
+.. autoclass:: patcher.clients.patcher_api.DriftEntry
+   :members:
+
+.. autoclass:: patcher.clients.patcher_api.SourceVersion
+   :members:
+
 .. autoclass:: patcher.clients.patcher_api.InstallMethod
    :members:
 ```

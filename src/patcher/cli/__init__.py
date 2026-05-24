@@ -10,6 +10,7 @@ from pathlib import Path
 import asyncclick as click
 
 from ..__about__ import __version__
+from ..clients.patcher_api import DriftEntry, DriftResponse
 from ..core.analyze import DiffResult, TitleFilter, TrendAnalysis
 from ..core.config_manager import ConfigManager
 from ..core.data_manager import DataManager
@@ -130,6 +131,40 @@ def render_diff(result: DiffResult) -> str:
     sections.append(format_table(summary_rows))
 
     return "\n".join(sections)
+
+
+def render_drift(result: DriftResponse) -> str:
+    """Render a :class:`DriftResponse` as a multi-row table summary."""
+    if not result.entries:
+        return f"No drift detected. Scanned {result.total_scanned} eligible apps."
+
+    lines = [
+        f"Drift across {result.total_with_drift} apps ({result.total_scanned} scanned). Showing {len(result.entries)}.",
+        "─" * 60,
+        "",
+    ]
+    rows = []
+    for entry in result.entries:
+        version_str = ", ".join(f"{v.source}={v.version}" for v in entry.versions)
+        leader_str = entry.leader or "—"
+        rows.append([entry.slug, entry.name, version_str, leader_str])
+    lines.append(format_table(rows, headers=["Slug", "Name", "Versions", "Leader"]))
+    return "\n".join(lines)
+
+
+def render_drift_entry(entry: DriftEntry) -> str:
+    """Render a single :class:`DriftEntry` with per-source version detail."""
+    lines = [
+        f"Drift: {entry.name} ({entry.slug})",
+        "─" * 60,
+        "",
+    ]
+    rows = [[v.source, v.version, "yes" if v.parsed_ok else "no"] for v in entry.versions]
+    lines.append(format_table(rows, headers=["Source", "Version", "Parseable"]))
+    if entry.leader is not None:
+        lines.append("")
+        lines.append(f"Leader: {entry.leader}    Laggard: {entry.laggard}")
+    return "\n".join(lines)
 
 
 def setup_logging(debug: bool) -> None:
@@ -938,6 +973,115 @@ async def diff(
         return
 
     click.echo(render_diff(result))
+
+
+@cli.command(
+    "drift",
+    short_help="Detect cross-source version drift in the Patcher catalog.",
+    options_metavar="<options>",
+)
+@click.option(
+    "--slug",
+    metavar="<slug>",
+    help="Show drift for a single app (e.g. 'firefox'). Excludes --vendor/--source.",
+)
+@click.option(
+    "--vendor",
+    metavar="<vendor>",
+    help="Case-insensitive vendor name. Ignored when --slug is set.",
+)
+@click.option(
+    "--source",
+    metavar="<source>",
+    help="Drop entries where this source did not participate (installomator or homebrew_cask). Ignored when --slug is set.",
+)
+@click.option(
+    "--limit",
+    type=int,
+    default=100,
+    show_default=True,
+    help="Max entries on this page. Server caps at 1000.",
+)
+@click.option(
+    "--offset",
+    type=int,
+    default=0,
+    show_default=True,
+    help="Entries to skip before the page.",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format. 'json' emits a DriftResponse or DriftEntry.",
+)
+@click.pass_context
+async def drift(
+    ctx: click.Context,
+    slug: str | None,
+    vendor: str | None,
+    source: str | None,
+    limit: int,
+    offset: int,
+    output_format: str,
+) -> None:
+    """
+    Detect apps where upstream sources disagree on the current version.
+
+    Pulls from the public Patcher catalog at ``https://api.patcherctl.dev``.
+    Default mode lists every app where Installomator and Homebrew Cask
+    report different versions. Use ``--slug X`` to inspect one app.
+
+    \f
+
+    :param ctx: Click context.
+    :param slug: Single-app slug. Filters are ignored when set.
+    :param vendor: Vendor filter for list mode.
+    :param source: Require this source to be one of the disagreeing sources.
+    :param limit: Page size.
+    :param offset: Page offset.
+    :param output_format: ``text`` or ``json``.
+    """
+    animation = ctx.obj.get("animation")
+    plist_manager = ctx.obj.get("plist_manager")
+    ui_config = ctx.obj.get("ui_config")
+
+    patcher = PatcherClient(
+        config=ctx.obj.get("config"),
+        disable_cache=ctx.obj.get("disable_cache"),
+        debug=ctx.obj.get("debug"),
+        enable_installomator=bool(plist_manager.get("enable_installomator")),
+        ui_config=ui_config.config,
+    )
+
+    async with animation.error_handling():
+        if slug:
+            await animation.update_msg(f"Inspecting drift for '{slug}'...")
+        else:
+            await animation.update_msg("Scanning catalog for cross-source drift...")
+
+        result = await patcher.detect_drift(
+            slug=slug,
+            vendor=vendor,
+            source=source,
+            limit=limit,
+            offset=offset,
+        )
+
+    if output_format == "json":
+        click.echo("null" if result is None else result.model_dump_json(indent=2))
+        return
+
+    if result is None:
+        click.echo(f"No drift detected for '{slug}'.")
+        return
+
+    if isinstance(result, DriftEntry):
+        click.echo(render_drift_entry(result))
+        return
+
+    click.echo(render_drift(result))
 
 
 if __name__ == "__main__":

@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`Diff` class** in `patcher.core.analyze`, alongside `TitleFilter` and `TrendAnalysis`. Constructs from two `list[PatchTitle]`, two `pandas.DataFrame`, or two `Path` objects; classmethods `Diff.from_cache` (two cached snapshots) and `Diff.live_vs_cache` (live + one cached) handle the common entry points.
 - **`DiffResult` and `TitleChange` Pydantic models** as the structured return value. Carries added/removed/changed title lists, per-title before/after values plus deltas, and aggregate summary fields (avg completion delta, version bumps).
 - **`PatcherClient.diff()`** as the library-level entry point. Wraps `Diff.live_vs_cache` and `Diff.from_cache` with flag validation matching the CLI surface.
+- **`patcherctl drift`** subcommand for cross-source version drift detection. Surfaces apps where Installomator and Homebrew Cask disagree on the current version (a leading indicator that an upstream label has gone silently stale). `--slug` for single-app inspection, `--vendor`/`--source` for list-mode filters, `--format json` for piping.
+- **`GET /apps/drift`** and **`GET /apps/{slug}/drift`** endpoints in the Patcher API. List endpoint paginates with `vendor`/`source`/`limit`/`offset`; single-app endpoint returns `null` for no drift and 404 for unknown slug.
+- **`PatcherAPIClient.list_drift()` and `get_app_drift()`** as typed wrappers, with `DriftResponse`, `DriftEntry`, and `SourceVersion` Pydantic models. Uses `packaging.Version` for semantic comparison — `4.32` and `4.32.0` are treated as agreement, not drift.
+- **`PatcherClient.detect_drift()`** as the high-level library entry point. Routes to list or single-app mode based on whether `slug` is set; constructs its own `PatcherAPIClient` when `enable_installomator=False`.
 
 ## [v3.0.0] - 2026-05-21
 ### Added

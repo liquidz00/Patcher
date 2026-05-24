@@ -330,6 +330,80 @@ class TestDiff:
             )
 
 
+class TestDetectDrift:
+    @pytest.mark.asyncio
+    async def test_list_mode_routes_through_list_drift(self, patcher):
+        fake_response = MagicMock()
+        patcher.api.list_drift = AsyncMock(return_value=fake_response)
+        patcher.api.get_app_drift = AsyncMock()
+
+        result = await patcher.detect_drift(vendor="Mozilla", source="installomator", limit=50)
+
+        patcher.api.list_drift.assert_awaited_once_with(
+            vendor="Mozilla", source="installomator", limit=50, offset=0
+        )
+        patcher.api.get_app_drift.assert_not_called()
+        assert result is fake_response
+
+    @pytest.mark.asyncio
+    async def test_slug_mode_routes_through_get_app_drift(self, patcher):
+        fake_entry = MagicMock()
+        patcher.api.get_app_drift = AsyncMock(return_value=fake_entry)
+        patcher.api.list_drift = AsyncMock()
+
+        result = await patcher.detect_drift(slug="firefox")
+
+        patcher.api.get_app_drift.assert_awaited_once_with("firefox")
+        patcher.api.list_drift.assert_not_called()
+        assert result is fake_entry
+
+    @pytest.mark.asyncio
+    async def test_slug_with_vendor_raises(self, patcher):
+        with pytest.raises(PatcherError, match="cannot be combined"):
+            await patcher.detect_drift(slug="firefox", vendor="Mozilla")
+
+    @pytest.mark.asyncio
+    async def test_slug_with_source_raises(self, patcher):
+        with pytest.raises(PatcherError, match="cannot be combined"):
+            await patcher.detect_drift(slug="firefox", source="installomator")
+
+    @pytest.mark.asyncio
+    async def test_offset_threaded_through(self, patcher):
+        patcher.api.list_drift = AsyncMock(return_value=MagicMock())
+
+        await patcher.detect_drift(offset=20)
+
+        patcher.api.list_drift.assert_awaited_once_with(
+            vendor=None, source=None, limit=100, offset=20
+        )
+
+    @pytest.mark.asyncio
+    async def test_constructs_own_api_when_installomator_disabled(self, mocker):
+        """When ``enable_installomator=False`` the standing self.api is None."""
+        local = PatcherClient(
+            client_id="x",
+            client_secret="x",
+            server="https://x.example.com",
+            enable_installomator=False,
+        )
+        assert local.api is None
+
+        fake_response = MagicMock()
+        fake_api = AsyncMock()
+        fake_api.list_drift = AsyncMock(return_value=fake_response)
+        api_class = mocker.patch(
+            "src.patcher.core.patcher_client.PatcherAPIClient",
+            return_value=fake_api,
+        )
+
+        result = await local.detect_drift()
+
+        api_class.assert_called_once_with()
+        fake_api.list_drift.assert_awaited_once()
+        fake_api.aclose.assert_awaited_once()
+        assert result is fake_response
+
+
 class TestReset:
     @pytest.mark.asyncio
     async def test_cache_calls_data_reset(self, patcher):
