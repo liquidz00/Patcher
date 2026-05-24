@@ -1,14 +1,16 @@
 import asyncio
 import inspect
+import re
 import sys
 import warnings
 from collections.abc import Callable
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import asyncclick as click
 
 from ..__about__ import __version__
-from ..core.analyze import TitleFilter, TrendAnalysis
+from ..core.analyze import DiffResult, TitleFilter, TrendAnalysis
 from ..core.config_manager import ConfigManager
 from ..core.data_manager import DataManager
 from ..core.exceptions import APIResponseError, InstallomatorWarning, PatcherError, SetupError
@@ -48,6 +50,86 @@ def format_table(data: list[list], headers: list[str] | None = None) -> str:
         rows.insert(1, separator)
 
     return "\n".join(rows)
+
+
+_SINCE_PATTERN = re.compile(r"^(\d+)([dhw])$")
+
+
+def parse_since(value: str) -> timedelta:
+    """Parse a short window like ``'30d'``, ``'24h'``, ``'1w'`` into a timedelta."""
+    match = _SINCE_PATTERN.match(value.strip().lower())
+    if not match:
+        raise PatcherError(
+            "Invalid --since format. Use a number followed by 'd', 'h', or 'w' (e.g. '30d', '24h', '1w').",
+            received=value,
+        )
+    quantity, unit = int(match.group(1)), match.group(2)
+    units = {"d": "days", "h": "hours", "w": "weeks"}
+    return timedelta(**{units[unit]: quantity})
+
+
+def parse_iso_date(value: str) -> date:
+    """Parse ``'2026-05-17'``-style ISO date strings."""
+    try:
+        return datetime.strptime(value.strip(), "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise PatcherError(
+            "Invalid date format. Use ISO YYYY-MM-DD (e.g. '2026-05-17').",
+            received=value,
+            error_msg=str(exc),
+        )
+
+
+def render_diff(result: DiffResult) -> str:
+    """Render a :class:`DiffResult` as a human-readable multi-section table."""
+    sections: list[str] = [
+        f"Diff: {result.from_label} → {result.to_label}",
+        "─" * 60,
+        "",
+    ]
+
+    if result.added:
+        sections.append(f"ADDED ({len(result.added)})")
+        rows = [
+            [t.title, t.released, t.hosts_patched, f"{t.completion_percent:.1f}%"]
+            for t in result.added
+        ]
+        sections.append(format_table(rows, headers=["Title", "Released", "Hosts", "Complete"]))
+        sections.append("")
+
+    if result.changed:
+        sections.append(f"CHANGED ({len(result.changed)})")
+        rows = []
+        for c in result.changed:
+            delta_str = f"{c.from_completion_percent:.1f}% → {c.to_completion_percent:.1f}%"
+            hosts_str = f"{c.from_hosts_patched} → {c.to_hosts_patched}"
+            if c.version_changed:
+                version_str = (
+                    f"{c.from_latest_version or '?'} → {c.to_latest_version or '?'} (bump)"
+                )
+            else:
+                version_str = c.to_latest_version or "—"
+            rows.append([c.title, delta_str, hosts_str, version_str])
+        sections.append(format_table(rows, headers=["Title", "Complete %", "Hosts", "Version"]))
+        sections.append("")
+
+    if result.removed:
+        sections.append(f"REMOVED ({len(result.removed)})")
+        rows = [[t.title, t.released, t.hosts_patched] for t in result.removed]
+        sections.append(format_table(rows, headers=["Title", "Last released", "Hosts"]))
+        sections.append("")
+
+    summary_rows = [
+        ["Titles", f"{result.from_count} → {result.to_count}"],
+        ["Unchanged", str(result.unchanged_count)],
+        ["Version bumps", str(len(result.version_bumps))],
+    ]
+    if result.avg_completion_delta is not None:
+        summary_rows.append(["Avg completion Δ", f"{result.avg_completion_delta:+.2f}pp"])
+    sections.append("SUMMARY")
+    sections.append(format_table(summary_rows))
+
+    return "\n".join(sections)
 
 
 def setup_logging(debug: bool) -> None:
@@ -739,6 +821,123 @@ async def analyze(
             click.echo(
                 click.style(f"✅ HTML summary saved to {output_paths}", fg="green", bold=True)
             )
+
+
+@cli.command(
+    "diff",
+    short_help="Compare patch state between two snapshots.",
+    options_metavar="<options>",
+)
+@click.option(
+    "--since",
+    metavar="<window>",
+    help="Compare against the earliest cached snapshot in the trailing window (e.g. '30d', '24h', '1w').",
+)
+@click.option(
+    "--all-time",
+    is_flag=True,
+    help="Compare against the earliest cached snapshot ever. Mutually exclusive with --since.",
+)
+@click.option(
+    "--between",
+    nargs=2,
+    metavar="<from-date> <to-date>",
+    help="Two ISO dates (YYYY-MM-DD). Picks cached snapshots closest to each. Implies --no-fetch.",
+)
+@click.option(
+    "--no-fetch",
+    is_flag=True,
+    help="Skip the live fetch; compare two cached snapshots only.",
+)
+@click.option(
+    "--list-snapshots",
+    is_flag=True,
+    help="Print available cached snapshot dates and exit.",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format. Defaults to 'text' (terminal table). 'json' emits a structured DiffResult.",
+)
+@click.pass_context
+async def diff(
+    ctx: click.Context,
+    since: str | None,
+    all_time: bool,
+    between: tuple[str, str] | None,
+    no_fetch: bool,
+    list_snapshots: bool,
+    output_format: str,
+) -> None:
+    """
+    Compare patch state between two snapshots.
+
+    Default (no flags): compare a live fetch against the most-recent cached
+    snapshot. Override with --since, --all-time, --between, or --no-fetch.
+
+    \f
+
+    :param ctx: Click context.
+    :param since: Trailing window like ``'30d'``, ``'24h'``, ``'1w'``.
+    :param all_time: Compare against earliest cached snapshot ever.
+    :param between: Two ISO dates picking cached snapshots closest to each.
+    :param no_fetch: Skip live fetch; compare cached snapshots only.
+    :param list_snapshots: Print available cached snapshot dates and exit.
+    :param output_format: ``text`` or ``json``.
+    """
+    animation = ctx.obj.get("animation")
+    plist_manager = ctx.obj.get("plist_manager")
+    ui_config = ctx.obj.get("ui_config")
+    data_manager = get_data_manager(ctx)
+
+    if list_snapshots:
+        cached = sorted(data_manager.get_cached_files(), key=lambda p: p.stat().st_mtime)
+        if not cached:
+            click.echo(
+                click.style(
+                    "No cached snapshots. Run `patcherctl export` first to seed the cache.",
+                    fg="yellow",
+                ),
+                err=True,
+            )
+            ctx.exit(0)
+        click.echo("Available cached snapshots (oldest → newest):")
+        for path in cached:
+            mtime = datetime.fromtimestamp(path.stat().st_mtime)
+            click.echo(f"  {mtime.isoformat(timespec='seconds')}  {path.name}")
+        ctx.exit(0)
+
+    parsed_since = parse_since(since) if since else None
+    parsed_between = (parse_iso_date(between[0]), parse_iso_date(between[1])) if between else None
+
+    patcher = PatcherClient(
+        config=ctx.obj.get("config"),
+        disable_cache=ctx.obj.get("disable_cache"),
+        debug=ctx.obj.get("debug"),
+        enable_installomator=bool(plist_manager.get("enable_installomator")),
+        ui_config=ui_config.config,
+    )
+
+    async with animation.error_handling():
+        if no_fetch or parsed_between:
+            await animation.update_msg("Comparing cached snapshots...")
+        else:
+            await animation.update_msg("Fetching live patch data + comparing against cache...")
+
+        result = await patcher.diff(
+            since=parsed_since,
+            all_time=all_time,
+            between=parsed_between,
+            no_fetch=no_fetch,
+        )
+
+    if output_format == "json":
+        click.echo(result.model_dump_json(indent=2))
+        return
+
+    click.echo(render_diff(result))
 
 
 if __name__ == "__main__":
