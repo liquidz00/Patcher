@@ -9,6 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- **`patcherctl diff`** subcommand for pairwise snapshot comparison. Default behavior compares a live fetch against the most recent cached snapshot; `--since <window>` (`30d`/`24h`/`1w`), `--all-time`, `--between <from> <to>` (ISO dates), and `--no-fetch` cover the common windows. `--list-snapshots` prints available cache entries; `--format json` emits a structured `DiffResult` for piping into `jq`/downstream tools.
+- **`Diff` class** in `patcher.core.analyze`, alongside `TitleFilter` and `TrendAnalysis`. Constructs from two `list[PatchTitle]`, two `pandas.DataFrame`, or two `Path` objects; classmethods `Diff.from_cache` (two cached snapshots) and `Diff.live_vs_cache` (live + one cached) handle the common entry points.
+- **`DiffResult` and `TitleChange` Pydantic models** as the structured return value. Carries added/removed/changed title lists, per-title before/after values plus deltas, and aggregate summary fields (avg completion delta, version bumps).
+- **`PatcherClient.diff()`** as the library-level entry point. Wraps `Diff.live_vs_cache` and `Diff.from_cache` with flag validation matching the CLI surface.
 
 ## [v3.0.0] - 2026-05-21
 ### Added
