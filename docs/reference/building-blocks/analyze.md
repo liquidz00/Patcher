@@ -24,6 +24,20 @@
    .. automethod:: criteria
    .. automethod:: apply
 
+.. autoclass:: Diff
+   :members:
+   :exclude-members: compute, from_cache, live_vs_cache
+
+   .. automethod:: compute
+   .. automethod:: from_cache
+   .. automethod:: live_vs_cache
+
+.. autoclass:: DiffResult
+   :members:
+
+.. autoclass:: TitleChange
+   :members:
+
 .. autofunction:: sort_titles
 
 .. autofunction:: omit_recent
