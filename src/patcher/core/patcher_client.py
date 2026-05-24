@@ -14,12 +14,15 @@ For raw, lower-level access without ``PatcherClient``, see
 and :class:`patcher.clients.HTTPClient` (generic httpx with truststore).
 """
 
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
 from ..clients.jamf import JamfClient
 from ..clients.patcher_api import PatcherAPIClient
 from .analyze import (
+    Diff,
+    DiffResult,
     TitleFilter,
     TrendAnalysis,
     append_ios_status,
@@ -346,6 +349,65 @@ class PatcherClient:
             trend_df.to_html(save_to_path, index=False)
 
         return trend_df
+
+    async def diff(
+        self,
+        *,
+        since: timedelta | None = None,
+        all_time: bool = False,
+        between: tuple[date, date] | None = None,
+        no_fetch: bool = False,
+    ) -> DiffResult:
+        """
+        Pairwise comparison between two patch-state snapshots.
+
+        Default (no flags): live fetch via :meth:`fetch_patches` compared
+        against the most-recent cached snapshot. Override behavior with one
+        of the keyword arguments below.
+
+        .. versionadded:: 3.1
+
+        :param since: When set, compare against the earliest cached snapshot
+            in the trailing window (e.g. ``timedelta(days=30)`` for "what
+            changed in the last 30 days").
+        :type since: ~datetime.timedelta | None
+        :param all_time: When True, compare against the earliest cached
+            snapshot ever recorded. Mutually exclusive with ``since``.
+        :type all_time: bool
+        :param between: Two-date pair selecting cached snapshots closest to
+            each date. Implies cache-only (no live fetch). Cannot be combined
+            with ``since`` or ``all_time``.
+        :type between: tuple[~datetime.date, ~datetime.date] | None
+        :param no_fetch: When True, skip the live fetch and compare two
+            cached snapshots only. Defaults to the second-most-recent and
+            most-recent unless ``since`` or ``all_time`` is also passed.
+        :type no_fetch: bool
+        :return: Structured delta covering added, removed, and changed titles.
+        :rtype: :class:`~patcher.core.analyze.DiffResult`
+        :raises PatcherError: On invalid flag combinations, or when no
+            cached snapshots are available for the requested mode.
+        """
+        if since is not None and all_time:
+            raise PatcherError(
+                "`since` and `all_time` are mutually exclusive.",
+            )
+        if between is not None and (since is not None or all_time):
+            raise PatcherError(
+                "`between` cannot be combined with `since` or `all_time`.",
+            )
+        if between is not None and no_fetch:
+            raise PatcherError(
+                "`no_fetch` is redundant with `between`.",
+            )
+
+        if between is not None:
+            return Diff.from_cache(self.data, between=between).compute()
+
+        if no_fetch:
+            return Diff.from_cache(self.data, since=since, all_time=all_time).compute()
+
+        titles = await self.fetch_patches()
+        return Diff.live_vs_cache(titles, self.data, since=since, all_time=all_time).compute()
 
     async def export(
         self,
