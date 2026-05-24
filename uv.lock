@@ -1212,6 +1212,7 @@ source = { editable = "api" }
 dependencies = [
     { name = "aiosqlite" },
     { name = "fastapi" },
+    { name = "packaging" },
     { name = "patcherctl" },
     { name = "pydantic-settings" },
     { name = "sqlalchemy", extra = ["asyncio"] },
@@ -1231,6 +1232,7 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "httpx", marker = "extra == 'test'", specifier = ">=0.28.1" },
+    { name = "packaging", specifier = ">=24.2" },
     { name = "patcherctl", editable = "." },
     { name = "pydantic-settings", specifier = ">=2.14.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=9.0.3" },
