@@ -156,6 +156,8 @@ getting-started/claude-code
 
 guides/export
 guides/analyze
+guides/diff
+guides/drift
 guides/reset
 guides/installomator
 guides/automation

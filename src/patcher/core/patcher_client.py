@@ -14,12 +14,15 @@ For raw, lower-level access without ``PatcherClient``, see
 and :class:`patcher.clients.HTTPClient` (generic httpx with truststore).
 """
 
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
 from ..clients.jamf import JamfClient
-from ..clients.patcher_api import PatcherAPIClient
+from ..clients.patcher_api import DriftEntry, DriftResponse, PatcherAPIClient
 from .analyze import (
+    Diff,
+    DiffResult,
     TitleFilter,
     TrendAnalysis,
     append_ios_status,
@@ -48,6 +51,7 @@ class PatcherClient:
         disable_cache: bool = False,
         debug: bool = False,
         enable_installomator: bool = True,
+        enable_homebrew: bool = False,
         ui_config: dict | None = None,
     ):
         """
@@ -106,6 +110,14 @@ class PatcherClient:
             API catalog) is skipped. Kept under the legacy name for
             backward compatibility with existing CLI flags.
         :type enable_installomator: bool
+        :param enable_homebrew: Default for whether :meth:`fetch_patches`
+            also matches titles against the Homebrew Cask source (a second
+            matching dimension), populating
+            :attr:`~patcher.core.models.patch.PatchTitle.homebrew_cask`. Has
+            no effect when :attr:`api` is ``None`` (i.e.
+            ``enable_installomator=False``), since matching rides on the same
+            catalog client. Defaults to False.
+        :type enable_homebrew: bool
         :param ui_config: Optional dict of UI settings (header text,
             footer, font paths, header color, etc.) for PDF/HTML report
             styling. Defaults to :class:`UIDefaults` values.
@@ -134,6 +146,7 @@ class PatcherClient:
         self.jamf = JamfClient(config=config, concurrency=concurrency)
         self.data = DataManager(disable_cache=disable_cache)
         self.api = PatcherAPIClient(max_concurrency=concurrency) if enable_installomator else None
+        self.enable_homebrew = enable_homebrew
         self.ui_config = ui_config if ui_config is not None else UIDefaults().model_dump()
 
     @classmethod
@@ -142,7 +155,8 @@ class PatcherClient:
         Construct a ``PatcherClient`` using state already persisted on this Mac.
 
         Reads Jamf credentials from the macOS keychain, UI customization
-        from the property list, and the ``enable_installomator`` toggle.
+        from the property list, and the ``enable_installomator`` /
+        ``enable_homebrew`` toggles.
         Equivalent to what the ``patcherctl`` CLI does on startup; useful
         for library callers running on a workstation that has already been
         through the setup wizard.
@@ -160,10 +174,12 @@ class PatcherClient:
         plist = PropertylistManager()
         ui_settings = plist.get("UserInterfaceSettings")
         enable_installomator = bool(plist.get("enable_installomator"))
+        enable_homebrew = bool(plist.get("enable_homebrew"))
 
         kwargs: dict[str, Any] = {
             "config": ConfigManager(),
             "enable_installomator": enable_installomator,
+            "enable_homebrew": enable_homebrew,
         }
         if ui_settings:
             kwargs["ui_config"] = ui_settings
@@ -175,6 +191,7 @@ class PatcherClient:
         self,
         *,
         match_installomator: bool = True,
+        match_homebrew: bool | None = None,
         include_ios: bool = False,
         sort_by: str | None = None,
         omit_recent_hours: int | None = None,
@@ -197,6 +214,14 @@ class PatcherClient:
             (:func:`~patcher.core.matching.match_titles`). No-op when
             ``enable_installomator=False`` was passed at construction time.
         :type match_installomator: bool
+        :param match_homebrew: Whether to also match titles against the
+            Homebrew Cask source, populating
+            :attr:`~patcher.core.models.patch.PatchTitle.homebrew_cask`.
+            ``None`` (default) falls back to the ``enable_homebrew`` value
+            set at construction time. Rides on the same match pass as
+            Installomator, so it is a no-op when ``match_installomator`` is
+            False or :attr:`api` is ``None``.
+        :type match_homebrew: bool | None
         :param include_ios: If True, append per-iOS-version summaries to the
             returned list. Costs additional Jamf API calls.
         :type include_ios: bool
@@ -216,7 +241,10 @@ class PatcherClient:
         titles = await self.jamf.get_summaries(policies)
 
         if match_installomator and self.api is not None:
-            await match_titles(titles, jamf=self.jamf, api=self.api)
+            include_homebrew = self.enable_homebrew if match_homebrew is None else match_homebrew
+            await match_titles(
+                titles, jamf=self.jamf, api=self.api, include_homebrew=include_homebrew
+            )
 
         if include_ios:
             titles = await append_ios_status(titles, self.jamf)
@@ -346,6 +374,122 @@ class PatcherClient:
             trend_df.to_html(save_to_path, index=False)
 
         return trend_df
+
+    async def diff(
+        self,
+        *,
+        since: timedelta | None = None,
+        all_time: bool = False,
+        between: tuple[date, date] | None = None,
+        no_fetch: bool = False,
+    ) -> DiffResult:
+        """
+        Pairwise comparison between two patch-state snapshots.
+
+        Default (no flags): live fetch via :meth:`fetch_patches` compared
+        against the most-recent cached snapshot. Override behavior with one
+        of the keyword arguments below.
+
+        .. versionadded:: 3.1
+
+        :param since: When set, compare against the earliest cached snapshot
+            in the trailing window (e.g. ``timedelta(days=30)`` for "what
+            changed in the last 30 days").
+        :type since: ~datetime.timedelta | None
+        :param all_time: When True, compare against the earliest cached
+            snapshot ever recorded. Mutually exclusive with ``since``.
+        :type all_time: bool
+        :param between: Two-date pair selecting cached snapshots closest to
+            each date. Implies cache-only (no live fetch). Cannot be combined
+            with ``since`` or ``all_time``.
+        :type between: tuple[~datetime.date, ~datetime.date] | None
+        :param no_fetch: When True, skip the live fetch and compare two
+            cached snapshots only. Defaults to the second-most-recent and
+            most-recent unless ``since`` or ``all_time`` is also passed.
+        :type no_fetch: bool
+        :return: Structured delta covering added, removed, and changed titles.
+        :rtype: :class:`~patcher.core.analyze.DiffResult`
+        :raises PatcherError: On invalid flag combinations, or when no
+            cached snapshots are available for the requested mode.
+        """
+        if since is not None and all_time:
+            raise PatcherError(
+                "`since` and `all_time` are mutually exclusive.",
+            )
+        if between is not None and (since is not None or all_time):
+            raise PatcherError(
+                "`between` cannot be combined with `since` or `all_time`.",
+            )
+        if between is not None and no_fetch:
+            raise PatcherError(
+                "`no_fetch` is redundant with `between`.",
+            )
+
+        if between is not None:
+            return Diff.from_cache(self.data, between=between).compute()
+
+        if no_fetch:
+            return Diff.from_cache(self.data, since=since, all_time=all_time).compute()
+
+        titles = await self.fetch_patches()
+        return Diff.live_vs_cache(titles, self.data, since=since, all_time=all_time).compute()
+
+    async def detect_drift(
+        self,
+        *,
+        slug: str | None = None,
+        vendor: str | None = None,
+        source: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> DriftResponse | DriftEntry | None:
+        """
+        Cross-source version drift detection via the Patcher catalog API.
+
+        Without ``slug``: returns a :class:`~patcher.clients.patcher_api.DriftResponse`
+        listing apps whose upstream sources disagree on the current
+        version. With ``slug``: returns a :class:`~patcher.clients.patcher_api.DriftEntry`
+        for that single app, or ``None`` if the app doesn't exist or has
+        no drift.
+
+        Works without ``enable_installomator``; the catalog API is
+        constructed on demand when needed.
+
+        .. versionadded:: 3.1
+
+        :param slug: When set, narrow to a single app. Filters below are
+            ignored. ``None`` returns the paginated list.
+        :type slug: str | None
+        :param vendor: Case-insensitive exact vendor match for list mode.
+        :type vendor: str | None
+        :param source: Drop list entries where this source did not
+            participate in the disagreement.
+        :type source: str | None
+        :param limit: Max entries per list page.
+        :type limit: int
+        :param offset: Entries to skip before the list page.
+        :type offset: int
+        :return: Drift result. Shape depends on whether ``slug`` was set.
+        :rtype: :class:`~patcher.clients.patcher_api.DriftResponse` | :class:`~patcher.clients.patcher_api.DriftEntry` | None
+        :raises PatcherError: If list-mode filters are passed with a slug.
+        """
+        if slug is not None and (vendor is not None or source is not None):
+            raise PatcherError(
+                "List-mode filters (`vendor`, `source`) cannot be combined with `slug`.",
+            )
+
+        api = self.api
+        own_api = False
+        if api is None:
+            api = PatcherAPIClient()
+            own_api = True
+        try:
+            if slug is not None:
+                return await api.get_app_drift(slug)
+            return await api.list_drift(vendor=vendor, source=source, limit=limit, offset=offset)
+        finally:
+            if own_api:
+                await api.aclose()
 
     async def export(
         self,

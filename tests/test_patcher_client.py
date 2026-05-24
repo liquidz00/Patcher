@@ -56,8 +56,34 @@ class TestFetchPatches:
             patcher.jamf.get_summaries.return_value,
             jamf=patcher.jamf,
             api=patcher.api,
+            include_homebrew=False,
         )
         assert result == patcher.jamf.get_summaries.return_value
+
+    @pytest.mark.asyncio
+    async def test_match_homebrew_override_widens_match(self, patcher, mocker):
+        """match_homebrew=True overrides the (default False) enable_homebrew toggle."""
+        mock_match = mocker.patch(
+            "src.patcher.core.patcher_client.match_titles",
+            new_callable=AsyncMock,
+        )
+
+        await patcher.fetch_patches(match_homebrew=True)
+
+        assert mock_match.await_args.kwargs["include_homebrew"] is True
+
+    @pytest.mark.asyncio
+    async def test_match_homebrew_defaults_to_enable_homebrew(self, patcher, mocker):
+        """When match_homebrew is None, the construction-time enable_homebrew default applies."""
+        mock_match = mocker.patch(
+            "src.patcher.core.patcher_client.match_titles",
+            new_callable=AsyncMock,
+        )
+        patcher.enable_homebrew = True
+
+        await patcher.fetch_patches()
+
+        assert mock_match.await_args.kwargs["include_homebrew"] is True
 
     @pytest.mark.asyncio
     async def test_skips_match_when_disabled(self, patcher, mocker):
@@ -214,6 +240,196 @@ class TestAnalyzeTrend:
         fake_df.to_html.assert_not_called()
 
 
+class TestDiff:
+    @pytest.mark.asyncio
+    async def test_default_routes_through_live_vs_cache(self, patcher, mocker):
+        """No flags: fetch_patches + Diff.live_vs_cache."""
+
+        fake_titles = ["t1", "t2"]
+        mocker.patch.object(patcher, "fetch_patches", AsyncMock(return_value=fake_titles))
+        fake_diff = mocker.MagicMock()
+        fake_diff.compute.return_value = "result"
+        mock_live = mocker.patch(
+            "src.patcher.core.patcher_client.Diff.live_vs_cache",
+            return_value=fake_diff,
+        )
+        mock_from_cache = mocker.patch(
+            "src.patcher.core.patcher_client.Diff.from_cache",
+        )
+
+        result = await patcher.diff()
+
+        mock_live.assert_called_once_with(fake_titles, patcher.data, since=None, all_time=False)
+        mock_from_cache.assert_not_called()
+        assert result == "result"
+
+    @pytest.mark.asyncio
+    async def test_no_fetch_routes_through_from_cache(self, patcher, mocker):
+        fake_fetch = mocker.patch.object(patcher, "fetch_patches", AsyncMock())
+        fake_diff = mocker.MagicMock()
+        fake_diff.compute.return_value = "result"
+        mock_from_cache = mocker.patch(
+            "src.patcher.core.patcher_client.Diff.from_cache",
+            return_value=fake_diff,
+        )
+
+        await patcher.diff(no_fetch=True)
+
+        fake_fetch.assert_not_called()
+        mock_from_cache.assert_called_once_with(patcher.data, since=None, all_time=False)
+
+    @pytest.mark.asyncio
+    async def test_between_routes_through_from_cache_with_pair(self, patcher, mocker):
+        from datetime import date
+
+        fake_fetch = mocker.patch.object(patcher, "fetch_patches", AsyncMock())
+        fake_diff = mocker.MagicMock()
+        fake_diff.compute.return_value = "result"
+        mock_from_cache = mocker.patch(
+            "src.patcher.core.patcher_client.Diff.from_cache",
+            return_value=fake_diff,
+        )
+
+        dates = (date(2026, 5, 17), date(2026, 5, 21))
+        await patcher.diff(between=dates)
+
+        fake_fetch.assert_not_called()
+        mock_from_cache.assert_called_once_with(patcher.data, between=dates)
+
+    @pytest.mark.asyncio
+    async def test_since_threaded_through_to_live_vs_cache(self, patcher, mocker):
+        from datetime import timedelta
+
+        mocker.patch.object(patcher, "fetch_patches", AsyncMock(return_value=["t"]))
+        fake_diff = mocker.MagicMock()
+        fake_diff.compute.return_value = "result"
+        mock_live = mocker.patch(
+            "src.patcher.core.patcher_client.Diff.live_vs_cache",
+            return_value=fake_diff,
+        )
+
+        await patcher.diff(since=timedelta(days=30))
+
+        mock_live.assert_called_once_with(
+            ["t"], patcher.data, since=timedelta(days=30), all_time=False
+        )
+
+    @pytest.mark.asyncio
+    async def test_all_time_threaded_through_to_live_vs_cache(self, patcher, mocker):
+        mocker.patch.object(patcher, "fetch_patches", AsyncMock(return_value=["t"]))
+        fake_diff = mocker.MagicMock()
+        fake_diff.compute.return_value = "result"
+        mock_live = mocker.patch(
+            "src.patcher.core.patcher_client.Diff.live_vs_cache",
+            return_value=fake_diff,
+        )
+
+        await patcher.diff(all_time=True)
+
+        mock_live.assert_called_once_with(["t"], patcher.data, since=None, all_time=True)
+
+    @pytest.mark.asyncio
+    async def test_since_and_all_time_mutually_exclusive(self, patcher):
+        from datetime import timedelta
+
+        with pytest.raises(PatcherError, match="mutually exclusive"):
+            await patcher.diff(since=timedelta(days=30), all_time=True)
+
+    @pytest.mark.asyncio
+    async def test_between_cannot_combine_with_since(self, patcher):
+        from datetime import date, timedelta
+
+        with pytest.raises(PatcherError, match="cannot be combined"):
+            await patcher.diff(
+                between=(date(2026, 5, 17), date(2026, 5, 21)),
+                since=timedelta(days=30),
+            )
+
+    @pytest.mark.asyncio
+    async def test_between_redundant_with_no_fetch(self, patcher):
+        from datetime import date
+
+        with pytest.raises(PatcherError, match="redundant"):
+            await patcher.diff(
+                between=(date(2026, 5, 17), date(2026, 5, 21)),
+                no_fetch=True,
+            )
+
+
+class TestDetectDrift:
+    @pytest.mark.asyncio
+    async def test_list_mode_routes_through_list_drift(self, patcher):
+        fake_response = MagicMock()
+        patcher.api.list_drift = AsyncMock(return_value=fake_response)
+        patcher.api.get_app_drift = AsyncMock()
+
+        result = await patcher.detect_drift(vendor="Mozilla", source="installomator", limit=50)
+
+        patcher.api.list_drift.assert_awaited_once_with(
+            vendor="Mozilla", source="installomator", limit=50, offset=0
+        )
+        patcher.api.get_app_drift.assert_not_called()
+        assert result is fake_response
+
+    @pytest.mark.asyncio
+    async def test_slug_mode_routes_through_get_app_drift(self, patcher):
+        fake_entry = MagicMock()
+        patcher.api.get_app_drift = AsyncMock(return_value=fake_entry)
+        patcher.api.list_drift = AsyncMock()
+
+        result = await patcher.detect_drift(slug="firefox")
+
+        patcher.api.get_app_drift.assert_awaited_once_with("firefox")
+        patcher.api.list_drift.assert_not_called()
+        assert result is fake_entry
+
+    @pytest.mark.asyncio
+    async def test_slug_with_vendor_raises(self, patcher):
+        with pytest.raises(PatcherError, match="cannot be combined"):
+            await patcher.detect_drift(slug="firefox", vendor="Mozilla")
+
+    @pytest.mark.asyncio
+    async def test_slug_with_source_raises(self, patcher):
+        with pytest.raises(PatcherError, match="cannot be combined"):
+            await patcher.detect_drift(slug="firefox", source="installomator")
+
+    @pytest.mark.asyncio
+    async def test_offset_threaded_through(self, patcher):
+        patcher.api.list_drift = AsyncMock(return_value=MagicMock())
+
+        await patcher.detect_drift(offset=20)
+
+        patcher.api.list_drift.assert_awaited_once_with(
+            vendor=None, source=None, limit=100, offset=20
+        )
+
+    @pytest.mark.asyncio
+    async def test_constructs_own_api_when_installomator_disabled(self, mocker):
+        """When ``enable_installomator=False`` the standing self.api is None."""
+        local = PatcherClient(
+            client_id="x",
+            client_secret="x",
+            server="https://x.example.com",
+            enable_installomator=False,
+        )
+        assert local.api is None
+
+        fake_response = MagicMock()
+        fake_api = AsyncMock()
+        fake_api.list_drift = AsyncMock(return_value=fake_response)
+        api_class = mocker.patch(
+            "src.patcher.core.patcher_client.PatcherAPIClient",
+            return_value=fake_api,
+        )
+
+        result = await local.detect_drift()
+
+        api_class.assert_called_once_with()
+        fake_api.list_drift.assert_awaited_once()
+        fake_api.aclose.assert_awaited_once()
+        assert result is fake_response
+
+
 class TestReset:
     @pytest.mark.asyncio
     async def test_cache_calls_data_reset(self, patcher):
@@ -296,6 +512,7 @@ class TestFromState:
         mock_plist.get.side_effect = lambda key: {
             "UserInterfaceSettings": {"header_text": "Org Header"},
             "enable_installomator": True,
+            "enable_homebrew": True,
         }.get(key)
         mock_config_cls = mocker.patch("src.patcher.core.patcher_client.ConfigManager")
         mock_client_cls = mocker.patch.object(PatcherClient, "__init__", return_value=None)
@@ -305,6 +522,7 @@ class TestFromState:
         mock_client_cls.assert_called_once_with(
             config=mock_config_cls.return_value,
             enable_installomator=True,
+            enable_homebrew=True,
             ui_config={"header_text": "Org Header"},
         )
 

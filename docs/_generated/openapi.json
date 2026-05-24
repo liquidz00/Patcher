@@ -115,6 +115,95 @@
         }
       }
     },
+    "/apps/drift": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "List Drift",
+        "description": "Scan the catalog for cross-source version drift.\n\nIterates apps with at least two versioned sources, compares their\nreported versions, and returns those whose sources disagree on what\n\"latest\" means. Drift is computed in Python after a single SQL fetch\n(drift cannot be expressed as a SQL filter without materializing the\nJSON payloads). ``total_scanned`` reflects the number of apps with\nenough sources to assess drift; ``total_with_drift`` is the unpaged\ncount of disagreements.\n\n:param vendor: Case-insensitive exact vendor match. None disables.\n:param source: When set, drop entries where this source did not\n    participate in the disagreement.\n:param limit: Max entries on this page. Default 100, max 1000.\n:param offset: Entries to skip before the page. Default 0.",
+        "operationId": "list_drift_apps_drift_get",
+        "parameters": [
+          {
+            "name": "vendor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vendor"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriftResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/apps/{slug}": {
       "get": {
         "tags": [
@@ -182,6 +271,57 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AppSources"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{slug}/drift": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Get App Drift",
+        "description": "Drift detection for a single app.\n\nReturns ``null`` when the app exists but has no drift (either fewer\nthan two versioned sources, or every source agrees). 404 if the slug\nis unknown.\n\n:param slug: URL-friendly app identifier.",
+        "operationId": "get_app_drift_apps__slug__drift_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DriftEntry"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get App Drift Apps  Slug  Drift Get"
                 }
               }
             }
@@ -524,6 +664,93 @@
         "title": "AutopkgSource",
         "description": "All AutoPkg recipes matched to an app via the recipe index.\n\nAutoPkg coverage is multi-recipe by nature: a single app like Firefox\ntypically has download, munki, pkg, jamf, and intune variants across\nmultiple maintainer repos. Each match is preserved as a separate\n:class:`AutopkgRecipeEntry`."
       },
+      "DriftEntry": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/SourceVersion"
+            },
+            "type": "array",
+            "title": "Versions"
+          },
+          "leader": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leader"
+          },
+          "laggard": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Laggard"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "versions"
+        ],
+        "title": "DriftEntry",
+        "description": "Drift detected on a single app.\n\n``leader`` and ``laggard`` are the source names with the highest and\nlowest parsed versions; both are ``None`` when at least one version\nstring couldn't be parsed (e.g. Cask's ``2025-04-15`` date-style\nversions). In that case ``versions`` is still complete and consumers\ncan render the disagreement without ordering it."
+      },
+      "DriftResponse": {
+        "properties": {
+          "total_scanned": {
+            "type": "integer",
+            "title": "Total Scanned"
+          },
+          "total_with_drift": {
+            "type": "integer",
+            "title": "Total With Drift"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/DriftEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_scanned",
+          "total_with_drift",
+          "entries"
+        ],
+        "title": "DriftResponse",
+        "description": "Paginated drift results across the catalog.\n\n``total_scanned`` is the number of apps inspected (those with \u22652\nversioned sources); ``total_with_drift`` is the subset where the\nsources disagreed. ``entries`` is the page of disagreements."
+      },
       "GenerateLabelResponse": {
         "properties": {
           "label_name": {
@@ -695,6 +922,30 @@
           "raw"
         ],
         "title": "MasSource"
+      },
+      "SourceVersion": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "parsed_ok": {
+            "type": "boolean",
+            "title": "Parsed Ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "version",
+          "parsed_ok"
+        ],
+        "title": "SourceVersion",
+        "description": "One source's reported version for an app."
       },
       "ValidationError": {
         "properties": {

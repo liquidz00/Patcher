@@ -3,10 +3,12 @@ from sqlalchemy import ColumnElement, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from patcher_api.db import get_session
+from patcher_api.drift import detect_drift, extract_versions
 from patcher_api.labels import build_installomator_label
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.schemas.app import App
+from patcher_api.schemas.drift import DriftEntry, DriftResponse
 from patcher_api.schemas.labels import GenerateLabelResponse
 from patcher_api.schemas.sources import AppSources
 
@@ -75,6 +77,59 @@ async def list_apps(
     return list(rows)
 
 
+@router.get("/drift", response_model=DriftResponse)
+async def list_drift(
+    vendor: str | None = None,
+    source: str | None = None,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    session: AsyncSession = Depends(get_session),
+) -> DriftResponse:
+    """
+    Scan the catalog for cross-source version drift.
+
+    Iterates apps with at least two versioned sources, compares their
+    reported versions, and returns those whose sources disagree on what
+    "latest" means. Drift is computed in Python after a single SQL fetch
+    (drift cannot be expressed as a SQL filter without materializing the
+    JSON payloads). ``total_scanned`` reflects the number of apps with
+    enough sources to assess drift; ``total_with_drift`` is the unpaged
+    count of disagreements.
+
+    :param vendor: Case-insensitive exact vendor match. None disables.
+    :param source: When set, drop entries where this source did not
+        participate in the disagreement.
+    :param limit: Max entries on this page. Default 100, max 1000.
+    :param offset: Entries to skip before the page. Default 0.
+    """
+    stmt = select(AppRow).order_by(AppRow.slug)
+    if vendor is not None:
+        stmt = stmt.where(AppRow.vendor.ilike(vendor))
+
+    rows = (await session.scalars(stmt)).all()
+
+    total_scanned = 0
+    all_entries: list[DriftEntry] = []
+    for row in rows:
+        detail = row.source_detail
+        if len(extract_versions(detail)) < 2:
+            continue
+        total_scanned += 1
+        entry = detect_drift(row, detail)
+        if entry is None:
+            continue
+        if source is not None and source not in {sv.source for sv in entry.versions}:
+            continue
+        all_entries.append(entry)
+
+    page = all_entries[offset : offset + limit]
+    return DriftResponse(
+        total_scanned=total_scanned,
+        total_with_drift=len(all_entries),
+        entries=page,
+    )
+
+
 @router.get("/{slug}", response_model=App)
 async def get_app(
     slug: str,
@@ -114,6 +169,29 @@ async def get_app_sources(
             "autopkg": detail_row.autopkg,
         }
     )
+
+
+@router.get("/{slug}/drift", response_model=DriftEntry | None)
+async def get_app_drift(
+    slug: str,
+    session: AsyncSession = Depends(get_session),
+) -> DriftEntry | None:
+    """
+    Drift detection for a single app.
+
+    Returns ``null`` when the app exists but has no drift (either fewer
+    than two versioned sources, or every source agrees). 404 if the slug
+    is unknown.
+
+    :param slug: URL-friendly app identifier.
+    """
+    app_row = await session.scalar(select(AppRow).where(AppRow.slug == slug))
+    if app_row is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"App with slug '{slug}' not found",
+        )
+    return detect_drift(app_row, app_row.source_detail)
 
 
 @router.post("/{slug}/generate-label", response_model=GenerateLabelResponse)

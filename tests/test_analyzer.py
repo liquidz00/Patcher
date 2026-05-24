@@ -1,8 +1,10 @@
+import os
 import pickle
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 import pytest
-from src.patcher.core.analyze import TitleFilter, TrendAnalysis
+from src.patcher.core.analyze import Diff, TitleFilter, TrendAnalysis
 from src.patcher.core.exceptions import PatcherError
 from src.patcher.core.models.label import Label
 from src.patcher.core.models.patch import PatchTitle
@@ -243,3 +245,309 @@ class TestTrendAnalysis:
         instance = TrendAnalysis.from_cache(dm)
         df = instance.patch_adoption()
         assert not df.empty
+
+
+class TestDiff:
+    """Pairwise snapshot comparison."""
+
+    def _dump_snapshot(
+        self, tmp_path, name: str, titles: list[PatchTitle], mtime: datetime | None = None
+    ):
+        """Write a pickle file matching the cache layout and optionally set mtime."""
+        df = pd.DataFrame([t.model_dump() for t in titles])
+        path = tmp_path / f"patch_data_{name}.pkl"
+        with open(path, "wb") as f:
+            pickle.dump(df, f)
+        if mtime is not None:
+            ts = mtime.timestamp()
+            os.utime(path, (ts, ts))
+        return path
+
+    def test_added_titles_detected(self):
+        before = [make_title("Patch A", hosts_patched=50, missing_patch=10)]
+        after = [
+            make_title("Patch A", hosts_patched=50, missing_patch=10),
+            make_title("Patch B", hosts_patched=30, missing_patch=20),
+        ]
+        result = Diff(before, after).compute()
+        assert len(result.added) == 1
+        assert result.added[0].title == "Patch B"
+        assert result.removed == []
+
+    def test_removed_titles_detected(self):
+        before = [
+            make_title("Patch A", hosts_patched=50, missing_patch=10),
+            make_title("Patch B", hosts_patched=30, missing_patch=20),
+        ]
+        after = [make_title("Patch A", hosts_patched=50, missing_patch=10)]
+        result = Diff(before, after).compute()
+        assert result.added == []
+        assert len(result.removed) == 1
+        assert result.removed[0].title == "Patch B"
+
+    def test_completion_delta_computed(self):
+        before = [make_title("Patch A", hosts_patched=50, missing_patch=50)]  # 50%
+        after = [make_title("Patch A", hosts_patched=80, missing_patch=20)]  # 80%
+        result = Diff(before, after).compute()
+        assert len(result.changed) == 1
+        change = result.changed[0]
+        assert change.from_completion_percent == 50.0
+        assert change.to_completion_percent == 80.0
+        assert change.completion_delta == 30.0
+        assert result.avg_completion_delta == 30.0
+
+    def test_version_bump_flagged(self):
+        before = [make_title("Firefox", hosts_patched=50, missing_patch=10, latest_version="124.0")]
+        after = [make_title("Firefox", hosts_patched=50, missing_patch=10, latest_version="125.0")]
+        result = Diff(before, after).compute()
+        assert len(result.changed) == 1
+        assert result.changed[0].version_changed is True
+        assert result.changed[0].from_latest_version == "124.0"
+        assert result.changed[0].to_latest_version == "125.0"
+        assert len(result.version_bumps) == 1
+
+    def test_unchanged_titles_counted_not_listed(self):
+        titles = [
+            make_title("Patch A", hosts_patched=50, missing_patch=10),
+            make_title("Patch B", hosts_patched=30, missing_patch=20),
+            make_title("Patch C", hosts_patched=20, missing_patch=5),
+        ]
+        result = Diff(titles, titles).compute()
+        assert result.unchanged_count == 3
+        assert result.changed == []
+        assert result.added == []
+        assert result.removed == []
+
+    def test_identical_snapshots_produce_empty_diff(self):
+        titles = [make_title("Patch A", hosts_patched=50, missing_patch=10)]
+        result = Diff(titles, titles).compute()
+        assert result.added == []
+        assert result.removed == []
+        assert result.changed == []
+        assert result.unchanged_count == 1
+        assert result.avg_completion_delta is None
+
+    def test_labels_default_to_describe(self):
+        titles = [make_title("Patch A", hosts_patched=50, missing_patch=10)]
+        result = Diff(titles, titles).compute()
+        assert result.from_label == "live"
+        assert result.to_label == "live"
+
+    def test_custom_labels_override_default(self):
+        titles = [make_title("Patch A", hosts_patched=50, missing_patch=10)]
+        result = Diff(titles, titles, from_label="cached", to_label="fresh").compute()
+        assert result.from_label == "cached"
+        assert result.to_label == "fresh"
+
+    def test_accepts_dataframe_inputs(self):
+        before_df = pd.DataFrame(
+            [make_title("Patch A", hosts_patched=50, missing_patch=10).model_dump()]
+        )
+        after_df = pd.DataFrame(
+            [make_title("Patch A", hosts_patched=80, missing_patch=20).model_dump()]
+        )
+        result = Diff(before_df, after_df).compute()
+        assert len(result.changed) == 1
+        assert result.from_label == "dataframe"
+
+    def test_accepts_path_inputs(self, tmp_path):
+        before_path = self._dump_snapshot(
+            tmp_path, "before", [make_title("Patch A", hosts_patched=50, missing_patch=10)]
+        )
+        after_path = self._dump_snapshot(
+            tmp_path, "after", [make_title("Patch A", hosts_patched=80, missing_patch=20)]
+        )
+        result = Diff(before_path, after_path).compute()
+        assert len(result.changed) == 1
+        assert result.from_label.startswith("snapshot-")
+        assert result.to_label.startswith("snapshot-")
+
+    def test_raises_when_title_id_missing(self):
+        # DataFrame without the required column
+        bad = pd.DataFrame([{"title": "Patch A", "completion_percent": 50}])
+        ok = pd.DataFrame([make_title("Patch A", hosts_patched=50, missing_patch=10).model_dump()])
+        with pytest.raises(PatcherError, match="title_id"):
+            Diff(bad, ok).compute()
+
+    def test_from_cache_picks_two_most_recent(self, tmp_path, mocker):
+        old = self._dump_snapshot(
+            tmp_path,
+            "old",
+            [make_title("Patch A", hosts_patched=50, missing_patch=10)],
+            mtime=datetime.now() - timedelta(days=10),
+        )
+        middle = self._dump_snapshot(
+            tmp_path,
+            "middle",
+            [make_title("Patch A", hosts_patched=60, missing_patch=10)],
+            mtime=datetime.now() - timedelta(days=5),
+        )
+        recent = self._dump_snapshot(
+            tmp_path,
+            "recent",
+            [make_title("Patch A", hosts_patched=70, missing_patch=10)],
+            mtime=datetime.now() - timedelta(hours=1),
+        )
+        dm = mocker.MagicMock()
+        dm.get_cached_files.return_value = [old, middle, recent]
+        result = Diff.from_cache(dm).compute()
+        # `from` should be middle, `to` should be recent
+        assert "middle" not in result.from_label  # labels are mtime-derived, not name-derived
+        change = result.changed[0]
+        assert change.from_hosts_patched == 60
+        assert change.to_hosts_patched == 70
+
+    def test_from_cache_raises_when_no_snapshots(self, mocker):
+        dm = mocker.MagicMock()
+        dm.get_cached_files.return_value = []
+        with pytest.raises(PatcherError, match="No cached snapshots"):
+            Diff.from_cache(dm)
+
+    def test_from_cache_raises_when_only_one_snapshot_and_no_between(self, tmp_path, mocker):
+        only = self._dump_snapshot(
+            tmp_path, "only", [make_title("Patch A", hosts_patched=50, missing_patch=10)]
+        )
+        dm = mocker.MagicMock()
+        dm.get_cached_files.return_value = [only]
+        with pytest.raises(PatcherError, match="at least 2"):
+            Diff.from_cache(dm)
+
+    def test_from_cache_all_time_uses_earliest(self, tmp_path, mocker):
+        old = self._dump_snapshot(
+            tmp_path,
+            "old",
+            [make_title("Patch A", hosts_patched=50, missing_patch=10)],
+            mtime=datetime.now() - timedelta(days=30),
+        )
+        middle = self._dump_snapshot(
+            tmp_path,
+            "middle",
+            [make_title("Patch A", hosts_patched=60, missing_patch=10)],
+            mtime=datetime.now() - timedelta(days=10),
+        )
+        recent = self._dump_snapshot(
+            tmp_path,
+            "recent",
+            [make_title("Patch A", hosts_patched=70, missing_patch=10)],
+            mtime=datetime.now() - timedelta(hours=1),
+        )
+        dm = mocker.MagicMock()
+        dm.get_cached_files.return_value = [old, middle, recent]
+        result = Diff.from_cache(dm, all_time=True).compute()
+        change = result.changed[0]
+        assert change.from_hosts_patched == 50  # earliest
+        assert change.to_hosts_patched == 70  # most-recent
+
+    def test_from_cache_since_filters_window(self, tmp_path, mocker):
+        outside = self._dump_snapshot(
+            tmp_path,
+            "outside",
+            [make_title("Patch A", hosts_patched=50, missing_patch=10)],
+            mtime=datetime.now() - timedelta(days=60),
+        )
+        inside_old = self._dump_snapshot(
+            tmp_path,
+            "inside_old",
+            [make_title("Patch A", hosts_patched=60, missing_patch=10)],
+            mtime=datetime.now() - timedelta(days=10),
+        )
+        inside_new = self._dump_snapshot(
+            tmp_path,
+            "inside_new",
+            [make_title("Patch A", hosts_patched=70, missing_patch=10)],
+            mtime=datetime.now() - timedelta(hours=1),
+        )
+        dm = mocker.MagicMock()
+        dm.get_cached_files.return_value = [outside, inside_old, inside_new]
+        # 30-day window: should pick inside_old as `from`, inside_new as `to`
+        result = Diff.from_cache(dm, since=timedelta(days=30)).compute()
+        change = result.changed[0]
+        assert change.from_hosts_patched == 60
+        assert change.to_hosts_patched == 70
+
+    def test_from_cache_since_raises_when_no_snapshots_in_window(self, tmp_path, mocker):
+        old1 = self._dump_snapshot(
+            tmp_path,
+            "old1",
+            [make_title("Patch A", hosts_patched=50, missing_patch=10)],
+            mtime=datetime.now() - timedelta(days=60),
+        )
+        old2 = self._dump_snapshot(
+            tmp_path,
+            "old2",
+            [make_title("Patch A", hosts_patched=60, missing_patch=10)],
+            mtime=datetime.now() - timedelta(days=50),
+        )
+        dm = mocker.MagicMock()
+        dm.get_cached_files.return_value = [old1, old2]
+        with pytest.raises(PatcherError, match="No cached snapshots in the requested window"):
+            Diff.from_cache(dm, since=timedelta(days=7))
+
+    def test_from_cache_between_picks_closest(self, tmp_path, mocker):
+        s1 = self._dump_snapshot(
+            tmp_path,
+            "s1",
+            [make_title("Patch A", hosts_patched=10, missing_patch=10)],
+            mtime=datetime(2026, 5, 17, 12, 0, 0),
+        )
+        s2 = self._dump_snapshot(
+            tmp_path,
+            "s2",
+            [make_title("Patch A", hosts_patched=20, missing_patch=10)],
+            mtime=datetime(2026, 5, 19, 12, 0, 0),
+        )
+        s3 = self._dump_snapshot(
+            tmp_path,
+            "s3",
+            [make_title("Patch A", hosts_patched=30, missing_patch=10)],
+            mtime=datetime(2026, 5, 21, 12, 0, 0),
+        )
+        dm = mocker.MagicMock()
+        dm.get_cached_files.return_value = [s1, s2, s3]
+        result = Diff.from_cache(
+            dm,
+            between=(date(2026, 5, 17), date(2026, 5, 21)),
+        ).compute()
+        change = result.changed[0]
+        assert change.from_hosts_patched == 10
+        assert change.to_hosts_patched == 30
+
+    def test_live_vs_cache_uses_most_recent_default(self, tmp_path, mocker):
+        cached = self._dump_snapshot(
+            tmp_path, "cached", [make_title("Patch A", hosts_patched=50, missing_patch=10)]
+        )
+        live = [make_title("Patch A", hosts_patched=70, missing_patch=10)]
+        dm = mocker.MagicMock()
+        dm.get_cached_files.return_value = [cached]
+        result = Diff.live_vs_cache(live, dm).compute()
+        assert result.to_label == "live"
+        change = result.changed[0]
+        assert change.from_hosts_patched == 50
+        assert change.to_hosts_patched == 70
+
+    def test_live_vs_cache_all_time(self, tmp_path, mocker):
+        old = self._dump_snapshot(
+            tmp_path,
+            "old",
+            [make_title("Patch A", hosts_patched=10, missing_patch=10)],
+            mtime=datetime.now() - timedelta(days=30),
+        )
+        recent = self._dump_snapshot(
+            tmp_path,
+            "recent",
+            [make_title("Patch A", hosts_patched=50, missing_patch=10)],
+            mtime=datetime.now() - timedelta(hours=1),
+        )
+        live = [make_title("Patch A", hosts_patched=70, missing_patch=10)]
+        dm = mocker.MagicMock()
+        dm.get_cached_files.return_value = [old, recent]
+        result = Diff.live_vs_cache(live, dm, all_time=True).compute()
+        change = result.changed[0]
+        assert change.from_hosts_patched == 10  # earliest
+        assert change.to_hosts_patched == 70  # live
+
+    def test_live_vs_cache_raises_when_empty(self, mocker):
+        dm = mocker.MagicMock()
+        dm.get_cached_files.return_value = []
+        with pytest.raises(PatcherError, match="No cached snapshots"):
+            Diff.live_vs_cache([make_title("Patch A", hosts_patched=50, missing_patch=10)], dm)

@@ -50,7 +50,7 @@ def serialize_titles_to_dict(
 
 
 class DataManager:
-    _IGNORED = ["install_label", "title_id"]
+    _IGNORED = ["install_label", "homebrew_cask", "title_id"]
 
     def __init__(self, disable_cache: bool = False):
         """
@@ -500,6 +500,19 @@ class DataManager:
         df = df.drop(
             columns=[col.replace("_", " ").title() for col in DataManager._IGNORED], errors="ignore"
         )
+
+        # Surface Homebrew Cask coverage as a readable column. The raw
+        # list-of-dicts ``homebrew_cask`` field is dropped via ``_IGNORED``
+        # (same treatment as ``install_label``); this derived column shows the
+        # matched cask token(s) instead. Positionally aligned with
+        # ``patch_titles`` since ``_create_dataframe`` preserves their order.
+        # Added only when at least one title matched a cask, so default
+        # (Installomator-only) exports are unchanged.
+        if any(title.homebrew_cask for title in patch_titles):
+            df["Homebrew"] = [
+                ", ".join(match.token for match in (title.homebrew_cask or []))
+                for title in patch_titles
+            ]
 
         # Verification of directory existence runs synchronously
         output_dir = Path(output_dir)

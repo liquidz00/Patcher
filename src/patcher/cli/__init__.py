@@ -1,14 +1,17 @@
 import asyncio
 import inspect
+import re
 import sys
 import warnings
 from collections.abc import Callable
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import asyncclick as click
 
 from ..__about__ import __version__
-from ..core.analyze import TitleFilter, TrendAnalysis
+from ..clients.patcher_api import DriftEntry, DriftResponse
+from ..core.analyze import DiffResult, TitleFilter, TrendAnalysis
 from ..core.config_manager import ConfigManager
 from ..core.data_manager import DataManager
 from ..core.exceptions import APIResponseError, InstallomatorWarning, PatcherError, SetupError
@@ -48,6 +51,120 @@ def format_table(data: list[list], headers: list[str] | None = None) -> str:
         rows.insert(1, separator)
 
     return "\n".join(rows)
+
+
+_SINCE_PATTERN = re.compile(r"^(\d+)([dhw])$")
+
+
+def parse_since(value: str) -> timedelta:
+    """Parse a short window like ``'30d'``, ``'24h'``, ``'1w'`` into a timedelta."""
+    match = _SINCE_PATTERN.match(value.strip().lower())
+    if not match:
+        raise PatcherError(
+            "Invalid --since format. Use a number followed by 'd', 'h', or 'w' (e.g. '30d', '24h', '1w').",
+            received=value,
+        )
+    quantity, unit = int(match.group(1)), match.group(2)
+    units = {"d": "days", "h": "hours", "w": "weeks"}
+    return timedelta(**{units[unit]: quantity})
+
+
+def parse_iso_date(value: str) -> date:
+    """Parse ``'2026-05-17'``-style ISO date strings."""
+    try:
+        return datetime.strptime(value.strip(), "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise PatcherError(
+            "Invalid date format. Use ISO YYYY-MM-DD (e.g. '2026-05-17').",
+            received=value,
+            error_msg=str(exc),
+        )
+
+
+def render_diff(result: DiffResult) -> str:
+    """Render a :class:`DiffResult` as a human-readable multi-section table."""
+    sections: list[str] = [
+        f"Diff: {result.from_label} → {result.to_label}",
+        "─" * 60,
+        "",
+    ]
+
+    if result.added:
+        sections.append(f"ADDED ({len(result.added)})")
+        rows = [
+            [t.title, t.released, t.hosts_patched, f"{t.completion_percent:.1f}%"]
+            for t in result.added
+        ]
+        sections.append(format_table(rows, headers=["Title", "Released", "Hosts", "Complete"]))
+        sections.append("")
+
+    if result.changed:
+        sections.append(f"CHANGED ({len(result.changed)})")
+        rows = []
+        for c in result.changed:
+            delta_str = f"{c.from_completion_percent:.1f}% → {c.to_completion_percent:.1f}%"
+            hosts_str = f"{c.from_hosts_patched} → {c.to_hosts_patched}"
+            if c.version_changed:
+                version_str = (
+                    f"{c.from_latest_version or '?'} → {c.to_latest_version or '?'} (bump)"
+                )
+            else:
+                version_str = c.to_latest_version or "—"
+            rows.append([c.title, delta_str, hosts_str, version_str])
+        sections.append(format_table(rows, headers=["Title", "Complete %", "Hosts", "Version"]))
+        sections.append("")
+
+    if result.removed:
+        sections.append(f"REMOVED ({len(result.removed)})")
+        rows = [[t.title, t.released, t.hosts_patched] for t in result.removed]
+        sections.append(format_table(rows, headers=["Title", "Last released", "Hosts"]))
+        sections.append("")
+
+    summary_rows = [
+        ["Titles", f"{result.from_count} → {result.to_count}"],
+        ["Unchanged", str(result.unchanged_count)],
+        ["Version bumps", str(len(result.version_bumps))],
+    ]
+    if result.avg_completion_delta is not None:
+        summary_rows.append(["Avg completion Δ", f"{result.avg_completion_delta:+.2f}pp"])
+    sections.append("SUMMARY")
+    sections.append(format_table(summary_rows))
+
+    return "\n".join(sections)
+
+
+def render_drift(result: DriftResponse) -> str:
+    """Render a :class:`DriftResponse` as a multi-row table summary."""
+    if not result.entries:
+        return f"No drift detected. Scanned {result.total_scanned} eligible apps."
+
+    lines = [
+        f"Drift across {result.total_with_drift} apps ({result.total_scanned} scanned). Showing {len(result.entries)}.",
+        "─" * 60,
+        "",
+    ]
+    rows = []
+    for entry in result.entries:
+        version_str = ", ".join(f"{v.source}={v.version}" for v in entry.versions)
+        leader_str = entry.leader or "—"
+        rows.append([entry.slug, entry.name, version_str, leader_str])
+    lines.append(format_table(rows, headers=["Slug", "Name", "Versions", "Leader"]))
+    return "\n".join(lines)
+
+
+def render_drift_entry(entry: DriftEntry) -> str:
+    """Render a single :class:`DriftEntry` with per-source version detail."""
+    lines = [
+        f"Drift: {entry.name} ({entry.slug})",
+        "─" * 60,
+        "",
+    ]
+    rows = [[v.source, v.version, "yes" if v.parsed_ok else "no"] for v in entry.versions]
+    lines.append(format_table(rows, headers=["Source", "Version", "Parseable"]))
+    if entry.leader is not None:
+        lines.append("")
+        lines.append(f"Leader: {entry.leader}    Laggard: {entry.laggard}")
+    return "\n".join(lines)
 
 
 def setup_logging(debug: bool) -> None:
@@ -448,6 +565,11 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
     is_flag=True,
     help="Include per-title device detail sheets in Excel export (Excel format only).",
 )
+@click.option(
+    "--homebrew/--no-homebrew",
+    default=False,
+    help="Also match titles against the Homebrew Cask catalog (a second matching dimension alongside Installomator). Adds a Homebrew coverage column to reports.",
+)
 @click.pass_context
 async def export(
     ctx: click.Context,
@@ -459,6 +581,7 @@ async def export(
     ios: bool,
     concurrency: int,
     device_details: bool,
+    homebrew: bool,
 ) -> None:
     """
     Collects patch management data from Jamf API calls and exports data to Excel and optional
@@ -489,6 +612,8 @@ async def export(
     :type concurrency: int
     :param device_details: If True, includes per-title device detail sheets in Excel export.
     :type device_details: bool
+    :param homebrew: If True, also match titles against the Homebrew Cask catalog and add a Homebrew coverage column to reports.
+    :type homebrew: bool
     """
     ui_config, plist_manager = ctx.obj.get("ui_config"), ctx.obj.get("plist_manager")
 
@@ -498,6 +623,7 @@ async def export(
         disable_cache=ctx.obj.get("disable_cache"),
         debug=ctx.obj.get("debug"),
         enable_installomator=bool(plist_manager.get("enable_installomator")),
+        enable_homebrew=homebrew,
         ui_config=ui_config.config,
     )
     ctx.obj["data_manager"] = patcher.data  # Store in context for analyze
@@ -540,6 +666,7 @@ async def export(
         date_format=actual_format,
         report_title=patcher.ui_config.get("header_text"),
         enable_iom=patcher.api is not None,
+        enable_homebrew=patcher.enable_homebrew,
         header_color=patcher.ui_config.get("header_color"),
         device_details=device_details,
     )
@@ -739,6 +866,232 @@ async def analyze(
             click.echo(
                 click.style(f"✅ HTML summary saved to {output_paths}", fg="green", bold=True)
             )
+
+
+@cli.command(
+    "diff",
+    short_help="Compare patch state between two snapshots.",
+    options_metavar="<options>",
+)
+@click.option(
+    "--since",
+    metavar="<window>",
+    help="Compare against the earliest cached snapshot in the trailing window (e.g. '30d', '24h', '1w').",
+)
+@click.option(
+    "--all-time",
+    is_flag=True,
+    help="Compare against the earliest cached snapshot ever. Mutually exclusive with --since.",
+)
+@click.option(
+    "--between",
+    nargs=2,
+    metavar="<from-date> <to-date>",
+    help="Two ISO dates (YYYY-MM-DD). Picks cached snapshots closest to each. Implies --no-fetch.",
+)
+@click.option(
+    "--no-fetch",
+    is_flag=True,
+    help="Skip the live fetch; compare two cached snapshots only.",
+)
+@click.option(
+    "--list-snapshots",
+    is_flag=True,
+    help="Print available cached snapshot dates and exit.",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format. Defaults to 'text' (terminal table). 'json' emits a structured DiffResult.",
+)
+@click.pass_context
+async def diff(
+    ctx: click.Context,
+    since: str | None,
+    all_time: bool,
+    between: tuple[str, str] | None,
+    no_fetch: bool,
+    list_snapshots: bool,
+    output_format: str,
+) -> None:
+    """
+    Compare patch state between two snapshots.
+
+    Default (no flags): compare a live fetch against the most-recent cached
+    snapshot. Override with --since, --all-time, --between, or --no-fetch.
+
+    \f
+
+    :param ctx: Click context.
+    :param since: Trailing window like ``'30d'``, ``'24h'``, ``'1w'``.
+    :param all_time: Compare against earliest cached snapshot ever.
+    :param between: Two ISO dates picking cached snapshots closest to each.
+    :param no_fetch: Skip live fetch; compare cached snapshots only.
+    :param list_snapshots: Print available cached snapshot dates and exit.
+    :param output_format: ``text`` or ``json``.
+    """
+    animation = ctx.obj.get("animation")
+    plist_manager = ctx.obj.get("plist_manager")
+    ui_config = ctx.obj.get("ui_config")
+    data_manager = get_data_manager(ctx)
+
+    if list_snapshots:
+        cached = sorted(data_manager.get_cached_files(), key=lambda p: p.stat().st_mtime)
+        if not cached:
+            click.echo(
+                click.style(
+                    "No cached snapshots. Run `patcherctl export` first to seed the cache.",
+                    fg="yellow",
+                ),
+                err=True,
+            )
+            ctx.exit(0)
+        click.echo("Available cached snapshots (oldest → newest):")
+        for path in cached:
+            mtime = datetime.fromtimestamp(path.stat().st_mtime)
+            click.echo(f"  {mtime.isoformat(timespec='seconds')}  {path.name}")
+        ctx.exit(0)
+
+    parsed_since = parse_since(since) if since else None
+    parsed_between = (parse_iso_date(between[0]), parse_iso_date(between[1])) if between else None
+
+    patcher = PatcherClient(
+        config=ctx.obj.get("config"),
+        disable_cache=ctx.obj.get("disable_cache"),
+        debug=ctx.obj.get("debug"),
+        enable_installomator=bool(plist_manager.get("enable_installomator")),
+        ui_config=ui_config.config,
+    )
+
+    async with animation.error_handling():
+        if no_fetch or parsed_between:
+            await animation.update_msg("Comparing cached snapshots...")
+        else:
+            await animation.update_msg("Fetching live patch data + comparing against cache...")
+
+        result = await patcher.diff(
+            since=parsed_since,
+            all_time=all_time,
+            between=parsed_between,
+            no_fetch=no_fetch,
+        )
+
+    if output_format == "json":
+        click.echo(result.model_dump_json(indent=2))
+        return
+
+    click.echo(render_diff(result))
+
+
+@cli.command(
+    "drift",
+    short_help="Detect cross-source version drift in the Patcher catalog.",
+    options_metavar="<options>",
+)
+@click.option(
+    "--slug",
+    metavar="<slug>",
+    help="Show drift for a single app (e.g. 'firefox'). Excludes --vendor/--source.",
+)
+@click.option(
+    "--vendor",
+    metavar="<vendor>",
+    help="Case-insensitive vendor name. Ignored when --slug is set.",
+)
+@click.option(
+    "--source",
+    metavar="<source>",
+    help="Drop entries where this source did not participate (installomator or homebrew_cask). Ignored when --slug is set.",
+)
+@click.option(
+    "--limit",
+    type=int,
+    default=100,
+    show_default=True,
+    help="Max entries on this page. Server caps at 1000.",
+)
+@click.option(
+    "--offset",
+    type=int,
+    default=0,
+    show_default=True,
+    help="Entries to skip before the page.",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format. 'json' emits a DriftResponse or DriftEntry.",
+)
+@click.pass_context
+async def drift(
+    ctx: click.Context,
+    slug: str | None,
+    vendor: str | None,
+    source: str | None,
+    limit: int,
+    offset: int,
+    output_format: str,
+) -> None:
+    """
+    Detect apps where upstream sources disagree on the current version.
+
+    Pulls from the public Patcher catalog at ``https://api.patcherctl.dev``.
+    Default mode lists every app where Installomator and Homebrew Cask
+    report different versions. Use ``--slug X`` to inspect one app.
+
+    \f
+
+    :param ctx: Click context.
+    :param slug: Single-app slug. Filters are ignored when set.
+    :param vendor: Vendor filter for list mode.
+    :param source: Require this source to be one of the disagreeing sources.
+    :param limit: Page size.
+    :param offset: Page offset.
+    :param output_format: ``text`` or ``json``.
+    """
+    animation = ctx.obj.get("animation")
+    plist_manager = ctx.obj.get("plist_manager")
+    ui_config = ctx.obj.get("ui_config")
+
+    patcher = PatcherClient(
+        config=ctx.obj.get("config"),
+        disable_cache=ctx.obj.get("disable_cache"),
+        debug=ctx.obj.get("debug"),
+        enable_installomator=bool(plist_manager.get("enable_installomator")),
+        ui_config=ui_config.config,
+    )
+
+    async with animation.error_handling():
+        if slug:
+            await animation.update_msg(f"Inspecting drift for '{slug}'...")
+        else:
+            await animation.update_msg("Scanning catalog for cross-source drift...")
+
+        result = await patcher.detect_drift(
+            slug=slug,
+            vendor=vendor,
+            source=source,
+            limit=limit,
+            offset=offset,
+        )
+
+    if output_format == "json":
+        click.echo("null" if result is None else result.model_dump_json(indent=2))
+        return
+
+    if result is None:
+        click.echo(f"No drift detected for '{slug}'.")
+        return
+
+    if isinstance(result, DriftEntry):
+        click.echo(render_drift_entry(result))
+        return
+
+    click.echo(render_drift(result))
 
 
 if __name__ == "__main__":

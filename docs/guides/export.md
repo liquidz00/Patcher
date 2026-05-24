@@ -26,6 +26,7 @@ By default, a single invocation writes the patch report in all four formats: Exc
 | `--ios`, `-m` | `include_ios=True` | Include iOS device data in reports (see [iOS device data](#ios)) |
 | `--concurrency` | `concurrency=` | Max concurrent Jamf API requests. Default: `5` |
 | `--device-details`, `-D` | `device_reports=` | Per-title device sheets in the Excel export (slower on large fleets) |
+| `--homebrew` / `--no-homebrew` | `enable_homebrew=` / `match_homebrew=` | Also match titles against Homebrew Cask; adds a `Homebrew` coverage column (see [Homebrew matching](#homebrew)) |
 
 ## Examples
 
@@ -45,6 +46,7 @@ $ patcherctl export --path ~/reports --date-format "Month-Year"
 $ patcherctl export --path ~/reports --ios
 $ patcherctl export --path ~/reports --concurrency 10
 $ patcherctl export --path ~/reports --device-details
+$ patcherctl export --path ~/reports --homebrew
 ```
 :::
 
@@ -131,3 +133,23 @@ Passing `--ios` (CLI) or `include_ios=True` (library) appends iOS / mobile devic
 - {meth}`~patcher.clients.jamf.JamfClient.get_sofa_feed` fetches the latest released iOS/iPadOS versions from the [SOFA feed](https://sofa.macadmins.io/) to determine "on the latest" vs "behind."
 
 The aggregate appears in the report as a count of mobile devices on the latest OS. Useful for the same SLA / compliance reporting workflows that drive `--omit` and the `recent-release` analyze criterion.
+
+(homebrew)=
+
+## Homebrew Cask matching
+
+Patcher matches each Jamf patch title against the Installomator-sourced slugs in the Patcher API catalog. Passing `--homebrew` (CLI) or `enable_homebrew=True` (library) widens that to a second dimension: the catalog's [Homebrew Cask](https://github.com/Homebrew/homebrew-cask) source, which covers apps that carry no Installomator label and exposes identity fields (bundle ID, canonical name) that labels often omit.
+
+Matches keep their provenance. An Installomator hit lands in each title's `install_label`; a Homebrew Cask hit lands in the new `homebrew_cask` field; an app covered by both gets both. The Excel, PDF, and HTML reports surface this as a `Homebrew` column listing the matched cask token(s), and the JSON export carries the full structured matches under each title's `homebrew_cask` key.
+
+The flag is off by default, so reports without it stay byte-for-byte unchanged. Homebrew matching rides on the same catalog pass as Installomator, so it has no effect when Installomator matching is turned off.
+
+```python
+from pathlib import Path
+from patcher import PatcherClient
+
+async with PatcherClient.from_state(enable_homebrew=True) as patcher:
+    titles = await patcher.fetch_patches()
+    # titles[n].homebrew_cask holds CaskMatch stubs for Cask-covered apps
+    await patcher.export(titles, output_dir=Path("~/reports").expanduser())
+```
