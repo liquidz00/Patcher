@@ -1,6 +1,6 @@
 """
 Tests for the shell-pipeline resolver at
-:mod:`patcher_api.installomator_resolver`.
+:mod:`patcher_api.installomator.resolver`.
 
 Uses ``httpx.MockTransport`` for HTTP fixtures — no real network, no recorded
 cassettes, just inline handlers that return canned responses.
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from patcher_api.installomator_resolver import (
+from patcher_api.installomator.resolver import (
     InvalidOutput,
     Resolved,
     Unresolvable,
@@ -228,7 +228,7 @@ class TestExecAwk:
         assert _exec_awk(["{print $9}"], ["one two"]) == [""]
 
     def test_unsupported_program_raises(self):
-        from patcher_api.installomator_resolver import UnsupportedOperation
+        from patcher_api.installomator.resolver import UnsupportedOperation
 
         with pytest.raises(UnsupportedOperation):
             _exec_awk(['{ if ($1 == "x") print $2 }'], ["x y"])
@@ -248,7 +248,7 @@ class TestExecSed:
         assert _exec_sed(["s|foo|bar|g"], ["foo/baz"]) == ["bar/baz"]
 
     def test_unsupported_command_raises(self):
-        from patcher_api.installomator_resolver import UnsupportedOperation
+        from patcher_api.installomator.resolver import UnsupportedOperation
 
         with pytest.raises(UnsupportedOperation):
             _exec_sed(["1,5p"], ["whatever"])
@@ -262,7 +262,7 @@ class TestExecTr:
         assert _exec_tr(["-d", "0123456789"], ["abc123def"]) == ["abcdef"]
 
     def test_mismatched_set_lengths_raise(self):
-        from patcher_api.installomator_resolver import UnsupportedOperation
+        from patcher_api.installomator.resolver import UnsupportedOperation
 
         with pytest.raises(UnsupportedOperation):
             _exec_tr(["ab", "xyz"], ["whatever"])
@@ -279,7 +279,7 @@ class TestExecSort:
         assert _exec_sort(["-n"], ["10", "2", "30"]) == ["2", "10", "30"]
 
     def test_unsupported_flag_raises(self):
-        from patcher_api.installomator_resolver import UnsupportedOperation
+        from patcher_api.installomator.resolver import UnsupportedOperation
 
         with pytest.raises(UnsupportedOperation):
             _exec_sort(["-k2"], ["whatever"])
@@ -345,7 +345,7 @@ class TestSubprocessFallback:
         """
         import subprocess
 
-        from patcher_api import installomator_resolver
+        from patcher_api.installomator import resolver as installomator_resolver
 
         def fake_run(*_args, **_kwargs):
             raise subprocess.TimeoutExpired(cmd="bash", timeout=30.0)
@@ -362,7 +362,7 @@ class TestSubprocessFallback:
         but a real failure mode on stripped-down containers). Mocked because
         we can't actually remove /bin/bash from a dev box for a test.
         """
-        from patcher_api import installomator_resolver
+        from patcher_api.installomator import resolver as installomator_resolver
 
         def fake_run(*_args, **_kwargs):
             raise OSError("[Errno 2] No such file or directory: '/bin/bash'")

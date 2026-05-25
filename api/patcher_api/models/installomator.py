@@ -21,6 +21,12 @@ class InstallomatorLabel(Base):
     every variable the label declares — including shell expressions like
     ``downloadURL=$(curl -fs ...)`` stored verbatim.
 
+    ``fragment`` holds the verbatim ``.sh`` body the row was parsed from, so
+    consumers (``generate-label``, ``/sources``) can serve the real label
+    instead of reconstructing it from ``raw``, and the shell resolver can run
+    it directly. Nullable so rows that pre-date the column re-populate on the
+    next ingest pass.
+
     ``blob_sha`` is git's content-addressed SHA of the upstream ``.sh``
     fragment this row was parsed from. Ingest uses it to skip re-fetching
     labels whose content hasn't changed since the last run; an existing
@@ -39,6 +45,7 @@ class InstallomatorLabel(Base):
     expected_team_id: Mapped[str | None] = mapped_column(String, nullable=True)
     app_new_version: Mapped[str | None] = mapped_column(String, nullable=True)
     raw: Mapped[dict] = mapped_column(JSON)
+    fragment: Mapped[str | None] = mapped_column(String, nullable=True)
     blob_sha: Mapped[str | None] = mapped_column(String, nullable=True)
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

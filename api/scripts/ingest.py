@@ -59,14 +59,14 @@ from collections.abc import Awaitable, Callable
 from patcher_api.db import get_session_maker, init_db
 from patcher_api.ingest.autopkg import fetch_autopkg_index, ingest_autopkg_index
 from patcher_api.ingest.homebrew import fetch_homebrew_casks, ingest_homebrew_casks
-from patcher_api.ingest.installomator import (
-    fetch_installomator_labels,
-    ingest_installomator_labels,
-)
 from patcher_api.ingest.jamf_app_installers import (
     fetch_jamf_app_installers_html,
     ingest_jamf_app_installers,
     parse_jamf_app_installers_table,
+)
+from patcher_api.installomator.ingest import (
+    fetch_installomator_labels,
+    ingest_installomator_labels,
 )
 from patcher_api.models.installomator import InstallomatorLabel
 from patcher_api.stitch import stitch_catalog

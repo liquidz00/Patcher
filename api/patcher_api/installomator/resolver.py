@@ -42,6 +42,7 @@ from dataclasses import dataclass
 import httpx
 
 _SHELL_EXPR_PATTERN = re.compile(r"^\$\((.*)\)\s*$", re.DOTALL)
+_MAX_URL_LENGTH = 2000
 
 
 def is_shell_expression(value: str | None) -> bool:
@@ -72,9 +73,6 @@ def is_shell_expression(value: str | None) -> bool:
     if "$(" in value or "${" in value:
         return True
     return value.startswith("$")
-
-
-_MAX_URL_LENGTH = 2000
 
 
 def looks_like_clean_http_url(value: str | None) -> bool:
@@ -160,6 +158,158 @@ class UnsupportedOperation(Exception):
     """Raised when a pipeline contains a command pyinstallomator doesn't yet handle."""
 
 
+class PipelineResolver:
+    """
+    Evaluate an Installomator label's shell-expression value into a concrete
+    string, in Python (no subprocess by default).
+
+    Holds the state that threads through pipeline execution — the ``httpx``
+    client reused across ``curl`` stages and the opt-in subprocess-fallback
+    toggle — so a caller resolving many labels constructs one resolver and
+    reuses it across the batch. The stateless stage-filters (``grep``/``sed``/
+    ``awk``/... emulation), parse helpers, and predicates live at module level;
+    this class is the stateful execution core that dispatches to them.
+
+    :param http_client: Optional pre-configured ``httpx.Client``. If omitted, a
+        fresh client with a 30-second timeout is created and disposed per
+        ``curl`` invocation. Tests inject a ``MockTransport``-backed client to
+        avoid hitting real URLs.
+    :type http_client: httpx.Client | None
+    :param allow_subprocess_fallback: When ``True``, pipelines that raise
+        :class:`UnsupportedOperation` during native dispatch fall through to
+        :func:`_subprocess_fallback`. Off by default because the fallback
+        invokes ``bash`` on a public-repo string, a real (accepted)
+        shell-injection surface. Callers that pin the Installomator commit and
+        trust the pipeline-string corpus can opt in.
+    :type allow_subprocess_fallback: bool
+    """
+
+    def __init__(
+        self,
+        http_client: httpx.Client | None = None,
+        *,
+        allow_subprocess_fallback: bool = False,
+    ) -> None:
+        self._http_client = http_client
+        self._allow_subprocess_fallback = allow_subprocess_fallback
+
+    def resolve(self, expression: str | None, *, is_url: bool = False) -> ResolveOutcome:
+        """
+        Resolve a label variable's value, evaluating shell-style pipelines in Python.
+
+        :param expression: The label variable value as parsed from the ``.sh``
+            fragment. Plain strings (``"121.0"``) pass through as literals;
+            values shaped ``$(cmd | cmd | ...)`` are parsed and evaluated.
+        :type expression: str | None
+        :param is_url: When ``True``, the resolved value is run through
+            :func:`looks_like_clean_http_url` before returning. Failures land as
+            :class:`InvalidOutput` so callers see "got something, rejected it"
+            rather than "no value." Pass for fields whose projected column gets
+            serialized as Pydantic ``HttpUrl``.
+        :type is_url: bool
+        :return: A :class:`Resolved`, :class:`Unresolvable`, or :class:`InvalidOutput`.
+        :rtype: :class:`ResolveOutcome`
+        """
+        if expression is None:
+            return Unresolvable(reason="expression is None")
+
+        match = _SHELL_EXPR_PATTERN.match(expression.strip())
+        if not match:
+            # Literal value, no pipeline evaluation.
+            if is_url and not looks_like_clean_http_url(expression):
+                return InvalidOutput(raw=expression, reason="literal but not a clean http(s) URL")
+            return Resolved(value=expression)
+
+        inner = match.group(1).strip()
+        stages = _split_pipeline(inner)
+
+        try:
+            result_lines = self._execute_pipeline(stages)
+        except UnsupportedOperation as exc:
+            if self._allow_subprocess_fallback:
+                try:
+                    result_lines = _subprocess_fallback(stages)
+                except UnsupportedOperation as fallback_exc:
+                    return Unresolvable(reason=f"subprocess fallback failed: {fallback_exc}")
+            else:
+                return Unresolvable(reason=f"unsupported command in pipeline: {exc}")
+        except Exception as exc:
+            return Unresolvable(reason=f"pipeline execution error: {exc}")
+
+        if not result_lines:
+            return Unresolvable(reason="pipeline produced empty output")
+
+        value = "\n".join(result_lines)
+        if is_url and not looks_like_clean_http_url(value):
+            return InvalidOutput(raw=value, reason="resolved value failed URL sanity check")
+        return Resolved(value=value)
+
+    def _execute_pipeline(self, stages: list[str]) -> list[str]:
+        """Walk pipeline stages left-to-right, threading list-of-lines between them."""
+        output: list[str] = []
+        for index, stage in enumerate(stages):
+            tokens = _tokenize(stage)
+            if not tokens:
+                raise UnsupportedOperation(f"Empty pipeline stage at position {index}")
+            cmd, args = tokens[0], tokens[1:]
+            if index == 0:
+                # First stage is the source; must produce output (curl).
+                output = self._exec_source(cmd, args)
+            else:
+                output = _exec_filter(cmd, args, output)
+        return output
+
+    def _exec_source(self, cmd: str, args: list[str]) -> list[str]:
+        if cmd == "curl":
+            return self._exec_curl(args)
+        raise UnsupportedOperation(f"Unsupported source command: {cmd!r}")
+
+    def _exec_curl(self, args: list[str]) -> list[str]:
+        """
+        Execute a ``curl`` invocation. Returns lines of output (body lines for GET,
+        header lines for HEAD/redirect-chain).
+        """
+        fail_silent = False
+        headers_only = False
+        follow_redirects = False
+        url: str | None = None
+
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            flags = _parse_short_flags(arg)
+            if flags:
+                for f in flags:
+                    if f == "f":
+                        fail_silent = True
+                    elif f == "s":
+                        pass  # we're always silent
+                    elif f == "I":
+                        headers_only = True
+                    elif f == "L":
+                        follow_redirects = True
+            elif not arg.startswith("-"):
+                url = arg
+            i += 1
+
+        if not url:
+            raise UnsupportedOperation("curl requires a URL")
+
+        owns_client = self._http_client is None
+        client = self._http_client or httpx.Client(timeout=30.0)
+        try:
+            if headers_only and follow_redirects:
+                return _curl_redirect_chain_headers(client, url, fail_silent=fail_silent)
+            if headers_only:
+                return _curl_headers(client, url, fail_silent=fail_silent)
+            return _curl_body(
+                client, url, follow_redirects=follow_redirects, fail_silent=fail_silent
+            )
+        finally:
+            if owns_client:
+                client.close()
+
+
 def resolve(
     expression: str | None,
     *,
@@ -168,66 +318,30 @@ def resolve(
     allow_subprocess_fallback: bool = False,
 ) -> ResolveOutcome:
     """
-    Resolve a label variable's value, evaluating shell-style pipelines in Python.
+    Resolve a single label value with a one-off :class:`PipelineResolver`.
+
+    Convenience wrapper equivalent to ``PipelineResolver(http_client,
+    allow_subprocess_fallback=...).resolve(expression, is_url=...)``. Callers
+    resolving many labels in a batch should construct one
+    :class:`PipelineResolver` and reuse it so a single ``httpx.Client`` is
+    shared across all of them.
 
     :param expression: The label variable value as parsed from the ``.sh`` fragment.
-        Plain strings (``"121.0"``) pass through as literals; values shaped
-        ``$(cmd | cmd | ...)`` are parsed and evaluated.
     :type expression: str | None
-    :param http_client: Optional pre-configured ``httpx.Client``. If omitted,
-        a fresh client with a 30-second timeout is created and disposed per
-        ``curl`` invocation. Tests inject a ``MockTransport``-backed client
-        to avoid hitting real URLs.
+    :param http_client: Optional pre-configured ``httpx.Client``; see
+        :class:`PipelineResolver`.
     :type http_client: httpx.Client | None
-    :param is_url: When ``True``, the resolved value is run through
-        :func:`looks_like_clean_http_url` before returning. Failures land as
-        :class:`InvalidOutput` so callers see "got something, rejected it"
-        rather than "no value." Pass for fields whose projected column gets
-        serialized as Pydantic ``HttpUrl``.
+    :param is_url: Run the result through :func:`looks_like_clean_http_url`.
     :type is_url: bool
-    :param allow_subprocess_fallback: When ``True``, pipelines that raise
-        :class:`UnsupportedOperation` during native dispatch fall through to
-        :func:`_subprocess_fallback`. Off by default because the fallback
-        invokes ``bash`` on a public-repo string, which is a real (accepted)
-        shell-injection surface area. Callers that pin the Installomator
-        commit hash and trust the pipeline-string corpus can opt in.
+    :param allow_subprocess_fallback: Opt into the ``bash`` fallback; see
+        :class:`PipelineResolver`.
     :type allow_subprocess_fallback: bool
     :return: A :class:`Resolved`, :class:`Unresolvable`, or :class:`InvalidOutput`.
     :rtype: :class:`ResolveOutcome`
     """
-    if expression is None:
-        return Unresolvable(reason="expression is None")
-
-    match = _SHELL_EXPR_PATTERN.match(expression.strip())
-    if not match:
-        # Literal value, no pipeline evaluation.
-        if is_url and not looks_like_clean_http_url(expression):
-            return InvalidOutput(raw=expression, reason="literal but not a clean http(s) URL")
-        return Resolved(value=expression)
-
-    inner = match.group(1).strip()
-    stages = _split_pipeline(inner)
-
-    try:
-        result_lines = _execute_pipeline(stages, http_client=http_client)
-    except UnsupportedOperation as exc:
-        if allow_subprocess_fallback:
-            try:
-                result_lines = _subprocess_fallback(stages)
-            except UnsupportedOperation as fallback_exc:
-                return Unresolvable(reason=f"subprocess fallback failed: {fallback_exc}")
-        else:
-            return Unresolvable(reason=f"unsupported command in pipeline: {exc}")
-    except Exception as exc:
-        return Unresolvable(reason=f"pipeline execution error: {exc}")
-
-    if not result_lines:
-        return Unresolvable(reason="pipeline produced empty output")
-
-    value = "\n".join(result_lines)
-    if is_url and not looks_like_clean_http_url(value):
-        return InvalidOutput(raw=value, reason="resolved value failed URL sanity check")
-    return Resolved(value=value)
+    return PipelineResolver(
+        http_client, allow_subprocess_fallback=allow_subprocess_fallback
+    ).resolve(expression, is_url=is_url)
 
 
 def _split_pipeline(expr: str) -> list[str]:
@@ -259,32 +373,6 @@ def _tokenize(stage: str) -> list[str]:
     return shlex.split(stage)
 
 
-def _execute_pipeline(
-    stages: list[str],
-    *,
-    http_client: httpx.Client | None,
-) -> list[str]:
-    """Walk pipeline stages left-to-right, threading list-of-lines between them."""
-    output: list[str] = []
-    for index, stage in enumerate(stages):
-        tokens = _tokenize(stage)
-        if not tokens:
-            raise UnsupportedOperation(f"Empty pipeline stage at position {index}")
-        cmd, args = tokens[0], tokens[1:]
-        if index == 0:
-            # First stage is the source; must produce output (curl).
-            output = _exec_source(cmd, args, http_client=http_client)
-        else:
-            output = _exec_filter(cmd, args, output)
-    return output
-
-
-def _exec_source(cmd: str, args: list[str], *, http_client: httpx.Client | None) -> list[str]:
-    if cmd == "curl":
-        return _exec_curl(args, http_client=http_client)
-    raise UnsupportedOperation(f"Unsupported source command: {cmd!r}")
-
-
 def _exec_filter(cmd: str, args: list[str], input_lines: list[str]) -> list[str]:
     if cmd == "grep":
         return _exec_grep(args, input_lines)
@@ -312,50 +400,6 @@ def _parse_short_flags(arg: str) -> str:
     if arg.startswith("-") and not arg.startswith("--"):
         return arg[1:]
     return ""
-
-
-def _exec_curl(args: list[str], *, http_client: httpx.Client | None) -> list[str]:
-    """
-    Execute a ``curl`` invocation. Returns lines of output (body lines for GET,
-    header lines for HEAD/redirect-chain).
-    """
-    fail_silent = False
-    headers_only = False
-    follow_redirects = False
-    url: str | None = None
-
-    i = 0
-    while i < len(args):
-        arg = args[i]
-        flags = _parse_short_flags(arg)
-        if flags:
-            for f in flags:
-                if f == "f":
-                    fail_silent = True
-                elif f == "s":
-                    pass  # we're always silent
-                elif f == "I":
-                    headers_only = True
-                elif f == "L":
-                    follow_redirects = True
-        elif not arg.startswith("-"):
-            url = arg
-        i += 1
-
-    if not url:
-        raise UnsupportedOperation("curl requires a URL")
-
-    owns_client = http_client is None
-    client = http_client or httpx.Client(timeout=30.0)
-    try:
-        if headers_only and follow_redirects:
-            return _curl_redirect_chain_headers(client, url, fail_silent=fail_silent)
-        if headers_only:
-            return _curl_headers(client, url, fail_silent=fail_silent)
-        return _curl_body(client, url, follow_redirects=follow_redirects, fail_silent=fail_silent)
-    finally:
-        if owns_client:
-            client.close()
 
 
 def _curl_redirect_chain_headers(

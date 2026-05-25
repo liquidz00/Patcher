@@ -8,7 +8,7 @@ the upstream repo); changes here should track upstream label format changes.
 
 import httpx
 import pytest
-from patcher_api.ingest.installomator import (
+from patcher_api.installomator.ingest import (
     IGNORED_TEAMS,
     FetchPlan,
     _fetch_upstream_tree,
@@ -287,9 +287,9 @@ async def test_ingest_stores_realistic_label(test_session, monkeypatch):
     # appNewVersion is a curl pipeline; we don't want the test suite hitting
     # download.mozilla.org. Stub returns a fixed version for the curl
     # expression, passes literals through unchanged.
-    from patcher_api.installomator_resolver import Resolved, Unresolvable
+    from patcher_api.installomator.resolver import Resolved, Unresolvable
 
-    monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
+    monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", True)
 
     def fake_resolve(
         expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False
@@ -300,7 +300,7 @@ async def test_ingest_stores_realistic_label(test_session, monkeypatch):
             return Resolved(value="121.0")
         return Resolved(value=expression)
 
-    monkeypatch.setattr("patcher_api.ingest.installomator.resolve", fake_resolve)
+    monkeypatch.setattr("patcher_api.installomator.ingest.resolve", fake_resolve)
 
     ingested, skipped, failed = await ingest_installomator_labels(
         test_session, {"firefoxpkg": FIREFOX_FRAGMENT}
@@ -322,6 +322,8 @@ async def test_ingest_stores_realistic_label(test_session, monkeypatch):
     assert label.app_new_version == "121.0"
     assert label.raw["appNewVersion"].startswith("$(curl")
     assert label.raw["blockingProcesses"] == ["firefox"]
+    # The verbatim .sh body is persisted intact, not reconstructed from raw.
+    assert label.fragment == FIREFOX_FRAGMENT
 
 
 @pytest.mark.asyncio
@@ -416,13 +418,13 @@ async def test_ingest_nulls_html_body_returned_by_resolver(test_session, monkeyp
     curl didn't treat it as an error). The validator must catch this so the
     HTML body never lands in the ``download_url`` column.
     """
-    from patcher_api.installomator_resolver import (
+    from patcher_api.installomator.resolver import (
         InvalidOutput,
         Resolved,
         looks_like_clean_http_url,
     )
 
-    monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
+    monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", True)
 
     html_body = (
         '<!doctype html><html lang="en"><head><title>HTTP Status 400'
@@ -437,7 +439,7 @@ async def test_ingest_nulls_html_body_returned_by_resolver(test_session, monkeyp
             return InvalidOutput(raw=value, reason="bad url")
         return Resolved(value=value)
 
-    monkeypatch.setattr("patcher_api.ingest.installomator.resolve", fake_resolve)
+    monkeypatch.setattr("patcher_api.installomator.ingest.resolve", fake_resolve)
 
     ingested, skipped, failed = await ingest_installomator_labels(
         test_session, {"garbagelabel": SHELL_DOWNLOAD_FRAGMENT}
@@ -457,13 +459,13 @@ async def test_ingest_nulls_multi_line_concat_returned_by_resolver(test_session,
     ``head -n1`` or ``awk`` was unsupported, so the full grep output came
     back). Validator must catch the embedded newline.
     """
-    from patcher_api.installomator_resolver import (
+    from patcher_api.installomator.resolver import (
         InvalidOutput,
         Resolved,
         looks_like_clean_http_url,
     )
 
-    monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
+    monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", True)
 
     multi_line = (
         "https://example.com/app-2.6.5.dmg\n"
@@ -479,7 +481,7 @@ async def test_ingest_nulls_multi_line_concat_returned_by_resolver(test_session,
             return InvalidOutput(raw=value, reason="bad url")
         return Resolved(value=value)
 
-    monkeypatch.setattr("patcher_api.ingest.installomator.resolve", fake_resolve)
+    monkeypatch.setattr("patcher_api.installomator.ingest.resolve", fake_resolve)
 
     ingested, skipped, failed = await ingest_installomator_labels(
         test_session, {"garbagelabel": SHELL_DOWNLOAD_FRAGMENT}
@@ -499,13 +501,13 @@ async def test_ingest_nulls_ftp_url_returned_by_resolver(test_session, monkeypat
     ``HttpUrl`` would reject it on the response side, so the validator
     nulls it here at ingest.
     """
-    from patcher_api.installomator_resolver import (
+    from patcher_api.installomator.resolver import (
         InvalidOutput,
         Resolved,
         looks_like_clean_http_url,
     )
 
-    monkeypatch.setattr("patcher_api.ingest.installomator._RESOLVE_ON_INGEST", True)
+    monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", True)
 
     ftp_url = "ftp://cola.gmu.edu/grads/foo.tar.gz"
 
@@ -517,7 +519,7 @@ async def test_ingest_nulls_ftp_url_returned_by_resolver(test_session, monkeypat
             return InvalidOutput(raw=value, reason="bad url")
         return Resolved(value=value)
 
-    monkeypatch.setattr("patcher_api.ingest.installomator.resolve", fake_resolve)
+    monkeypatch.setattr("patcher_api.installomator.ingest.resolve", fake_resolve)
 
     ingested, skipped, failed = await ingest_installomator_labels(
         test_session, {"garbagelabel": SHELL_DOWNLOAD_FRAGMENT}
@@ -553,7 +555,7 @@ async def test_ingest_nulls_literal_ftp_url_with_resolution_off(test_session):
 @pytest.mark.asyncio
 async def test_ingest_row_failure_does_not_poison_remaining_batch(test_session, monkeypatch):
     """If a single row INSERT raises, surrounding rows still commit successfully."""
-    from patcher_api.ingest import installomator as ingest_module
+    from patcher_api.installomator import ingest as ingest_module
 
     real_scalar = ingest_module._scalar_for_column
     call_count = {"n": 0}

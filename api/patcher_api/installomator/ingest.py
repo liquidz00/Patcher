@@ -28,7 +28,7 @@ controlled by the ``PATCHER_API_RESOLVE_INGEST`` env var:
   column. This is the safe default for production hosts; the resolver is
   HTTP-bound and OOMs on small instances during bulk ingest.
 - **Set to ``true``/``1``/``yes``:** each shell expression is evaluated via
-  :func:`patcher_api.installomator_resolver.resolve` (the "pyinstallomator" port).
+  :func:`patcher_api.installomator.resolver.resolve` (the "pyinstallomator" port).
   Resolved values land in the projected columns; unresolvable expressions
   still go to ``NULL``. Run on a workstation with adequate RAM — the
   resolver fans 1000+ HTTP requests across upstream vendor sites.
@@ -50,8 +50,8 @@ import httpx
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from patcher_api.ingest._label_parser import parse_fragment
-from patcher_api.installomator_resolver import (
+from patcher_api.installomator.parser import parse_fragment
+from patcher_api.installomator.resolver import (
     InvalidOutput,
     Resolved,
     Unresolvable,
@@ -68,36 +68,28 @@ __all__ = [
     "parse_fragment",
 ]
 
-# Apple Developer Team IDs we skip on ingestion. Mirrors Patcher's existing
-# IGNORED_TEAMS list so the two implementations agree on which labels are
-# excluded from the catalog.
+# Mirror existing IGNORED_TEAMS list
 IGNORED_TEAMS: set[str] = {"Frydendal", "Media", "LL3KBL2M3A"}
 
 _INSTALLOMATOR_RAW_BASE = "https://raw.githubusercontent.com/Installomator/Installomator"
 _GITHUB_API_BASE = "https://api.github.com"
 _DEFAULT_REF = "refs/heads/main"
 
-# Limit concurrent fragment fetches. GitHub's raw endpoint is generous but
-# blasting 700 simultaneous requests is rude.
+# Don't be rude, limit requests sent
 _FETCH_CONCURRENCY = 10
 
-# Limit concurrent resolve operations during ingest. Each resolve can spawn a
-# bash subprocess (for unsupported pipelines) or hit upstream vendor sites,
-# so this is a CPU + network-bound mix. The previous implementation processed
-# labels serially, taking ~5min for a full Installomator catalog. Override via
-# PATCHER_API_RESOLVE_CONCURRENCY for tuning on tighter hosts.
+# Limit concurrent resolve operations during ingest.
+#   Each resolve can spawn a bash subprocess (for unsupported pipelines)
+#   or hit upstream vendor sites, so this is a CPU + network-bound mix.
+#
+# Override via PATCHER_API_RESOLVE_CONCURRENCY for tuning on tighter hosts.
 _RESOLVE_CONCURRENCY = int(os.environ.get("PATCHER_API_RESOLVE_CONCURRENCY", "25"))
 
-# Progress-logging cadence: emit a line every N labels during fetch and resolve
-# phases. Keep noisy enough to feel responsive, not so noisy that journalctl
-# becomes a paginated wall of text.
+# Progress interval for logging (every N titles gets a logging statement)
 _PROGRESS_EVERY = 100
 
-# Opt-in: when set, shell-expression downloadURL/appNewVersion values are
-# evaluated via pyinstallomator's resolve() instead of being nulled out.
-# Off by default because resolution is HTTP-bound and OOMs small hosts.
-# Typical workflow: run on a workstation with the flag set, then ship the
-# resulting DB to production.
+# Label Resolution (opt-in).
+#   When set, shell-expression dynamic values are resolved instead of being nulled out.
 _RESOLVE_ON_INGEST = os.environ.get("PATCHER_API_RESOLVE_INGEST", "").lower() in (
     "1",
     "true",
@@ -475,31 +467,18 @@ async def ingest_installomator_labels(
     ingested = skipped = failed = 0
     total = len(name_to_content)
 
-    # One shared httpx.Client for all resolutions in this batch — only when
-    # resolution is enabled. Creating a fresh client per resolve() call (the
-    # default when http_client=None) spawns thousands of SSL contexts during
-    # a 1000+ label ingest and OOMs small hosts. ``httpx.Client`` is
-    # thread-safe so passing the same instance to multiple
-    # ``asyncio.to_thread`` workers is fine. Skipped entirely when
-    # PATCHER_API_RESOLVE_INGEST isn't set, since _resolve_or_null short-
-    # circuits without touching the network.
+    # One shared httpx.Client for all resolutions in this batch (resolution only)
     resolver_client = httpx.Client(timeout=30.0) if _RESOLVE_ON_INGEST else None
 
-    # ----- Phase 1: parse + resolve in parallel -----
-    #
-    # ``_resolve_or_null`` can spawn bash subprocesses (for unsupported
-    # pipelines) and hit upstream vendor sites. Doing this serially across
-    # ~700 labels takes ~5min on a CI runner. We fan out to N concurrent
-    # resolvers (default 25, env-tunable) and gather the results. DB writes
-    # stay serial because AsyncSession isn't safe for concurrent ops.
-
+    # Set resolution limit
     resolve_semaphore = asyncio.Semaphore(_RESOLVE_CONCURRENCY)
     resolve_completed = 0
 
     async def resolve_one(
         name: str, content: str
     ) -> tuple[str, dict[str, Any] | None, str | None, str | None]:
-        """Parse a label fragment and resolve its downloadURL + appNewVersion.
+        """
+        Parse a label fragment and resolve its downloadURL + appNewVersion.
 
         Returns ``(name, parsed_or_None_if_skip, resolved_download_url, resolved_app_new_version)``.
         A ``parsed`` of ``None`` signals the persist phase should count this as skipped.
@@ -536,7 +515,6 @@ async def ingest_installomator_labels(
             *(resolve_one(name, content) for name, content in name_to_content.items())
         )
 
-        # ----- Phase 2: persist serially -----
         log.info("Persisting %d Installomator label rows...", total)
         for name, parsed, resolved_download_url, resolved_app_new_version in resolved_records:
             if parsed is None:
@@ -555,6 +533,7 @@ async def ingest_installomator_labels(
                     expected_team_id=_scalar_for_column(parsed.get("expectedTeamID")),
                     app_new_version=resolved_app_new_version,
                     raw=parsed,
+                    fragment=name_to_content[name],
                     blob_sha=blob_shas.get(name),
                     ingested_at=now,
                 )
@@ -568,6 +547,7 @@ async def ingest_installomator_labels(
                         "expected_team_id": stmt.excluded.expected_team_id,
                         "app_new_version": stmt.excluded.app_new_version,
                         "raw": stmt.excluded.raw,
+                        "fragment": stmt.excluded.fragment,
                         "blob_sha": stmt.excluded.blob_sha,
                         "ingested_at": stmt.excluded.ingested_at,
                     },
