@@ -24,6 +24,190 @@ _LABELS_TXT_URL = f"{_INSTALLOMATOR_RAW_BASE}/Labels.txt"
 _FRAGMENT_URL_TEMPLATE = f"{_INSTALLOMATOR_RAW_BASE}/fragments/labels/{{name}}.sh"
 
 
+def _walk(text: str, *, stop_at_delim: bool) -> tuple[str, list[str], bool]:
+    """
+    Shared shell-context state machine used by every scan operation.
+
+    Maintains a stack of nesting contexts so quoting behaves like bash: a
+    ``$(...)`` command substitution opens a fresh quoting context even inside
+    double quotes, so ``"$(curl "x")"`` reads as one value instead of closing
+    the outer quote at the inner ``"``.
+
+    Contexts: ``sq`` (single quote, fully literal), ``dq`` (double quote;
+    backslash escapes and ``$(`` / backtick still active), ``bt`` (backtick
+    command sub), ``cmd`` (``$(...)``), ``paren`` (a ``(`` or ``{`` group).
+
+    :param stop_at_delim: When ``True`` (value scanning) stop at the first
+        top-level whitespace, ``;``, or unmatched close bracket. When ``False``
+        (openness / balance checks) consume the whole string.
+    :returns: ``(captured_text, final_stack, saw_unmatched_close)``.
+    """
+    out: list[str] = []
+    stack: list[str] = []
+    saw_unmatched_close = False
+    i, n = 0, len(text)
+
+    while i < n:
+        c = text[i]
+        top = stack[-1] if stack else None
+
+        if top == "sq":
+            out.append(c)
+            if c == "'":
+                stack.pop()
+            i += 1
+            continue
+        if top == "bt":
+            out.append(c)
+            if c == "`":
+                stack.pop()
+            i += 1
+            continue
+        if top == "dq":
+            if c == "\\" and i + 1 < n:
+                out.append(c + text[i + 1])
+                i += 2
+                continue
+            if c == '"':
+                out.append(c)
+                stack.pop()
+                i += 1
+                continue
+            if c == "$" and i + 1 < n and text[i + 1] == "(":
+                out.append("$(")
+                stack.append("cmd")
+                i += 2
+                continue
+            if c == "`":
+                out.append(c)
+                stack.append("bt")
+                i += 1
+                continue
+            out.append(c)
+            i += 1
+            continue
+
+        # normal shell context: top is None, 'cmd', or 'paren'
+        if c == "\\" and i + 1 < n:
+            out.append(c + text[i + 1])
+            i += 2
+            continue
+        if c == "'":
+            out.append(c)
+            stack.append("sq")
+            i += 1
+            continue
+        if c == '"':
+            out.append(c)
+            stack.append("dq")
+            i += 1
+            continue
+        if c == "`":
+            out.append(c)
+            stack.append("bt")
+            i += 1
+            continue
+        if c == "$" and i + 1 < n and text[i + 1] == "(":
+            out.append("$(")
+            stack.append("cmd")
+            i += 2
+            continue
+        if c in "({":
+            out.append(c)
+            stack.append("paren")
+            i += 1
+            continue
+        if c in ")}":
+            if top in ("cmd", "paren"):
+                out.append(c)
+                stack.pop()
+                i += 1
+                continue
+            saw_unmatched_close = True
+            if stop_at_delim:
+                break
+            i += 1
+            continue
+        if not stack and (c.isspace() or c == ";"):
+            if stop_at_delim:
+                break
+            out.append(c)
+            i += 1
+            continue
+        out.append(c)
+        i += 1
+
+    return "".join(out), stack, saw_unmatched_close
+
+
+def _scan_value(text: str) -> str:
+    """Read a single assignment value from the start of ``text``, intact."""
+    return _walk(text, stop_at_delim=True)[0]
+
+
+def _is_open(text: str) -> bool:
+    """True if ``text`` ends inside an unclosed bracket or quote span."""
+    return bool(_walk(text, stop_at_delim=False)[1])
+
+
+def _strip_quotes(value: str) -> str:
+    """Strip one layer of matched surrounding quotes, if present."""
+    if len(value) >= 2 and value[0] in ("'", '"') and value[-1] == value[0]:
+        return value[1:-1]
+    return value
+
+
+def _logical_lines(fragment: str) -> list[str]:
+    """
+    Group physical lines into logical statements.
+
+    A line whose brackets/quotes do not close keeps absorbing following lines
+    until they do, so multi-line command substitutions and arrays survive
+    intact. Full-line comments and blanks are skipped before a statement starts
+    so a stray apostrophe in a comment (``it's``) can't look like an open quote
+    and swallow the lines that follow.
+    """
+    out: list[str] = []
+    buf = ""
+    for raw_line in fragment.splitlines():
+        if not buf:
+            stripped = raw_line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+        candidate = f"{buf}\n{raw_line}" if buf else raw_line
+        if _is_open(candidate):
+            buf = candidate
+        else:
+            out.append(candidate)
+            buf = ""
+    if buf:
+        out.append(buf)
+    return out
+
+
+def _parse_array(inner: str) -> list[str]:
+    """
+    Split a bash array body into elements, honoring quotes and ``$(...)``.
+
+    Naive whitespace splitting shreds elements that are themselves command
+    substitutions (``versions=( $(curl ...) )``); scanning each element with
+    the same value reader keeps them whole.
+    """
+    elements: list[str] = []
+    i = 0
+    while i < len(inner):
+        if inner[i].isspace():
+            i += 1
+            continue
+        token = _scan_value(inner[i:])
+        if not token:
+            i += 1
+            continue
+        elements.append(_strip_quotes(token))
+        i += len(token)
+    return elements
+
+
 def parse_fragment(fragment: str) -> dict[str, Any]:
     """
     Parse an Installomator label fragment into a dict of variable assignments.
@@ -32,49 +216,54 @@ def parse_fragment(fragment: str) -> dict[str, Any]:
     Patcher API's ingestion) can call the same parser without instantiating
     the class. The original ``InstallomatorClient._parse`` delegates here.
 
+    Uses a quote-aware scanner rather than a regex: Installomator values are
+    shell expressions, and a non-greedy regex truncates them at the first ``)``
+    or whitespace (mangling pipelines like ``$(curl ... | sed 's/foo(bar)/x/')``
+    and expansions like ``${rawVersion// build /.}``). The scanner tracks a
+    stack of shell contexts so values are read to their true end, even across
+    multiple physical lines and inside nested quoting.
+
     Recognized syntaxes:
 
     - ``key="quoted value"``: string values, surrounding quotes stripped.
     - ``key=$(shell expression)``: preserved verbatim as the literal expression string.
     - ``key=(arr "values" here)``: bash arrays returned as Python lists.
 
-    Lines starting with ``#`` and blank lines are skipped. The opening
-    ``<label>)`` header and trailing ``;;`` separator are stripped before parsing.
+    A key assigned more than once (resolve-then-transform, arch-conditional
+    branches) maps to the ordered list of every assignment; consumers needing a
+    single value take the first element. Lines starting with ``#`` and blank
+    lines are skipped. The opening ``<label>)`` header (including multi-name
+    ``a|b|c)`` headers) and trailing ``;;`` separator are stripped first.
 
     :param fragment: Raw ``.sh`` fragment content as fetched from the Installomator repo.
     :type fragment: str
-    :return: Variable name → value (string for kv pairs, list for arrays).
+    :return: Variable name → value (string for kv pairs, list for arrays or
+        multi-assignment chains).
     :rtype: dict[str, Any]
     """
-    fragment = re.sub(r"^\w+\)\s*", "", fragment).strip()  # Remove opening key
+    fragment = re.sub(r"^[\w|\\\s-]+\)\s*", "", fragment).strip()  # Remove opening key(s)
     fragment = re.sub(r";;\s*$", "", fragment).strip()  # Remove trailing ;;
 
-    data: dict[str, Any] = {}
-    lines = fragment.splitlines()
-
-    kv_pattern = re.compile(r'^(\w+)=(".*?"|\$\(.*?\)|\S+)')
-    array_pattern = re.compile(r"^(\w+)=\((.*?)\)$")
-
-    for line in lines:
-        line = line.strip()
-        if line.startswith("#") or not line:
+    assignments: dict[str, list[Any]] = {}
+    for line in _logical_lines(fragment):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
             continue
-
-        array_match = array_pattern.match(line)
-        if array_match:
-            key, array_values = array_match.groups()
-            pairs = re.findall(r'"(.*?)"|(\S+)', array_values)
-            data[key] = [val[0] or val[1] for val in pairs]
+        match = re.match(r"^(\w+)=(.*)$", stripped, re.DOTALL)
+        if not match:
             continue
+        key, rest = match.group(1), match.group(2)
+        value = _scan_value(rest)
 
-        kv_match = kv_pattern.match(line)
-        if kv_match:
-            key, value = kv_match.groups()
-            value = value.strip('"')
-            data[key] = value
-            continue
+        parsed: Any
+        if value.startswith("(") and value.endswith(")"):
+            parsed = _parse_array(value[1:-1])
+        else:
+            parsed = _strip_quotes(value)
 
-    return data
+        assignments.setdefault(key, []).append(parsed)
+
+    return {key: (vals[0] if len(vals) == 1 else vals) for key, vals in assignments.items()}
 
 
 class InstallomatorClient:
@@ -116,6 +305,15 @@ class InstallomatorClient:
         :data:`IGNORED_TEAMS` or if Pydantic validation fails.
         """
         fragment_dict = parse_fragment(content)
+
+        # A key assigned more than once (resolve-then-transform, arch-conditional
+        # branches) or as a bash array parses to a list. The Label model's scalar
+        # fields take the first assignment (the resolving step / primary value),
+        # matching the API-side projection.
+        fragment_dict = {
+            key: (value[0] if isinstance(value, list) and value else value)
+            for key, value in fragment_dict.items()
+        }
 
         expected_team_id = fragment_dict.get("expectedTeamID")
         if expected_team_id in IGNORED_TEAMS:

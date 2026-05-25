@@ -121,6 +121,165 @@ def test_parse_fragment_returns_empty_dict_for_empty_input():
     assert parse_fragment(EMPTY_FRAGMENT) == {}
 
 
+# --- issue #65 regression fixtures (derived from real upstream labels) ---
+
+# beyondcomparepro: nested ')' inside $( ) and a space inside ${ } — the old
+# non-greedy regex truncated rawVersion at "latestversion)" and appNewVersion
+# at the space in "// build /.".
+NESTED_PAREN_FRAGMENT = """beyondcomparepro)
+    name="Beyond Compare"
+    type="zip"
+    rawVersion=$(echo "${updateFeed}" | xpath 'string(/Update/@latestversion)' 2>/dev/null)
+    appNewVersion=${rawVersion// build /.}
+    downloadURL=$(echo "${updateFeed}" | xpath 'string(/Update/@download)' 2>/dev/null)
+    expectedTeamID="BS29TEJF86"
+    ;;
+"""
+
+# Resolve-then-transform: appNewVersion assigned twice. The old parser kept
+# only the last (the transform), discarding the resolving curl.
+CHAIN_FRAGMENT = """chainlabel)
+    name="Chain"
+    type="dmg"
+    appNewVersion=$(curl -fs https://example.com/v | jq -r '.version')
+    appNewVersion=${appNewVersion%.0}
+    expectedTeamID="ABC123XYZ4"
+    ;;
+"""
+
+# Arch-conditional: archiveName assigned per-arch. Installomator checks arm64
+# first by convention, so first-assignment wins gives the arm64 variant.
+ARCH_FRAGMENT = """archlabel)
+    name="Arch"
+    type="dmg"
+    if [[ $(arch) == "arm64" ]]; then
+        archiveName="App-arm64.dmg"
+    elif [[ $(arch) == "i386" ]]; then
+        archiveName="App-x64.dmg"
+    fi
+    expectedTeamID="ABC123XYZ4"
+    ;;
+"""
+
+# Multi-line command substitution (camtasia-style): $( on one line, body and
+# closing ) on later lines.
+MULTILINE_FRAGMENT = """multiline)
+    name="Multi"
+    type="dmg"
+    appNewVersion=$(
+        curl -fs "https://example.com/feed" | grep -Eo "[0-9.]+" | head -1
+    )
+    expectedTeamID="ABC123XYZ4"
+    ;;
+"""
+
+# Array whose element is itself a command substitution (adobereaderdc-style).
+ARRAY_CMDSUB_FRAGMENT = """arraycmd)
+    name="ArrayCmd"
+    type="dmg"
+    versions=( $(curl -s "https://example.com/list" | grep -Eo "[0-9.]+" | head -n 5) )
+    expectedTeamID="ABC123XYZ4"
+    ;;
+"""
+
+# Command substitution inside double quotes, with its own nested "..." strings
+# (adium-style). A flat quote tracker closes the outer quote at the first inner
+# double quote; the context stack keeps the value whole.
+NESTED_QUOTE_FRAGMENT = """nestedq)
+    name="Nested"
+    type="dmg"
+    appNewVersion="$(curl -sL "https://example.im" | sed -r 's/.*href="([^"]+).*/\\1/g')"
+    expectedTeamID="ABC123XYZ4"
+    ;;
+"""
+
+# A full-line comment containing an apostrophe ("it's"). The logical-line
+# joiner must not treat that lone quote as an open span and swallow the
+# assignments that follow (adobeconnect-style).
+COMMENT_APOSTROPHE_FRAGMENT = """commentlabel)
+    # Looks like it's an installer, probably won't work
+    name="CommentApp"
+    type="dmg"
+    downloadURL="https://example.com/app.dmg"
+    expectedTeamID="ABC123XYZ4"
+    ;;
+"""
+
+
+def test_parse_fragment_does_not_truncate_nested_parens():
+    """A ``)`` inside ``$( )`` or a space inside ``${ }`` no longer truncates."""
+    parsed = parse_fragment(NESTED_PAREN_FRAGMENT)
+
+    # full pipeline captured, including the trailing 2>/dev/null)
+    assert parsed["rawVersion"].endswith("2>/dev/null)")
+    assert "xpath 'string(/Update/@latestversion)'" in parsed["rawVersion"]
+    # the space inside ${ } survives instead of cutting at "${rawVersion//"
+    assert parsed["appNewVersion"] == "${rawVersion// build /.}"
+    assert parsed["downloadURL"].endswith("2>/dev/null)")
+
+
+def test_parse_fragment_preserves_multi_assignment_chain():
+    """A key assigned twice keeps both, in order; the resolve step isn't lost."""
+    parsed = parse_fragment(CHAIN_FRAGMENT)
+
+    assert isinstance(parsed["appNewVersion"], list)
+    assert len(parsed["appNewVersion"]) == 2
+    # first assignment is the resolving curl (the scalar column takes this one)
+    assert parsed["appNewVersion"][0].startswith("$(curl")
+    assert parsed["appNewVersion"][1] == "${appNewVersion%.0}"
+
+
+def test_parse_fragment_arch_conditional_first_assignment_is_arm64():
+    parsed = parse_fragment(ARCH_FRAGMENT)
+
+    assert parsed["archiveName"] == ["App-arm64.dmg", "App-x64.dmg"]
+
+
+def test_parse_fragment_reads_multiline_command_substitution():
+    parsed = parse_fragment(MULTILINE_FRAGMENT)
+
+    value = parsed["appNewVersion"]
+    assert value.startswith("$(")
+    assert value.rstrip().endswith(")")
+    assert "head -1" in value
+
+
+def test_parse_fragment_array_element_with_command_sub_stays_whole():
+    parsed = parse_fragment(ARRAY_CMDSUB_FRAGMENT)
+
+    assert isinstance(parsed["versions"], list)
+    assert len(parsed["versions"]) == 1
+    assert parsed["versions"][0].startswith("$(curl")
+    assert parsed["versions"][0].endswith(")")
+
+
+def test_parse_fragment_handles_command_sub_inside_double_quotes():
+    parsed = parse_fragment(NESTED_QUOTE_FRAGMENT)
+
+    value = parsed["appNewVersion"]
+    # surrounding quotes stripped, inner $( ) intact with its nested quotes
+    assert value.startswith("$(curl -sL")
+    assert '"https://example.im"' in value
+    assert value.endswith(")")
+
+
+def test_parse_fragment_comment_apostrophe_does_not_swallow_assignments():
+    parsed = parse_fragment(COMMENT_APOSTROPHE_FRAGMENT)
+
+    assert parsed["name"] == "CommentApp"
+    assert parsed["type"] == "dmg"
+    assert parsed["downloadURL"] == "https://example.com/app.dmg"
+    assert parsed["expectedTeamID"] == "ABC123XYZ4"
+
+
+def test_parse_fragment_single_assignment_stays_scalar():
+    """Regression guard: a key assigned once is a string, not a one-item list."""
+    parsed = parse_fragment(CHAIN_FRAGMENT)
+
+    assert isinstance(parsed["name"], str)
+    assert parsed["name"] == "Chain"
+
+
 @pytest.mark.asyncio
 async def test_ingest_stores_realistic_label(test_session, monkeypatch):
     # Enable the opt-in resolver path for this test, AND mock the underlying

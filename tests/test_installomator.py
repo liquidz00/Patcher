@@ -173,6 +173,38 @@ async def test_get_label_returns_none_on_404(iom: InstallomatorClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_label_multi_assignment_first_wins_and_no_truncation(
+    iom: InstallomatorClient,
+) -> None:
+    """Issue #65: a key assigned twice + a nested ``)`` inside ``$( )``.
+
+    The label must still build (not be dropped by Pydantic for a list-valued
+    ``name``), use the first assignment, and keep the full downloadURL.
+    """
+    fragment = (
+        "adobereaderdc)\n"
+        '    name="Adobe Acrobat Reader"\n'
+        '    type="pkgInDmg"\n'
+        '    if [[ -d "/Applications/Adobe Acrobat Reader DC.app" ]]; then\n'
+        '      name="Adobe Acrobat Reader DC"\n'
+        "    fi\n"
+        "    downloadURL=$(curl -fs \"https://example.com/feed\" | sed -E 's/v([0-9.]+)/x/')\n"
+        '    expectedTeamID="JQ525L2MZD"\n'
+        "    ;;"
+    )
+    iom.api.fetch_text.return_value = fragment
+
+    label = await iom.get_label("adobereaderdc")
+
+    assert label is not None  # not silently dropped by validation
+    assert label.name == "Adobe Acrobat Reader"  # first assignment wins
+    assert label.download_url is not None
+    # nested ) inside ([0-9.]+) no longer truncates: brackets balance
+    assert label.download_url.count("(") == label.download_url.count(")")
+    assert label.download_url.rstrip().endswith(")")
+
+
+@pytest.mark.asyncio
 async def test_get_label_returns_none_on_ignored_team_id(iom: InstallomatorClient) -> None:
     # LL3KBL2M3A is in IGNORED_TEAMS (lcadvancedvpnclient)
     iom.api.fetch_text.return_value = _sample_fragment(name="LC AdvancedVPN", team_id="LL3KBL2M3A")
