@@ -1,10 +1,20 @@
 """
 Installomator label ingestion.
 
-Fetches the list of available label names from Installomator's ``Labels.txt``,
-pulls each label's ``.sh`` fragment in parallel (capped by an asyncio
-semaphore), parses the variable assignments, and upserts into the
-``installomator_labels`` table.
+Discovers labels by calling GitHub's git/trees API
+(``GET /repos/Installomator/Installomator/git/trees/<ref>?recursive=1``)
+once per run. The response carries every label fragment's blob SHA
+alongside its path, which serves two purposes: it's the canonical list
+of fragments that actually exist (no more ``Labels.txt`` alias 404 noise)
+and it's a content-addressed identity per file. Pulls each fragment's
+``.sh`` in parallel (capped by an asyncio semaphore), parses the variable
+assignments, and upserts into the ``installomator_labels`` table.
+
+**SHA gating:** stored ``blob_sha`` values are diffed against the upstream
+tree before any fragment fetches. Labels whose SHA matches are skipped
+entirely (no fragment fetch, no parse, no resolver call). The first
+ingest after a fresh schema or a ``--force`` run re-fetches everything
+because no prior SHA exists to compare against.
 
 The parser mirrors Patcher's :class:`patcher.clients.installomator.InstallomatorClient`
 behavior — handling literal ``key="value"`` assignments, shell expressions
@@ -32,6 +42,7 @@ once we add drift detection.
 import asyncio
 import logging
 import os
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -51,6 +62,7 @@ from patcher_api.models.installomator import InstallomatorLabel
 
 __all__ = [
     "IGNORED_TEAMS",
+    "FetchPlan",
     "fetch_installomator_labels",
     "ingest_installomator_labels",
     "parse_fragment",
@@ -62,6 +74,7 @@ __all__ = [
 IGNORED_TEAMS: set[str] = {"Frydendal", "Media", "LL3KBL2M3A"}
 
 _INSTALLOMATOR_RAW_BASE = "https://raw.githubusercontent.com/Installomator/Installomator"
+_GITHUB_API_BASE = "https://api.github.com"
 _DEFAULT_REF = "refs/heads/main"
 
 # Limit concurrent fragment fetches. GitHub's raw endpoint is generous but
@@ -179,29 +192,134 @@ def _installomator_ref() -> str:
     return os.environ.get("PATCHER_API_INSTALLOMATOR_REF", _DEFAULT_REF)
 
 
-def _labels_txt_url(ref: str | None = None) -> str:
-    return f"{_INSTALLOMATOR_RAW_BASE}/{ref or _installomator_ref()}/Labels.txt"
+def _tree_api_ref(ref: str | None = None) -> str:
+    """
+    Normalize a ref for GitHub's tree API.
+
+    The raw-content URLs accept ``refs/heads/main``; the tree API expects
+    a bare ref name (``main``, a tag, or a commit SHA). Strip the prefix.
+    """
+    return (ref or _installomator_ref()).removeprefix("refs/heads/")
+
+
+def _tree_api_url(ref: str | None = None) -> str:
+    return (
+        f"{_GITHUB_API_BASE}/repos/Installomator/Installomator/git/trees/"
+        f"{_tree_api_ref(ref)}?recursive=1"
+    )
 
 
 def _fragment_url(name: str, ref: str | None = None) -> str:
     return f"{_INSTALLOMATOR_RAW_BASE}/{ref or _installomator_ref()}/fragments/labels/{name}.sh"
 
 
+async def _fetch_upstream_tree(
+    ref: str | None = None,
+    client: httpx.AsyncClient | None = None,
+) -> dict[str, str]:
+    """
+    Fetch the upstream tree and return ``{label_name: blob_sha}``.
+
+    One HTTP call returns every file in the repo with its content SHA;
+    we filter to ``fragments/labels/*.sh`` blobs. The returned map is
+    the authoritative discovery list — names exist iff a fragment file
+    exists, so this replaces ``Labels.txt`` (which is a superset that
+    includes inline aliases without fragments).
+
+    :param ref: Git ref to query (branch, tag, or commit SHA). Defaults
+        to ``$PATCHER_API_INSTALLOMATOR_REF`` or ``main``.
+    :type ref: str | None
+    :param client: Optional pre-configured ``httpx.AsyncClient``.
+    :type client: httpx.AsyncClient | None
+    :return: Mapping of label name (e.g. ``"firefoxpkg"``) to its
+        upstream blob SHA.
+    :rtype: dict[str, str]
+    :raises httpx.HTTPError: On network failure or non-2xx tree response.
+    """
+    owns_client = client is None
+    client = client or httpx.AsyncClient(timeout=60.0)
+    try:
+        response = await client.get(_tree_api_url(ref))
+        response.raise_for_status()
+        data = response.json()
+        if data.get("truncated"):
+            log.warning(
+                "GitHub tree response was truncated; some labels may be missing. "
+                "This is unexpected for the Installomator repo — investigate.",
+            )
+        upstream: dict[str, str] = {}
+        for entry in data.get("tree", []):
+            path = entry.get("path", "")
+            if (
+                entry.get("type") == "blob"
+                and path.startswith("fragments/labels/")
+                and path.endswith(".sh")
+            ):
+                name = path.removeprefix("fragments/labels/").removesuffix(".sh").lower()
+                upstream[name] = entry["sha"]
+        return upstream
+    finally:
+        if owns_client:
+            await client.aclose()
+
+
+@dataclass(frozen=True)
+class FetchPlan:
+    """
+    Outcome of a gated label fetch.
+
+    :ivar name_to_content: Raw ``.sh`` fragment text for every label that
+        was actually fetched this run (i.e. SHA changed, new, or
+        ``force=True``). Empty when nothing changed upstream.
+    :ivar name_to_blob_sha: Full upstream view: every label name with its
+        current blob SHA. Used by the ingest step to persist the SHA
+        even for upserts of unchanged-but-re-fetched rows.
+    :ivar removed: Labels that exist in the local DB but are absent from
+        upstream — caller is expected to delete these.
+    :ivar unchanged: Count of labels skipped because their SHA matched
+        what's already stored. Zero on a fresh DB or a ``--force`` run.
+    :ivar missing: Count of fragments that 404'd during fetch. Should be
+        zero now that discovery is tree-driven (the tree only lists files
+        that exist); kept for defensive logging if upstream removes a
+        file mid-run.
+    :ivar errored: Count of fragments that failed with an unexpected
+        error during fetch.
+    """
+
+    name_to_content: dict[str, str] = field(default_factory=dict)
+    name_to_blob_sha: dict[str, str] = field(default_factory=dict)
+    removed: frozenset[str] = field(default_factory=frozenset)
+    unchanged: int = 0
+    missing: int = 0
+    errored: int = 0
+
+
 async def fetch_installomator_labels(
     ref: str | None = None,
     client: httpx.AsyncClient | None = None,
-) -> tuple[dict[str, str], int, int]:
+    *,
+    existing_blob_shas: dict[str, str] | None = None,
+    force: bool = False,
+) -> FetchPlan:
     """
-    Fetch Labels.txt and every label's ``.sh`` fragment from Installomator.
+    Fetch the upstream tree, diff against ``existing_blob_shas``, and
+    download fragments only for labels whose content changed.
 
-    Fetches happen in parallel with a concurrency cap of
-    :data:`_FETCH_CONCURRENCY` to avoid hammering GitHub.
+    Tree-API discovery yields ``{name: blob_sha}`` for every label
+    fragment that exists upstream. Three sets fall out of the diff:
 
-    Labels.txt is a **superset** of what exists as fragment files — some
-    entries are aliases or defined inline in the main ``Installomator.sh``
-    case statement and have no corresponding fragment. Those 404s are
-    expected and are counted toward ``missing``, not ``errored``. Only
-    unexpected errors (network failures, 5xx, rate limits) are logged.
+    - **changed**: name in upstream and (``force`` or
+      ``upstream[name] != existing.get(name)``). Fragment is fetched.
+    - **unchanged**: name in upstream with matching SHA in
+      ``existing_blob_shas``. Skipped entirely.
+    - **removed**: name in ``existing_blob_shas`` but not in upstream.
+      Returned in :attr:`FetchPlan.removed` for the caller to delete.
+
+    Fragment fetches happen in parallel capped by
+    :data:`_FETCH_CONCURRENCY`. With gating in steady state most ingest
+    runs fetch fewer than 20 fragments (the typical weekly churn for
+    Installomator), reducing both wall-clock time and the resolver fan-out
+    that follows.
 
     :param ref: Git ref (branch, tag, or SHA). Defaults to
         ``$PATCHER_API_INSTALLOMATOR_REF`` or ``refs/heads/main``.
@@ -209,37 +327,67 @@ async def fetch_installomator_labels(
     :param client: Optional pre-configured ``httpx.AsyncClient``. If ``None``,
         a new client with a 60-second timeout is created and disposed.
     :type client: httpx.AsyncClient | None
-    :return: ``(name_to_content, missing, errored)`` — ``name_to_content``
-        maps label name → raw ``.sh`` fragment content for every successful
-        fetch; ``missing`` is the count of labels with no fragment file
-        (expected 404s); ``errored`` is the count of labels that failed with
-        an unexpected error.
-    :rtype: tuple[dict[str, str], int, int]
+    :param existing_blob_shas: Map of ``{name: blob_sha}`` already stored
+        in the local DB. ``None`` (default) acts like an empty map — every
+        upstream label is treated as new and fetched.
+    :type existing_blob_shas: dict[str, str] | None
+    :param force: When ``True``, fetch every upstream label regardless of
+        stored SHA. Use after parser changes or when the resolver's
+        coverage improves and you want all rows re-evaluated.
+    :type force: bool
+    :return: A :class:`FetchPlan` carrying fetched content, the full
+        upstream SHA map, the set to remove, and per-bucket counts.
+    :rtype: :class:`FetchPlan`
+    :raises httpx.HTTPError: On tree-fetch failure (per-fragment errors
+        are counted, not raised).
     """
     owns_client = client is None
     client = client or httpx.AsyncClient(timeout=60.0)
     try:
-        labels_txt = await client.get(_labels_txt_url(ref))
-        labels_txt.raise_for_status()
+        upstream = await _fetch_upstream_tree(ref, client=client)
+        existing = existing_blob_shas or {}
 
-        names = {
-            line.strip().lower()
-            for line in labels_txt.text.splitlines()
-            if line.strip() and not line.strip().startswith("#")
-        }
+        if force:
+            changed_names = set(upstream)
+            unchanged = 0
+        else:
+            changed_names = {name for name, sha in upstream.items() if existing.get(name) != sha}
+            unchanged = len(upstream) - len(changed_names)
 
-        total = len(names)
+        removed = frozenset(existing) - frozenset(upstream)
+
         log.info(
-            "Fetching %d Installomator label fragments (concurrency=%d, ref=%s)...",
-            total,
-            _FETCH_CONCURRENCY,
+            "Installomator tree: upstream=%d, changed=%d, unchanged=%d, removed=%d "
+            "(force=%s, ref=%s)",
+            len(upstream),
+            len(changed_names),
+            unchanged,
+            len(removed),
+            force,
             ref or _installomator_ref(),
+        )
+
+        if not changed_names:
+            return FetchPlan(
+                name_to_content={},
+                name_to_blob_sha=upstream,
+                removed=removed,
+                unchanged=unchanged,
+                missing=0,
+                errored=0,
+            )
+
+        log.info(
+            "Fetching %d Installomator label fragments (concurrency=%d)...",
+            len(changed_names),
+            _FETCH_CONCURRENCY,
         )
 
         semaphore = asyncio.Semaphore(_FETCH_CONCURRENCY)
         missing = errored = 0
         name_to_content: dict[str, str] = {}
         completed = 0
+        total = len(changed_names)
 
         async def fetch_one(name: str) -> tuple[str, str | None, str]:
             nonlocal completed
@@ -259,7 +407,7 @@ async def fetch_installomator_labels(
                 log.info("Installomator fetch: %d/%d labels", completed, total)
             return outcome
 
-        results = await asyncio.gather(*(fetch_one(name) for name in names))
+        results = await asyncio.gather(*(fetch_one(name) for name in changed_names))
         for name, content, status in results:
             if status == "ok" and content is not None:
                 name_to_content[name] = content
@@ -275,7 +423,14 @@ async def fetch_installomator_labels(
             errored,
         )
 
-        return name_to_content, missing, errored
+        return FetchPlan(
+            name_to_content=name_to_content,
+            name_to_blob_sha=upstream,
+            removed=removed,
+            unchanged=unchanged,
+            missing=missing,
+            errored=errored,
+        )
     finally:
         if owns_client:
             await client.aclose()
@@ -284,6 +439,8 @@ async def fetch_installomator_labels(
 async def ingest_installomator_labels(
     session: AsyncSession,
     name_to_content: dict[str, str],
+    *,
+    name_to_blob_sha: dict[str, str] | None = None,
 ) -> tuple[int, int, int]:
     """
     Parse the fetched fragments and upsert into the ``installomator_labels`` table.
@@ -301,12 +458,20 @@ async def ingest_installomator_labels(
     :param name_to_content: Dict mapping label name → raw ``.sh`` fragment
         content (typically returned by :func:`fetch_installomator_labels`).
     :type name_to_content: dict[str, str]
+    :param name_to_blob_sha: Optional map of ``{name: blob_sha}`` for the
+        labels being ingested. When provided, the SHA is persisted in the
+        ``blob_sha`` column so future ingests can gate. Lookups missing a
+        SHA fall through to ``NULL``; existing callers that don't pass
+        this kwarg behave exactly as before (no breakage in tests that
+        construct ``name_to_content`` directly).
+    :type name_to_blob_sha: dict[str, str] | None
     :return: ``(ingested, skipped, failed)`` — ingested is the count of
         labels successfully stored; skipped is the count filtered out by
         team-ID exclusion or empty parse; failed is the count that raised
         an unexpected exception during INSERT.
     :rtype: tuple[int, int, int]
     """
+    blob_shas = name_to_blob_sha or {}
     ingested = skipped = failed = 0
     total = len(name_to_content)
 
@@ -390,6 +555,7 @@ async def ingest_installomator_labels(
                     expected_team_id=_scalar_for_column(parsed.get("expectedTeamID")),
                     app_new_version=resolved_app_new_version,
                     raw=parsed,
+                    blob_sha=blob_shas.get(name),
                     ingested_at=now,
                 )
                 stmt = stmt.on_conflict_do_update(
@@ -402,6 +568,7 @@ async def ingest_installomator_labels(
                         "expected_team_id": stmt.excluded.expected_team_id,
                         "app_new_version": stmt.excluded.app_new_version,
                         "raw": stmt.excluded.raw,
+                        "blob_sha": stmt.excluded.blob_sha,
                         "ingested_at": stmt.excluded.ingested_at,
                     },
                 )

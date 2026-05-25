@@ -20,6 +20,13 @@ class InstallomatorLabel(Base):
     the full parsed payload is preserved in ``raw`` so consumers can see
     every variable the label declares — including shell expressions like
     ``downloadURL=$(curl -fs ...)`` stored verbatim.
+
+    ``blob_sha`` is git's content-addressed SHA of the upstream ``.sh``
+    fragment this row was parsed from. Ingest uses it to skip re-fetching
+    labels whose content hasn't changed since the last run; an existing
+    row whose ``blob_sha`` differs from upstream signals a content change
+    that warrants re-parsing. Nullable so rows that pre-date the gating
+    introduction re-fetch on the next ingest pass.
     """
 
     __tablename__ = "installomator_labels"
@@ -32,6 +39,7 @@ class InstallomatorLabel(Base):
     expected_team_id: Mapped[str | None] = mapped_column(String, nullable=True)
     app_new_version: Mapped[str | None] = mapped_column(String, nullable=True)
     raw: Mapped[dict] = mapped_column(JSON)
+    blob_sha: Mapped[str | None] = mapped_column(String, nullable=True)
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

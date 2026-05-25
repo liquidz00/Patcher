@@ -6,9 +6,13 @@ offline. The fragments are real Installomator label syntax (verified against
 the upstream repo); changes here should track upstream label format changes.
 """
 
+import httpx
 import pytest
 from patcher_api.ingest.installomator import (
     IGNORED_TEAMS,
+    FetchPlan,
+    _fetch_upstream_tree,
+    fetch_installomator_labels,
     ingest_installomator_labels,
     parse_fragment,
 )
@@ -418,3 +422,298 @@ async def test_ingest_row_failure_does_not_poison_remaining_batch(test_session, 
     labels = (await test_session.scalars(select(InstallomatorLabel))).all()
     assert len(labels) == 1
     assert labels[0].name in {"firefoxpkg", "googlechromepkg"}
+
+
+# SHA-gating: tree discovery, gating logic, force, deletion, blob_sha persistence.
+
+_TREE_RESPONSE_TWO_LABELS = {
+    "sha": "deadbeef",
+    "url": "https://api.github.com/...",
+    "truncated": False,
+    "tree": [
+        {
+            "mode": "100644",
+            "path": "fragments/labels/firefoxpkg.sh",
+            "sha": "sha-firefox-v1",
+            "size": 400,
+            "type": "blob",
+            "url": "https://api.github.com/...",
+        },
+        {
+            "mode": "100644",
+            "path": "fragments/labels/googlechromepkg.sh",
+            "sha": "sha-chrome-v1",
+            "size": 350,
+            "type": "blob",
+            "url": "https://api.github.com/...",
+        },
+        # Non-fragment entries that must be filtered out.
+        {
+            "mode": "040000",
+            "path": "fragments/labels",
+            "sha": "tree-sha",
+            "type": "tree",
+            "url": "https://api.github.com/...",
+        },
+        {
+            "mode": "100644",
+            "path": "README.md",
+            "sha": "readme-sha",
+            "size": 1000,
+            "type": "blob",
+            "url": "https://api.github.com/...",
+        },
+        {
+            "mode": "100644",
+            "path": "fragments/labels/NOT_A_FRAGMENT.md",
+            "sha": "md-sha",
+            "size": 200,
+            "type": "blob",
+            "url": "https://api.github.com/...",
+        },
+    ],
+}
+
+
+def _mock_client(handler) -> httpx.AsyncClient:
+    """Build an AsyncClient routed through a MockTransport handler."""
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+def _make_handler(
+    *,
+    tree_payload: dict,
+    fragment_payloads: dict[str, str] | None = None,
+) -> "callable":
+    """Build a MockTransport handler that routes tree + fragment requests."""
+    fragments = fragment_payloads or {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "api.github.com" in request.url.host and "/git/trees/" in request.url.path:
+            return httpx.Response(200, json=tree_payload)
+        if "raw.githubusercontent.com" in request.url.host:
+            name = request.url.path.rsplit("/", 1)[-1].removesuffix(".sh")
+            if name in fragments:
+                return httpx.Response(200, text=fragments[name])
+            return httpx.Response(404, text="not found")
+        raise AssertionError(f"unexpected request: {request.method} {request.url}")
+
+    return handler
+
+
+@pytest.mark.asyncio
+async def test_fetch_upstream_tree_filters_to_fragment_blobs():
+    """Tree response carries every repo file; we only want labels/*.sh blobs."""
+    handler = _make_handler(tree_payload=_TREE_RESPONSE_TWO_LABELS)
+    client = _mock_client(handler)
+    try:
+        upstream = await _fetch_upstream_tree(client=client)
+    finally:
+        await client.aclose()
+
+    assert upstream == {
+        "firefoxpkg": "sha-firefox-v1",
+        "googlechromepkg": "sha-chrome-v1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_fetch_upstream_tree_warns_on_truncated_response(caplog):
+    payload = dict(_TREE_RESPONSE_TWO_LABELS, truncated=True)
+    handler = _make_handler(tree_payload=payload)
+    client = _mock_client(handler)
+    try:
+        with caplog.at_level("WARNING"):
+            await _fetch_upstream_tree(client=client)
+    finally:
+        await client.aclose()
+
+    assert any("truncated" in rec.message.lower() for rec in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_fetch_installomator_labels_no_existing_fetches_everything():
+    """With no stored SHAs, every upstream label counts as new."""
+    handler = _make_handler(
+        tree_payload=_TREE_RESPONSE_TWO_LABELS,
+        fragment_payloads={
+            "firefoxpkg": FIREFOX_FRAGMENT,
+            "googlechromepkg": GOOGLECHROME_FRAGMENT,
+        },
+    )
+    client = _mock_client(handler)
+    try:
+        plan = await fetch_installomator_labels(client=client)
+    finally:
+        await client.aclose()
+
+    assert isinstance(plan, FetchPlan)
+    assert set(plan.name_to_content) == {"firefoxpkg", "googlechromepkg"}
+    assert plan.name_to_blob_sha == {
+        "firefoxpkg": "sha-firefox-v1",
+        "googlechromepkg": "sha-chrome-v1",
+    }
+    assert plan.removed == frozenset()
+    assert plan.unchanged == 0
+    assert plan.missing == 0
+    assert plan.errored == 0
+
+
+@pytest.mark.asyncio
+async def test_fetch_installomator_labels_skips_unchanged():
+    """Stored SHA matches upstream → label not re-fetched, counted as unchanged."""
+    fragment_requests: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "api.github.com" in request.url.host:
+            return httpx.Response(200, json=_TREE_RESPONSE_TWO_LABELS)
+        if "raw.githubusercontent.com" in request.url.host:
+            name = request.url.path.rsplit("/", 1)[-1].removesuffix(".sh")
+            fragment_requests.append(name)
+            return httpx.Response(200, text=FIREFOX_FRAGMENT if name == "firefoxpkg" else "")
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    client = _mock_client(handler)
+    try:
+        plan = await fetch_installomator_labels(
+            client=client,
+            existing_blob_shas={
+                "googlechromepkg": "sha-chrome-v1",  # matches upstream
+            },
+        )
+    finally:
+        await client.aclose()
+
+    assert set(plan.name_to_content) == {"firefoxpkg"}  # chrome skipped
+    assert fragment_requests == ["firefoxpkg"]  # no chrome fetch
+    assert plan.unchanged == 1
+
+
+@pytest.mark.asyncio
+async def test_fetch_installomator_labels_reports_removed():
+    """Labels in DB but not upstream are returned for caller deletion."""
+    handler = _make_handler(
+        tree_payload=_TREE_RESPONSE_TWO_LABELS,
+        fragment_payloads={
+            "firefoxpkg": FIREFOX_FRAGMENT,
+            "googlechromepkg": GOOGLECHROME_FRAGMENT,
+        },
+    )
+    client = _mock_client(handler)
+    try:
+        plan = await fetch_installomator_labels(
+            client=client,
+            existing_blob_shas={
+                "firefoxpkg": "sha-firefox-v0",  # changed
+                "googlechromepkg": "sha-chrome-v1",  # unchanged
+                "oldlabel": "sha-old",  # not upstream → remove
+            },
+        )
+    finally:
+        await client.aclose()
+
+    assert plan.removed == frozenset({"oldlabel"})
+
+
+@pytest.mark.asyncio
+async def test_fetch_installomator_labels_all_unchanged_returns_empty_content():
+    handler = _make_handler(
+        tree_payload=_TREE_RESPONSE_TWO_LABELS,
+        fragment_payloads={
+            "firefoxpkg": FIREFOX_FRAGMENT,
+            "googlechromepkg": GOOGLECHROME_FRAGMENT,
+        },
+    )
+    client = _mock_client(handler)
+    try:
+        plan = await fetch_installomator_labels(
+            client=client,
+            existing_blob_shas={
+                "firefoxpkg": "sha-firefox-v1",
+                "googlechromepkg": "sha-chrome-v1",
+            },
+        )
+    finally:
+        await client.aclose()
+
+    assert plan.name_to_content == {}
+    assert plan.unchanged == 2
+    # Upstream SHA map is still returned in full so callers can refresh
+    # the stored SHA even when content didn't change.
+    assert plan.name_to_blob_sha == {
+        "firefoxpkg": "sha-firefox-v1",
+        "googlechromepkg": "sha-chrome-v1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_fetch_installomator_labels_force_bypasses_gating():
+    """force=True re-fetches even when stored SHAs match upstream."""
+    handler = _make_handler(
+        tree_payload=_TREE_RESPONSE_TWO_LABELS,
+        fragment_payloads={
+            "firefoxpkg": FIREFOX_FRAGMENT,
+            "googlechromepkg": GOOGLECHROME_FRAGMENT,
+        },
+    )
+    client = _mock_client(handler)
+    try:
+        plan = await fetch_installomator_labels(
+            client=client,
+            existing_blob_shas={
+                "firefoxpkg": "sha-firefox-v1",
+                "googlechromepkg": "sha-chrome-v1",
+            },
+            force=True,
+        )
+    finally:
+        await client.aclose()
+
+    assert set(plan.name_to_content) == {"firefoxpkg", "googlechromepkg"}
+    assert plan.unchanged == 0
+
+
+@pytest.mark.asyncio
+async def test_ingest_persists_blob_sha_when_provided(test_session):
+    """blob_sha lands in the column when name_to_blob_sha is passed through."""
+    await ingest_installomator_labels(
+        test_session,
+        {"firefoxpkg": FIREFOX_FRAGMENT},
+        name_to_blob_sha={"firefoxpkg": "sha-firefox-v1"},
+    )
+
+    label = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "firefoxpkg")
+    )
+    assert label.blob_sha == "sha-firefox-v1"
+
+
+@pytest.mark.asyncio
+async def test_ingest_leaves_blob_sha_null_when_map_absent(test_session):
+    """Backward-compat: existing callers that don't pass name_to_blob_sha still work."""
+    await ingest_installomator_labels(test_session, {"firefoxpkg": FIREFOX_FRAGMENT})
+
+    label = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "firefoxpkg")
+    )
+    assert label.blob_sha is None
+
+
+@pytest.mark.asyncio
+async def test_ingest_updates_blob_sha_on_upsert(test_session):
+    """Re-ingesting the same label with a new SHA updates the column."""
+    await ingest_installomator_labels(
+        test_session,
+        {"firefoxpkg": FIREFOX_FRAGMENT},
+        name_to_blob_sha={"firefoxpkg": "sha-firefox-v1"},
+    )
+    await ingest_installomator_labels(
+        test_session,
+        {"firefoxpkg": FIREFOX_FRAGMENT},
+        name_to_blob_sha={"firefoxpkg": "sha-firefox-v2"},
+    )
+
+    label = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "firefoxpkg")
+    )
+    assert label.blob_sha == "sha-firefox-v2"
