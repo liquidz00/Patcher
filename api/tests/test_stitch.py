@@ -25,7 +25,9 @@ from patcher_api.stitch import (
     _find_matching_cask,
     _index_autopkg_by_name,
     _index_casks_by_app_name,
+    _index_jai_by_title,
     _infer_install_method_from_cask,
+    _jai_index_keys,
     _normalize_name,
     _resolve_download_url,
     _resolve_install_method,
@@ -306,6 +308,57 @@ class TestNormalizeName:
 
     def test_empty_returns_empty(self):
         assert _normalize_name("") == ""
+
+
+class TestJaiIndexKeys:
+    """JAI titles carry decoration the Installomator label name omits; the key
+    generator strips it so a decorated title still matches a bare label."""
+
+    def test_exact_title_is_first_key(self):
+        assert _jai_index_keys("Firefox")[0] == "firefox"
+
+    def test_trailing_version_dropped(self):
+        keys = _jai_index_keys("Sublime Text 4")
+        assert "sublimetext" in keys
+
+    def test_trailing_year_dropped(self):
+        assert "adobeaftereffects" in _jai_index_keys("Adobe After Effects 2025")
+
+    def test_trailing_edition_words_dropped(self):
+        # "DC Continuous" are both edition tokens.
+        assert "adobeacrobatreader" in _jai_index_keys("Adobe Acrobat Reader DC Continuous")
+
+    def test_leading_known_vendor_dropped(self):
+        # The motivating case: SAP Privileges must reach the `privileges` label.
+        assert "privileges" in _jai_index_keys("SAP Privileges")
+
+    def test_leading_non_vendor_token_kept(self):
+        # "Visual" isn't a vendor, so a real two-word name keeps its first word.
+        keys = _jai_index_keys("Visual Studio")
+        assert "studio" not in keys
+        assert "visualstudio" in keys
+
+    def test_dotted_version_dropped(self):
+        assert "wireshark" in _jai_index_keys("Wireshark 4.6")
+
+
+class TestIndexJaiByTitle:
+    def test_decorated_title_indexed_under_bare_name(self):
+        index = _index_jai_by_title([_make_jai(title="SAP Privileges")])
+        assert index["privileges"].title == "SAP Privileges"
+        assert index["sapprivileges"].title == "SAP Privileges"
+
+    def test_exact_match_beats_decoration_stripped(self):
+        # A bare "Privileges" title must own the "privileges" key even when a
+        # "SAP Privileges" row also strips down to it.
+        rows = [_make_jai(title="SAP Privileges"), _make_jai(title="Privileges")]
+        index = _index_jai_by_title(rows)
+        assert index["privileges"].title == "Privileges"
+
+    def test_first_write_wins_on_stripped_collision(self):
+        rows = [_make_jai(title="Wireshark 4.2"), _make_jai(title="Wireshark 4.6")]
+        index = _index_jai_by_title(rows)
+        assert index["wireshark"].title == "Wireshark 4.2"
 
 
 class TestIndexAutopkgByName:

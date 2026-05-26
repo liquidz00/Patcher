@@ -62,6 +62,64 @@ _CANONICAL_SOURCE_ORDER = (
     "mas",
 )
 
+# JAI catalog titles carry decoration the Installomator label name omits: a
+# trailing version/year/edition ("Sublime Text 4", "Microsoft Word 365",
+# "Acrobat DC Continuous") and/or a leading vendor ("SAP Privileges", "Cisco
+# Webex"). Stripping these lets a decorated title match a bare label.
+_JAI_YEAR_PATTERN = re.compile(r"^(?:19|20)\d{2}$")
+_JAI_VERSION_PATTERN = re.compile(r"^v?\d+(?:\.\d+)*$")
+_JAI_EDITION_TOKENS: set[str] = {
+    "dc",
+    "continuous",
+    "x",
+    "pro",
+    "enterprise",
+    "standard",
+    "lts",
+    "ce",
+    "beta",
+    "unified",
+    "classic",
+    "legacy",
+    "app",
+    "edition",
+    "plus",
+    "mac",
+    "macos",
+}
+# Leading tokens stripped only when recognized as a vendor, so a genuine
+# two-word app name ("Visual Studio", "Final Cut") never loses its first word.
+# Extend as new vendor-prefixed JAI titles surface.
+_JAI_VENDOR_PREFIXES: set[str] = {
+    "adobe",
+    "amazon",
+    "apple",
+    "atlassian",
+    "cisco",
+    "citrix",
+    "dell",
+    "extensis",
+    "facebook",
+    "google",
+    "hp",
+    "ibm",
+    "iterate",
+    "jamf",
+    "jetbrains",
+    "logmein",
+    "microsoft",
+    "mozilla",
+    "openai",
+    "oracle",
+    "poly",
+    "readcube",
+    "root3",
+    "sap",
+    "techsmith",
+    "vmware",
+    "zoom",
+}
+
 
 def _extract_vendor(il: InstallomatorLabel) -> str | None:
     """
@@ -395,20 +453,62 @@ async def _attach_mas_to_existing_app(
     await session.execute(detail_stmt)
 
 
+def _jai_index_keys(title: str) -> list[str]:
+    """
+    Normalized lookup keys a JAI title should be indexed under, decoration
+    widening down the list so exact forms keep priority:
+
+    1. the exact normalized title (``"SAP Privileges"`` → ``"sapprivileges"``),
+    2. with trailing version/year/edition tokens dropped
+       (``"Sublime Text 4"`` → ``"sublimetext"``), and
+    3. additionally with a leading *known-vendor* token dropped
+       (``"SAP Privileges"`` → ``"privileges"``).
+
+    The vendor strip is gated on :data:`_JAI_VENDOR_PREFIXES` so a real
+    two-word app name never loses its first word. Bare-string keys only —
+    callers map each to the row and resolve collisions first-wins.
+    """
+    exact = _normalize_name(title)
+    keys = [exact] if exact else []
+
+    tokens = re.findall(r"[a-z0-9]+", title.lower())
+    while tokens and (
+        _JAI_YEAR_PATTERN.match(tokens[-1])
+        or tokens[-1] in _JAI_EDITION_TOKENS
+        or _JAI_VERSION_PATTERN.fullmatch(tokens[-1])
+    ):
+        tokens.pop()
+
+    trailing_stripped = "".join(tokens)
+    if trailing_stripped and trailing_stripped not in keys:
+        keys.append(trailing_stripped)
+    if tokens and tokens[0] in _JAI_VENDOR_PREFIXES:
+        vendor_stripped = "".join(tokens[1:])
+        if vendor_stripped and vendor_stripped not in keys:
+            keys.append(vendor_stripped)
+    return keys
+
+
 def _index_jai_by_title(jai_rows: list[JamfAppInstaller]) -> dict[str, JamfAppInstaller]:
     """
-    Build a normalized-title → JAI row lookup. Titles are unique in the
-    JAI catalog, so this is a 1:1 map rather than the 1:N pattern AutoPkg
-    uses.
+    Build a normalized-key → JAI row lookup tolerant of decorated titles.
+
+    JAI titles routinely carry a version/year/edition suffix or a vendor
+    prefix the Installomator label name omits, so an exact-equality match
+    misses ~60 titles whose app *is* in the catalog (e.g. ``"SAP Privileges"``
+    vs the ``privileges`` label). Each row is therefore indexed under several
+    keys (see :func:`_jai_index_keys`). Two passes guarantee exact-title
+    matches always beat a decoration-stripped one: every exact key is claimed
+    first, then the stripped variants fill only the keys still unclaimed.
     """
     index: dict[str, JamfAppInstaller] = {}
     for j in jai_rows:
         key = _normalize_name(j.title)
-        if not key:
-            continue
-        # First-write wins on collision (shouldn't happen in practice with
-        # unique upstream titles, but defensive).
-        index.setdefault(key, j)
+        if key:
+            index.setdefault(key, j)
+    for j in jai_rows:
+        for key in _jai_index_keys(j.title):
+            index.setdefault(key, j)
     return index
 
 
