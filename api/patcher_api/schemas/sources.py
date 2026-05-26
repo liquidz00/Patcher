@@ -23,11 +23,20 @@ class HomebrewCaskSource(BaseModel):
 
 
 class AutopkgRecipeEntry(BaseModel):
-    """Single recipe attached to an app via the AutoPkg index."""
+    """
+    Single recipe attached to an app via the AutoPkg index.
+
+    ``name`` and ``shortname`` are optional, mirroring the upstream index
+    (and the :class:`~patcher_api.schemas.autopkg.AutopkgIndexEntry` ingest
+    schema): shared-processor recipes carry ``name: null`` and some app
+    recipes have no clean ``shortname``. The response must tolerate the
+    ``None`` that stitch faithfully stored, or ``/apps/{slug}/sources``
+    500s for any app whose matched recipes lack one.
+    """
 
     identifier: str
-    name: str
-    shortname: str
+    name: str | None = None
+    shortname: str | None = None
     repo: str
     path: str
     parent_identifier: str | None = None

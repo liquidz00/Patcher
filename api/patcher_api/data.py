@@ -13,6 +13,7 @@ from patcher_api.schemas.sources import (
     AppSources,
     HomebrewCaskSource,
     InstallomatorSource,
+    JamfAppInstallerSource,
 )
 
 SEED_APPS: list[App] = [
@@ -114,6 +115,10 @@ SEED_SOURCES: dict[str, AppSources] = {
                 "depends_on": {"macos": ">= :el_capitan"},
                 "artifacts": [{"app": ["Firefox.app"]}],
             },
+        ),
+        jamf_app_installer=JamfAppInstallerSource(
+            title="Mozilla Firefox",
+            source="Jamf",
         ),
     ),
     "google-chrome": AppSources(

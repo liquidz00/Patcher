@@ -47,6 +47,11 @@ async def seed_database(session: AsyncSession) -> int:
                     sources.homebrew_cask.model_dump(mode="json") if sources.homebrew_cask else None
                 ),
                 autopkg=(sources.autopkg.model_dump(mode="json") if sources.autopkg else None),
+                jamf_app_installer=(
+                    sources.jamf_app_installer.model_dump(mode="json")
+                    if sources.jamf_app_installer
+                    else None
+                ),
             )
         session.add(row)
 
