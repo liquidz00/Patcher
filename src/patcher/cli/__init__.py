@@ -35,6 +35,7 @@ DATE_FORMATS = {
 
 # Context settings to enable both ``-h`` and ``--help`` for help output
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+_SINCE_PATTERN = re.compile(r"^(\d+)([dhw])$")  # short window: 30d / 24h / 1w
 
 
 def format_table(data: list[list], headers: list[str] | None = None) -> str:
@@ -51,9 +52,6 @@ def format_table(data: list[list], headers: list[str] | None = None) -> str:
         rows.insert(1, separator)
 
     return "\n".join(rows)
-
-
-_SINCE_PATTERN = re.compile(r"^(\d+)([dhw])$")
 
 
 def parse_since(value: str) -> timedelta:
