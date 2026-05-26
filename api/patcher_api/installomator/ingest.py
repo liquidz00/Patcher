@@ -109,191 +109,6 @@ def set_resolve_on_ingest(enabled: bool) -> None:
     _RESOLVE_ON_INGEST = enabled
 
 
-def _scalar_for_column(value: Any) -> str | None:
-    """
-    Coerce a parsed-label value into a string for a scalar TEXT column.
-
-    Some labels declare variables with bash array syntax (e.g.
-    ``appNewVersion=(${version}.${build})``) which the parser returns as a
-    Python list. For the projected columns (which are scalar TEXT), we surface
-    the first element — the full structure is still preserved in the ``raw``
-    JSON column, so callers needing the array can recover it from there.
-
-    :param value: A value from the parsed-fragment dict (string, list, or None).
-    :type value: Any
-    :return: Scalar string representation, or ``None`` for empty input.
-    :rtype: str | None
-    """
-    if value is None:
-        return None
-    if isinstance(value, list):
-        return str(value[0]) if value else None
-    return str(value)
-
-
-def _resolve_or_null(
-    value: str | None,
-    http_client: httpx.Client | None = None,
-    *,
-    is_url: bool = False,
-    context: dict | None = None,
-) -> str | None:
-    """
-    Evaluate a label value via pyinstallomator's :func:`resolve`. Returns the
-    final string when resolve produces :class:`Resolved`, otherwise ``None``
-    when it produces :class:`Unresolvable` or :class:`InvalidOutput`.
-
-    URL validation lives inside :func:`resolve` itself when ``is_url=True``:
-    a value that fails :func:`looks_like_clean_http_url` comes back as
-    :class:`InvalidOutput`, which this wrapper nulls. Callers don't have to
-    re-apply the validator.
-
-    Synchronous and HTTP-bound. Wrap in :func:`asyncio.to_thread` when calling
-    from an async context to avoid blocking the event loop while pipelines
-    fan out to upstream sites.
-
-    :param value: Raw value from the parsed label fragment.
-    :type value: str | None
-    :param http_client: Pre-configured ``httpx.Client`` reused across calls.
-        When ``None``, :func:`resolve` creates a fresh client per curl
-        invocation. Fine for one-off use, but spawns thousands of clients
-        (each with its own SSL context) during a full ingest, which OOMs
-        small hosts. Callers running a batch should construct one client
-        and pass it in.
-    :type http_client: httpx.Client | None
-    :param is_url: When ``True``, the resolved value is run through
-        :func:`looks_like_clean_http_url` inside :func:`resolve` itself.
-        Pass for fields whose projected column is later serialized as
-        ``HttpUrl``. Defaults to ``False`` for non-URL fields
-        (e.g. ``appNewVersion``).
-    :type is_url: bool
-    :return: Clean literal usable as a projected column value, or ``None``.
-    :rtype: str | None
-    """
-    if value is None:
-        return None
-    if not _RESOLVE_ON_INGEST:
-        # Resolution disabled. Null shell expressions without attempting any
-        # HTTP-bound evaluation. Plain literals still flow through
-        # :func:`resolve` so the URL validator runs on them (catches literal
-        # ftp:// label values and similar).
-        if is_shell_expression(value):
-            return None
-    outcome = resolve(value, http_client=http_client, is_url=is_url, context=context)
-    match outcome:
-        case Resolved(value=resolved_value):
-            # Belt-and-suspenders: even literal pass-throughs can carry
-            # embedded substitutions the anchored resolver didn't touch.
-            if is_shell_expression(resolved_value):
-                return None
-            return resolved_value
-        case Unresolvable() | InvalidOutput():
-            return None
-
-
-async def _resolve_download_and_version(
-    parsed: dict[str, Any], resolver_client: httpx.Client | None
-) -> tuple[str | None, str | None]:
-    """Resolve a parsed label's ``downloadURL`` (URL-validated) and ``appNewVersion``."""
-    raw_download_url = _scalar_for_column(parsed.get("downloadURL"))
-    raw_app_new_version = _scalar_for_column(parsed.get("appNewVersion"))
-    return await asyncio.gather(
-        asyncio.to_thread(
-            _resolve_or_null, raw_download_url, resolver_client, is_url=True, context=parsed
-        ),
-        asyncio.to_thread(_resolve_or_null, raw_app_new_version, resolver_client, context=parsed),
-    )
-
-
-def _has_dynamic_projection(raw: dict[str, Any]) -> bool:
-    """True if the label's ``downloadURL`` or ``appNewVersion`` is a shell expression."""
-    return is_shell_expression(_scalar_for_column(raw.get("downloadURL"))) or is_shell_expression(
-        _scalar_for_column(raw.get("appNewVersion"))
-    )
-
-
-def _installomator_ref() -> str:
-    return os.environ.get("PATCHER_API_INSTALLOMATOR_REF", _DEFAULT_REF)
-
-
-def _tree_api_ref(ref: str | None = None) -> str:
-    """
-    Normalize a ref for GitHub's tree API.
-
-    The raw-content URLs accept ``refs/heads/main``; the tree API expects
-    a bare ref name (``main``, a tag, or a commit SHA). Strip the prefix.
-    """
-    return (ref or _installomator_ref()).removeprefix("refs/heads/")
-
-
-def _tree_api_url(ref: str | None = None) -> str:
-    return (
-        f"{_GITHUB_API_BASE}/repos/Installomator/Installomator/git/trees/"
-        f"{_tree_api_ref(ref)}?recursive=1"
-    )
-
-
-def _fragment_url(name: str, ref: str | None = None) -> str:
-    return f"{_INSTALLOMATOR_RAW_BASE}/{ref or _installomator_ref()}/fragments/labels/{name}.sh"
-
-
-async def _fetch_upstream_tree(
-    ref: str | None = None,
-    client: httpx.AsyncClient | None = None,
-) -> dict[str, str]:
-    """
-    Fetch the upstream tree and return ``{label_name: blob_sha}``.
-
-    One HTTP call returns every file in the repo with its content SHA;
-    we filter to ``fragments/labels/*.sh`` blobs. The returned map is
-    the authoritative discovery list — names exist iff a fragment file
-    exists, so this replaces ``Labels.txt`` (which is a superset that
-    includes inline aliases without fragments).
-
-    :param ref: Git ref to query (branch, tag, or commit SHA). Defaults
-        to ``$PATCHER_API_INSTALLOMATOR_REF`` or ``main``.
-    :type ref: str | None
-    :param client: Optional pre-configured ``httpx.AsyncClient``.
-    :type client: httpx.AsyncClient | None
-    :return: Mapping of label name (e.g. ``"firefoxpkg"``) to its
-        upstream blob SHA.
-    :rtype: dict[str, str]
-    :raises httpx.HTTPError: On network failure or non-2xx tree response.
-    """
-    owns_client = client is None
-    client = client or httpx.AsyncClient(timeout=60.0)
-    # The git/trees endpoint is api.github.com — same 60/hr unauthenticated
-    # budget as downloadURLFromGit. Authenticate it too when a token is set
-    # (5000/hr) so discovery doesn't fail before resolution even starts.
-    headers = {"Accept": "application/vnd.github+json"}
-    token = _github_token()
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    try:
-        response = await client.get(_tree_api_url(ref), headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        if data.get("truncated"):
-            log.warning(
-                "GitHub tree response was truncated; some labels may be missing. "
-                "This is unexpected for the Installomator repo — investigate.",
-            )
-        upstream: dict[str, str] = {}
-        for entry in data.get("tree", []):
-            path = entry.get("path", "")
-            if (
-                entry.get("type") == "blob"
-                and path.startswith("fragments/labels/")
-                and path.endswith(".sh")
-            ):
-                name = path.removeprefix("fragments/labels/").removesuffix(".sh").lower()
-                upstream[name] = entry["sha"]
-        return upstream
-    finally:
-        if owns_client:
-            await client.aclose()
-
-
 @dataclass(frozen=True)
 class FetchPlan:
     """
@@ -678,3 +493,188 @@ async def refresh_dynamic_resolutions(session: AsyncSession, *, already_resolved
 
     log.info("Resolution refresh complete: %d label(s) updated.", refreshed)
     return refreshed
+
+
+def _scalar_for_column(value: Any) -> str | None:
+    """
+    Coerce a parsed-label value into a string for a scalar TEXT column.
+
+    Some labels declare variables with bash array syntax (e.g.
+    ``appNewVersion=(${version}.${build})``) which the parser returns as a
+    Python list. For the projected columns (which are scalar TEXT), we surface
+    the first element — the full structure is still preserved in the ``raw``
+    JSON column, so callers needing the array can recover it from there.
+
+    :param value: A value from the parsed-fragment dict (string, list, or None).
+    :type value: Any
+    :return: Scalar string representation, or ``None`` for empty input.
+    :rtype: str | None
+    """
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return str(value[0]) if value else None
+    return str(value)
+
+
+def _resolve_or_null(
+    value: str | None,
+    http_client: httpx.Client | None = None,
+    *,
+    is_url: bool = False,
+    context: dict | None = None,
+) -> str | None:
+    """
+    Evaluate a label value via pyinstallomator's :func:`resolve`. Returns the
+    final string when resolve produces :class:`Resolved`, otherwise ``None``
+    when it produces :class:`Unresolvable` or :class:`InvalidOutput`.
+
+    URL validation lives inside :func:`resolve` itself when ``is_url=True``:
+    a value that fails :func:`looks_like_clean_http_url` comes back as
+    :class:`InvalidOutput`, which this wrapper nulls. Callers don't have to
+    re-apply the validator.
+
+    Synchronous and HTTP-bound. Wrap in :func:`asyncio.to_thread` when calling
+    from an async context to avoid blocking the event loop while pipelines
+    fan out to upstream sites.
+
+    :param value: Raw value from the parsed label fragment.
+    :type value: str | None
+    :param http_client: Pre-configured ``httpx.Client`` reused across calls.
+        When ``None``, :func:`resolve` creates a fresh client per curl
+        invocation. Fine for one-off use, but spawns thousands of clients
+        (each with its own SSL context) during a full ingest, which OOMs
+        small hosts. Callers running a batch should construct one client
+        and pass it in.
+    :type http_client: httpx.Client | None
+    :param is_url: When ``True``, the resolved value is run through
+        :func:`looks_like_clean_http_url` inside :func:`resolve` itself.
+        Pass for fields whose projected column is later serialized as
+        ``HttpUrl``. Defaults to ``False`` for non-URL fields
+        (e.g. ``appNewVersion``).
+    :type is_url: bool
+    :return: Clean literal usable as a projected column value, or ``None``.
+    :rtype: str | None
+    """
+    if value is None:
+        return None
+    if not _RESOLVE_ON_INGEST:
+        # Resolution disabled. Null shell expressions without attempting any
+        # HTTP-bound evaluation. Plain literals still flow through
+        # :func:`resolve` so the URL validator runs on them (catches literal
+        # ftp:// label values and similar).
+        if is_shell_expression(value):
+            return None
+    outcome = resolve(value, http_client=http_client, is_url=is_url, context=context)
+    match outcome:
+        case Resolved(value=resolved_value):
+            # Belt-and-suspenders: even literal pass-throughs can carry
+            # embedded substitutions the anchored resolver didn't touch.
+            if is_shell_expression(resolved_value):
+                return None
+            return resolved_value
+        case Unresolvable() | InvalidOutput():
+            return None
+
+
+async def _resolve_download_and_version(
+    parsed: dict[str, Any], resolver_client: httpx.Client | None
+) -> tuple[str | None, str | None]:
+    """Resolve a parsed label's ``downloadURL`` (URL-validated) and ``appNewVersion``."""
+    raw_download_url = _scalar_for_column(parsed.get("downloadURL"))
+    raw_app_new_version = _scalar_for_column(parsed.get("appNewVersion"))
+    return await asyncio.gather(
+        asyncio.to_thread(
+            _resolve_or_null, raw_download_url, resolver_client, is_url=True, context=parsed
+        ),
+        asyncio.to_thread(_resolve_or_null, raw_app_new_version, resolver_client, context=parsed),
+    )
+
+
+def _has_dynamic_projection(raw: dict[str, Any]) -> bool:
+    """True if the label's ``downloadURL`` or ``appNewVersion`` is a shell expression."""
+    return is_shell_expression(_scalar_for_column(raw.get("downloadURL"))) or is_shell_expression(
+        _scalar_for_column(raw.get("appNewVersion"))
+    )
+
+
+def _installomator_ref() -> str:
+    return os.environ.get("PATCHER_API_INSTALLOMATOR_REF", _DEFAULT_REF)
+
+
+def _tree_api_ref(ref: str | None = None) -> str:
+    """
+    Normalize a ref for GitHub's tree API.
+
+    The raw-content URLs accept ``refs/heads/main``; the tree API expects
+    a bare ref name (``main``, a tag, or a commit SHA). Strip the prefix.
+    """
+    return (ref or _installomator_ref()).removeprefix("refs/heads/")
+
+
+def _tree_api_url(ref: str | None = None) -> str:
+    return (
+        f"{_GITHUB_API_BASE}/repos/Installomator/Installomator/git/trees/"
+        f"{_tree_api_ref(ref)}?recursive=1"
+    )
+
+
+def _fragment_url(name: str, ref: str | None = None) -> str:
+    return f"{_INSTALLOMATOR_RAW_BASE}/{ref or _installomator_ref()}/fragments/labels/{name}.sh"
+
+
+async def _fetch_upstream_tree(
+    ref: str | None = None,
+    client: httpx.AsyncClient | None = None,
+) -> dict[str, str]:
+    """
+    Fetch the upstream tree and return ``{label_name: blob_sha}``.
+
+    One HTTP call returns every file in the repo with its content SHA;
+    we filter to ``fragments/labels/*.sh`` blobs. The returned map is
+    the authoritative discovery list — names exist iff a fragment file
+    exists, so this replaces ``Labels.txt`` (which is a superset that
+    includes inline aliases without fragments).
+
+    :param ref: Git ref to query (branch, tag, or commit SHA). Defaults
+        to ``$PATCHER_API_INSTALLOMATOR_REF`` or ``main``.
+    :type ref: str | None
+    :param client: Optional pre-configured ``httpx.AsyncClient``.
+    :type client: httpx.AsyncClient | None
+    :return: Mapping of label name (e.g. ``"firefoxpkg"``) to its
+        upstream blob SHA.
+    :rtype: dict[str, str]
+    :raises httpx.HTTPError: On network failure or non-2xx tree response.
+    """
+    owns_client = client is None
+    client = client or httpx.AsyncClient(timeout=60.0)
+    # The git/trees endpoint is api.github.com — same 60/hr unauthenticated
+    # budget as downloadURLFromGit. Authenticate it too when a token is set
+    # (5000/hr) so discovery doesn't fail before resolution even starts.
+    headers = {"Accept": "application/vnd.github+json"}
+    token = _github_token()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        response = await client.get(_tree_api_url(ref), headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        if data.get("truncated"):
+            log.warning(
+                "GitHub tree response was truncated; some labels may be missing. "
+                "This is unexpected for the Installomator repo — investigate.",
+            )
+        upstream: dict[str, str] = {}
+        for entry in data.get("tree", []):
+            path = entry.get("path", "")
+            if (
+                entry.get("type") == "blob"
+                and path.startswith("fragments/labels/")
+                and path.endswith(".sh")
+            ):
+                name = path.removeprefix("fragments/labels/").removesuffix(".sh").lower()
+                upstream[name] = entry["sha"]
+        return upstream
+    finally:
+        if owns_client:
+            await client.aclose()
