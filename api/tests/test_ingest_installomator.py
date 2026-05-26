@@ -1015,3 +1015,12 @@ async def test_refresh_dynamic_resolutions_skips_literal_only(test_session, monk
     monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", True)
 
     assert await refresh_dynamic_resolutions(test_session, already_resolved=set()) == 0
+
+
+def test_set_resolve_on_ingest_toggles_the_flag(monkeypatch):
+    """The --resolve CLI flag flips resolution on at runtime (bypassing env export)."""
+    from patcher_api.installomator import ingest
+
+    monkeypatch.setattr(ingest, "_RESOLVE_ON_INGEST", False)
+    ingest.set_resolve_on_ingest(True)
+    assert ingest._RESOLVE_ON_INGEST is True

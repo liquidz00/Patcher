@@ -69,6 +69,7 @@ __all__ = [
     "ingest_installomator_labels",
     "parse_fragment",
     "refresh_dynamic_resolutions",
+    "set_resolve_on_ingest",
 ]
 
 # Mirror existing IGNORED_TEAMS list
@@ -93,6 +94,19 @@ _RESOLVE_ON_INGEST = os.environ.get("PATCHER_API_RESOLVE_INGEST", "").lower() in
 )
 
 log = logging.getLogger(__name__)
+
+
+def set_resolve_on_ingest(enabled: bool) -> None:
+    """
+    Override the ``PATCHER_API_RESOLVE_INGEST`` env default at runtime.
+
+    Lets the ``--resolve`` CLI flag turn resolution on explicitly, sidestepping
+    the shell-export footgun where an unexported env var never reaches the
+    ingest process. The resolution functions read this module global at call
+    time, so setting it before they run takes effect.
+    """
+    global _RESOLVE_ON_INGEST
+    _RESOLVE_ON_INGEST = enabled
 
 
 def _scalar_for_column(value: Any) -> str | None:
