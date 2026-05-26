@@ -47,6 +47,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
+from sqlalchemy import select, update
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -67,6 +68,7 @@ __all__ = [
     "fetch_installomator_labels",
     "ingest_installomator_labels",
     "parse_fragment",
+    "refresh_dynamic_resolutions",
 ]
 
 # Mirror existing IGNORED_TEAMS list
@@ -75,22 +77,15 @@ IGNORED_TEAMS: set[str] = {"Frydendal", "Media", "LL3KBL2M3A"}
 _INSTALLOMATOR_RAW_BASE = "https://raw.githubusercontent.com/Installomator/Installomator"
 _GITHUB_API_BASE = "https://api.github.com"
 _DEFAULT_REF = "refs/heads/main"
-
-# Don't be rude, limit requests sent
+_PROGRESS_EVERY = 100  # for logging
 _FETCH_CONCURRENCY = 10
 
 # Limit concurrent resolve operations during ingest.
-#   Each resolve can spawn a bash subprocess (for unsupported pipelines)
-#   or hit upstream vendor sites, so this is a CPU + network-bound mix.
-#
 # Override via PATCHER_API_RESOLVE_CONCURRENCY for tuning on tighter hosts.
 _RESOLVE_CONCURRENCY = int(os.environ.get("PATCHER_API_RESOLVE_CONCURRENCY", "25"))
 
-# Progress interval for logging (every N titles gets a logging statement)
-_PROGRESS_EVERY = 100
-
 # Label Resolution (opt-in).
-#   When set, shell-expression dynamic values are resolved instead of being nulled out.
+# When set, shell-expression dynamic values are resolved instead of being nulled out.
 _RESOLVE_ON_INGEST = os.environ.get("PATCHER_API_RESOLVE_INGEST", "").lower() in (
     "1",
     "true",
@@ -180,6 +175,27 @@ def _resolve_or_null(
             return resolved_value
         case Unresolvable() | InvalidOutput():
             return None
+
+
+async def _resolve_download_and_version(
+    parsed: dict[str, Any], resolver_client: httpx.Client | None
+) -> tuple[str | None, str | None]:
+    """Resolve a parsed label's ``downloadURL`` (URL-validated) and ``appNewVersion``."""
+    raw_download_url = _scalar_for_column(parsed.get("downloadURL"))
+    raw_app_new_version = _scalar_for_column(parsed.get("appNewVersion"))
+    return await asyncio.gather(
+        asyncio.to_thread(
+            _resolve_or_null, raw_download_url, resolver_client, is_url=True, context=parsed
+        ),
+        asyncio.to_thread(_resolve_or_null, raw_app_new_version, resolver_client, context=parsed),
+    )
+
+
+def _has_dynamic_projection(raw: dict[str, Any]) -> bool:
+    """True if the label's ``downloadURL`` or ``appNewVersion`` is a shell expression."""
+    return is_shell_expression(_scalar_for_column(raw.get("downloadURL"))) or is_shell_expression(
+        _scalar_for_column(raw.get("appNewVersion"))
+    )
 
 
 def _installomator_ref() -> str:
@@ -498,20 +514,10 @@ async def ingest_installomator_labels(
             if not parsed or parsed.get("expectedTeamID") in IGNORED_TEAMS:
                 outcome = (name, None, None, None)
             else:
-                raw_download_url = _scalar_for_column(parsed.get("downloadURL"))
-                raw_app_new_version = _scalar_for_column(parsed.get("appNewVersion"))
-                resolved_download_url, resolved_app_new_version = await asyncio.gather(
-                    asyncio.to_thread(
-                        _resolve_or_null,
-                        raw_download_url,
-                        resolver_client,
-                        is_url=True,
-                        context=parsed,
-                    ),
-                    asyncio.to_thread(
-                        _resolve_or_null, raw_app_new_version, resolver_client, context=parsed
-                    ),
-                )
+                (
+                    resolved_download_url,
+                    resolved_app_new_version,
+                ) = await _resolve_download_and_version(parsed, resolver_client)
                 outcome = (name, parsed, resolved_download_url, resolved_app_new_version)
         resolve_completed += 1
         if resolve_completed % _PROGRESS_EVERY == 0 or resolve_completed == total:
@@ -586,3 +592,75 @@ async def ingest_installomator_labels(
     )
 
     return ingested, skipped, failed
+
+
+async def refresh_dynamic_resolutions(session: AsyncSession, *, already_resolved: set[str]) -> int:
+    """
+    Re-resolve dynamic ``downloadURL`` / ``appNewVersion`` for labels skipped by
+    SHA gating, keeping the catalog fresh.
+
+    A label like ``appNewVersion=$(versionFromGit …)`` has stable bash (its SHA
+    never moves) but a *resolved value* that drifts as new versions ship. SHA
+    gating skips re-fetching such labels, so without this pass their resolved
+    columns would go stale. We re-resolve them from the **stored** ``raw`` (no
+    re-fetch, no re-parse) and update only the two projected columns.
+
+    Skips labels in ``already_resolved`` (freshly ingested this run) and any
+    whose projected fields are literals (nothing to drift). No-op when
+    ``PATCHER_API_RESOLVE_INGEST`` is off.
+
+    :param session: Async SQLAlchemy session bound to the target DB.
+    :type session: sqlalchemy.ext.asyncio.AsyncSession
+    :param already_resolved: Label names resolved during this run's ingest,
+        which don't need re-resolving.
+    :type already_resolved: set[str]
+    :return: Count of labels whose resolution was refreshed.
+    :rtype: int
+    """
+    if not _RESOLVE_ON_INGEST:
+        return 0
+
+    rows = (await session.execute(select(InstallomatorLabel))).scalars().all()
+    candidates = [
+        row for row in rows if row.name not in already_resolved and _has_dynamic_projection(row.raw)
+    ]
+    if not candidates:
+        return 0
+
+    resolver_client = httpx.Client(timeout=30.0)
+    semaphore = asyncio.Semaphore(_RESOLVE_CONCURRENCY)
+    refreshed = 0
+    completed = 0
+    total = len(candidates)
+
+    async def refresh_one(row: InstallomatorLabel) -> tuple[str, str | None, str | None]:
+        nonlocal completed
+        async with semaphore:
+            download_url, app_new_version = await _resolve_download_and_version(
+                row.raw, resolver_client
+            )
+        completed += 1
+        if completed % _PROGRESS_EVERY == 0 or completed == total:
+            log.info("Resolution refresh: %d/%d labels", completed, total)
+        return row.name, download_url, app_new_version
+
+    log.info("Refreshing resolution for %d unchanged dynamic label(s)...", total)
+    try:
+        results = await asyncio.gather(*(refresh_one(row) for row in candidates))
+        for name, download_url, app_new_version in results:
+            try:
+                await session.execute(
+                    update(InstallomatorLabel)
+                    .where(InstallomatorLabel.name == name)
+                    .values(download_url=download_url, app_new_version=app_new_version)
+                )
+                await session.commit()
+                refreshed += 1
+            except Exception as exc:
+                await session.rollback()
+                log.warning("Failed to refresh resolution for %r: %s", name, exc)
+    finally:
+        resolver_client.close()
+
+    log.info("Resolution refresh complete: %d label(s) updated.", refreshed)
+    return refreshed

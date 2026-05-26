@@ -73,6 +73,7 @@ from patcher_api.ingest.jamf_app_installers import (
 from patcher_api.installomator.ingest import (
     fetch_installomator_labels,
     ingest_installomator_labels,
+    refresh_dynamic_resolutions,
 )
 from patcher_api.models.installomator import InstallomatorLabel
 from patcher_api.stitch import stitch_catalog
@@ -124,6 +125,12 @@ async def cmd_installomator(*, force: bool = False) -> None:
             name_to_blob_sha=plan.name_to_blob_sha,
         )
 
+        # Keep dynamic values fresh for SHA-unchanged labels (no-op when
+        # resolution is disabled). Re-resolves from stored ``raw``.
+        refreshed = await refresh_dynamic_resolutions(
+            session, already_resolved=set(plan.name_to_content)
+        )
+
         if plan.removed:
             log.info(
                 "Deleting %d label(s) removed upstream: %s",
@@ -137,7 +144,7 @@ async def cmd_installomator(*, force: bool = False) -> None:
 
     log.info(
         "Installomator summary: fetched=%d, unchanged=%d, removed=%d, "
-        "missing=%d, errored=%d, ingested=%d, skipped=%d, failed=%d",
+        "missing=%d, errored=%d, ingested=%d, skipped=%d, failed=%d, refreshed=%d",
         len(plan.name_to_content),
         plan.unchanged,
         len(plan.removed),
@@ -146,6 +153,7 @@ async def cmd_installomator(*, force: bool = False) -> None:
         ingested,
         skipped,
         failed,
+        refreshed,
     )
 
 

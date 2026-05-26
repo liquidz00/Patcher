@@ -915,3 +915,103 @@ async def test_ingest_updates_blob_sha_on_upsert(test_session):
         select(InstallomatorLabel).where(InstallomatorLabel.name == "firefoxpkg")
     )
     assert label.blob_sha == "sha-firefox-v2"
+
+
+_DYNAMIC_VERSION_FRAGMENT = """freshtest)
+    name="FreshTest"
+    type="dmg"
+    downloadURL="https://example.com/FreshTest.dmg"
+    appNewVersion=$(versionFromGit owner repo)
+    expectedTeamID="ABC123XYZ4"
+    ;;
+"""
+
+
+def _fake_resolve_dynamic_to(version: str):
+    """Stub resolve(): $(...) → ``version``, literals pass through."""
+    from patcher_api.installomator.resolver import Resolved, Unresolvable
+
+    def fake_resolve(
+        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False, context=None
+    ):
+        if expression is None:
+            return Unresolvable(reason="none")
+        if expression.startswith("$("):
+            return Resolved(value=version)
+        return Resolved(value=expression)
+
+    return fake_resolve
+
+
+@pytest.mark.asyncio
+async def test_refresh_dynamic_resolutions_updates_unchanged(test_session, monkeypatch):
+    """A SHA-unchanged dynamic label is re-resolved from stored raw, keeping it fresh."""
+    from patcher_api.installomator.ingest import refresh_dynamic_resolutions
+
+    # Initial ingest with resolution OFF: row stored, appNewVersion nulled,
+    # raw keeps the shell expression.
+    await ingest_installomator_labels(test_session, {"freshtest": _DYNAMIC_VERSION_FRAGMENT})
+    label = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "freshtest")
+    )
+    assert label.app_new_version is None
+
+    # Resolution ON + stubbed resolve. freshtest is NOT already-resolved this run.
+    monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", True)
+    monkeypatch.setattr(
+        "patcher_api.installomator.ingest.resolve", _fake_resolve_dynamic_to("5.5.5")
+    )
+
+    refreshed = await refresh_dynamic_resolutions(test_session, already_resolved=set())
+    assert refreshed == 1
+
+    updated = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "freshtest")
+    )
+    assert updated.app_new_version == "5.5.5"  # re-resolved from stored raw
+    assert updated.download_url == "https://example.com/FreshTest.dmg"  # literal unchanged
+
+
+@pytest.mark.asyncio
+async def test_refresh_dynamic_resolutions_noop_when_disabled(test_session, monkeypatch):
+    from patcher_api.installomator.ingest import refresh_dynamic_resolutions
+
+    await ingest_installomator_labels(test_session, {"freshtest": _DYNAMIC_VERSION_FRAGMENT})
+    monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", False)
+
+    assert await refresh_dynamic_resolutions(test_session, already_resolved=set()) == 0
+
+
+@pytest.mark.asyncio
+async def test_refresh_dynamic_resolutions_skips_already_resolved(test_session, monkeypatch):
+    from patcher_api.installomator.ingest import refresh_dynamic_resolutions
+
+    await ingest_installomator_labels(test_session, {"freshtest": _DYNAMIC_VERSION_FRAGMENT})
+    monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", True)
+    monkeypatch.setattr(
+        "patcher_api.installomator.ingest.resolve", _fake_resolve_dynamic_to("5.5.5")
+    )
+
+    # freshtest was freshly ingested this run → excluded from the refresh pass.
+    refreshed = await refresh_dynamic_resolutions(test_session, already_resolved={"freshtest"})
+    assert refreshed == 0
+
+
+@pytest.mark.asyncio
+async def test_refresh_dynamic_resolutions_skips_literal_only(test_session, monkeypatch):
+    """Labels with no shell-expression projection aren't re-resolved (nothing drifts)."""
+    from patcher_api.installomator.ingest import refresh_dynamic_resolutions
+
+    literal_fragment = (
+        "literaltest)\n"
+        '    name="LiteralTest"\n'
+        '    type="dmg"\n'
+        '    downloadURL="https://example.com/Literal.dmg"\n'
+        '    appNewVersion="1.2.3"\n'
+        '    expectedTeamID="ABC123XYZ4"\n'
+        "    ;;"
+    )
+    await ingest_installomator_labels(test_session, {"literaltest": literal_fragment})
+    monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", True)
+
+    assert await refresh_dynamic_resolutions(test_session, already_resolved=set()) == 0
