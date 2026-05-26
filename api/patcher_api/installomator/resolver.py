@@ -44,6 +44,8 @@ from patcher_api.installomator._filters import (
 
 _SHELL_EXPR_PATTERN = re.compile(r"^\$\((.*)\)\s*$", re.DOTALL)
 _MAX_URL_LENGTH = 2000
+# A version string is short; anything longer is a page/dump the pipeline failed to filter.
+_MAX_VERSION_LENGTH = 60
 # echo-argument references: a $(...) command sub, a ${...} brace ref, or a bare $var.
 _EXPANSION_PATTERN = re.compile(
     r"\$\((?P<cmd>.*?)\)|\$\{(?P<brace>[^}]*)\}|\$(?P<var>[a-zA-Z_][a-zA-Z0-9_]*)"
@@ -363,7 +365,9 @@ class PipelineResolver:
             return [json.dumps(value)]
         return [str(value)]
 
-    def resolve(self, expression: str | None, *, is_url: bool = False) -> ResolveOutcome:
+    def resolve(
+        self, expression: str | None, *, is_url: bool = False, is_version: bool = False
+    ) -> ResolveOutcome:
         """
         Resolve a label variable's value, evaluating shell-style pipelines in Python.
 
@@ -377,6 +381,12 @@ class PipelineResolver:
             rather than "no value." Pass for fields whose projected column gets
             serialized as Pydantic ``HttpUrl``.
         :type is_url: bool
+        :param is_version: When ``True``, the resolved value is run through
+            :func:`looks_like_clean_version`. A pipeline that succeeds at the
+            shell level but captures an HTML page, a header dump, or an
+            un-filtered multi-line blob is rejected as :class:`InvalidOutput`
+            rather than stored as a bogus version. Pass for ``appNewVersion``.
+        :type is_version: bool
         :return: A :class:`Resolved`, :class:`Unresolvable`, or :class:`InvalidOutput`.
         :rtype: :class:`ResolveOutcome`
         """
@@ -386,9 +396,7 @@ class PipelineResolver:
         match = _SHELL_EXPR_PATTERN.match(expression.strip())
         if not match:
             # Literal value, no pipeline evaluation.
-            if is_url and not looks_like_clean_http_url(expression):
-                return InvalidOutput(raw=expression, reason="literal but not a clean http(s) URL")
-            return Resolved(value=expression)
+            return self._validated(expression, is_url=is_url, is_version=is_version, literal=True)
 
         inner = match.group(1).strip()
         stages = _split_pipeline(inner)
@@ -410,8 +418,17 @@ class PipelineResolver:
             return Unresolvable(reason="pipeline produced empty output")
 
         value = "\n".join(result_lines)
+        return self._validated(value, is_url=is_url, is_version=is_version, literal=False)
+
+    @staticmethod
+    def _validated(value: str, *, is_url: bool, is_version: bool, literal: bool) -> ResolveOutcome:
+        """Apply the per-field sanity check, returning :class:`InvalidOutput` on failure."""
         if is_url and not looks_like_clean_http_url(value):
-            return InvalidOutput(raw=value, reason="resolved value failed URL sanity check")
+            reason = "literal but not a clean http(s) URL" if literal else "failed URL sanity check"
+            return InvalidOutput(raw=value, reason=reason)
+        if is_version and not looks_like_clean_version(value):
+            reason = "literal but not a clean version" if literal else "failed version sanity check"
+            return InvalidOutput(raw=value, reason=reason)
         return Resolved(value=value)
 
 
@@ -659,11 +676,52 @@ def looks_like_clean_http_url(value: str | None) -> bool:
     return True
 
 
+def looks_like_clean_version(value: str | None) -> bool:
+    """
+    Sanity-check that ``value`` is a plausible version string, not pipeline garbage.
+
+    ``appNewVersion`` has no schema-level guard (unlike ``downloadURL``, which
+    Pydantic's ``HttpUrl`` validates downstream), so a pipeline that succeeds at
+    the shell level but captures the wrong thing would otherwise store junk as a
+    version. Empirically that junk is: empty output, whole HTML pages, HTTP
+    header dumps, and un-``head``'d multi-line lists. Each is rejected here:
+
+    - **Empty / whitespace-only**: nothing to store; the column should be ``NULL``.
+    - **Multi-line**: a version is a single token. A newline means the final
+      filter (``head -1`` etc.) was unsupported and the whole match list landed.
+    - **HTML / markup**: an ``<`` or ``>`` means a page body, not a version.
+    - **Over-length**: a real version is short; :data:`_MAX_VERSION_LENGTH`
+      caps it well above any legitimate ``1.2.3-beta.4+build567`` shape.
+    - **No digit**: every version carries a number; a digit-free string is a
+      stray word or label, not a version.
+
+    Internal spaces are *allowed* — a few labels legitimately produce
+    ``"Build 4200"``-style versions, and the multi-line and markup rules already
+    catch the header/HTML dumps that contain spaces.
+
+    :param value: Resolved or literal version candidate.
+    :type value: str | None
+    :return: ``True`` when the value passes all sanity checks, ``False``
+        otherwise (including for ``None`` and empty strings).
+    :rtype: bool
+    """
+    if not value or not value.strip():
+        return False
+    if "\n" in value or "\r" in value:
+        return False
+    if "<" in value or ">" in value:
+        return False
+    if len(value) > _MAX_VERSION_LENGTH:
+        return False
+    return any(char.isdigit() for char in value)
+
+
 def resolve(
     expression: str | None,
     *,
     http_client: httpx.Client | None = None,
     is_url: bool = False,
+    is_version: bool = False,
     allow_subprocess_fallback: bool = False,
     context: dict | None = None,
 ) -> ResolveOutcome:
@@ -683,6 +741,8 @@ def resolve(
     :type http_client: httpx.Client | None
     :param is_url: Run the result through :func:`looks_like_clean_http_url`.
     :type is_url: bool
+    :param is_version: Run the result through :func:`looks_like_clean_version`.
+    :type is_version: bool
     :param allow_subprocess_fallback: Opt into the ``bash`` fallback; see
         :class:`PipelineResolver`.
     :type allow_subprocess_fallback: bool
@@ -694,4 +754,4 @@ def resolve(
     """
     return PipelineResolver(
         http_client, allow_subprocess_fallback=allow_subprocess_fallback, context=context
-    ).resolve(expression, is_url=is_url)
+    ).resolve(expression, is_url=is_url, is_version=is_version)

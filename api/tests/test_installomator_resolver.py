@@ -33,6 +33,7 @@ from patcher_api.installomator.resolver import (
     _split_pipeline,
     _tokenize,
     looks_like_clean_http_url,
+    looks_like_clean_version,
     resolve,
 )
 
@@ -79,6 +80,30 @@ class TestResolveUrlValidation:
         # is_url=False is the default; ftp:// should pass through unchecked.
         result = resolve("ftp://example.com/foo.dmg")
         assert result == Resolved(value="ftp://example.com/foo.dmg")
+
+
+class TestResolveVersionValidation:
+    """When ``is_version=True`` is passed, the resolved value is checked against
+    :func:`looks_like_clean_version` and failures land as :class:`InvalidOutput`
+    rather than :class:`Resolved` — so a pipeline that captures an HTML page or
+    a multi-line dump nulls the column instead of storing junk as a version."""
+
+    def test_clean_version_resolves(self):
+        result = resolve("121.0", is_version=True)
+        assert result == Resolved(value="121.0")
+
+    def test_literal_html_body_is_invalid_output(self):
+        result = resolve("<!doctype html><html>oops</html>", is_version=True)
+        assert isinstance(result, InvalidOutput)
+
+    def test_literal_multiline_dump_is_invalid_output(self):
+        result = resolve("Build 4200\nBuild 4192\nBuild 4189", is_version=True)
+        assert isinstance(result, InvalidOutput)
+
+    def test_non_version_field_skips_validation(self):
+        # is_version=False is the default; junk should pass through unchecked.
+        result = resolve("<html>oops</html>")
+        assert result == Resolved(value="<html>oops</html>")
 
 
 class TestLooksLikeCleanHttpUrl:
@@ -137,6 +162,57 @@ class TestLooksLikeCleanHttpUrl:
 
     def test_relative_path_rejected(self):
         assert looks_like_clean_http_url("/path/to/foo.dmg") is False
+
+
+class TestLooksLikeCleanVersion:
+    """
+    Output sanity check for ``appNewVersion``. Unlike ``downloadURL``, the
+    version column has no schema-level guard, so this is the only thing
+    standing between a misfiring pipeline and a bogus version in the catalog.
+    Regression coverage for the garbage classes seen empirically: empty
+    output, HTML pages, header dumps, and un-filtered multi-line lists.
+    """
+
+    def test_dotted_numeric_accepted(self):
+        assert looks_like_clean_version("121.0") is True
+
+    def test_semver_with_build_metadata_accepted(self):
+        assert looks_like_clean_version("1.2.3-beta.4+build567") is True
+
+    def test_version_with_internal_space_accepted(self):
+        # A few labels legitimately produce "Build 4200"-style versions.
+        assert looks_like_clean_version("Build 4200") is True
+
+    def test_none_rejected(self):
+        assert looks_like_clean_version(None) is False
+
+    def test_empty_string_rejected(self):
+        assert looks_like_clean_version("") is False
+
+    def test_whitespace_only_rejected(self):
+        assert looks_like_clean_version("   ") is False
+
+    def test_multiline_dump_rejected(self):
+        # Final filter (head -1) was unsupported, so the whole match list landed.
+        assert looks_like_clean_version("Build 4200\nBuild 4192\nBuild 4189") is False
+
+    def test_carriage_return_rejected(self):
+        assert looks_like_clean_version("1.2.3\r\n4.5.6") is False
+
+    def test_html_page_rejected(self):
+        assert looks_like_clean_version('<meta name="viewport" content="1.0">') is False
+
+    def test_http_header_dump_rejected(self):
+        # As seen in the wild: a curl -I dump, always multi-line (caught by the newline rule).
+        dump = "HTTP/1.1 307 Temporary Redirect\ndate: Tue, 26 May 2026 20:17:52 GMT"
+        assert looks_like_clean_version(dump) is False
+
+    def test_over_max_length_rejected(self):
+        assert looks_like_clean_version("1." + ("0" * 60)) is False
+
+    def test_digit_free_string_rejected(self):
+        # Every version carries a number; a digit-free word is a stray label.
+        assert looks_like_clean_version("latest") is False
 
 
 class TestSplitPipeline:

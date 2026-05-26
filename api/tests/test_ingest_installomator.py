@@ -292,7 +292,13 @@ async def test_ingest_stores_realistic_label(test_session, monkeypatch):
     monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", True)
 
     def fake_resolve(
-        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False, context=None
+        expression,
+        *,
+        http_client=None,
+        is_url=False,
+        is_version=False,
+        allow_subprocess_fallback=False,
+        context=None,
     ):
         if expression is None:
             return Unresolvable(reason="none")
@@ -432,7 +438,13 @@ async def test_ingest_nulls_html_body_returned_by_resolver(test_session, monkeyp
     )
 
     def fake_resolve(
-        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False, context=None
+        expression,
+        *,
+        http_client=None,
+        is_url=False,
+        is_version=False,
+        allow_subprocess_fallback=False,
+        context=None,
     ):
         value = html_body if expression and expression.startswith("$(") else expression
         if is_url and value is not None and not looks_like_clean_http_url(value):
@@ -474,7 +486,13 @@ async def test_ingest_nulls_multi_line_concat_returned_by_resolver(test_session,
     )
 
     def fake_resolve(
-        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False, context=None
+        expression,
+        *,
+        http_client=None,
+        is_url=False,
+        is_version=False,
+        allow_subprocess_fallback=False,
+        context=None,
     ):
         value = multi_line if expression and expression.startswith("$(") else expression
         if is_url and value is not None and not looks_like_clean_http_url(value):
@@ -512,7 +530,13 @@ async def test_ingest_nulls_ftp_url_returned_by_resolver(test_session, monkeypat
     ftp_url = "ftp://cola.gmu.edu/grads/foo.tar.gz"
 
     def fake_resolve(
-        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False, context=None
+        expression,
+        *,
+        http_client=None,
+        is_url=False,
+        is_version=False,
+        allow_subprocess_fallback=False,
+        context=None,
     ):
         value = ftp_url if expression and expression.startswith("$(") else expression
         if is_url and value is not None and not looks_like_clean_http_url(value):
@@ -530,6 +554,50 @@ async def test_ingest_nulls_ftp_url_returned_by_resolver(test_session, monkeypat
         select(InstallomatorLabel).where(InstallomatorLabel.name == "garbagelabel")
     )
     assert label.download_url is None
+
+
+@pytest.mark.asyncio
+async def test_ingest_nulls_garbage_app_new_version_returned_by_resolver(test_session, monkeypatch):
+    """
+    Resolver succeeded at the shell level but the appNewVersion pipeline
+    captured an HTML page (final filter unsupported). The version validator
+    must null it rather than store a 28KB blob as a version.
+    """
+    from patcher_api.installomator.resolver import (
+        InvalidOutput,
+        Resolved,
+        looks_like_clean_version,
+    )
+
+    monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", True)
+
+    html_body = '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
+
+    def fake_resolve(
+        expression,
+        *,
+        http_client=None,
+        is_url=False,
+        is_version=False,
+        allow_subprocess_fallback=False,
+        context=None,
+    ):
+        value = html_body if expression and expression.startswith("$(") else expression
+        if is_version and value is not None and not looks_like_clean_version(value):
+            return InvalidOutput(raw=value, reason="bad version")
+        return Resolved(value=value)
+
+    monkeypatch.setattr("patcher_api.installomator.ingest.resolve", fake_resolve)
+
+    ingested, skipped, failed = await ingest_installomator_labels(
+        test_session, {"garbagelabel": _DYNAMIC_VERSION_FRAGMENT}
+    )
+
+    assert ingested == 1
+    label = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "garbagelabel")
+    )
+    assert label.app_new_version is None
 
 
 @pytest.mark.asyncio
@@ -932,7 +1000,13 @@ def _fake_resolve_dynamic_to(version: str):
     from patcher_api.installomator.resolver import Resolved, Unresolvable
 
     def fake_resolve(
-        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False, context=None
+        expression,
+        *,
+        http_client=None,
+        is_url=False,
+        is_version=False,
+        allow_subprocess_fallback=False,
+        context=None,
     ):
         if expression is None:
             return Unresolvable(reason="none")

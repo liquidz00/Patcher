@@ -522,6 +522,7 @@ def _resolve_or_null(
     http_client: httpx.Client | None = None,
     *,
     is_url: bool = False,
+    is_version: bool = False,
     context: dict | None = None,
 ) -> str | None:
     """
@@ -529,10 +530,11 @@ def _resolve_or_null(
     final string when resolve produces :class:`Resolved`, otherwise ``None``
     when it produces :class:`Unresolvable` or :class:`InvalidOutput`.
 
-    URL validation lives inside :func:`resolve` itself when ``is_url=True``:
-    a value that fails :func:`looks_like_clean_http_url` comes back as
-    :class:`InvalidOutput`, which this wrapper nulls. Callers don't have to
-    re-apply the validator.
+    URL and version validation live inside :func:`resolve` itself when
+    ``is_url=True`` / ``is_version=True``: a value that fails
+    :func:`looks_like_clean_http_url` (or :func:`looks_like_clean_version`)
+    comes back as :class:`InvalidOutput`, which this wrapper nulls. Callers
+    don't have to re-apply the validator.
 
     Synchronous and HTTP-bound. Wrap in :func:`asyncio.to_thread` when calling
     from an async context to avoid blocking the event loop while pipelines
@@ -550,9 +552,13 @@ def _resolve_or_null(
     :param is_url: When ``True``, the resolved value is run through
         :func:`looks_like_clean_http_url` inside :func:`resolve` itself.
         Pass for fields whose projected column is later serialized as
-        ``HttpUrl``. Defaults to ``False`` for non-URL fields
-        (e.g. ``appNewVersion``).
+        ``HttpUrl``. Defaults to ``False``.
     :type is_url: bool
+    :param is_version: When ``True``, the resolved value is run through
+        :func:`looks_like_clean_version` inside :func:`resolve` itself. Pass
+        for ``appNewVersion`` so HTML/header/multi-line pipeline garbage is
+        nulled instead of stored as a bogus version.
+    :type is_version: bool
     :return: Clean literal usable as a projected column value, or ``None``.
     :rtype: str | None
     """
@@ -565,7 +571,9 @@ def _resolve_or_null(
         # ftp:// label values and similar).
         if is_shell_expression(value):
             return None
-    outcome = resolve(value, http_client=http_client, is_url=is_url, context=context)
+    outcome = resolve(
+        value, http_client=http_client, is_url=is_url, is_version=is_version, context=context
+    )
     match outcome:
         case Resolved(value=resolved_value):
             # Belt-and-suspenders: even literal pass-throughs can carry
@@ -580,14 +588,16 @@ def _resolve_or_null(
 async def _resolve_download_and_version(
     parsed: dict[str, Any], resolver_client: httpx.Client | None
 ) -> tuple[str | None, str | None]:
-    """Resolve a parsed label's ``downloadURL`` (URL-validated) and ``appNewVersion``."""
+    """Resolve a parsed label's ``downloadURL`` (URL-validated) and ``appNewVersion`` (version-validated)."""
     raw_download_url = _scalar_for_column(parsed.get("downloadURL"))
     raw_app_new_version = _scalar_for_column(parsed.get("appNewVersion"))
     return await asyncio.gather(
         asyncio.to_thread(
             _resolve_or_null, raw_download_url, resolver_client, is_url=True, context=parsed
         ),
-        asyncio.to_thread(_resolve_or_null, raw_app_new_version, resolver_client, context=parsed),
+        asyncio.to_thread(
+            _resolve_or_null, raw_app_new_version, resolver_client, is_version=True, context=parsed
+        ),
     )
 
 
