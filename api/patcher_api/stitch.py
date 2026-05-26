@@ -53,6 +53,15 @@ _VALID_INSTALL_METHODS: set[str] = {
 # packageID starts with one of these we skip to the next segment.
 _REVERSE_DNS_TLDS: set[str] = {"com", "org", "net", "io", "co", "us", "edu", "app"}
 
+# Canonical ordering for the apps.sources list.
+_CANONICAL_SOURCE_ORDER = (
+    "installomator",
+    "homebrew_cask",
+    "autopkg",
+    "jamf_app_installer",
+    "mas",
+)
+
 
 def _extract_vendor(il: InstallomatorLabel) -> str | None:
     """
@@ -242,15 +251,6 @@ def _build_cask_payload(cask: HomebrewCask) -> dict[str, Any]:
         "token": cask.token,
         "cask_json": cask.raw,
     }
-
-
-_CANONICAL_SOURCE_ORDER = (
-    "installomator",
-    "homebrew_cask",
-    "autopkg",
-    "jamf_app_installer",
-    "mas",
-)
 
 
 def _canonicalize_sources(sources: list[str]) -> list[str]:
@@ -716,12 +716,6 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
             continue
 
         slug = _slugify(mas_app.name)
-        # If the slugified MAS name already exists on the apps table (typically
-        # because a phase-2 Cask-only app claimed it first — Apple Pro Suite +
-        # Microsoft Office are the common cases), merge the MAS payload into
-        # the existing row instead of skipping or overwriting it. Preserves
-        # name/vendor/version/download_url from the prior source; only adds
-        # "mas" to sources and writes the mas source_detail.
         existing_app_id = await session.scalar(select(AppRow.id).where(AppRow.slug == slug))
         if existing_app_id is not None:
             try:

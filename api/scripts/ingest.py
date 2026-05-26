@@ -45,6 +45,12 @@ Environment variables:
   via pyinstallomator. Defaults to off (safe for production hosts).
 - ``PATCHER_API_RESOLVE_CONCURRENCY`` — concurrent label resolves
   during Installomator ingest. Defaults to 25.
+- ``PATCHER_API_GITHUB_TOKEN`` — authenticates the ``api.github.com`` calls
+  (the SHA-gating tree-discovery call and ``downloadURLFromGit``) to the
+  5000/hr limit instead of the 60/hr unauthenticated one. Strongly
+  recommended: without it, discovery itself can 403 once the shared 60/hr
+  IP budget is spent. ``versionFromGit`` uses the github.com redirect and
+  needs no token.
 - ``PATCHER_API_INSTALLOMATOR_REF`` — pin a specific Installomator
   commit / tag / branch. Defaults to ``refs/heads/main``.
 """

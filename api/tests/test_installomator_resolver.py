@@ -14,10 +14,7 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from patcher_api.installomator.resolver import (
-    InvalidOutput,
-    Resolved,
-    Unresolvable,
+from patcher_api.installomator._filters import (
     _exec_awk,
     _exec_cut,
     _exec_grep,
@@ -28,6 +25,11 @@ from patcher_api.installomator.resolver import (
     _exec_tr,
     _exec_uniq,
     _parse_field_spec,
+)
+from patcher_api.installomator.resolver import (
+    InvalidOutput,
+    Resolved,
+    Unresolvable,
     _split_pipeline,
     _tokenize,
     looks_like_clean_http_url,
@@ -413,6 +415,287 @@ class TestCurlBody:
         # Split on `"`: ["mirror: ", "https://mirror.example/v1.2.3/firefox.dmg", ""]
         # -f2 (1-indexed) extracts the quoted URL itself.
         assert result.value == "https://mirror.example/v1.2.3/firefox.dmg"
+
+
+class TestGitHubReleases:
+    def test_version_from_git_via_redirect(self):
+        """versionFromGit follows the github.com /releases/latest redirect to a tag."""
+
+        def handler(request):
+            if request.url.path.endswith("/releases/latest"):
+                return httpx.Response(
+                    302,
+                    headers={"Location": "https://github.com/owner/repo/releases/tag/v3.2.1"},
+                )
+            return httpx.Response(200)
+
+        client = _mock_client(handler)
+        result = resolve("$(versionFromGit owner repo)", http_client=client)
+        assert isinstance(result, Resolved)
+        assert result.value == "3.2.1"  # tag stripped to digits + dots
+
+    def test_version_from_git_no_release_is_unresolvable(self):
+        def handler(request):
+            # No release: redirect lands on /releases (no /tag/ segment)
+            return httpx.Response(
+                302, headers={"Location": "https://github.com/owner/repo/releases"}
+            )
+
+        client = _mock_client(handler)
+        result = resolve("$(versionFromGit owner repo)", http_client=client)
+        assert isinstance(result, Unresolvable)
+
+    def test_download_url_from_git_picks_asset_by_type(self):
+        def handler(request):
+            return httpx.Response(
+                200,
+                json={
+                    "assets": [
+                        {
+                            "browser_download_url": "https://github.com/o/r/releases/download/v1/App.exe"
+                        },
+                        {
+                            "browser_download_url": "https://github.com/o/r/releases/download/v1/App.dmg"
+                        },
+                    ]
+                },
+            )
+
+        client = _mock_client(handler)
+        result = resolve(
+            "$(downloadURLFromGit owner repo)",
+            http_client=client,
+            is_url=True,
+            context={"type": "dmg"},
+        )
+        assert isinstance(result, Resolved)
+        assert result.value.endswith("/App.dmg")
+
+    def test_download_url_from_git_picks_asset_by_archive_name(self):
+        def handler(request):
+            return httpx.Response(
+                200,
+                json={
+                    "assets": [
+                        {
+                            "browser_download_url": "https://github.com/o/r/releases/download/v1/App-x64.dmg"
+                        },
+                        {
+                            "browser_download_url": "https://github.com/o/r/releases/download/v1/App-arm64.dmg"
+                        },
+                    ]
+                },
+            )
+
+        client = _mock_client(handler)
+        result = resolve(
+            "$(downloadURLFromGit owner repo)",
+            http_client=client,
+            is_url=True,
+            context={"type": "dmg", "archiveName": "App-arm64.dmg"},
+        )
+        assert isinstance(result, Resolved)
+        assert result.value.endswith("/App-arm64.dmg")
+
+    def test_download_url_from_git_no_match_is_unresolvable(self):
+        def handler(request):
+            return httpx.Response(200, json={"assets": []})
+
+        client = _mock_client(handler)
+        result = resolve(
+            "$(downloadURLFromGit owner repo)",
+            http_client=client,
+            is_url=True,
+            context={"type": "dmg"},
+        )
+        assert isinstance(result, Unresolvable)
+
+
+_APPCAST = """<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>App Changelog</title>
+    <item>
+      <title>Version 4.5.2</title>
+      <sparkle:shortVersionString>4.5.2</sparkle:shortVersionString>
+      <enclosure url="https://example.com/App-4.5.2.dmg"
+                 sparkle:version="4520"
+                 sparkle:shortVersionString="4.5.2"/>
+    </item>
+  </channel>
+</rss>"""
+
+
+class TestXPath:
+    def _client(self):
+        return _mock_client(lambda request: httpx.Response(200, text=_APPCAST))
+
+    def test_attribute_url_via_cut(self):
+        """Attribute match prints name="value"; the label's cut extracts the value."""
+        result = resolve(
+            "$(curl -fs \"https://feed\" | xpath '(//rss/channel/item/enclosure/@url)[1]' "
+            "2>/dev/null | cut -d '\"' -f 2)",
+            http_client=self._client(),
+            is_url=True,
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "https://example.com/App-4.5.2.dmg"
+
+    def test_sparkle_namespaced_attribute(self):
+        result = resolve(
+            '$(curl -fs "https://feed" '
+            "| xpath '(//rss/channel/item/enclosure/@sparkle:shortVersionString)[1]' "
+            "2>/dev/null | cut -d '\"' -f 2)",
+            http_client=self._client(),
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "4.5.2"
+
+    def test_string_function(self):
+        result = resolve(
+            "$(curl -fs \"https://feed\" | xpath 'string(//rss/channel/item/title)' 2>/dev/null)",
+            http_client=self._client(),
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "Version 4.5.2"
+
+    def test_text_node(self):
+        result = resolve(
+            '$(curl -fs "https://feed" '
+            "| xpath '(//rss/channel/item/sparkle:shortVersionString/text())[1]' 2>/dev/null)",
+            http_client=self._client(),
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "4.5.2"
+
+    def test_no_match_is_unresolvable(self):
+        result = resolve(
+            "$(curl -fs \"https://feed\" | xpath 'string(//does/not/exist)' 2>/dev/null)",
+            http_client=self._client(),
+        )
+        assert isinstance(result, Unresolvable)
+
+    def test_malformed_xml_is_unresolvable(self):
+        client = _mock_client(lambda request: httpx.Response(200, text="not xml at all <<<"))
+        result = resolve(
+            "$(curl -fs \"https://feed\" | xpath 'string(//item/title)' 2>/dev/null)",
+            http_client=client,
+        )
+        assert isinstance(result, Unresolvable)
+
+
+_JSON_FEED = (
+    '{"version": "9.8.7",'
+    ' "platforms": [{"url": "https://example.com/app-9.8.7.dmg"}],'
+    ' "computer": {"MacOS": {"releases": [{"url": "https://example.com/r0.dmg"}]}}}'
+)
+
+
+class TestGetJSONValue:
+    def _client(self):
+        return _mock_client(lambda request: httpx.Response(200, text=_JSON_FEED))
+
+    def test_dot_key(self):
+        result = resolve(
+            '$(getJSONValue "$(curl -fs \'https://api\')" "version")',
+            http_client=self._client(),
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "9.8.7"
+
+    def test_bracket_index_then_key(self):
+        result = resolve(
+            '$(getJSONValue "$(curl -fs \'https://api\')" "platforms[0].url")',
+            http_client=self._client(),
+            is_url=True,
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "https://example.com/app-9.8.7.dmg"
+
+    def test_nested_path(self):
+        result = resolve(
+            '$(getJSONValue "$(curl -fs \'https://api\')" "computer.MacOS.releases[0].url")',
+            http_client=self._client(),
+            is_url=True,
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "https://example.com/r0.dmg"
+
+    def test_shell_variable_key_is_unresolvable(self):
+        result = resolve(
+            '$(getJSONValue "$(curl -fs \'https://api\')" "platforms[$count].url")',
+            http_client=self._client(),
+        )
+        assert isinstance(result, Unresolvable)
+
+    def test_missing_key_is_unresolvable(self):
+        result = resolve(
+            '$(getJSONValue "$(curl -fs \'https://api\')" "nope.missing")',
+            http_client=self._client(),
+        )
+        assert isinstance(result, Unresolvable)
+
+    def test_invalid_json_is_unresolvable(self):
+        client = _mock_client(lambda request: httpx.Response(200, text="<html>not json</html>"))
+        result = resolve(
+            '$(getJSONValue "$(curl -fs \'https://api\')" "version")',
+            http_client=client,
+        )
+        assert isinstance(result, Unresolvable)
+
+
+class TestEchoVariableExpansion:
+    """`echo "${var}"` resolves the referenced variable from the label context."""
+
+    def test_chained_feed_var_then_xpath(self):
+        """beyondcomparepro's downloadURL shape: feed in ${updateFeed}, parsed by xpath."""
+        client = _mock_client(lambda request: httpx.Response(200, text=_APPCAST))
+        result = resolve(
+            "$(echo \"${updateFeed}\" | xpath '(//rss/channel/item/enclosure/@url)[1]' "
+            "2>/dev/null | cut -d '\"' -f 2)",
+            http_client=client,
+            is_url=True,
+            context={"updateFeed": "$(curl -fs 'https://feed')"},
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "https://example.com/App-4.5.2.dmg"
+
+    def test_version_derived_from_resolved_download_url(self):
+        """appNewVersion=$(echo "${downloadURL}" | cut ...) — sibling field reused."""
+        result = resolve(
+            '$(echo "${downloadURL}" | cut -d / -f 4)',
+            context={"downloadURL": "https://example.com/9.8.7/App.dmg"},
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "9.8.7"
+
+    def test_bare_dollar_var(self):
+        result = resolve(
+            "$(echo $downloadURL | sed -E 's/.*-([0-9.]+)\\.dmg/\\1/')",
+            context={"downloadURL": "https://example.com/App-3.2.1.dmg"},
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "3.2.1"
+
+    def test_parameter_expansion_is_unresolvable(self):
+        """${var//search/replace} is a transform we don't evaluate — bail cleanly."""
+        result = resolve(
+            '$(echo "${rawVersion// build /.}")',
+            context={"rawVersion": "4.5.2 build 1"},
+        )
+        assert isinstance(result, Unresolvable)
+
+    def test_missing_var_is_unresolvable(self):
+        result = resolve('$(echo "${nope}")', context={})
+        assert isinstance(result, Unresolvable)
+
+    def test_cycle_is_unresolvable(self):
+        # a -> b -> a
+        result = resolve(
+            '$(echo "${a}")',
+            context={"a": '$(echo "${b}")', "b": '$(echo "${a}")'},
+        )
+        assert isinstance(result, Unresolvable)
 
 
 class TestCurlRedirectChainHeaders:

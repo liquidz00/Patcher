@@ -292,7 +292,7 @@ async def test_ingest_stores_realistic_label(test_session, monkeypatch):
     monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", True)
 
     def fake_resolve(
-        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False
+        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False, context=None
     ):
         if expression is None:
             return Unresolvable(reason="none")
@@ -432,7 +432,7 @@ async def test_ingest_nulls_html_body_returned_by_resolver(test_session, monkeyp
     )
 
     def fake_resolve(
-        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False
+        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False, context=None
     ):
         value = html_body if expression and expression.startswith("$(") else expression
         if is_url and value is not None and not looks_like_clean_http_url(value):
@@ -474,7 +474,7 @@ async def test_ingest_nulls_multi_line_concat_returned_by_resolver(test_session,
     )
 
     def fake_resolve(
-        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False
+        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False, context=None
     ):
         value = multi_line if expression and expression.startswith("$(") else expression
         if is_url and value is not None and not looks_like_clean_http_url(value):
@@ -512,7 +512,7 @@ async def test_ingest_nulls_ftp_url_returned_by_resolver(test_session, monkeypat
     ftp_url = "ftp://cola.gmu.edu/grads/foo.tar.gz"
 
     def fake_resolve(
-        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False
+        expression, *, http_client=None, is_url=False, allow_subprocess_fallback=False, context=None
     ):
         value = ftp_url if expression and expression.startswith("$(") else expression
         if is_url and value is not None and not looks_like_clean_http_url(value):
@@ -676,6 +676,43 @@ async def test_fetch_upstream_tree_filters_to_fragment_blobs():
         "firefoxpkg": "sha-firefox-v1",
         "googlechromepkg": "sha-chrome-v1",
     }
+
+
+@pytest.mark.asyncio
+async def test_fetch_upstream_tree_authenticates_with_token(monkeypatch):
+    """The git/trees call (api.github.com, 60/hr unauth) uses the token when set."""
+    monkeypatch.setenv("PATCHER_API_GITHUB_TOKEN", "ghp_testtoken")
+    seen: dict[str, str | None] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["auth"] = request.headers.get("Authorization")
+        return httpx.Response(200, json=_TREE_RESPONSE_TWO_LABELS)
+
+    client = _mock_client(handler)
+    try:
+        await _fetch_upstream_tree(client=client)
+    finally:
+        await client.aclose()
+
+    assert seen["auth"] == "Bearer ghp_testtoken"
+
+
+@pytest.mark.asyncio
+async def test_fetch_upstream_tree_no_auth_header_without_token(monkeypatch):
+    monkeypatch.delenv("PATCHER_API_GITHUB_TOKEN", raising=False)
+    seen: dict[str, str | None] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["auth"] = request.headers.get("Authorization")
+        return httpx.Response(200, json=_TREE_RESPONSE_TWO_LABELS)
+
+    client = _mock_client(handler)
+    try:
+        await _fetch_upstream_tree(client=client)
+    finally:
+        await client.aclose()
+
+    assert seen["auth"] is None
 
 
 @pytest.mark.asyncio

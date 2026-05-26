@@ -55,6 +55,7 @@ from patcher_api.installomator.resolver import (
     InvalidOutput,
     Resolved,
     Unresolvable,
+    _github_token,
     is_shell_expression,
     resolve,
 )
@@ -126,6 +127,7 @@ def _resolve_or_null(
     http_client: httpx.Client | None = None,
     *,
     is_url: bool = False,
+    context: dict | None = None,
 ) -> str | None:
     """
     Evaluate a label value via pyinstallomator's :func:`resolve`. Returns the
@@ -168,7 +170,7 @@ def _resolve_or_null(
         # ftp:// label values and similar).
         if is_shell_expression(value):
             return None
-    outcome = resolve(value, http_client=http_client, is_url=is_url)
+    outcome = resolve(value, http_client=http_client, is_url=is_url, context=context)
     match outcome:
         case Resolved(value=resolved_value):
             # Belt-and-suspenders: even literal pass-throughs can carry
@@ -230,8 +232,15 @@ async def _fetch_upstream_tree(
     """
     owns_client = client is None
     client = client or httpx.AsyncClient(timeout=60.0)
+    # The git/trees endpoint is api.github.com — same 60/hr unauthenticated
+    # budget as downloadURLFromGit. Authenticate it too when a token is set
+    # (5000/hr) so discovery doesn't fail before resolution even starts.
+    headers = {"Accept": "application/vnd.github+json"}
+    token = _github_token()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     try:
-        response = await client.get(_tree_api_url(ref))
+        response = await client.get(_tree_api_url(ref), headers=headers)
         response.raise_for_status()
         data = response.json()
         if data.get("truncated"):
@@ -493,9 +502,15 @@ async def ingest_installomator_labels(
                 raw_app_new_version = _scalar_for_column(parsed.get("appNewVersion"))
                 resolved_download_url, resolved_app_new_version = await asyncio.gather(
                     asyncio.to_thread(
-                        _resolve_or_null, raw_download_url, resolver_client, is_url=True
+                        _resolve_or_null,
+                        raw_download_url,
+                        resolver_client,
+                        is_url=True,
+                        context=parsed,
                     ),
-                    asyncio.to_thread(_resolve_or_null, raw_app_new_version, resolver_client),
+                    asyncio.to_thread(
+                        _resolve_or_null, raw_app_new_version, resolver_client, context=parsed
+                    ),
                 )
                 outcome = (name, parsed, resolved_download_url, resolved_app_new_version)
         resolve_completed += 1
