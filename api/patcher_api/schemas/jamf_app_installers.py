@@ -1,35 +1,19 @@
 """
-Pydantic schemas for the Jamf App Installers catalog.
+Pydantic schemas for the Jamf App Installers titles API.
 
-Two sources, two shapes:
-
-- :class:`JamfAppInstallerRow` — the public HTML coverage table at
-  ``https://learn.jamf.com/...`` (Title Name, Source, Host Name). The
-  Jamf-hosted ``"--"`` placeholder is normalized to ``None`` at ingest, so
-  ``host`` is always a real domain or absent.
-- :class:`JaiTitle` / :class:`JaiTitlePage` — Jamf Pro's *App Installers
-  titles* API (``GET /api/v1/app-installers/titles``), which carries the rich
-  metadata the HTML table lacks: ``bundle_id`` (the exact stitch key),
-  ``version``, per-arch download sources, and the Jamf title ``id``. The title
-  endpoints are catalog-global, so they return the same data on any instance.
+:class:`JaiTitle` / :class:`JaiTitlePage` mirror Jamf Pro's *App Installers
+titles* API (``GET /api/v1/app-installers/titles``): ``bundle_id`` (the exact
+stitch key), ``version``, per-arch download sources, and the Jamf title ``id``.
+The title endpoints are catalog-global, so they return the same data on any
+instance.
 """
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
 from patcher_api.schemas.base import UpstreamModel
-
-
-class JamfAppInstallerRow(BaseModel):
-    """One row parsed out of the upstream HTML table."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    title: str
-    source: Literal["Jamf", "External"]
-    host: str | None = None
 
 
 class JaiMediaSource(UpstreamModel):

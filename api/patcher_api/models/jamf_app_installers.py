@@ -12,23 +12,19 @@ class JamfAppInstaller(Base):
 
     Jamf App Installers is Jamf's vendor-curated catalog of macOS app
     titles available for automated update management in Jamf Pro / Jamf
-    School / Jamf Now. The catalog is published as an HTML table on
-    learn.jamf.com (the documentation site) and contains three columns:
+    School / Jamf Now. Rows come from Jamf Pro's App Installers *titles* API
+    (see :func:`patcher_api.ingest.jamf_app_installers.fetch_jai_catalog`),
+    which is catalog-global, so no specific tenant is required.
 
-    - **Title Name** stored as ``title``, the primary key. Catalog
-      titles are unique.
+    - **Title Name** stored as ``title``, the primary key. Catalog titles
+      are unique.
     - **Source** stored as ``source``, one of ``"Jamf"`` (Jamf hosts the
-      installer) or ``"External"`` (Jamf metadata + a third-party host).
-    - **Host Name** stored as ``host``, the download host for External
-      sources or ``None`` when Jamf hosts. Upstream represents the
-      Jamf-hosted case as the literal string ``"--"``; we normalize to
-      ``None`` at ingest.
+      installer) or ``"External"`` (third-party host), derived from the
+      title's media source type.
+    - **Host Name** stored as ``host``, the external download host or
+      ``None`` when Jamf hosts.
 
-    The HTML catalog only ever populates ``title``/``source``/``host``. The
-    remaining columns come from Jamf Pro's App Installers *titles* API (see
-    :func:`patcher_api.ingest.jamf_app_installers.fetch_jai_catalog`), which is
-    catalog-global, so no specific tenant is required. They're nullable because
-    an HTML-only row predates the API enrichment.
+    The enrichment columns below are nullable for forward-compatibility.
 
     - ``bundle_id`` — the canonical bundle identifier; the exact stitch key,
       used as a precision overlay over name matching and backfilled onto

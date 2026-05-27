@@ -65,14 +65,11 @@ import os
 import sys
 from collections.abc import Awaitable, Callable
 
+from patcher_api.config import get_settings
 from patcher_api.db import get_session_maker, init_db
 from patcher_api.ingest.autopkg import fetch_autopkg_index, ingest_autopkg_index
 from patcher_api.ingest.homebrew import fetch_homebrew_casks, ingest_homebrew_casks
-from patcher_api.ingest.jamf_app_installers import (
-    fetch_jamf_app_installers_html,
-    ingest_jamf_app_installers,
-    parse_jamf_app_installers_table,
-)
+from patcher_api.ingest.jamf_app_installers import fetch_jai_catalog, ingest_jai_titles
 from patcher_api.installomator.ingest import (
     fetch_installomator_labels,
     ingest_installomator_labels,
@@ -187,12 +184,14 @@ async def cmd_autopkg() -> None:
 async def cmd_jai() -> None:
     await init_db()
     log.info("=== Jamf App Installers ingest ===")
-    log.info("Fetching JAI catalog HTML...")
-    html = await fetch_jamf_app_installers_html()
-    rows = parse_jamf_app_installers_table(html)
-    log.info("Parsed %d titles. Ingesting...", len(rows))
+    settings = get_settings()
+    log.info("Fetching JAI titles catalog from %s...", settings.jai_base_url)
+    titles = await fetch_jai_catalog(
+        settings.jai_base_url, settings.jai_client_id, settings.jai_client_secret
+    )
+    log.info("Fetched %d titles. Ingesting...", len(titles))
     async with get_session_maker()() as session:
-        ingested, skipped = await ingest_jamf_app_installers(session, rows)
+        ingested, skipped = await ingest_jai_titles(session, titles)
     log.info("JAI summary: ingested=%d, skipped=%d", ingested, skipped)
 
 
