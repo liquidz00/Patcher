@@ -43,7 +43,7 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -64,6 +64,7 @@ from patcher_api.models.installomator import InstallomatorLabel
 
 __all__ = [
     "IGNORED_TEAMS",
+    "USER_CONTEXT_LABELS",
     "FetchPlan",
     "fetch_installomator_labels",
     "ingest_installomator_labels",
@@ -75,6 +76,17 @@ __all__ = [
 # Mirror existing IGNORED_TEAMS list
 IGNORED_TEAMS: set[str] = {"Frydendal", "Media", "LL3KBL2M3A"}
 
+# Labels whose downloadURL/appNewVersion resolve from the logged-in user's
+# context (language via runAsUser/launchctl) — unresolvable on a headless host,
+# so neither the Linux refresh nor the macOS runner should attempt them.
+USER_CONTEXT_LABELS: set[str] = {
+    "firefox_intl",
+    "firefoxesrintl",
+    "firefoxpkg_intl",
+    "libreofficelanguagepackintl",
+    "thunderbird_intl",
+}
+
 _INSTALLOMATOR_RAW_BASE = "https://raw.githubusercontent.com/Installomator/Installomator"
 _GITHUB_API_BASE = "https://api.github.com"
 _DEFAULT_REF = "refs/heads/main"
@@ -84,6 +96,11 @@ _FETCH_CONCURRENCY = 10
 # Limit concurrent resolve operations during ingest.
 # Override via PATCHER_API_RESOLVE_CONCURRENCY for tuning on tighter hosts.
 _RESOLVE_CONCURRENCY = int(os.environ.get("PATCHER_API_RESOLVE_CONCURRENCY", "25"))
+
+# Provenance marker for values written by the macOS GitHub-runner resolver.
+_MACOS_SOURCE = "macos"
+# Days a macOS-resolved value stays authoritative before the Linux refresh reclaims it.
+_MACOS_FRESHNESS_DAYS = 7
 
 # Label Resolution (opt-in).
 # When set, shell-expression dynamic values are resolved instead of being nulled out.
@@ -385,6 +402,10 @@ async def ingest_installomator_labels(
                     raw=parsed,
                     fragment=name_to_content[name],
                     blob_sha=blob_shas.get(name),
+                    # Linux wrote these; clear any macOS stamp (content changed,
+                    # so the old macOS value is stale — the next runner re-stamps).
+                    resolution_source=None,
+                    resolved_at=None,
                     ingested_at=now,
                 )
                 stmt = stmt.on_conflict_do_update(
@@ -399,6 +420,8 @@ async def ingest_installomator_labels(
                         "raw": stmt.excluded.raw,
                         "fragment": stmt.excluded.fragment,
                         "blob_sha": stmt.excluded.blob_sha,
+                        "resolution_source": stmt.excluded.resolution_source,
+                        "resolved_at": stmt.excluded.resolved_at,
                         "ingested_at": stmt.excluded.ingested_at,
                     },
                 )
@@ -434,9 +457,10 @@ async def refresh_dynamic_resolutions(session: AsyncSession, *, already_resolved
     columns would go stale. We re-resolve them from the **stored** ``raw`` (no
     re-fetch, no re-parse) and update only the two projected columns.
 
-    Skips labels in ``already_resolved`` (freshly ingested this run) and any
-    whose projected fields are literals (nothing to drift). No-op when
-    ``PATCHER_API_RESOLVE_INGEST`` is off.
+    Skips labels in ``already_resolved`` (freshly ingested this run), any whose
+    projected fields are literals (nothing to drift), and any a recent macOS
+    runner pass owns (so the Linux fallback never clobbers the more accurate
+    value while it's fresh). No-op when ``PATCHER_API_RESOLVE_INGEST`` is off.
 
     :param session: Async SQLAlchemy session bound to the target DB.
     :type session: sqlalchemy.ext.asyncio.AsyncSession
@@ -451,7 +475,12 @@ async def refresh_dynamic_resolutions(session: AsyncSession, *, already_resolved
 
     rows = (await session.execute(select(InstallomatorLabel))).scalars().all()
     candidates = [
-        row for row in rows if row.name not in already_resolved and _has_dynamic_projection(row.raw)
+        row
+        for row in rows
+        if row.name not in already_resolved
+        and row.name not in USER_CONTEXT_LABELS
+        and _has_dynamic_projection(row.raw)
+        and not _macos_owned(row)
     ]
     if not candidates:
         return 0
@@ -606,6 +635,23 @@ def _has_dynamic_projection(raw: dict[str, Any]) -> bool:
     return is_shell_expression(_scalar_for_column(raw.get("downloadURL"))) or is_shell_expression(
         _scalar_for_column(raw.get("appNewVersion"))
     )
+
+
+def _macos_owned(row: InstallomatorLabel) -> bool:
+    """
+    True if a recent macOS runner pass owns this row's resolved values.
+
+    The Linux refresh defers to these so it never overwrites the more accurate
+    macOS-resolved value. Ownership lapses after :data:`_MACOS_FRESHNESS_DAYS`
+    so a stalled runner can't freeze values indefinitely — Python takes back
+    over as a fallback.
+    """
+    if row.resolution_source != _MACOS_SOURCE or row.resolved_at is None:
+        return False
+    resolved_at = row.resolved_at
+    if resolved_at.tzinfo is None:
+        resolved_at = resolved_at.replace(tzinfo=UTC)
+    return datetime.now(UTC) - resolved_at < timedelta(days=_MACOS_FRESHNESS_DAYS)
 
 
 def _installomator_ref() -> str:

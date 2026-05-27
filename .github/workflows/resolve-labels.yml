@@ -1,0 +1,70 @@
+name: Resolve Installomator labels (macOS)
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+# Never let two resolver runs race the same upload.
+concurrency:
+  group: resolve-labels
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: macos-14 # Apple Silicon -> arch reports arm64 (the only arch we store)
+    timeout-minutes: 120
+    steps:
+      - name: Checkout Patcher (collector script only)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Checkout upstream Installomator (fresh labels + functions.sh)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          repository: Installomator/Installomator
+          path: installomator
+          ref: main
+
+      - name: Fetch worklist (labels Linux couldn't resolve)
+        env:
+          ADMIN_TOKEN: ${{ secrets.PATCHER_ADMIN_TOKEN }}
+        run: |
+          curl -fsS https://api.patcherctl.dev/admin/labels/unresolved \
+            -H "Authorization: Bearer ${ADMIN_TOKEN}" | jq -r '.labels[]' > worklist.txt
+          echo "labels needing macOS resolution: $(wc -l < worklist.txt)"
+
+      - name: Resolve the worklist to NDJSON
+        env:
+          # Installomator's *FromGit helpers hit api.github.com; expose the
+          # runner token in case functions.sh honors it, to dodge the 60/hr
+          # unauthenticated limit.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ ! -s worklist.txt ]; then
+            echo "nothing to resolve"; : > labels.ndjson; exit 0
+          fi
+          INSTALLOMATOR_DIR="$PWD/installomator" \
+            .github/scripts/resolveLabel.sh --json --jobs 8 $(cat worklist.txt) > labels.ndjson
+          echo "resolved $(wc -l < labels.ndjson) labels"
+
+      - name: Push resolved values to Patcher API
+        env:
+          ADMIN_TOKEN: ${{ secrets.PATCHER_ADMIN_TOKEN }}
+        run: |
+          if [ ! -s labels.ndjson ]; then echo "no NDJSON to push"; exit 0; fi
+          curl -fsS -X POST https://api.patcherctl.dev/admin/labels/resolved \
+            -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+            -H "Content-Type: application/x-ndjson" \
+            --data-binary @labels.ndjson
+
+      - name: Upload NDJSON artifact (audit trail)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: resolved-labels-ndjson
+          path: labels.ndjson
+          retention-days: 7

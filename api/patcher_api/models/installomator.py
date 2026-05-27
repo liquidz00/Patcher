@@ -47,6 +47,10 @@ class InstallomatorLabel(Base):
     raw: Mapped[dict] = mapped_column(JSON)
     fragment: Mapped[str | None] = mapped_column(String, nullable=True)
     blob_sha: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Provenance of the resolved values: "macos" (the GitHub-runner resolver)
+    # means the Linux refresh defers to them while fresh; NULL means Linux owns them.
+    resolution_source: Mapped[str | None] = mapped_column(String, nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

@@ -1091,6 +1091,61 @@ async def test_refresh_dynamic_resolutions_skips_literal_only(test_session, monk
     assert await refresh_dynamic_resolutions(test_session, already_resolved=set()) == 0
 
 
+async def _stamp_macos(test_session, name: str, version: str, resolved_at) -> None:
+    """Mark a label row as macOS-resolved with a known value + timestamp."""
+    row = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == name)
+    )
+    row.app_new_version = version
+    row.resolution_source = "macos"
+    row.resolved_at = resolved_at
+    await test_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_refresh_defers_to_fresh_macos_resolution(test_session, monkeypatch):
+    """A row a recent macOS pass owns is not re-resolved by the Linux fallback."""
+    from datetime import UTC, datetime
+
+    from patcher_api.installomator.ingest import refresh_dynamic_resolutions
+
+    await ingest_installomator_labels(test_session, {"freshtest": _DYNAMIC_VERSION_FRAGMENT})
+    await _stamp_macos(test_session, "freshtest", "1.2.3", datetime.now(UTC))
+
+    monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", True)
+    monkeypatch.setattr(
+        "patcher_api.installomator.ingest.resolve", _fake_resolve_dynamic_to("9.9.9")
+    )
+
+    assert await refresh_dynamic_resolutions(test_session, already_resolved=set()) == 0
+    row = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "freshtest")
+    )
+    assert row.app_new_version == "1.2.3"  # macOS value preserved, not clobbered
+
+
+@pytest.mark.asyncio
+async def test_refresh_reclaims_stale_macos_resolution(test_session, monkeypatch):
+    """Past the freshness window, the Linux fallback re-resolves a macOS-owned row."""
+    from datetime import UTC, datetime, timedelta
+
+    from patcher_api.installomator.ingest import refresh_dynamic_resolutions
+
+    await ingest_installomator_labels(test_session, {"freshtest": _DYNAMIC_VERSION_FRAGMENT})
+    await _stamp_macos(test_session, "freshtest", "1.2.3", datetime.now(UTC) - timedelta(days=30))
+
+    monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", True)
+    monkeypatch.setattr(
+        "patcher_api.installomator.ingest.resolve", _fake_resolve_dynamic_to("9.9.9")
+    )
+
+    assert await refresh_dynamic_resolutions(test_session, already_resolved=set()) == 1
+    row = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "freshtest")
+    )
+    assert row.app_new_version == "9.9.9"  # stale macOS value reclaimed by Python
+
+
 def test_set_resolve_on_ingest_toggles_the_flag(monkeypatch):
     """The --resolve CLI flag flips resolution on at runtime (bypassing env export)."""
     from patcher_api.installomator import ingest
