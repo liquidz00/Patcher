@@ -398,14 +398,18 @@ def _build_jai_payload(jai: JamfAppInstaller) -> dict[str, Any]:
     """
     Build the JamfAppInstallerSource shape for the source_detail JSON column.
 
-    Mirrors the public HTML catalog's three columns. When the unlisted
-    Jamf Pro API endpoint becomes available, this helper grows additional
-    fields (bundle_id, version, download URL, Jamf Software Title ID).
+    Carries the HTML columns plus the titles-API enrichment (``None`` on
+    HTML-only rows).
     """
     return {
         "title": jai.title,
         "source": jai.source,
         "host": jai.host,
+        "bundle_id": jai.bundle_id,
+        "version": jai.version,
+        "jamf_id": jai.jamf_id,
+        "download_url": jai.download_url,
+        "architecture": jai.architecture,
     }
 
 
@@ -510,6 +514,31 @@ def _index_jai_by_title(jai_rows: list[JamfAppInstaller]) -> dict[str, JamfAppIn
         for key in _jai_index_keys(j.title):
             index.setdefault(key, j)
     return index
+
+
+def _match_jai(
+    bundle_id: str | None,
+    normalized_name: str,
+    jai_by_bundle_id: dict[str, JamfAppInstaller],
+    jai_by_title: dict[str, JamfAppInstaller],
+) -> JamfAppInstaller | None:
+    """
+    Match a JAI title to an app: bundle_id first (exact, high confidence),
+    falling back to normalized-name. bundle_id only covers the minority of
+    apps that have one (~16% of labels, no casks), so name matching remains
+    the workhorse; bundle_id is a precision overlay that also corrects the
+    occasional name-match false positive.
+    """
+    if bundle_id and (hit := jai_by_bundle_id.get(bundle_id)):
+        return hit
+    return jai_by_title.get(normalized_name)
+
+
+def _backfilled_bundle_id(own: str | None, matching_jai: JamfAppInstaller | None) -> str | None:
+    """An app's own bundle_id, or JAI's when the app lacks one — JAI as a bundle_id provider."""
+    if own:
+        return own
+    return matching_jai.bundle_id if matching_jai else None
 
 
 def _slugify(name: str) -> str:
@@ -697,6 +726,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
     mas_by_bundle_id = {m.bundle_id: m for m in mas_apps}
     autopkg_by_name = _index_autopkg_by_name(list(autopkg_recipes))
     jai_by_title = _index_jai_by_title(list(jai_rows))
+    jai_by_bundle_id = {j.bundle_id: j for j in jai_rows if j.bundle_id}
     matched_cask_tokens: set[str] = set()
     matched_mas_bundle_ids: set[str] = set()
 
@@ -713,7 +743,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
         display_name = il.display_name or il.name
         normalized = _normalize_name(display_name)
         matching_autopkg = autopkg_by_name.get(normalized, [])
-        matching_jai = jai_by_title.get(normalized)
+        matching_jai = _match_jai(il.package_id, normalized, jai_by_bundle_id, jai_by_title)
 
         sources = ["installomator"]
         if matching_cask is not None:
@@ -730,7 +760,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                 await _upsert_app_with_sources(
                     session,
                     slug=il.name,
-                    bundle_id=il.package_id,
+                    bundle_id=_backfilled_bundle_id(il.package_id, matching_jai),
                     name=display_name,
                     vendor=_extract_vendor(il),
                     current_version=_resolve_version(il, matching_cask),
@@ -770,7 +800,8 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
         cask_name = cask.name or cask.token
         normalized = _normalize_name(cask_name)
         matching_autopkg = autopkg_by_name.get(normalized, [])
-        matching_jai = jai_by_title.get(normalized)
+        # Casks carry no bundle_id, so this is name-only; a JAI hit can backfill one.
+        matching_jai = _match_jai(None, normalized, jai_by_bundle_id, jai_by_title)
 
         sources = ["homebrew_cask"]
         if matching_autopkg:
@@ -783,7 +814,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                 await _upsert_app_with_sources(
                     session,
                     slug=cask.token,
-                    bundle_id=None,
+                    bundle_id=_backfilled_bundle_id(None, matching_jai),
                     name=cask_name,
                     vendor=cask_name.split()[0] if cask_name else None,
                     current_version=cask.version,
@@ -836,7 +867,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
 
         normalized = _normalize_name(mas_app.name)
         matching_autopkg = autopkg_by_name.get(normalized, [])
-        matching_jai = jai_by_title.get(normalized)
+        matching_jai = _match_jai(mas_app.bundle_id, normalized, jai_by_bundle_id, jai_by_title)
 
         sources: list[str] = []
         if matching_autopkg:

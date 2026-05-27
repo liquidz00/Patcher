@@ -65,17 +65,21 @@ class MasSource(BaseModel):
 
 class JamfAppInstallerSource(BaseModel):
     """
-    Coverage indicator for the Jamf App Installers catalog.
+    Jamf App Installers catalog coverage for an app.
 
-    Mirrors the three fields in the public HTML catalog. When a real Jamf
-    Pro instance becomes available (the unlisted endpoint exposes
-    bundle_id, version, download URL, and the Jamf Software Title ID),
-    this schema grows additional optional fields.
+    ``title``/``source``/``host`` come from the public HTML catalog; the rest
+    is enrichment from the App Installers titles API (absent on HTML-only
+    rows, hence optional).
     """
 
     title: str
     source: str
     host: str | None = None
+    bundle_id: str | None = None
+    version: str | None = None
+    jamf_id: str | None = None
+    download_url: str | None = None
+    architecture: str | None = None
 
 
 class AppSources(BaseModel):

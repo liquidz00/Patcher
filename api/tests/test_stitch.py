@@ -150,12 +150,14 @@ def _make_jai(
     title: str,
     source: str = "Jamf",
     host: str | None = None,
+    bundle_id: str | None = None,
 ) -> JamfAppInstaller:
     """Build a :class:`JamfAppInstaller` row for unit tests."""
     return JamfAppInstaller(
         title=title,
         source=source,
         host=host,
+        bundle_id=bundle_id,
         raw={"title": title, "source": source, "host": host},
         ingested_at=datetime.now(UTC),
     )
@@ -1031,7 +1033,66 @@ async def test_stitch_attaches_jai_to_installomator_app(test_session):
         "title": "Firefox",
         "source": "External",
         "host": "download.mozilla.org",
+        "bundle_id": None,
+        "version": None,
+        "jamf_id": None,
+        "download_url": None,
+        "architecture": None,
     }
+
+
+@pytest.mark.asyncio
+async def test_stitch_matches_jai_by_bundle_id_over_name(test_session):
+    """
+    bundle_id is the precision overlay: a JAI title with a matching bundle_id
+    attaches even when its name wouldn't normalize to the label's name.
+    """
+    test_session.add_all(
+        [
+            _make_label(
+                name="someapp",
+                display_name="Some App",
+                install_type="pkg",
+                package_id="com.vendor.someapp",
+                download_url="https://example.com/someapp.pkg",
+            ),
+            # Name ("Vendor Bundle Suite") would NOT name-match "Some App";
+            # the bundle_id does.
+            _make_jai(
+                title="Vendor Bundle Suite",
+                source="Jamf",
+                bundle_id="com.vendor.someapp",
+            ),
+        ]
+    )
+    await test_session.commit()
+
+    _, _, _, _, _, _, jai_attached, _ = await stitch_catalog(test_session)
+    assert jai_attached == 1
+
+    app = await test_session.scalar(select(AppRow).where(AppRow.slug == "someapp"))
+    assert "jamf_app_installer" in app.sources
+
+
+@pytest.mark.asyncio
+async def test_stitch_backfills_bundle_id_from_jai_onto_cask_only_app(test_session):
+    """
+    A Cask-only app has no bundle_id; a name-matched JAI title that has one
+    backfills it onto the app (JAI as a bundle_id provider).
+    """
+    test_session.add_all(
+        [
+            _make_cask(token="bartender", name="Bartender", version="5.0"),
+            _make_jai(title="Bartender", source="Jamf", bundle_id="com.surteesstudios.Bartender"),
+        ]
+    )
+    await test_session.commit()
+
+    await stitch_catalog(test_session)
+
+    app = await test_session.scalar(select(AppRow).where(AppRow.slug == "bartender"))
+    assert app.bundle_id == "com.surteesstudios.Bartender"  # backfilled from JAI
+    assert "jamf_app_installer" in app.sources
 
 
 @pytest.mark.asyncio
