@@ -167,3 +167,6 @@ api/*.db
 api/*.db-journal
 api/*.db-wal
 api/*.db-shm
+
+# Added by ggshield
+*.cache_ggshield

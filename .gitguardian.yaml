@@ -1,0 +1,7 @@
+version: 2
+secret:
+  ignored_matches:
+  - match: aee23591d880fd140161220d4d230c0e4e5b282cb653d0d77d4e363ca381d117
+    name: Jamf public dummy-instance OAuth client secret (sandbox, catalog-global)
+  - match: 23a0a785757f61e02c319ad88f8582aa5d31ca14cf458721caa04a169546527b
+    name: Generic Password - /Users/spesh/GitHub/Patcher/tests/test_installomator.py
