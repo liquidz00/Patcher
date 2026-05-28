@@ -29,6 +29,20 @@ from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.schemas.labels import GenerateLabelResponse
 
 
+def _first_scalar(value: Any) -> Any:
+    """
+    Collapse a multi-assignment chain (or bash array) to its first element.
+
+    ``parse_fragment`` returns a list when a label assigns a key more than once
+    (resolve-then-transform, arch-conditional branches) or declares a bash
+    array. By convention the label projection uses the first assignment — the
+    resolving step / primary value. Scalars pass through unchanged.
+    """
+    if isinstance(value, list):
+        return value[0] if value else None
+    return value
+
+
 def build_installomator_label(
     app_row: AppRow,
     detail: AppSourceDetailRow | None,
@@ -61,7 +75,7 @@ def build_installomator_label(
     install_type = _resolve_type(app_row, cask_json, installo_raw, warnings)
     download_url = _resolve_download_url(app_row, cask_json, installo_raw, warnings)
     version = app_row.current_version
-    team_id = installo_raw.get("expectedTeamID")
+    team_id = _first_scalar(installo_raw.get("expectedTeamID"))
 
     if not team_id:
         warnings.append(
@@ -105,7 +119,7 @@ def _resolve_name(
             return first
     if app_row.name:
         return app_row.name
-    installo_name = installo_raw.get("name")
+    installo_name = _first_scalar(installo_raw.get("name"))
     if isinstance(installo_name, str) and installo_name:
         return installo_name
     return None
@@ -121,7 +135,7 @@ def _resolve_type(
     Prefer Installomator's explicit ``type``. Fall back to apps row's
     ``install_method``. Last resort: infer from URL extension.
     """
-    explicit = installo_raw.get("type")
+    explicit = _first_scalar(installo_raw.get("type"))
     if isinstance(explicit, str) and explicit:
         return explicit
     if app_row.install_method:
@@ -165,7 +179,7 @@ def _resolve_download_url(
     if isinstance(cask_url, str) and cask_url:
         return cask_url
 
-    installo_url = installo_raw.get("downloadURL")
+    installo_url = _first_scalar(installo_raw.get("downloadURL"))
     if isinstance(installo_url, str) and installo_url and not installo_url.startswith("$("):
         return installo_url
 

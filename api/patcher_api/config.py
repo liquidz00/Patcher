@@ -14,16 +14,10 @@ Precedence:
        configuration without sourcing it in the shell.
     2. ``.env`` — local dev override alongside the working directory.
     3. Process environment (os.environ) — overrides everything above.
-
-Catalog-upload configuration:
-    The endpoint streams the uploaded DB to a temp location then atomically
-    renames to ``{incoming_dir}/patcher_api.db``.
-    A systemd.path unit watches that final filename and triggers the swap script.
 """
 
 import os
 from functools import lru_cache
-from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -43,10 +37,17 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite+aiosqlite:///./patcher_api.db"
     seed_on_startup: bool = True
-    incoming_dir: Path = Path("/var/lib/patcher-api/incoming")
-    # Cap protects against accidental or malicious oversized uploads. The
-    # real catalog DB is ~80 MB uncompressed; 100 MB gives headroom.
-    max_upload_bytes: int = 100 * 1024 * 1024
+    # Shared secret gating the macOS resolver's write endpoint. Unset means the
+    # endpoint refuses every request (fail-closed), so a misconfigured host
+    # can't accidentally expose an open write surface.
+    admin_token: str = ""
+    # Jamf App Installers titles API. The title endpoints are catalog-global, so
+    # Jamf's public dummy instance returns the same data as any tenant — these
+    # public sandbox credentials are the default source. Override per-host if a
+    # real tenant is ever preferred.
+    jai_base_url: str = "https://dummy.jamfcloud.com"
+    jai_client_id: str = "2b7ea5e9-cbab-4f60-97e3-32eaefeee768"
+    jai_client_secret: str = "o0dwi8E0XMaYtX760LB05csjHeJoGHKldTi4R5x7NKwLMl25gYenpMAlRDerA6G1"
 
 
 @lru_cache(maxsize=1)

@@ -26,7 +26,7 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from patcher_api.installomator_resolver import is_shell_expression, looks_like_clean_http_url
+from patcher_api.installomator.resolver import is_shell_expression, looks_like_clean_http_url
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.autopkg import AutopkgRecipe
@@ -52,6 +52,73 @@ _VALID_INSTALL_METHODS: set[str] = {
 # Common reverse-DNS prefixes that aren't the vendor name itself. When
 # packageID starts with one of these we skip to the next segment.
 _REVERSE_DNS_TLDS: set[str] = {"com", "org", "net", "io", "co", "us", "edu", "app"}
+
+# Canonical ordering for the apps.sources list.
+_CANONICAL_SOURCE_ORDER = (
+    "installomator",
+    "homebrew_cask",
+    "autopkg",
+    "jamf_app_installer",
+    "mas",
+)
+
+# JAI catalog titles carry decoration the Installomator label name omits: a
+# trailing version/year/edition ("Sublime Text 4", "Microsoft Word 365",
+# "Acrobat DC Continuous") and/or a leading vendor ("SAP Privileges", "Cisco
+# Webex"). Stripping these lets a decorated title match a bare label.
+_JAI_YEAR_PATTERN = re.compile(r"^(?:19|20)\d{2}$")
+_JAI_VERSION_PATTERN = re.compile(r"^v?\d+(?:\.\d+)*$")
+_JAI_EDITION_TOKENS: set[str] = {
+    "dc",
+    "continuous",
+    "x",
+    "pro",
+    "enterprise",
+    "standard",
+    "lts",
+    "ce",
+    "beta",
+    "unified",
+    "classic",
+    "legacy",
+    "app",
+    "edition",
+    "plus",
+    "mac",
+    "macos",
+}
+# Leading tokens stripped only when recognized as a vendor, so a genuine
+# two-word app name ("Visual Studio", "Final Cut") never loses its first word.
+# Extend as new vendor-prefixed JAI titles surface.
+_JAI_VENDOR_PREFIXES: set[str] = {
+    "adobe",
+    "amazon",
+    "apple",
+    "atlassian",
+    "cisco",
+    "citrix",
+    "dell",
+    "extensis",
+    "facebook",
+    "google",
+    "hp",
+    "ibm",
+    "iterate",
+    "jamf",
+    "jetbrains",
+    "logmein",
+    "microsoft",
+    "mozilla",
+    "openai",
+    "oracle",
+    "poly",
+    "readcube",
+    "root3",
+    "sap",
+    "techsmith",
+    "vmware",
+    "zoom",
+}
 
 
 def _extract_vendor(il: InstallomatorLabel) -> str | None:
@@ -244,15 +311,6 @@ def _build_cask_payload(cask: HomebrewCask) -> dict[str, Any]:
     }
 
 
-_CANONICAL_SOURCE_ORDER = (
-    "installomator",
-    "homebrew_cask",
-    "autopkg",
-    "jamf_app_installer",
-    "mas",
-)
-
-
 def _canonicalize_sources(sources: list[str]) -> list[str]:
     """Reorder a sources list into the canonical fixed-position ordering."""
     present = set(sources)
@@ -340,14 +398,18 @@ def _build_jai_payload(jai: JamfAppInstaller) -> dict[str, Any]:
     """
     Build the JamfAppInstallerSource shape for the source_detail JSON column.
 
-    Mirrors the public HTML catalog's three columns. When the unlisted
-    Jamf Pro API endpoint becomes available, this helper grows additional
-    fields (bundle_id, version, download URL, Jamf Software Title ID).
+    Carries the HTML columns plus the titles-API enrichment (``None`` on
+    HTML-only rows).
     """
     return {
         "title": jai.title,
         "source": jai.source,
         "host": jai.host,
+        "bundle_id": jai.bundle_id,
+        "version": jai.version,
+        "jamf_id": jai.jamf_id,
+        "download_url": jai.download_url,
+        "architecture": jai.architecture,
     }
 
 
@@ -395,21 +457,88 @@ async def _attach_mas_to_existing_app(
     await session.execute(detail_stmt)
 
 
+def _jai_index_keys(title: str) -> list[str]:
+    """
+    Normalized lookup keys a JAI title should be indexed under, decoration
+    widening down the list so exact forms keep priority:
+
+    1. the exact normalized title (``"SAP Privileges"`` → ``"sapprivileges"``),
+    2. with trailing version/year/edition tokens dropped
+       (``"Sublime Text 4"`` → ``"sublimetext"``), and
+    3. additionally with a leading *known-vendor* token dropped
+       (``"SAP Privileges"`` → ``"privileges"``).
+
+    The vendor strip is gated on :data:`_JAI_VENDOR_PREFIXES` so a real
+    two-word app name never loses its first word. Bare-string keys only —
+    callers map each to the row and resolve collisions first-wins.
+    """
+    exact = _normalize_name(title)
+    keys = [exact] if exact else []
+
+    tokens = re.findall(r"[a-z0-9]+", title.lower())
+    while tokens and (
+        _JAI_YEAR_PATTERN.match(tokens[-1])
+        or tokens[-1] in _JAI_EDITION_TOKENS
+        or _JAI_VERSION_PATTERN.fullmatch(tokens[-1])
+    ):
+        tokens.pop()
+
+    trailing_stripped = "".join(tokens)
+    if trailing_stripped and trailing_stripped not in keys:
+        keys.append(trailing_stripped)
+    if tokens and tokens[0] in _JAI_VENDOR_PREFIXES:
+        vendor_stripped = "".join(tokens[1:])
+        if vendor_stripped and vendor_stripped not in keys:
+            keys.append(vendor_stripped)
+    return keys
+
+
 def _index_jai_by_title(jai_rows: list[JamfAppInstaller]) -> dict[str, JamfAppInstaller]:
     """
-    Build a normalized-title → JAI row lookup. Titles are unique in the
-    JAI catalog, so this is a 1:1 map rather than the 1:N pattern AutoPkg
-    uses.
+    Build a normalized-key → JAI row lookup tolerant of decorated titles.
+
+    JAI titles routinely carry a version/year/edition suffix or a vendor
+    prefix the Installomator label name omits, so an exact-equality match
+    misses ~60 titles whose app *is* in the catalog (e.g. ``"SAP Privileges"``
+    vs the ``privileges`` label). Each row is therefore indexed under several
+    keys (see :func:`_jai_index_keys`). Two passes guarantee exact-title
+    matches always beat a decoration-stripped one: every exact key is claimed
+    first, then the stripped variants fill only the keys still unclaimed.
     """
     index: dict[str, JamfAppInstaller] = {}
     for j in jai_rows:
         key = _normalize_name(j.title)
-        if not key:
-            continue
-        # First-write wins on collision (shouldn't happen in practice with
-        # unique upstream titles, but defensive).
-        index.setdefault(key, j)
+        if key:
+            index.setdefault(key, j)
+    for j in jai_rows:
+        for key in _jai_index_keys(j.title):
+            index.setdefault(key, j)
     return index
+
+
+def _match_jai(
+    bundle_id: str | None,
+    normalized_name: str,
+    jai_by_bundle_id: dict[str, JamfAppInstaller],
+    jai_by_title: dict[str, JamfAppInstaller],
+) -> JamfAppInstaller | None:
+    """
+    Match a JAI title to an app: bundle_id first (exact, high confidence),
+    falling back to normalized-name. bundle_id only covers the minority of
+    apps that have one (~16% of labels, no casks), so name matching remains
+    the workhorse; bundle_id is a precision overlay that also corrects the
+    occasional name-match false positive.
+    """
+    if bundle_id and (hit := jai_by_bundle_id.get(bundle_id)):
+        return hit
+    return jai_by_title.get(normalized_name)
+
+
+def _backfilled_bundle_id(own: str | None, matching_jai: JamfAppInstaller | None) -> str | None:
+    """An app's own bundle_id, or JAI's when the app lacks one — JAI as a bundle_id provider."""
+    if own:
+        return own
+    return matching_jai.bundle_id if matching_jai else None
 
 
 def _slugify(name: str) -> str:
@@ -597,6 +726,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
     mas_by_bundle_id = {m.bundle_id: m for m in mas_apps}
     autopkg_by_name = _index_autopkg_by_name(list(autopkg_recipes))
     jai_by_title = _index_jai_by_title(list(jai_rows))
+    jai_by_bundle_id = {j.bundle_id: j for j in jai_rows if j.bundle_id}
     matched_cask_tokens: set[str] = set()
     matched_mas_bundle_ids: set[str] = set()
 
@@ -613,7 +743,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
         display_name = il.display_name or il.name
         normalized = _normalize_name(display_name)
         matching_autopkg = autopkg_by_name.get(normalized, [])
-        matching_jai = jai_by_title.get(normalized)
+        matching_jai = _match_jai(il.package_id, normalized, jai_by_bundle_id, jai_by_title)
 
         sources = ["installomator"]
         if matching_cask is not None:
@@ -630,7 +760,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                 await _upsert_app_with_sources(
                     session,
                     slug=il.name,
-                    bundle_id=il.package_id,
+                    bundle_id=_backfilled_bundle_id(il.package_id, matching_jai),
                     name=display_name,
                     vendor=_extract_vendor(il),
                     current_version=_resolve_version(il, matching_cask),
@@ -670,7 +800,8 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
         cask_name = cask.name or cask.token
         normalized = _normalize_name(cask_name)
         matching_autopkg = autopkg_by_name.get(normalized, [])
-        matching_jai = jai_by_title.get(normalized)
+        # Casks carry no bundle_id, so this is name-only; a JAI hit can backfill one.
+        matching_jai = _match_jai(None, normalized, jai_by_bundle_id, jai_by_title)
 
         sources = ["homebrew_cask"]
         if matching_autopkg:
@@ -683,7 +814,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                 await _upsert_app_with_sources(
                     session,
                     slug=cask.token,
-                    bundle_id=None,
+                    bundle_id=_backfilled_bundle_id(None, matching_jai),
                     name=cask_name,
                     vendor=cask_name.split()[0] if cask_name else None,
                     current_version=cask.version,
@@ -716,12 +847,6 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
             continue
 
         slug = _slugify(mas_app.name)
-        # If the slugified MAS name already exists on the apps table (typically
-        # because a phase-2 Cask-only app claimed it first — Apple Pro Suite +
-        # Microsoft Office are the common cases), merge the MAS payload into
-        # the existing row instead of skipping or overwriting it. Preserves
-        # name/vendor/version/download_url from the prior source; only adds
-        # "mas" to sources and writes the mas source_detail.
         existing_app_id = await session.scalar(select(AppRow.id).where(AppRow.slug == slug))
         if existing_app_id is not None:
             try:
@@ -742,7 +867,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
 
         normalized = _normalize_name(mas_app.name)
         matching_autopkg = autopkg_by_name.get(normalized, [])
-        matching_jai = jai_by_title.get(normalized)
+        matching_jai = _match_jai(mas_app.bundle_id, normalized, jai_by_bundle_id, jai_by_title)
 
         sources: list[str] = []
         if matching_autopkg:

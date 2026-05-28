@@ -32,7 +32,7 @@ Cask metadata (bundle ID, canonical name, vendor) joined into the catalog and ma
 Match Jamf titles against the AutoPkg recipe catalog for broader, multi-maintainer coverage.
 :::
 
-:::{grid-item-card} {iconify}`lucide:store` Jamf App Installers {iconify}`lucide:circle style=color:#9ca3af`
+:::{grid-item-card} {iconify}`lucide:store` Jamf App Installers {iconify}`lucide:circle-check style=color:#16a34a`
 :link: roadmap-jai
 :link-type: ref
 

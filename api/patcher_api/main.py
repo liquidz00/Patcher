@@ -1,16 +1,14 @@
-import hashlib
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, Request
-from sqlalchemy.engine.url import make_url
 from starlette.responses import Response
 
+from patcher_api.catalog import recompute_catalog_sha
 from patcher_api.config import get_settings
 from patcher_api.db import get_engine, get_session_maker, init_db
-from patcher_api.routes import apps
+from patcher_api.routes import admin, apps
 from patcher_api.seed import seed_database
 
 log = logging.getLogger(__name__)
@@ -27,27 +25,6 @@ _CACHEABLE_PATH_PREFIX = "/apps"
 _CACHE_CONTROL = "public, max-age=300, stale-while-revalidate=3600"
 
 
-def _catalog_db_path() -> Path | None:
-    """
-    Resolve the on-disk path of the SQLite catalog DB from the configured
-    database URL. Returns ``None`` for in-memory databases (tests use
-    ``sqlite+aiosqlite:///:memory:``).
-    """
-    url = make_url(get_settings().database_url)
-    if not url.database or url.database == ":memory:":
-        return None
-    return Path(url.database)
-
-
-def _hash_catalog_file(path: Path) -> str:
-    """One-shot SHA-256 of the catalog DB file, ~1 second for a 65 MB DB."""
-    hasher = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            hasher.update(chunk)
-    return hasher.hexdigest()
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await init_db()
@@ -56,19 +33,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         async with get_session_maker()() as session:
             await seed_database(session)
 
-    # Compute the catalog hash once per startup. The catalog-refresh
-    # systemd unit restarts patcher-api.service after its ingest run
-    # completes, so this hash is current for the lifetime of the process.
-    # Used as the ETag for ``/apps*`` responses; clients can revalidate
-    # without re-downloading the body.
-    catalog_path = _catalog_db_path()
-    if catalog_path is not None and catalog_path.exists():
-        app.state.catalog_sha = _hash_catalog_file(catalog_path)
-        log.info("Catalog SHA-256 on startup: %s", app.state.catalog_sha)
-    else:
-        # In-memory DB (tests), or first boot before any catalog has been
-        # uploaded. Middleware no-ops when this is unset.
-        app.state.catalog_sha = None
+    # Compute the catalog hash once per startup. The catalog-refresh systemd
+    # unit restarts patcher-api.service after its ingest run, so this hash is
+    # current for the process lifetime; the macOS resolver upload recomputes it
+    # in place. Used as the ETag for ``/apps*`` responses so clients can
+    # revalidate without re-downloading the body. ``None`` (in-memory DB under
+    # tests, or first boot pre-catalog) makes the middleware no-op.
+    app.state.catalog_sha = None
+    sha = recompute_catalog_sha(app)
+    if sha is not None:
+        log.info("Catalog SHA-256 on startup: %s", sha)
 
     yield
 
@@ -130,6 +104,7 @@ async def catalog_etag(request: Request, call_next):
 
 
 app.include_router(apps.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")

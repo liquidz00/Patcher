@@ -42,9 +42,18 @@ Environment variables:
   the relative default will not resolve to.
 - ``PATCHER_API_RESOLVE_INGEST`` — when set, the Installomator ingest
   evaluates shell-expression ``downloadURL`` / ``appNewVersion`` values
-  via pyinstallomator. Defaults to off (safe for production hosts).
+  via pyinstallomator. Defaults to off (safe for production hosts). For
+  local runs prefer the ``--resolve`` flag, which can't be silently dropped
+  the way an unexported shell variable is. systemd's ``EnvironmentFile``
+  exports correctly, so the env var is the right toggle on the box.
 - ``PATCHER_API_RESOLVE_CONCURRENCY`` — concurrent label resolves
   during Installomator ingest. Defaults to 25.
+- ``PATCHER_API_GITHUB_TOKEN`` — authenticates the ``api.github.com`` calls
+  (the SHA-gating tree-discovery call and ``downloadURLFromGit``) to the
+  5000/hr limit instead of the 60/hr unauthenticated one. Strongly
+  recommended: without it, discovery itself can 403 once the shared 60/hr
+  IP budget is spent. ``versionFromGit`` uses the github.com redirect and
+  needs no token.
 - ``PATCHER_API_INSTALLOMATOR_REF`` — pin a specific Installomator
   commit / tag / branch. Defaults to ``refs/heads/main``.
 """
@@ -52,22 +61,24 @@ Environment variables:
 import argparse
 import asyncio
 import logging
+import os
 import sys
 from collections.abc import Awaitable, Callable
 
+from patcher_api.config import get_settings
 from patcher_api.db import get_session_maker, init_db
 from patcher_api.ingest.autopkg import fetch_autopkg_index, ingest_autopkg_index
 from patcher_api.ingest.homebrew import fetch_homebrew_casks, ingest_homebrew_casks
-from patcher_api.ingest.installomator import (
+from patcher_api.ingest.jamf_app_installers import fetch_jai_catalog, ingest_jai_titles
+from patcher_api.installomator.ingest import (
     fetch_installomator_labels,
     ingest_installomator_labels,
+    refresh_dynamic_resolutions,
+    set_resolve_on_ingest,
 )
-from patcher_api.ingest.jamf_app_installers import (
-    fetch_jamf_app_installers_html,
-    ingest_jamf_app_installers,
-    parse_jamf_app_installers_table,
-)
+from patcher_api.models.installomator import InstallomatorLabel
 from patcher_api.stitch import stitch_catalog
+from sqlalchemy import delete, select
 
 log = logging.getLogger("ingest")
 
@@ -95,21 +106,55 @@ def _configure_logging(verbose: bool = False) -> None:
     logging.getLogger("ingest").setLevel(own_level)
 
 
-async def cmd_installomator() -> None:
+async def cmd_installomator(*, force: bool = False) -> None:
     await init_db()
     log.info("=== Installomator ingest ===")
-    name_to_content, missing, errored = await fetch_installomator_labels()
     async with get_session_maker()() as session:
-        ingested, skipped, failed = await ingest_installomator_labels(session, name_to_content)
+        existing_rows = (
+            await session.execute(select(InstallomatorLabel.name, InstallomatorLabel.blob_sha))
+        ).all()
+        existing_blob_shas: dict[str, str | None] = {name: sha for name, sha in existing_rows}
+
+        plan = await fetch_installomator_labels(
+            existing_blob_shas=existing_blob_shas,
+            force=force,
+        )
+
+        ingested, skipped, failed = await ingest_installomator_labels(
+            session,
+            plan.name_to_content,
+            name_to_blob_sha=plan.name_to_blob_sha,
+        )
+
+        # Keep dynamic values fresh for SHA-unchanged labels (no-op when
+        # resolution is disabled). Re-resolves from stored ``raw``.
+        refreshed = await refresh_dynamic_resolutions(
+            session, already_resolved=set(plan.name_to_content)
+        )
+
+        if plan.removed:
+            log.info(
+                "Deleting %d label(s) removed upstream: %s",
+                len(plan.removed),
+                ", ".join(sorted(plan.removed)),
+            )
+            await session.execute(
+                delete(InstallomatorLabel).where(InstallomatorLabel.name.in_(plan.removed))
+            )
+            await session.commit()
+
     log.info(
-        "Installomator summary: fetched=%d, missing=%d, errored=%d, "
-        "ingested=%d, skipped=%d, failed=%d",
-        len(name_to_content),
-        missing,
-        errored,
+        "Installomator summary: fetched=%d, unchanged=%d, removed=%d, "
+        "missing=%d, errored=%d, ingested=%d, skipped=%d, failed=%d, refreshed=%d",
+        len(plan.name_to_content),
+        plan.unchanged,
+        len(plan.removed),
+        plan.missing,
+        plan.errored,
         ingested,
         skipped,
         failed,
+        refreshed,
     )
 
 
@@ -139,12 +184,14 @@ async def cmd_autopkg() -> None:
 async def cmd_jai() -> None:
     await init_db()
     log.info("=== Jamf App Installers ingest ===")
-    log.info("Fetching JAI catalog HTML...")
-    html = await fetch_jamf_app_installers_html()
-    rows = parse_jamf_app_installers_table(html)
-    log.info("Parsed %d titles. Ingesting...", len(rows))
+    settings = get_settings()
+    log.info("Fetching JAI titles catalog from %s...", settings.jai_base_url)
+    titles = await fetch_jai_catalog(
+        settings.jai_base_url, settings.jai_client_id, settings.jai_client_secret
+    )
+    log.info("Fetched %d titles. Ingesting...", len(titles))
     async with get_session_maker()() as session:
-        ingested, skipped = await ingest_jamf_app_installers(session, rows)
+        ingested, skipped = await ingest_jai_titles(session, titles)
     log.info("JAI summary: ingested=%d, skipped=%d", ingested, skipped)
 
 
@@ -180,9 +227,9 @@ async def cmd_stitch() -> None:
     )
 
 
-async def cmd_all() -> None:
+async def cmd_all(*, force: bool = False) -> None:
     log.info("=== Full pipeline ===")
-    await cmd_installomator()
+    await cmd_installomator(force=force)
     await cmd_homebrew()
     await cmd_autopkg()
     await cmd_jai()
@@ -190,7 +237,7 @@ async def cmd_all() -> None:
     log.info("=== Full pipeline complete ===")
 
 
-COMMANDS: dict[str, Callable[[], Awaitable[None]]] = {
+COMMANDS: dict[str, Callable[..., Awaitable[None]]] = {
     "installomator": cmd_installomator,
     "homebrew": cmd_homebrew,
     "autopkg": cmd_autopkg,
@@ -198,6 +245,16 @@ COMMANDS: dict[str, Callable[[], Awaitable[None]]] = {
     "stitch": cmd_stitch,
     "all": cmd_all,
 }
+
+# Commands that accept ``force=`` for SHA-gated re-ingest. Other commands
+# either have no gating to bypass (stitch, JAI) or their upstream sources
+# don't yet support SHA gating.
+_FORCEABLE_COMMANDS = frozenset({"installomator", "all"})
+
+
+def _env_force() -> bool:
+    """Read ``PATCHER_API_FORCE_INGEST`` and coerce to bool."""
+    return os.environ.get("PATCHER_API_FORCE_INGEST", "").lower() in ("1", "true", "yes")
 
 
 def main() -> None:
@@ -211,6 +268,26 @@ def main() -> None:
         help="Enable DEBUG-level logging.",
     )
     parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Bypass SHA gating on supported sources (installomator). "
+            "Forces every label to be re-fetched and re-parsed regardless "
+            "of stored blob_sha. Use after parser changes or when the "
+            "resolver's coverage improves. Also honors PATCHER_API_FORCE_INGEST=1."
+        ),
+    )
+    parser.add_argument(
+        "--resolve",
+        action="store_true",
+        help=(
+            "Resolve shell-expression downloadURL / appNewVersion values during "
+            "the installomator ingest, equivalent to PATCHER_API_RESOLVE_INGEST=true. "
+            "Prefer this flag for local runs — it can't be silently dropped the way "
+            "an unexported env var is. HTTP-bound; run on a machine with adequate RAM."
+        ),
+    )
+    parser.add_argument(
         "command",
         choices=list(COMMANDS.keys()),
         help=(
@@ -220,7 +297,27 @@ def main() -> None:
     )
     args = parser.parse_args()
     _configure_logging(verbose=args.verbose)
-    asyncio.run(COMMANDS[args.command]())
+
+    if args.resolve:
+        set_resolve_on_ingest(True)
+        if args.command not in _FORCEABLE_COMMANDS:
+            log.warning(
+                "--resolve is a no-op for the '%s' command (only installomator + all resolve).",
+                args.command,
+            )
+
+    force = args.force or _env_force()
+    if force and args.command not in _FORCEABLE_COMMANDS:
+        log.warning(
+            "--force is a no-op for the '%s' command (only installomator + all support gating today).",
+            args.command,
+        )
+
+    if args.command in _FORCEABLE_COMMANDS:
+        coro = COMMANDS[args.command](force=force)
+    else:
+        coro = COMMANDS[args.command]()
+    asyncio.run(coro)
 
 
 if __name__ == "__main__":

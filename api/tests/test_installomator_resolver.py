@@ -1,6 +1,6 @@
 """
 Tests for the shell-pipeline resolver at
-:mod:`patcher_api.installomator_resolver`.
+:mod:`patcher_api.installomator.resolver`.
 
 Uses ``httpx.MockTransport`` for HTTP fixtures — no real network, no recorded
 cassettes, just inline handlers that return canned responses.
@@ -14,10 +14,7 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from patcher_api.installomator_resolver import (
-    InvalidOutput,
-    Resolved,
-    Unresolvable,
+from patcher_api.installomator._filters import (
     _exec_awk,
     _exec_cut,
     _exec_grep,
@@ -28,9 +25,15 @@ from patcher_api.installomator_resolver import (
     _exec_tr,
     _exec_uniq,
     _parse_field_spec,
+)
+from patcher_api.installomator.resolver import (
+    InvalidOutput,
+    Resolved,
+    Unresolvable,
     _split_pipeline,
     _tokenize,
     looks_like_clean_http_url,
+    looks_like_clean_version,
     resolve,
 )
 
@@ -77,6 +80,30 @@ class TestResolveUrlValidation:
         # is_url=False is the default; ftp:// should pass through unchecked.
         result = resolve("ftp://example.com/foo.dmg")
         assert result == Resolved(value="ftp://example.com/foo.dmg")
+
+
+class TestResolveVersionValidation:
+    """When ``is_version=True`` is passed, the resolved value is checked against
+    :func:`looks_like_clean_version` and failures land as :class:`InvalidOutput`
+    rather than :class:`Resolved` — so a pipeline that captures an HTML page or
+    a multi-line dump nulls the column instead of storing junk as a version."""
+
+    def test_clean_version_resolves(self):
+        result = resolve("121.0", is_version=True)
+        assert result == Resolved(value="121.0")
+
+    def test_literal_html_body_is_invalid_output(self):
+        result = resolve("<!doctype html><html>oops</html>", is_version=True)
+        assert isinstance(result, InvalidOutput)
+
+    def test_literal_multiline_dump_is_invalid_output(self):
+        result = resolve("Build 4200\nBuild 4192\nBuild 4189", is_version=True)
+        assert isinstance(result, InvalidOutput)
+
+    def test_non_version_field_skips_validation(self):
+        # is_version=False is the default; junk should pass through unchecked.
+        result = resolve("<html>oops</html>")
+        assert result == Resolved(value="<html>oops</html>")
 
 
 class TestLooksLikeCleanHttpUrl:
@@ -135,6 +162,57 @@ class TestLooksLikeCleanHttpUrl:
 
     def test_relative_path_rejected(self):
         assert looks_like_clean_http_url("/path/to/foo.dmg") is False
+
+
+class TestLooksLikeCleanVersion:
+    """
+    Output sanity check for ``appNewVersion``. Unlike ``downloadURL``, the
+    version column has no schema-level guard, so this is the only thing
+    standing between a misfiring pipeline and a bogus version in the catalog.
+    Regression coverage for the garbage classes seen empirically: empty
+    output, HTML pages, header dumps, and un-filtered multi-line lists.
+    """
+
+    def test_dotted_numeric_accepted(self):
+        assert looks_like_clean_version("121.0") is True
+
+    def test_semver_with_build_metadata_accepted(self):
+        assert looks_like_clean_version("1.2.3-beta.4+build567") is True
+
+    def test_version_with_internal_space_accepted(self):
+        # A few labels legitimately produce "Build 4200"-style versions.
+        assert looks_like_clean_version("Build 4200") is True
+
+    def test_none_rejected(self):
+        assert looks_like_clean_version(None) is False
+
+    def test_empty_string_rejected(self):
+        assert looks_like_clean_version("") is False
+
+    def test_whitespace_only_rejected(self):
+        assert looks_like_clean_version("   ") is False
+
+    def test_multiline_dump_rejected(self):
+        # Final filter (head -1) was unsupported, so the whole match list landed.
+        assert looks_like_clean_version("Build 4200\nBuild 4192\nBuild 4189") is False
+
+    def test_carriage_return_rejected(self):
+        assert looks_like_clean_version("1.2.3\r\n4.5.6") is False
+
+    def test_html_page_rejected(self):
+        assert looks_like_clean_version('<meta name="viewport" content="1.0">') is False
+
+    def test_http_header_dump_rejected(self):
+        # As seen in the wild: a curl -I dump, always multi-line (caught by the newline rule).
+        dump = "HTTP/1.1 307 Temporary Redirect\ndate: Tue, 26 May 2026 20:17:52 GMT"
+        assert looks_like_clean_version(dump) is False
+
+    def test_over_max_length_rejected(self):
+        assert looks_like_clean_version("1." + ("0" * 60)) is False
+
+    def test_digit_free_string_rejected(self):
+        # Every version carries a number; a digit-free word is a stray label.
+        assert looks_like_clean_version("latest") is False
 
 
 class TestSplitPipeline:
@@ -228,7 +306,7 @@ class TestExecAwk:
         assert _exec_awk(["{print $9}"], ["one two"]) == [""]
 
     def test_unsupported_program_raises(self):
-        from patcher_api.installomator_resolver import UnsupportedOperation
+        from patcher_api.installomator.resolver import UnsupportedOperation
 
         with pytest.raises(UnsupportedOperation):
             _exec_awk(['{ if ($1 == "x") print $2 }'], ["x y"])
@@ -248,7 +326,7 @@ class TestExecSed:
         assert _exec_sed(["s|foo|bar|g"], ["foo/baz"]) == ["bar/baz"]
 
     def test_unsupported_command_raises(self):
-        from patcher_api.installomator_resolver import UnsupportedOperation
+        from patcher_api.installomator.resolver import UnsupportedOperation
 
         with pytest.raises(UnsupportedOperation):
             _exec_sed(["1,5p"], ["whatever"])
@@ -262,7 +340,7 @@ class TestExecTr:
         assert _exec_tr(["-d", "0123456789"], ["abc123def"]) == ["abcdef"]
 
     def test_mismatched_set_lengths_raise(self):
-        from patcher_api.installomator_resolver import UnsupportedOperation
+        from patcher_api.installomator.resolver import UnsupportedOperation
 
         with pytest.raises(UnsupportedOperation):
             _exec_tr(["ab", "xyz"], ["whatever"])
@@ -279,7 +357,7 @@ class TestExecSort:
         assert _exec_sort(["-n"], ["10", "2", "30"]) == ["2", "10", "30"]
 
     def test_unsupported_flag_raises(self):
-        from patcher_api.installomator_resolver import UnsupportedOperation
+        from patcher_api.installomator.resolver import UnsupportedOperation
 
         with pytest.raises(UnsupportedOperation):
             _exec_sort(["-k2"], ["whatever"])
@@ -345,7 +423,7 @@ class TestSubprocessFallback:
         """
         import subprocess
 
-        from patcher_api import installomator_resolver
+        from patcher_api.installomator import resolver as installomator_resolver
 
         def fake_run(*_args, **_kwargs):
             raise subprocess.TimeoutExpired(cmd="bash", timeout=30.0)
@@ -362,7 +440,7 @@ class TestSubprocessFallback:
         but a real failure mode on stripped-down containers). Mocked because
         we can't actually remove /bin/bash from a dev box for a test.
         """
-        from patcher_api import installomator_resolver
+        from patcher_api.installomator import resolver as installomator_resolver
 
         def fake_run(*_args, **_kwargs):
             raise OSError("[Errno 2] No such file or directory: '/bin/bash'")
@@ -413,6 +491,287 @@ class TestCurlBody:
         # Split on `"`: ["mirror: ", "https://mirror.example/v1.2.3/firefox.dmg", ""]
         # -f2 (1-indexed) extracts the quoted URL itself.
         assert result.value == "https://mirror.example/v1.2.3/firefox.dmg"
+
+
+class TestGitHubReleases:
+    def test_version_from_git_via_redirect(self):
+        """versionFromGit follows the github.com /releases/latest redirect to a tag."""
+
+        def handler(request):
+            if request.url.path.endswith("/releases/latest"):
+                return httpx.Response(
+                    302,
+                    headers={"Location": "https://github.com/owner/repo/releases/tag/v3.2.1"},
+                )
+            return httpx.Response(200)
+
+        client = _mock_client(handler)
+        result = resolve("$(versionFromGit owner repo)", http_client=client)
+        assert isinstance(result, Resolved)
+        assert result.value == "3.2.1"  # tag stripped to digits + dots
+
+    def test_version_from_git_no_release_is_unresolvable(self):
+        def handler(request):
+            # No release: redirect lands on /releases (no /tag/ segment)
+            return httpx.Response(
+                302, headers={"Location": "https://github.com/owner/repo/releases"}
+            )
+
+        client = _mock_client(handler)
+        result = resolve("$(versionFromGit owner repo)", http_client=client)
+        assert isinstance(result, Unresolvable)
+
+    def test_download_url_from_git_picks_asset_by_type(self):
+        def handler(request):
+            return httpx.Response(
+                200,
+                json={
+                    "assets": [
+                        {
+                            "browser_download_url": "https://github.com/o/r/releases/download/v1/App.exe"
+                        },
+                        {
+                            "browser_download_url": "https://github.com/o/r/releases/download/v1/App.dmg"
+                        },
+                    ]
+                },
+            )
+
+        client = _mock_client(handler)
+        result = resolve(
+            "$(downloadURLFromGit owner repo)",
+            http_client=client,
+            is_url=True,
+            context={"type": "dmg"},
+        )
+        assert isinstance(result, Resolved)
+        assert result.value.endswith("/App.dmg")
+
+    def test_download_url_from_git_picks_asset_by_archive_name(self):
+        def handler(request):
+            return httpx.Response(
+                200,
+                json={
+                    "assets": [
+                        {
+                            "browser_download_url": "https://github.com/o/r/releases/download/v1/App-x64.dmg"
+                        },
+                        {
+                            "browser_download_url": "https://github.com/o/r/releases/download/v1/App-arm64.dmg"
+                        },
+                    ]
+                },
+            )
+
+        client = _mock_client(handler)
+        result = resolve(
+            "$(downloadURLFromGit owner repo)",
+            http_client=client,
+            is_url=True,
+            context={"type": "dmg", "archiveName": "App-arm64.dmg"},
+        )
+        assert isinstance(result, Resolved)
+        assert result.value.endswith("/App-arm64.dmg")
+
+    def test_download_url_from_git_no_match_is_unresolvable(self):
+        def handler(request):
+            return httpx.Response(200, json={"assets": []})
+
+        client = _mock_client(handler)
+        result = resolve(
+            "$(downloadURLFromGit owner repo)",
+            http_client=client,
+            is_url=True,
+            context={"type": "dmg"},
+        )
+        assert isinstance(result, Unresolvable)
+
+
+_APPCAST = """<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>App Changelog</title>
+    <item>
+      <title>Version 4.5.2</title>
+      <sparkle:shortVersionString>4.5.2</sparkle:shortVersionString>
+      <enclosure url="https://example.com/App-4.5.2.dmg"
+                 sparkle:version="4520"
+                 sparkle:shortVersionString="4.5.2"/>
+    </item>
+  </channel>
+</rss>"""
+
+
+class TestXPath:
+    def _client(self):
+        return _mock_client(lambda request: httpx.Response(200, text=_APPCAST))
+
+    def test_attribute_url_via_cut(self):
+        """Attribute match prints name="value"; the label's cut extracts the value."""
+        result = resolve(
+            "$(curl -fs \"https://feed\" | xpath '(//rss/channel/item/enclosure/@url)[1]' "
+            "2>/dev/null | cut -d '\"' -f 2)",
+            http_client=self._client(),
+            is_url=True,
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "https://example.com/App-4.5.2.dmg"
+
+    def test_sparkle_namespaced_attribute(self):
+        result = resolve(
+            '$(curl -fs "https://feed" '
+            "| xpath '(//rss/channel/item/enclosure/@sparkle:shortVersionString)[1]' "
+            "2>/dev/null | cut -d '\"' -f 2)",
+            http_client=self._client(),
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "4.5.2"
+
+    def test_string_function(self):
+        result = resolve(
+            "$(curl -fs \"https://feed\" | xpath 'string(//rss/channel/item/title)' 2>/dev/null)",
+            http_client=self._client(),
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "Version 4.5.2"
+
+    def test_text_node(self):
+        result = resolve(
+            '$(curl -fs "https://feed" '
+            "| xpath '(//rss/channel/item/sparkle:shortVersionString/text())[1]' 2>/dev/null)",
+            http_client=self._client(),
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "4.5.2"
+
+    def test_no_match_is_unresolvable(self):
+        result = resolve(
+            "$(curl -fs \"https://feed\" | xpath 'string(//does/not/exist)' 2>/dev/null)",
+            http_client=self._client(),
+        )
+        assert isinstance(result, Unresolvable)
+
+    def test_malformed_xml_is_unresolvable(self):
+        client = _mock_client(lambda request: httpx.Response(200, text="not xml at all <<<"))
+        result = resolve(
+            "$(curl -fs \"https://feed\" | xpath 'string(//item/title)' 2>/dev/null)",
+            http_client=client,
+        )
+        assert isinstance(result, Unresolvable)
+
+
+_JSON_FEED = (
+    '{"version": "9.8.7",'
+    ' "platforms": [{"url": "https://example.com/app-9.8.7.dmg"}],'
+    ' "computer": {"MacOS": {"releases": [{"url": "https://example.com/r0.dmg"}]}}}'
+)
+
+
+class TestGetJSONValue:
+    def _client(self):
+        return _mock_client(lambda request: httpx.Response(200, text=_JSON_FEED))
+
+    def test_dot_key(self):
+        result = resolve(
+            '$(getJSONValue "$(curl -fs \'https://api\')" "version")',
+            http_client=self._client(),
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "9.8.7"
+
+    def test_bracket_index_then_key(self):
+        result = resolve(
+            '$(getJSONValue "$(curl -fs \'https://api\')" "platforms[0].url")',
+            http_client=self._client(),
+            is_url=True,
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "https://example.com/app-9.8.7.dmg"
+
+    def test_nested_path(self):
+        result = resolve(
+            '$(getJSONValue "$(curl -fs \'https://api\')" "computer.MacOS.releases[0].url")',
+            http_client=self._client(),
+            is_url=True,
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "https://example.com/r0.dmg"
+
+    def test_shell_variable_key_is_unresolvable(self):
+        result = resolve(
+            '$(getJSONValue "$(curl -fs \'https://api\')" "platforms[$count].url")',
+            http_client=self._client(),
+        )
+        assert isinstance(result, Unresolvable)
+
+    def test_missing_key_is_unresolvable(self):
+        result = resolve(
+            '$(getJSONValue "$(curl -fs \'https://api\')" "nope.missing")',
+            http_client=self._client(),
+        )
+        assert isinstance(result, Unresolvable)
+
+    def test_invalid_json_is_unresolvable(self):
+        client = _mock_client(lambda request: httpx.Response(200, text="<html>not json</html>"))
+        result = resolve(
+            '$(getJSONValue "$(curl -fs \'https://api\')" "version")',
+            http_client=client,
+        )
+        assert isinstance(result, Unresolvable)
+
+
+class TestEchoVariableExpansion:
+    """`echo "${var}"` resolves the referenced variable from the label context."""
+
+    def test_chained_feed_var_then_xpath(self):
+        """beyondcomparepro's downloadURL shape: feed in ${updateFeed}, parsed by xpath."""
+        client = _mock_client(lambda request: httpx.Response(200, text=_APPCAST))
+        result = resolve(
+            "$(echo \"${updateFeed}\" | xpath '(//rss/channel/item/enclosure/@url)[1]' "
+            "2>/dev/null | cut -d '\"' -f 2)",
+            http_client=client,
+            is_url=True,
+            context={"updateFeed": "$(curl -fs 'https://feed')"},
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "https://example.com/App-4.5.2.dmg"
+
+    def test_version_derived_from_resolved_download_url(self):
+        """appNewVersion=$(echo "${downloadURL}" | cut ...) — sibling field reused."""
+        result = resolve(
+            '$(echo "${downloadURL}" | cut -d / -f 4)',
+            context={"downloadURL": "https://example.com/9.8.7/App.dmg"},
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "9.8.7"
+
+    def test_bare_dollar_var(self):
+        result = resolve(
+            "$(echo $downloadURL | sed -E 's/.*-([0-9.]+)\\.dmg/\\1/')",
+            context={"downloadURL": "https://example.com/App-3.2.1.dmg"},
+        )
+        assert isinstance(result, Resolved)
+        assert result.value == "3.2.1"
+
+    def test_parameter_expansion_is_unresolvable(self):
+        """${var//search/replace} is a transform we don't evaluate — bail cleanly."""
+        result = resolve(
+            '$(echo "${rawVersion// build /.}")',
+            context={"rawVersion": "4.5.2 build 1"},
+        )
+        assert isinstance(result, Unresolvable)
+
+    def test_missing_var_is_unresolvable(self):
+        result = resolve('$(echo "${nope}")', context={})
+        assert isinstance(result, Unresolvable)
+
+    def test_cycle_is_unresolvable(self):
+        # a -> b -> a
+        result = resolve(
+            '$(echo "${a}")',
+            context={"a": '$(echo "${b}")', "b": '$(echo "${a}")'},
+        )
+        assert isinstance(result, Unresolvable)
 
 
 class TestCurlRedirectChainHeaders:

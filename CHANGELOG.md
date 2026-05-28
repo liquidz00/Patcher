@@ -9,17 +9,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [v3.1.0] - 2026-05-28
 ### Added
-- **`patcherctl diff`** subcommand for pairwise snapshot comparison. Default behavior compares a live fetch against the most recent cached snapshot; `--since <window>` (`30d`/`24h`/`1w`), `--all-time`, `--between <from> <to>` (ISO dates), and `--no-fetch` cover the common windows. `--list-snapshots` prints available cache entries; `--format json` emits a structured `DiffResult` for piping into `jq`/downstream tools.
-- **`Diff` class** in `patcher.core.analyze`, alongside `TitleFilter` and `TrendAnalysis`. Constructs from two `list[PatchTitle]`, two `pandas.DataFrame`, or two `Path` objects; classmethods `Diff.from_cache` (two cached snapshots) and `Diff.live_vs_cache` (live + one cached) handle the common entry points.
-- **`DiffResult` and `TitleChange` Pydantic models** as the structured return value. Carries added/removed/changed title lists, per-title before/after values plus deltas, and aggregate summary fields (avg completion delta, version bumps).
-- **`PatcherClient.diff()`** as the library-level entry point. Wraps `Diff.live_vs_cache` and `Diff.from_cache` with flag validation matching the CLI surface.
-- **`patcherctl drift`** subcommand for cross-source version drift detection. Surfaces apps where Installomator and Homebrew Cask disagree on the current version (a leading indicator that an upstream label has gone silently stale). `--slug` for single-app inspection, `--vendor`/`--source` for list-mode filters, `--format json` for piping.
-- **`GET /apps/drift`** and **`GET /apps/{slug}/drift`** endpoints in the Patcher API. List endpoint paginates with `vendor`/`source`/`limit`/`offset`; single-app endpoint returns `null` for no drift and 404 for unknown slug.
-- **`PatcherAPIClient.list_drift()` and `get_app_drift()`** as typed wrappers, with `DriftResponse`, `DriftEntry`, and `SourceVersion` Pydantic models. Uses `packaging.Version` for semantic comparison — `4.32` and `4.32.0` are treated as agreement, not drift.
-- **`PatcherClient.detect_drift()`** as the high-level library entry point. Routes to list or single-app mode based on whether `slug` is set; constructs its own `PatcherAPIClient` when `enable_installomator=False`.
-- **Homebrew Cask as a second matching dimension.** `patcherctl export --homebrew` (and `PatcherClient(enable_homebrew=True)` / `fetch_patches(match_homebrew=True)`) widens title matching to the catalog's Homebrew Cask source. Matches route by provenance: Installomator-sourced slugs populate `install_label` as before, Cask-sourced slugs populate the new `PatchTitle.homebrew_cask` field, and dual-source slugs populate both. Reports gain a `Homebrew` coverage column showing matched cask tokens; the JSON export carries the structured matches. Off by default, so existing exports are unchanged.
-- **`CaskMatch` model** (`patcher.core.models.cask`) as the Homebrew analogue of the `Label` stub. Kept separate from `Label` so the Installomator-only meaning of `install_label` stays intact.
+- Jamf App Installers per-title metadata now includes bundle ID, version, and download URL (previously only title, source, and host).
+- More Installomator labels now resolve their dynamic `downloadURL` / `appNewVersion` values, including ones that previously required macOS-only evaluation.
+- `patcherctl diff` subcommand for snapshot comparison, with `--since`, `--all-time`, `--between`, `--list-snapshots`, and `--format json`. Available at the library level as `PatcherClient.diff()`.
+- `patcherctl drift` subcommand for surfacing apps where Installomator and Homebrew Cask disagree on the current version. Available at the library level as `PatcherClient.detect_drift()` and at the API level via `GET /apps/drift` and `GET /apps/{slug}/drift`.
+- Homebrew Cask as a second matching dimension for patch reports via `patcherctl export --homebrew`. Off by default.
+
+### Fixed
+- Installomator label parser no longer truncates or collapses shell-expression values ([#65](https://github.com/liquidz00/Patcher/issues/65)).
+- `GET /apps/{slug}/sources` now correctly returns `jamf_app_installer` coverage (previously fell back to `null` for every app).
+- `GET /apps/{slug}/sources` no longer returns 500 for apps whose AutoPkg recipes have a `null` `name` or `shortname`.
+- Jamf App Installers now matches catalog titles that carry a vendor prefix or a version / edition suffix (e.g. `SAP Privileges` → `privileges`, `Sublime Text 4` → `sublimetext`).
+- Resolved `appNewVersion` values are sanity-checked before storage, preventing HTML pages or multi-line output from being stored as versions.
 
 ## [v3.0.0] - 2026-05-21
 ### Added

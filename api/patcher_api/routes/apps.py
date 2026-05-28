@@ -167,6 +167,7 @@ async def get_app_sources(
             "installomator": detail_row.installomator,
             "homebrew_cask": detail_row.homebrew_cask,
             "autopkg": detail_row.autopkg,
+            "jamf_app_installer": detail_row.jamf_app_installer,
         }
     )
 

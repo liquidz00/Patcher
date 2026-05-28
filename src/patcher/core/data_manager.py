@@ -501,6 +501,7 @@ class DataManager:
             columns=[col.replace("_", " ").title() for col in DataManager._IGNORED], errors="ignore"
         )
 
+        # TODO: comment runs long — trim?
         # Surface Homebrew Cask coverage as a readable column. The raw
         # list-of-dicts ``homebrew_cask`` field is dropped via ``_IGNORED``
         # (same treatment as ``install_label``); this derived column shows the

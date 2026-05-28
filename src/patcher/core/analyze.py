@@ -15,6 +15,7 @@ from .logger import LogMe
 from .models.patch import PatchTitle
 
 _log = LogMe("analyze")
+_CHANGE_FIELDS = ("completion_percent", "hosts_patched", "total_hosts", "latest_version")
 
 
 async def sort_titles(titles: list[PatchTitle], sort_key: str) -> list[PatchTitle]:
@@ -802,9 +803,6 @@ class Diff:
             from_label=_snapshot_label(from_path),
             to_label="live",
         )
-
-
-_CHANGE_FIELDS = ("completion_percent", "hosts_patched", "total_hosts", "latest_version")
 
 
 def _sorted_cached_files(data_manager: DataManager) -> list[Path]:

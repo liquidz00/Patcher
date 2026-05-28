@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
-from patcher_api.installomator_resolver import is_shell_expression
+from patcher_api.installomator.resolver import is_shell_expression
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.autopkg import AutopkgRecipe
@@ -25,7 +25,9 @@ from patcher_api.stitch import (
     _find_matching_cask,
     _index_autopkg_by_name,
     _index_casks_by_app_name,
+    _index_jai_by_title,
     _infer_install_method_from_cask,
+    _jai_index_keys,
     _normalize_name,
     _resolve_download_url,
     _resolve_install_method,
@@ -148,12 +150,14 @@ def _make_jai(
     title: str,
     source: str = "Jamf",
     host: str | None = None,
+    bundle_id: str | None = None,
 ) -> JamfAppInstaller:
     """Build a :class:`JamfAppInstaller` row for unit tests."""
     return JamfAppInstaller(
         title=title,
         source=source,
         host=host,
+        bundle_id=bundle_id,
         raw={"title": title, "source": source, "host": host},
         ingested_at=datetime.now(UTC),
     )
@@ -306,6 +310,57 @@ class TestNormalizeName:
 
     def test_empty_returns_empty(self):
         assert _normalize_name("") == ""
+
+
+class TestJaiIndexKeys:
+    """JAI titles carry decoration the Installomator label name omits; the key
+    generator strips it so a decorated title still matches a bare label."""
+
+    def test_exact_title_is_first_key(self):
+        assert _jai_index_keys("Firefox")[0] == "firefox"
+
+    def test_trailing_version_dropped(self):
+        keys = _jai_index_keys("Sublime Text 4")
+        assert "sublimetext" in keys
+
+    def test_trailing_year_dropped(self):
+        assert "adobeaftereffects" in _jai_index_keys("Adobe After Effects 2025")
+
+    def test_trailing_edition_words_dropped(self):
+        # "DC Continuous" are both edition tokens.
+        assert "adobeacrobatreader" in _jai_index_keys("Adobe Acrobat Reader DC Continuous")
+
+    def test_leading_known_vendor_dropped(self):
+        # The motivating case: SAP Privileges must reach the `privileges` label.
+        assert "privileges" in _jai_index_keys("SAP Privileges")
+
+    def test_leading_non_vendor_token_kept(self):
+        # "Visual" isn't a vendor, so a real two-word name keeps its first word.
+        keys = _jai_index_keys("Visual Studio")
+        assert "studio" not in keys
+        assert "visualstudio" in keys
+
+    def test_dotted_version_dropped(self):
+        assert "wireshark" in _jai_index_keys("Wireshark 4.6")
+
+
+class TestIndexJaiByTitle:
+    def test_decorated_title_indexed_under_bare_name(self):
+        index = _index_jai_by_title([_make_jai(title="SAP Privileges")])
+        assert index["privileges"].title == "SAP Privileges"
+        assert index["sapprivileges"].title == "SAP Privileges"
+
+    def test_exact_match_beats_decoration_stripped(self):
+        # A bare "Privileges" title must own the "privileges" key even when a
+        # "SAP Privileges" row also strips down to it.
+        rows = [_make_jai(title="SAP Privileges"), _make_jai(title="Privileges")]
+        index = _index_jai_by_title(rows)
+        assert index["privileges"].title == "Privileges"
+
+    def test_first_write_wins_on_stripped_collision(self):
+        rows = [_make_jai(title="Wireshark 4.2"), _make_jai(title="Wireshark 4.6")]
+        index = _index_jai_by_title(rows)
+        assert index["wireshark"].title == "Wireshark 4.2"
 
 
 class TestIndexAutopkgByName:
@@ -978,7 +1033,66 @@ async def test_stitch_attaches_jai_to_installomator_app(test_session):
         "title": "Firefox",
         "source": "External",
         "host": "download.mozilla.org",
+        "bundle_id": None,
+        "version": None,
+        "jamf_id": None,
+        "download_url": None,
+        "architecture": None,
     }
+
+
+@pytest.mark.asyncio
+async def test_stitch_matches_jai_by_bundle_id_over_name(test_session):
+    """
+    bundle_id is the precision overlay: a JAI title with a matching bundle_id
+    attaches even when its name wouldn't normalize to the label's name.
+    """
+    test_session.add_all(
+        [
+            _make_label(
+                name="someapp",
+                display_name="Some App",
+                install_type="pkg",
+                package_id="com.vendor.someapp",
+                download_url="https://example.com/someapp.pkg",
+            ),
+            # Name ("Vendor Bundle Suite") would NOT name-match "Some App";
+            # the bundle_id does.
+            _make_jai(
+                title="Vendor Bundle Suite",
+                source="Jamf",
+                bundle_id="com.vendor.someapp",
+            ),
+        ]
+    )
+    await test_session.commit()
+
+    _, _, _, _, _, _, jai_attached, _ = await stitch_catalog(test_session)
+    assert jai_attached == 1
+
+    app = await test_session.scalar(select(AppRow).where(AppRow.slug == "someapp"))
+    assert "jamf_app_installer" in app.sources
+
+
+@pytest.mark.asyncio
+async def test_stitch_backfills_bundle_id_from_jai_onto_cask_only_app(test_session):
+    """
+    A Cask-only app has no bundle_id; a name-matched JAI title that has one
+    backfills it onto the app (JAI as a bundle_id provider).
+    """
+    test_session.add_all(
+        [
+            _make_cask(token="bartender", name="Bartender", version="5.0"),
+            _make_jai(title="Bartender", source="Jamf", bundle_id="com.surteesstudios.Bartender"),
+        ]
+    )
+    await test_session.commit()
+
+    await stitch_catalog(test_session)
+
+    app = await test_session.scalar(select(AppRow).where(AppRow.slug == "bartender"))
+    assert app.bundle_id == "com.surteesstudios.Bartender"  # backfilled from JAI
+    assert "jamf_app_installer" in app.sources
 
 
 @pytest.mark.asyncio

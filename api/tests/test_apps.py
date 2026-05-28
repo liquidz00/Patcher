@@ -253,6 +253,9 @@ async def test_get_app_sources_returns_populated_sources_for_firefox(client):
     assert body["installomator"]["raw"]["expectedTeamID"] == "43AQ936H96"
     assert body["homebrew_cask"]["token"] == "firefox"
     assert body["autopkg"] is None
+    # Regression: the endpoint must wire jamf_app_installer into the response,
+    # not just installomator/homebrew_cask/autopkg (it was silently dropped).
+    assert body["jamf_app_installer"]["title"] == "Mozilla Firefox"
 
 
 @pytest.mark.asyncio
@@ -287,6 +290,31 @@ async def test_get_app_sources_returns_404_for_unknown_slug(client):
     response = await client.get("/apps/nonexistent/sources")
 
     assert response.status_code == 404
+
+
+def test_autopkg_recipe_entry_tolerates_null_name_and_shortname():
+    """
+    Regression: shared-processor and some app recipes carry null name /
+    shortname upstream, which stitch stores faithfully. The response schema
+    must accept them or /apps/{slug}/sources 500s for any app whose matched
+    recipes lack one (caught on `privileges`).
+    """
+    from patcher_api.schemas.sources import AppSources, AutopkgRecipeEntry
+
+    entry = AutopkgRecipeEntry.model_validate(
+        {
+            "identifier": "com.github.autopkg.download.Foo",
+            "name": None,
+            "shortname": None,
+            "repo": "autopkg/foo",
+            "path": "Foo/Foo.download.recipe",
+        }
+    )
+    assert entry.name is None
+    assert entry.shortname is None
+
+    sources = AppSources.model_validate({"autopkg": {"recipes": [entry.model_dump()]}})
+    assert sources.autopkg.recipes[0].shortname is None
 
 
 @pytest.mark.asyncio

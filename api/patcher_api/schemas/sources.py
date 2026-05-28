@@ -23,11 +23,20 @@ class HomebrewCaskSource(BaseModel):
 
 
 class AutopkgRecipeEntry(BaseModel):
-    """Single recipe attached to an app via the AutoPkg index."""
+    """
+    Single recipe attached to an app via the AutoPkg index.
+
+    ``name`` and ``shortname`` are optional, mirroring the upstream index
+    (and the :class:`~patcher_api.schemas.autopkg.AutopkgIndexEntry` ingest
+    schema): shared-processor recipes carry ``name: null`` and some app
+    recipes have no clean ``shortname``. The response must tolerate the
+    ``None`` that stitch faithfully stored, or ``/apps/{slug}/sources``
+    500s for any app whose matched recipes lack one.
+    """
 
     identifier: str
-    name: str
-    shortname: str
+    name: str | None = None
+    shortname: str | None = None
     repo: str
     path: str
     parent_identifier: str | None = None
@@ -56,17 +65,21 @@ class MasSource(BaseModel):
 
 class JamfAppInstallerSource(BaseModel):
     """
-    Coverage indicator for the Jamf App Installers catalog.
+    Jamf App Installers catalog coverage for an app.
 
-    Mirrors the three fields in the public HTML catalog. When a real Jamf
-    Pro instance becomes available (the unlisted endpoint exposes
-    bundle_id, version, download URL, and the Jamf Software Title ID),
-    this schema grows additional optional fields.
+    ``title``/``source``/``host`` come from the public HTML catalog; the rest
+    is enrichment from the App Installers titles API (absent on HTML-only
+    rows, hence optional).
     """
 
     title: str
     source: str
     host: str | None = None
+    bundle_id: str | None = None
+    version: str | None = None
+    jamf_id: str | None = None
+    download_url: str | None = None
+    architecture: str | None = None
 
 
 class AppSources(BaseModel):

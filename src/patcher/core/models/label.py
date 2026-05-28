@@ -61,27 +61,8 @@ class Label(UpstreamModel):
     installomator_label: str  # fragmentName - ".sh"
     download_url: str | None = Field(default=None, alias="downloadURL")
 
-    # NOTE: Planning on implementing these properties at a later time, commenting out for now.
-
-    # Strongly recommended variables
-    #   appNewVersion: Optional[str] = None
-    #   versionKey: Optional[str] = None
-    #   packageID: Optional[str] = None
-
-    # Optional variables
-    #   archiveName: Optional[str] = None
-    #   appName: Optional[str] = None
-    #   appCustomVersion: Optional[str] = None
-    #   targetDir: Optional[str] = "/Applications"
-    #   blockingProcesses: Optional[list[str]] = None
-    #   pkgName: Optional[str] = None
-    #   updateTool: Optional[str] = None
-    #   updateToolArguments: Optional[list[str]] = None
-    #   updateToolRunAsCurrentUser: Optional[bool] = False
-    #   CLIInstaller: Optional[str] = None
-    #   CLIArguments: Optional[list[str]] = None
-    #   installerTool: Optional[str] = None
-    #   curlOptions: Optional[list[str]] = None
+    # TODO: implement the remaining Installomator label fields (appNewVersion,
+    # versionKey, packageID, archiveName, blockingProcesses, pkgName, CLIInstaller, …).
 
     def __str__(self):
         return f"Name: {self.name} Type: {self.type} Label: {self.installomator_label}"
