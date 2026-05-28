@@ -3,20 +3,25 @@ Installomator label generation — projects ingested catalog data into the
 Installomator label format that consumers can drop into their Installomator
 deployments.
 
-The projection merges fields from both source payloads when available:
+The projection merges fields across every available source — Homebrew Cask,
+Installomator, and Jamf App Installers — preferring the upstream most likely
+to carry an authoritative value for each field:
 
-- ``name`` — prefers Homebrew Cask's display name; falls back to the apps row.
-- ``type`` — prefers Installomator's explicit ``type``; falls back to the apps
-  row's ``install_method``; last resort is URL extension.
-- ``downloadURL`` — prefers Homebrew Cask's ``url`` (typically fresher than
-  Installomator's static value); falls back to Installomator's ``downloadURL``
-  if it's a literal (not a shell expression); last resort is the apps row.
-- ``appNewVersion`` — uses the apps row's ``current_version`` (already merged
-  during stitch — literal Installomator value preferred, Cask fallback).
-- ``expectedTeamID`` — **only** available from Installomator. If the app is
-  Cask-only, we emit a warning and omit the field; consumers must determine
-  this manually (e.g., via ``codesign -dvvv`` on the downloaded artifact)
-  before the label is deployable.
+- ``name`` — Cask display name → JAI title → apps row → Installomator.
+- ``type`` — Installomator's explicit ``type`` → apps row's ``install_method``
+  → inferred from the resolved download URL extension.
+- ``downloadURL`` — Cask ``url`` → Installomator literal (not a shell
+  expression) → JAI's vendor URL (``source = "External"`` only; Jamf-hosted
+  URLs are signed by Jamf, not the vendor) → apps row.
+- ``appNewVersion`` — the apps row's ``current_version`` (stitch already
+  merges Installomator literal → Cask → JAI catalog version).
+- ``packageID`` — the apps row's ``bundle_id`` (stitch backfills from JAI when
+  Installomator/Cask don't provide one).
+- ``expectedTeamID`` — **only** authoritatively available from Installomator.
+  JAI doesn't carry the vendor's Team ID (its ``packageSigningIdentity`` is
+  Jamf's repackaging signature, not the app developer's). If no Installomator
+  source matched, we emit a warning and omit the field; consumers must
+  determine it manually (``codesign -dvvv`` on the downloaded artifact).
 
 Pure projection — no I/O. The route handler reads the apps row + source
 detail from the DB and hands them to :func:`build_installomator_label`.
@@ -63,6 +68,7 @@ def build_installomator_label(
 
     cask_payload = detail.homebrew_cask if detail else None
     installomator_payload = detail.installomator if detail else None
+    jai_payload = detail.jamf_app_installer if detail else None
 
     cask_json: dict[str, Any] = (
         cask_payload.get("cask_json", {}) if isinstance(cask_payload, dict) else {}
@@ -70,10 +76,11 @@ def build_installomator_label(
     installo_raw: dict[str, Any] = (
         installomator_payload.get("raw", {}) if isinstance(installomator_payload, dict) else {}
     )
+    jai_data: dict[str, Any] = jai_payload if isinstance(jai_payload, dict) else {}
 
-    name = _resolve_name(app_row, cask_json, installo_raw)
+    name = _resolve_name(app_row, cask_json, installo_raw, jai_data)
     install_type = _resolve_type(app_row, cask_json, installo_raw, warnings)
-    download_url = _resolve_download_url(app_row, cask_json, installo_raw, warnings)
+    download_url = _resolve_download_url(app_row, cask_json, installo_raw, jai_data, warnings)
     version = app_row.current_version
     team_id = _first_scalar(installo_raw.get("expectedTeamID"))
 
@@ -96,12 +103,13 @@ def build_installomator_label(
         download_url=download_url,
         version=version,
         team_id=team_id,
+        bundle_id=app_row.bundle_id,
     )
 
     return GenerateLabelResponse(
         label_name=app_row.slug,
         content=content,
-        sources_used=_sources_used(installomator_payload, cask_payload),
+        sources_used=_sources_used(installomator_payload, cask_payload, jai_payload),
         warnings=warnings,
     )
 
@@ -110,13 +118,17 @@ def _resolve_name(
     app_row: AppRow,
     cask_json: dict[str, Any],
     installo_raw: dict[str, Any],
+    jai_data: dict[str, Any],
 ) -> str | None:
-    """Prefer Cask's ``name[0]``; fall back to apps row, then Installomator."""
+    """Prefer Cask's ``name[0]``; fall back to JAI title, then apps row, then Installomator."""
     cask_names = cask_json.get("name")
     if isinstance(cask_names, list) and cask_names:
         first = cask_names[0]
         if isinstance(first, str) and first:
             return first
+    jai_title = jai_data.get("title")
+    if isinstance(jai_title, str) and jai_title:
+        return jai_title
     if app_row.name:
         return app_row.name
     installo_name = _first_scalar(installo_raw.get("name"))
@@ -168,11 +180,15 @@ def _resolve_download_url(
     app_row: AppRow,
     cask_json: dict[str, Any],
     installo_raw: dict[str, Any],
+    jai_data: dict[str, Any],
     warnings: list[str],
 ) -> str | None:
     """
     Prefer Cask's ``url`` (typically fresher). Fall back to Installomator's
-    literal ``downloadURL`` (skip if it's a shell expression we haven't resolved).
+    literal ``downloadURL`` (skip if it's a shell expression we haven't
+    resolved). Then JAI's vendor URL — but **only** when its ``source`` is
+    ``"External"``; ``"Jamf"`` URLs point at Jamf-repackaged installers signed
+    by Jamf, not the vendor, so they'd fail Installomator's Team-ID check.
     Last resort: the apps row.
     """
     cask_url = cask_json.get("url")
@@ -182,6 +198,10 @@ def _resolve_download_url(
     installo_url = _first_scalar(installo_raw.get("downloadURL"))
     if isinstance(installo_url, str) and installo_url and not installo_url.startswith("$("):
         return installo_url
+
+    jai_url = jai_data.get("download_url")
+    if jai_data.get("source") == "External" and isinstance(jai_url, str) and jai_url:
+        return jai_url
 
     if app_row.download_url:
         return app_row.download_url
@@ -193,12 +213,15 @@ def _resolve_download_url(
 def _sources_used(
     installomator_payload: dict | None,
     cask_payload: dict | None,
+    jai_payload: dict | None,
 ) -> list[str]:
     sources: list[str] = []
     if installomator_payload:
         sources.append("installomator")
     if cask_payload:
         sources.append("homebrew_cask")
+    if jai_payload:
+        sources.append("jamf_app_installer")
     return sources
 
 
@@ -209,6 +232,7 @@ def _build_label_dict(
     download_url: str | None,
     version: str | None,
     team_id: str | None,
+    bundle_id: str | None,
 ) -> dict[str, Any]:
     """
     Build the resolved-fields dict using Installomator's variable names.
@@ -229,6 +253,8 @@ def _build_label_dict(
         label["downloadURL"] = download_url
     if version:
         label["appNewVersion"] = version
+    if bundle_id:
+        label["packageID"] = bundle_id
     if team_id:
         label["expectedTeamID"] = team_id
     return label

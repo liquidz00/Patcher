@@ -360,3 +360,59 @@ async def test_generate_label_returns_422_when_app_has_no_source_detail(client):
 
     assert response.status_code == 422
     assert "no source detail" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_generate_label_succeeds_for_jai_only_app(client, test_session):
+    """
+    Endpoint accepts a JAI-only app (no Installomator, no Cask) and produces a
+    partial label with JAI-sourced fields. Regression test for the guard
+    relaxation — the old guard rejected JAI-only apps with 422.
+    """
+    from patcher_api.models.app import App as AppRow
+    from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
+
+    app_row = AppRow(
+        slug="chatgpt-atlas-test",
+        bundle_id="com.openai.atlas",
+        name="ChatGPT Atlas",
+        current_version="1.0.0",
+        download_url="https://vendor.example/ChatGPT-Atlas.pkg",
+        install_method=None,
+        sources=["jamf_app_installer"],
+        cves=[],
+    )
+    test_session.add(app_row)
+    await test_session.flush()  # populates app_row.id
+    test_session.add(
+        AppSourceDetailRow(
+            app_id=app_row.id,
+            installomator=None,
+            homebrew_cask=None,
+            autopkg=None,
+            jamf_app_installer={
+                "title": "ChatGPT Atlas",
+                "source": "External",
+                "host": "vendor.example",
+                "bundle_id": "com.openai.atlas",
+                "version": "1.0.0",
+                "jamf_id": "999",
+                "download_url": "https://vendor.example/ChatGPT-Atlas.pkg",
+                "architecture": "universal",
+            },
+        )
+    )
+    await test_session.commit()
+
+    response = await client.post("/apps/chatgpt-atlas-test/generate-label")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["sources_used"] == ["jamf_app_installer"]
+    content = body["content"]
+    assert content["name"] == "ChatGPT Atlas"
+    assert content["downloadURL"] == "https://vendor.example/ChatGPT-Atlas.pkg"
+    assert content["packageID"] == "com.openai.atlas"
+    # JAI can't carry the vendor Team ID — warning still fires.
+    assert "expectedTeamID" not in content
+    assert any("expectedTeamID" in w for w in body["warnings"])

@@ -42,13 +42,27 @@ def _make_detail(
     *,
     installomator: dict | None = None,
     homebrew_cask: dict | None = None,
+    jamf_app_installer: dict | None = None,
 ) -> AppSourceDetailRow:
     return AppSourceDetailRow(
         app_id=1,
         installomator=installomator,
         homebrew_cask=homebrew_cask,
         autopkg=None,
+        jamf_app_installer=jamf_app_installer,
     )
+
+
+_JAI_EXTERNAL = {
+    "title": "ChatGPT Atlas",
+    "source": "External",
+    "host": "vendor.example",
+    "bundle_id": "com.openai.atlas",
+    "version": "1.0.0",
+    "jamf_id": "999",
+    "download_url": "https://vendor.example/ChatGPT-Atlas.pkg",
+    "architecture": "universal",
+}
 
 
 class TestBuildInstallomatorLabel:
@@ -213,6 +227,87 @@ class TestBuildInstallomatorLabel:
 
         assert result.content["type"] == "dmg"
         assert any("Could not determine install type" in w for w in result.warnings)
+
+    def test_jai_only_app_uses_jai_fields_and_warns_about_team_id(self):
+        """
+        A JAI-only app produces a partial label: name, downloadURL, version
+        from JAI, plus packageID from the (JAI-backfilled) apps row bundle_id.
+        The team-ID warning still fires — JAI doesn't carry the vendor Team ID.
+        """
+        # apps row reflects what stitch produced: name + URL + version from JAI,
+        # bundle_id backfilled from JAI (the precision-overlay / provider pattern).
+        app = _make_app(
+            slug="chatgpt-atlas",
+            name="ChatGPT Atlas",
+            install_method=None,
+            download_url="https://vendor.example/ChatGPT-Atlas.pkg",
+            current_version="1.0.0",
+        )
+        app.bundle_id = "com.openai.atlas"
+        detail = _make_detail(jamf_app_installer=_JAI_EXTERNAL)
+
+        result = build_installomator_label(app, detail)
+
+        assert result.sources_used == ["jamf_app_installer"]
+        content = result.content
+        assert content["name"] == "ChatGPT Atlas"
+        assert content["downloadURL"] == "https://vendor.example/ChatGPT-Atlas.pkg"
+        assert content["appNewVersion"] == "1.0.0"
+        assert content["packageID"] == "com.openai.atlas"
+        # JAI cannot supply this — vendor Team ID still requires codesign.
+        assert "expectedTeamID" not in content
+        assert any("expectedTeamID" in w for w in result.warnings)
+
+    def test_jai_jamf_hosted_url_not_used_for_downloadurl(self):
+        """
+        ``source = "Jamf"`` titles point at Jamf-repackaged installers signed by
+        Jamf — those would fail Installomator's Team-ID validation. The builder
+        must skip them and fall back to the apps row (which stitch likewise
+        wouldn't have populated from JAI for the same reason).
+        """
+        app = _make_app(
+            slug="some-app",
+            name="Some App",
+            install_method=None,
+            download_url="https://apps-row-fallback.example/x.pkg",
+            current_version="2.0",
+        )
+        jai = {
+            **_JAI_EXTERNAL,
+            "source": "Jamf",
+            "download_url": "https://appinstallers-packages.services.jamfcloud.com/x.pkg",
+        }
+        detail = _make_detail(jamf_app_installer=jai)
+
+        result = build_installomator_label(app, detail)
+
+        # The Jamf-hosted JAI URL was ignored; fell through to the apps row.
+        assert result.content["downloadURL"] == "https://apps-row-fallback.example/x.pkg"
+
+    def test_packageid_added_when_bundle_id_set(self):
+        """``packageID`` surfaces in content when the apps row has a bundle_id."""
+        app = _make_app()
+        app.bundle_id = "org.mozilla.firefox"
+        detail = _make_detail(
+            installomator={
+                "label_name": "firefox",
+                "label_url": "https://github.com/...",
+                "raw": {
+                    "name": "Firefox",
+                    "type": "dmg",
+                    "expectedTeamID": "43AQ936H96",
+                },
+            },
+        )
+        result = build_installomator_label(app, detail)
+        assert result.content["packageID"] == "org.mozilla.firefox"
+
+    def test_jai_title_used_for_name_when_cask_absent(self):
+        """JAI title slots between Cask name and apps row in the name fallback chain."""
+        app = _make_app(slug="x", name="Wrong Apps-Row Name")
+        detail = _make_detail(jamf_app_installer=_JAI_EXTERNAL)
+        result = build_installomator_label(app, detail)
+        assert result.content["name"] == "ChatGPT Atlas"  # JAI title beat apps row
 
     def test_special_chars_in_name_survive_untouched(self):
         """JSON serialization handles escaping at the response layer — raw values pass through."""

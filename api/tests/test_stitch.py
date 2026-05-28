@@ -151,6 +151,8 @@ def _make_jai(
     source: str = "Jamf",
     host: str | None = None,
     bundle_id: str | None = None,
+    version: str | None = None,
+    download_url: str | None = None,
 ) -> JamfAppInstaller:
     """Build a :class:`JamfAppInstaller` row for unit tests."""
     return JamfAppInstaller(
@@ -158,6 +160,8 @@ def _make_jai(
         source=source,
         host=host,
         bundle_id=bundle_id,
+        version=version,
+        download_url=download_url,
         raw={"title": title, "source": source, "host": host},
         ingested_at=datetime.now(UTC),
     )
@@ -214,6 +218,18 @@ class TestResolveVersion:
         label = _make_label(name="firefox", app_new_version="$(curl -fs ...)")
         assert _resolve_version(label, None) is None
 
+    def test_falls_back_to_jai_when_label_and_cask_silent(self):
+        """JAI's catalog version is the last-resort fallback after Installomator + Cask."""
+        label = _make_label(name="x", app_new_version="$(curl -fs ...)")
+        jai = _make_jai(title="X", version="3.2.1")
+        assert _resolve_version(label, None, jai) == "3.2.1"
+
+    def test_label_version_still_beats_jai(self):
+        """JAI is the *fallback* — a literal label version still wins."""
+        label = _make_label(name="x", app_new_version="121.0")
+        jai = _make_jai(title="X", version="999.0")
+        assert _resolve_version(label, None, jai) == "121.0"
+
 
 class TestResolveDownloadUrl:
     def test_prefers_literal_label_url(self):
@@ -249,6 +265,29 @@ class TestResolveDownloadUrl:
         label = _make_label(name="grads", download_url="ftp://cola.gmu.edu/grads/foo.tar.gz")
         cask = _make_cask(token="grads", url="https://cask.example/grads.dmg")
         assert _resolve_download_url(label, cask) == "https://cask.example/grads.dmg"
+
+    def test_falls_back_to_jai_external_url_when_label_and_cask_silent(self):
+        """JAI's vendor URL (source=External) is the last-resort fallback."""
+        label = _make_label(name="x", download_url="$(curl ...)")
+        jai = _make_jai(
+            title="X",
+            source="External",
+            download_url="https://vendor.example/x.pkg",
+        )
+        assert _resolve_download_url(label, None, jai) == "https://vendor.example/x.pkg"
+
+    def test_does_not_use_jai_url_when_source_is_jamf(self):
+        """
+        Jamf-hosted JAI URLs are signed by Jamf, not the vendor — Installomator's
+        Team-ID check would reject them. The resolver must not propagate one.
+        """
+        label = _make_label(name="x", download_url="$(curl ...)")
+        jai = _make_jai(
+            title="X",
+            source="Jamf",
+            download_url="https://appinstallers-packages.services.jamfcloud.com/x.pkg",
+        )
+        assert _resolve_download_url(label, None, jai) is None
 
     def test_returns_none_when_both_sides_are_garbage(self):
         """If both the label and the cask URLs fail sanity checks, no fallback."""
