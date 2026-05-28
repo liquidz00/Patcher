@@ -1,6 +1,7 @@
 [project]
 name = "patcherctl"
-dynamic = ["readme", "version"]
+dynamic = ["version"]
+readme = "README.md"
 description = "Fetch patch management data from Jamf Pro to generate comprehensive reports in both Excel and PDF formats"
 keywords = ["jamf", "pro", "jss", "patch", "macOS"]
 license = { file = "LICENSE" }
@@ -77,25 +78,19 @@ docs = [
 ]
 
 [build-system]
-requires = [
-  "setuptools >= 61",
-  "wheel"
-]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.setuptools]
-package-dir = { "" = "src" }
-include-package-data = true
+# Hatchling reads __version__ from this file at build time (same pattern httpx
+# and most modern hatchling projects use — manual bump in the file, no VCS).
+[tool.hatch.version]
+path = "src/patcher/__about__.py"
 
-[tool.setuptools.package-data]
-"patcher" = ["templates/*.html", "py.typed"]
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.dynamic]
-version = { attr = "patcher.__about__.__version__" }
-readme = { file = ["README.md"], content-type = "text/markdown" }
+# Map src/patcher/ -> the `patcher` package in the wheel. Hatchling packages
+# every file under the package by default, so templates/*.html and py.typed
+# come along without needing explicit include rules (setuptools required them).
+[tool.hatch.build.targets.wheel]
+packages = ["src/patcher"]
 
 [tool.ruff]
 line-length = 100

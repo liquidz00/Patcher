@@ -31,13 +31,10 @@ test = [
 ]
 
 [build-system]
-requires = [
-    "setuptools >= 61",
-    "wheel"
-]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.setuptools]
+[tool.hatch.build.targets.wheel]
 packages = ["patcher_api"]
 
 [tool.ruff]
