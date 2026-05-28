@@ -206,6 +206,46 @@ async def test_unresolved_worklist_excludes_user_context_labels(client, test_ses
 
 
 @pytest.mark.asyncio
+async def test_ingest_coerces_array_shaped_values_to_first_scalar(
+    client, test_session, monkeypatch
+):
+    """
+    Regression: a label declares ``appNewVersion=( "$v.$b" )`` (bash array),
+    resolveLabel.sh emits it as a JSON array, and the validator crashed on
+    ``.strip()`` of a list — taking down the whole batch with a 500. The
+    handler must coerce arrays to their first scalar (same pattern the Linux
+    ingest uses) so one bad shape can't poison the run.
+    """
+    _configure_token(monkeypatch, _TOKEN)
+    monkeypatch.setattr("patcher_api.routes.admin.recompute_catalog_sha", lambda app: None)
+
+    await _add_label(test_session, "arraylabel")
+
+    body = _ndjson(
+        {
+            "label": "arraylabel",
+            "ok": True,
+            "downloadURL": ["https://example.com/arr.dmg"],
+            "appNewVersion": ["1.2.3"],
+        },
+    )
+
+    resp = await client.post(
+        "/admin/labels/resolved",
+        content=body,
+        headers={"Authorization": f"Bearer {_TOKEN}"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["updated"] == 1
+    row = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "arraylabel")
+    )
+    assert row.download_url == "https://example.com/arr.dmg"
+    assert row.app_new_version == "1.2.3"
+
+
+@pytest.mark.asyncio
 async def test_ingest_counts_malformed_lines(client, monkeypatch):
     _configure_token(monkeypatch, _TOKEN)
     monkeypatch.setattr("patcher_api.routes.admin.recompute_catalog_sha", lambda app: None)

@@ -175,8 +175,8 @@ async def ingest_resolved_labels(
             continue
 
         values: dict[str, object] = {}
-        download_url = record.get("downloadURL")
-        app_new_version = record.get("appNewVersion")
+        download_url = _scalar_for_column(record.get("downloadURL"))
+        app_new_version = _scalar_for_column(record.get("appNewVersion"))
         if download_url and looks_like_clean_http_url(download_url):
             values["download_url"] = download_url
         if app_new_version and looks_like_clean_version(app_new_version):
