@@ -104,6 +104,7 @@ def require_admin(authorization: str | None = Header(default=None)) -> None:
     "/labels/unresolved",
     response_model=UnresolvedLabels,
     dependencies=[Depends(require_admin)],
+    include_in_schema=False,
 )
 async def list_unresolved_labels(
     session: AsyncSession = Depends(get_session),
@@ -124,6 +125,7 @@ async def list_unresolved_labels(
     "/labels/resolved",
     response_model=ResolvedIngestSummary,
     dependencies=[Depends(require_admin)],
+    include_in_schema=False,
 )
 async def ingest_resolved_labels(
     request: Request,
