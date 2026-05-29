@@ -39,3 +39,63 @@ html.dark {
 .sd-table tr:hover {
     background-color: unset !important;
 }
+
+/* Numbered step sequences (docs/ext/steps.py) */
+.steps {
+    counter-reset: step;
+    margin: 1.5rem 0;
+}
+
+.steps > .step {
+    counter-increment: step;
+    position: relative;
+    margin-left: 0.85rem;
+    padding-left: 2.75rem;
+    padding-bottom: 1.5rem;
+    border-left: 2px solid var(--gray-a5);
+}
+
+/* Last step should drop trailing connector and bottom gap. */
+.steps > .step:last-child {
+    border-left-color: transparent;
+    padding-bottom: 0;
+}
+
+.steps > .step::before {
+    content: counter(step);
+    position: absolute;
+    left: -0.9rem;
+    top: 0;
+    box-sizing: border-box;
+    width: 1.75rem;
+    height: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--gray-3);
+    color: var(--sy-c-text);
+    border: 1px solid var(--sy-c-border);
+    box-shadow: 0 0 0 4px var(--sy-c-background);
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    padding-top: 1px;
+}
+
+/* step title */
+.steps > .step > .step-title {
+    margin: 0 0 0.5rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.75rem;
+}
+
+.steps > .step > .step-title + * {
+    margin-top: 0;
+}
+
+.steps > .step > :last-child {
+    margin-bottom: 0;
+}

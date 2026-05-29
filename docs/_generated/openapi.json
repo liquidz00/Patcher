@@ -584,11 +584,25 @@
             "title": "Identifier"
           },
           "name": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Name"
           },
           "shortname": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Shortname"
           },
           "repo": {
@@ -639,13 +653,11 @@
         "type": "object",
         "required": [
           "identifier",
-          "name",
-          "shortname",
           "repo",
           "path"
         ],
         "title": "AutopkgRecipeEntry",
-        "description": "Single recipe attached to an app via the AutoPkg index."
+        "description": "Single recipe attached to an app via the AutoPkg index.\n\n``name`` and ``shortname`` are optional, mirroring the upstream index\n(and the :class:`~patcher_api.schemas.autopkg.AutopkgIndexEntry` ingest\nschema): shared-processor recipes carry ``name: null`` and some app\nrecipes have no clean ``shortname``. The response must tolerate the\n``None`` that stitch faithfully stored, or ``/apps/{slug}/sources``\n500s for any app whose matched recipes lack one."
       },
       "AutopkgSource": {
         "properties": {
@@ -880,6 +892,61 @@
               }
             ],
             "title": "Host"
+          },
+          "bundle_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bundle Id"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "jamf_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jamf Id"
+          },
+          "download_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Download Url"
+          },
+          "architecture": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Architecture"
           }
         },
         "type": "object",
@@ -888,7 +955,7 @@
           "source"
         ],
         "title": "JamfAppInstallerSource",
-        "description": "Coverage indicator for the Jamf App Installers catalog.\n\nMirrors the three fields in the public HTML catalog. When a real Jamf\nPro instance becomes available (the unlisted endpoint exposes\nbundle_id, version, download URL, and the Jamf Software Title ID),\nthis schema grows additional optional fields."
+        "description": "Jamf App Installers catalog coverage for an app.\n\n``title``/``source``/``host`` come from the public HTML catalog; the rest\nis enrichment from the App Installers titles API (absent on HTML-only\nrows, hence optional)."
       },
       "MasSource": {
         "properties": {

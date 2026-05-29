@@ -24,17 +24,53 @@ The shortest path is to **get in touch first**. Open a [bug report](https://gith
 
 ### Pull request workflow
 
-Standard [GitHub flow](https://docs.github.com/en/get-started/using-github/github-flow):
+We do our best to follow the standard [GitHub flow](https://docs.github.com/en/get-started/using-github/github-flow):
 
-1. [Fork](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo) the Patcher repository.
-2. Clone your fork locally.
-3. Branch off `develop` with a descriptive name.
-4. Pull the latest `develop` before opening your PR.
-5. Open the PR against `develop`.
+::::::{steps}
 
+:::::{step} [Fork](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo) the Patcher repository.
+
+:::::
+
+:::::{step} Clone your fork locally.
+::::{tab-set}
+
+:::{tab-item} git
+
+```bash
+$ git clone https://github.com/liquidz00/Patcher.git /clone/destination/here
+```
+:::
+
+:::{tab-item} gh
+```bash
+$ gh repo clone liquidz00/Patcher /clone/destination/here
+```
+:::
+::::
+:::::
+
+:::::{step} Branch off develop with a descriptive name.
+```bash
+$ git checkout develop
+$ git checkout -b <fix|feat|perf|security>/your-description-here
+```
+:::::
+
+:::::{step} Pull in latest changes before submitting a PR.
+```bash
+$ git fetch origin develop && git pull
+```
+:::::
+
+:::::{step} Open the PR against the develop branch.
 ```{note}
 PRs go to the `develop` branch, not `main`. The `main` branch tracks stable releases; ongoing development lands on `develop` and is merged to `main` as part of the release cut. Tests must pass on the [pytest workflow](https://github.com/liquidz00/Patcher/blob/main/.github/workflows/pytest.yml) before a PR can merge.
 ```
+:::::
+
+::::::
+
 
 ## Environment setup
 

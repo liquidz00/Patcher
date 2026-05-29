@@ -8,6 +8,7 @@ from starlette.responses import Response
 from patcher_api.catalog import recompute_catalog_sha
 from patcher_api.config import get_settings
 from patcher_api.db import get_engine, get_session_maker, init_db
+from patcher_api.mcp import mcp_app
 from patcher_api.routes import admin, apps
 from patcher_api.seed import seed_database
 
@@ -44,7 +45,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if sha is not None:
         log.info("Catalog SHA-256 on startup: %s", sha)
 
-    yield
+    # fastmcp's http_app owns the Streamable HTTP transport's connection
+    # lifecycle internally. FastAPI's app.mount doesn't auto-run child app
+    # lifespans, so compose explicitly: enter the child's lifespan context
+    # for the serving window. Engine dispose still happens after.
+    async with mcp_app.router.lifespan_context(app):
+        yield
 
     await get_engine().dispose()
 
@@ -105,6 +111,10 @@ async def catalog_etag(request: Request, call_next):
 
 app.include_router(apps.router)
 app.include_router(admin.router)
+
+# Streamable HTTP MCP endpoint. Cloudflare Tunnel routes ``mcp.patcherctl.dev``
+# to this same origin, so the public URL is just ``mcp.patcherctl.dev/mcp``.
+app.mount("/mcp", mcp_app)
 
 
 @app.get("/health")

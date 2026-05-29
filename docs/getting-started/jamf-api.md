@@ -28,35 +28,71 @@ Patcher only pulls data from **configured patch management titles**. A title can
 
 ## Create an API role
 
-1. In Jamf Pro, go to **Settings**.
-2. Under **System**, select **API Roles and Clients**.
-3. Switch to the **API Roles** tab and click **New**.
-4. Give the role a meaningful display name (e.g. `Patcher-Roles`).
-5. Under **Jamf Pro API Role privileges**, add the following:
-   - Read Patch Management Software Titles
-   - Read Patch Policies
-   - Read Mobile Devices
-   - Read Mobile Device Inventory Collection
-   - Read Mobile Device Applications
-   - Read API Integrations
-   - Read API Roles
-   - Read Patch Management Settings
-   - Update API Integrations
-6. Click **Save**.
+::::{steps}
+
+:::{step} In Jamf Pro, go to **Settings**.
+:::
+
+:::{step} Under **System**, select **API Roles and Clients**.
+:::
+
+:::{step} Switch to the **API Roles** tab and click **New**.
+:::
+
+:::{step} Give the role a meaningful display name (e.g. `Patcher-Roles`).
+:::
+
+:::{step} Under **Jamf Pro API Role privileges**, add the following:
+- Read Patch Management Software Titles
+- Read Patch Policies
+- Read Mobile Devices
+- Read Mobile Device Inventory Collection
+- Read Mobile Device Applications
+- Read API Integrations
+- Read API Roles
+- Read Patch Management Settings
+- Update API Integrations
+:::
+
+:::{step} Click **Save**.
+:::
+::::
 
 ## Create an API client
 
 Once your API role is ready, proceed to create an API client:
 
-1. Follow steps 1-2 from above to navigate back to the **API Roles and Clients** section if not already there.
-2. Click on the **API Clients** tab.
-3. Select **New** to initiate a new API client creation.
-4. Assign a clear and descriptive display name for the API client (e.g., "Patcher-Client").
-5. In the **API Roles** field, assign the previously created API role to this client.
-6. Define the **Access Token Lifetime**. This defines how long each token remains valid. See [Token lifetime](#token-lifetime) below for more information.
-7. Enable the API client by clicking **Enable API Client**.
-8. Click **Save**.
-9. Record the **Client ID** value for safe-keeping.
+::::{steps}
+
+:::{step} Follow steps 1-2 from above to navigate back to the **API Roles and Clients** section if not already there.
+:::
+
+:::{step} Click on the **API Clients** tab.
+:::
+
+:::{step} Select **New** to initiate a new API client creation.
+:::
+
+:::{step} Assign a clear and descriptive display name for the API client (e.g., "Patcher-Client").
+:::
+
+:::{step} In the **API Roles** field, assign the previously created API role to this client.
+:::
+
+:::{step} Define the **Access Token Lifetime**.
+This defines how long each token remains valid. See [Token lifetime](#token-lifetime) below for more information.
+:::
+
+:::{step} Enable the API client by clicking **Enable API Client**.
+:::
+
+:::{step} Click **Save**.
+:::
+
+:::{step} Click Record the **Client ID** value for safe-keeping.
+:::
+
+::::
 
 ### Generate a client secret
 
@@ -64,10 +100,21 @@ Once your API role is ready, proceed to create an API client:
 Record the generated client secret immediately and securely as it is shown **only once**.
 :::
 
-1. Open the API client's details page.
-2. Click **Generate Client Secret**.
-3. Confirm by selecting **Create Secret**.
-4. Copy the secret. You'll pass this to Patcher alongside the client ID.
+::::{steps}
+
+:::{step} Open the API client's details page.
+:::
+
+:::{step} Click **Generate Client Secret**.
+:::
+
+:::{step} Confirm by selecting **Create Secret**.
+:::
+
+:::{step} Copy the secret. You'll pass this to Patcher alongside the client ID.
+:::
+
+::::
 
 You now have everything Patcher needs: a **Jamf URL**, a **Client ID**, and a **Client Secret**. On macOS, Patcher stores them in your login Keychain on first run and refreshes the OAuth token automatically as needed. On Linux and Windows there is no usable Keychain backend, so Patcher installs a no-op `keyring` backend at import time; library callers on those platforms construct `PatcherClient` with credentials in memory instead (`client_id=...`, `client_secret=...`, `server=...`) rather than relying on disk persistence.
 
@@ -153,9 +200,18 @@ Follow the steps above to create the API role, client, and secret yourself. Then
 
 ### Option 2: Temporary standard account
 
-1. Temporarily [create a standard Jamf Pro user account](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Jamf_Pro_User_Accounts_and_Groups.html#ariaid-title3:~:text=Click%20Save%20.-,Creating%20a%20Jamf%20Pro%20User%20Account,-Requirements) with administrator privileges.
-2. Pass that account's credentials to Patcher's setup wizard. Patcher will create the API role and client on your behalf.
-3. After setup completes, delete the temporary account.
+::::{steps}
+
+:::{step} Temporarily [create a standard Jamf Pro user account](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Jamf_Pro_User_Accounts_and_Groups.html#ariaid-title3:~:text=Click%20Save%20.-,Creating%20a%20Jamf%20Pro%20User%20Account,-Requirements) with administrator privileges.
+:::
+
+:::{step} Pass that account's credentials to Patcher's setup wizard. Patcher will create the API role and client on your behalf.
+:::
+
+:::{step} After setup completes, delete the temporary account.
+:::
+
+::::
 
 ## Multi-instance support
 

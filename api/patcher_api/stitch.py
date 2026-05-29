@@ -145,23 +145,49 @@ def _extract_vendor(il: InstallomatorLabel) -> str | None:
     return None
 
 
-def _resolve_version(il: InstallomatorLabel, cask: HomebrewCask | None) -> str | None:
+def _resolve_version(
+    il: InstallomatorLabel,
+    cask: HomebrewCask | None,
+    jai: JamfAppInstaller | None = None,
+) -> str | None:
     """
     Prefer the literal label version; fall back to Cask version when the
-    label's ``appNewVersion`` is a shell expression we haven't evaluated.
+    label's ``appNewVersion`` is a shell expression we haven't evaluated; last
+    resort, JAI's catalog version when both upstream sources are silent.
 
     :param il: Installomator label row.
     :type il: :class:`InstallomatorLabel`
     :param cask: Matched Cask row, if any.
     :type cask: :class:`HomebrewCask` | None
-    :return: Version string, or None if neither side has a literal value.
+    :param jai: Matched JAI catalog row, if any.
+    :type jai: :class:`JamfAppInstaller` | None
+    :return: Version string, or None if no source has a literal value.
     :rtype: str | None
     """
     if il.app_new_version and not is_shell_expression(il.app_new_version):
         return il.app_new_version
     if cask and cask.version:
         return cask.version
+    if jai and jai.version:
+        return jai.version
     return None
+
+
+def _jai_external_url(jai: JamfAppInstaller | None) -> str | None:
+    """
+    JAI's ``download_url`` only when it's the vendor's direct URL.
+
+    Jamf-hosted titles (``source = "Jamf"``) point at
+    ``appinstallers-packages.services.jamfcloud.com``, which is signed by Jamf
+    (Team ID ``483DWKW443``) rather than the vendor — useless to Installomator,
+    which validates against the actual app developer's Team ID. Only
+    ``source = "External"`` titles carry the vendor's URL we actually want.
+    """
+    if jai is None or not jai.download_url or jai.source != "External":
+        return None
+    if not looks_like_clean_http_url(jai.download_url):
+        return None
+    return jai.download_url
 
 
 def _clean_cask_url(cask: HomebrewCask | None) -> str | None:
@@ -187,23 +213,28 @@ def _clean_cask_url(cask: HomebrewCask | None) -> str | None:
     return cask.url
 
 
-def _resolve_download_url(il: InstallomatorLabel, cask: HomebrewCask | None) -> str | None:
+def _resolve_download_url(
+    il: InstallomatorLabel,
+    cask: HomebrewCask | None,
+    jai: JamfAppInstaller | None = None,
+) -> str | None:
     """
-    Prefer the literal label download URL; fall back to Cask URL when the
-    label's value is a shell expression or fails URL sanity checks.
+    Prefer the literal label download URL; fall back to Cask URL, then JAI's
+    vendor URL when both upstreams are silent.
 
-    Both candidates are run through :func:`looks_like_clean_http_url` before
+    Every candidate is run through :func:`looks_like_clean_http_url` before
     being returned. This is defense in depth against ingest having stored
-    garbage (HTML bodies, multi-line concats, ``ftp://``) into either
-    source table. Ingest already validates on the way in; this second
-    gate ensures the apps table can't inherit a value the API can't
-    serialize as ``HttpUrl``.
+    garbage (HTML bodies, multi-line concats, ``ftp://``) into any source.
+    Ingest already validates on the way in; this second gate ensures the apps
+    table can't inherit a value the API can't serialize as ``HttpUrl``.
 
     :param il: Installomator label row.
     :type il: :class:`InstallomatorLabel`
     :param cask: Matched Cask row, if any.
     :type cask: :class:`HomebrewCask` | None
-    :return: Download URL string, or None if neither side has a usable value.
+    :param jai: Matched JAI catalog row, if any.
+    :type jai: :class:`JamfAppInstaller` | None
+    :return: Download URL string, or None if no source has a usable value.
     :rtype: str | None
     """
     if (
@@ -212,7 +243,7 @@ def _resolve_download_url(il: InstallomatorLabel, cask: HomebrewCask | None) -> 
         and looks_like_clean_http_url(il.download_url)
     ):
         return il.download_url
-    return _clean_cask_url(cask)
+    return _clean_cask_url(cask) or _jai_external_url(jai)
 
 
 def _resolve_install_method(install_type: str | None) -> str | None:
@@ -763,8 +794,8 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                     bundle_id=_backfilled_bundle_id(il.package_id, matching_jai),
                     name=display_name,
                     vendor=_extract_vendor(il),
-                    current_version=_resolve_version(il, matching_cask),
-                    download_url=_resolve_download_url(il, matching_cask),
+                    current_version=_resolve_version(il, matching_cask, matching_jai),
+                    download_url=_resolve_download_url(il, matching_cask, matching_jai),
                     install_method=_resolve_install_method(il.install_type),
                     sha256=matching_cask.sha256 if matching_cask else None,
                     sources=sources,
@@ -817,8 +848,9 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                     bundle_id=_backfilled_bundle_id(None, matching_jai),
                     name=cask_name,
                     vendor=cask_name.split()[0] if cask_name else None,
-                    current_version=cask.version,
-                    download_url=_clean_cask_url(cask),
+                    current_version=cask.version
+                    or (matching_jai.version if matching_jai else None),
+                    download_url=_clean_cask_url(cask) or _jai_external_url(matching_jai),
                     install_method=_infer_install_method_from_cask(cask),
                     sha256=cask.sha256,
                     sources=sources,
@@ -884,8 +916,9 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                     bundle_id=mas_app.bundle_id,
                     name=mas_app.name,
                     vendor=mas_app.raw.get("artistName"),
-                    current_version=mas_app.version,
-                    download_url=None,
+                    current_version=mas_app.version
+                    or (matching_jai.version if matching_jai else None),
+                    download_url=_jai_external_url(matching_jai),
                     install_method=None,
                     sha256=None,
                     sources=sources,

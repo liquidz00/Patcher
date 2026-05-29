@@ -51,6 +51,14 @@ repos:
     hooks:
       - id: validate-pyproject
 
+  # GitGuardian
+  - repo: https://github.com/gitguardian/ggshield
+    rev: v1.51.0
+    hooks:
+      - id: ggshield
+        language_version: python3
+        stages: [pre-commit]
+
 # Configuration to skip certain paths
 exclude: |
   (?x)^(

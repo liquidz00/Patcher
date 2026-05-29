@@ -22,12 +22,9 @@ For a workstation that runs Patcher on a schedule, a `launchd` LaunchAgent is th
 Make sure both `python3` and `patcherctl` are on your `PATH`. When you install via PyPI, `patcherctl` lands in your Python user-base `bin` directory. See {ref}`add-path` if `patcherctl --version` fails to resolve.
 :::
 
-### 1. Build the `.plist` file
-
-Customize the example below. The two key fields:
-
-- **`ProgramArguments`**: the `patcherctl export` invocation. Adjust paths and flags to match what you'd run by hand.
-- **`StartCalendarInterval`**: the schedule. [Launched](https://launched.zerowidth.com/) is a great helper for building these.
+::::{steps}
+:::{step} Build the property list file
+Customize the example `.plist` below to fit your needs. Specifically, be sure to adjust paths and flags under `ProgramArguments` to match what you'd run by hand. `StartCalendarInterval` configures the schedule the agent will run. Reference [Launched](https://launched.zerowidth.com/) as it is a great helper for building these.
 
 ```{code-block} xml
 :caption: ~/Library/LaunchAgents/com.liquidzoo.patcher.plist
@@ -62,22 +59,24 @@ Customize the example below. The two key fields:
   </dict>
 </plist>
 ```
+:::
 
-### 2. Deploy and load
-
+:::{step} Deploy and load
 ```bash
 $ cp com.liquidzoo.patcher-export.plist ~/Library/LaunchAgents/
 $ chmod 644 ~/Library/LaunchAgents/com.liquidzoo.patcher-export.plist
 $ launchctl load ~/Library/LaunchAgents/com.liquidzoo.patcher-export.plist
 ```
+:::
 
-#### Verify it's active
-
+:::{step} Verify it's active
 ```bash
 $ launchctl list | grep com.liquidzoo.patcher-export
 ```
+:::
+::::
 
-### 3. Testing the Configuration
+### Test the Configuration
 
 To ensure the LaunchAgent is working:
 

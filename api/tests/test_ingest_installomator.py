@@ -718,9 +718,9 @@ def _make_handler(
     fragments = fragment_payloads or {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if "api.github.com" in request.url.host and "/git/trees/" in request.url.path:
+        if request.url.host == "api.github.com" and "/git/trees/" in request.url.path:
             return httpx.Response(200, json=tree_payload)
-        if "raw.githubusercontent.com" in request.url.host:
+        if request.url.host == "raw.githubusercontent.com":
             name = request.url.path.rsplit("/", 1)[-1].removesuffix(".sh")
             if name in fragments:
                 return httpx.Response(200, text=fragments[name])
@@ -831,9 +831,9 @@ async def test_fetch_installomator_labels_skips_unchanged():
     fragment_requests: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if "api.github.com" in request.url.host:
+        if request.url.host == "api.github.com":
             return httpx.Response(200, json=_TREE_RESPONSE_TWO_LABELS)
-        if "raw.githubusercontent.com" in request.url.host:
+        if request.url.host == "raw.githubusercontent.com":
             name = request.url.path.rsplit("/", 1)[-1].removesuffix(".sh")
             fragment_requests.append(name)
             return httpx.Response(200, text=FIREFOX_FRAGMENT if name == "firefoxpkg" else "")

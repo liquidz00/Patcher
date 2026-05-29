@@ -229,7 +229,11 @@ async def generate_label(
         select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == app_row.id)
     )
 
-    if detail is None or (detail.homebrew_cask is None and detail.installomator is None):
+    if detail is None or (
+        detail.homebrew_cask is None
+        and detail.installomator is None
+        and detail.jamf_app_installer is None
+    ):
         raise HTTPException(
             status_code=422,
             detail=(
