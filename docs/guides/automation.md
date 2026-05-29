@@ -21,12 +21,10 @@ For a workstation that runs Patcher on a schedule, a `launchd` LaunchAgent is th
 :::{warning}
 Make sure both `python3` and `patcherctl` are on your `PATH`. When you install via PyPI, `patcherctl` lands in your Python user-base `bin` directory. See {ref}`add-path` if `patcherctl --version` fails to resolve.
 :::
-<!-- - **`ProgramArguments`**: the `patcherctl export` invocation. Adjust paths and flags to match what you'd run by hand.
-- **`StartCalendarInterval`**: the schedule. [Launched](https://launched.zerowidth.com/) is a great helper for building these. -->
 
 ::::{steps}
-:::{step} Build the `.plist` file
-Customize the example below to fit your needs.  
+:::{step} Build the property list file
+Customize the example `.plist` below to fit your needs. Specifically, be sure to adjust paths and flags under `ProgramArguments` to match what you'd run by hand. `StartCalendarInterval` configures the schedule the agent will run. Reference [Launched](https://launched.zerowidth.com/) as it is a great helper for building these.
 
 ```{code-block} xml
 :caption: ~/Library/LaunchAgents/com.liquidzoo.patcher.plist
