@@ -39,6 +39,7 @@ extensions = [
     "sphinx_sitemap",
     "myst_parser",
     "ghwiki",
+    "steps",
 ]
 
 # ghwiki
