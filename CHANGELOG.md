@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `list_drift(vendor=None, source=None, limit=25, offset=0)` — surfaces apps where Installomator and Homebrew Cask disagree on the latest version. Same filter/pagination shape as `GET /apps/drift`.
   - `list_categories` — distinct install methods, sources, and vendors present in the catalog.
 - `fastmcp` added as an API dependency. The server is composed into the existing FastAPI lifespan via `mcp.http_app(path="/", stateless_http=True, json_response=True)` and `app.mount("/mcp", ...)`, so it deploys alongside the REST API with no new infrastructure.
+- **Origin validation middleware on the MCP endpoint.** Per MCP spec rev 2025-06-18, Streamable HTTP servers MUST validate the `Origin` header on incoming requests to prevent DNS rebinding attacks. Patcher's MCP endpoint now enforces this via a Starlette middleware on the mounted ASGI sub-app. Browser requests with an `Origin` not in the allowlist receive HTTP 403 with `{"error":"Origin not allowed"}`. Native clients (Claude Desktop, Cursor, the `fastmcp` CLI) typically don't send an `Origin` header and pass through unchanged. The allowlist is configured via `PATCHER_API_MCP_ALLOWED_ORIGINS` as a JSON list; default is `["https://claude.ai"]`.
 
 ## [v3.1.0] - 2026-05-28
 ### Added

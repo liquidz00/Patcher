@@ -19,6 +19,9 @@ session manager starts and stops alongside the API's own startup hooks.
 """
 
 from fastmcp import FastMCP
+from starlette.middleware import Middleware
+
+from patcher_api.mcp.middleware import OriginValidationMiddleware
 
 mcp = FastMCP(
     "Patcher",
@@ -29,4 +32,13 @@ mcp = FastMCP(
     ),
 )
 
-mcp_app = mcp.http_app(path="/", stateless_http=True, json_response=True)
+mcp_app = mcp.http_app(
+    path="/",
+    stateless_http=True,
+    json_response=True,
+    # Per MCP spec rev 2025-06-18, Streamable HTTP servers MUST validate the
+    # Origin header to prevent DNS rebinding. The allowlist is configured via
+    # ``PATCHER_API_MCP_ALLOWED_ORIGINS``; requests without an Origin header
+    # (native clients) bypass the check.
+    middleware=[Middleware(OriginValidationMiddleware)],
+)
