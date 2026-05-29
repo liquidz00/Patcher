@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- **MCP server mounted on the Patcher API at `/mcp`.** Mac admins can point Claude (or any Streamable HTTP MCP client) at the Patcher catalog and query it through natural-language tool calls — no curl, no API client to install. Five tools ship in v0.1:
+  - `get_catalog_summary` — total apps in the catalog and per-source coverage counts (Installomator, Homebrew Cask, Jamf App Installer, AutoPkg).
+  - `search_apps(query, limit=20)` — case-insensitive substring match across slug, name, vendor, and bundle_id. Slug-ordered for deterministic paging.
+  - `get_app(slug)` — full app projection by exact slug; same shape as `GET /apps/{slug}`.
+  - `list_drift(vendor=None, source=None, limit=25, offset=0)` — surfaces apps where Installomator and Homebrew Cask disagree on the latest version. Same filter/pagination shape as `GET /apps/drift`.
+  - `list_categories` — distinct install methods, sources, and vendors present in the catalog.
+- `fastmcp` added as an API dependency. The server is composed into the existing FastAPI lifespan via `mcp.http_app(path="/", stateless_http=True, json_response=True)` and `app.mount("/mcp", ...)`, so it deploys alongside the REST API with no new infrastructure.
 
 ## [v3.1.0] - 2026-05-28
 ### Added
