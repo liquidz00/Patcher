@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `list_categories` — distinct install methods, sources, and vendors present in the catalog.
 - `fastmcp` added as an API dependency. The server is composed into the existing FastAPI lifespan via `mcp.http_app(path="/", stateless_http=True, json_response=True)` and `app.mount("/mcp", ...)`, so it deploys alongside the REST API with no new infrastructure.
 
+### Fixed
+- **PDF reports now honor configured plist UI settings.** Previously, generated PDFs always rendered the placeholder `Default header text` / `Default footer text` (and fell back to the default font, logo, and header color) regardless of what was configured in `com.liquidzoo.patcher.plist`, because `DataManager._export_pdf` constructed `PDFReport()` with no `ui_config`. Excel, HTML, and JSON exports were unaffected. Fixed by threading `ui_config` from `PatcherClient` → `DataManager` → `_export_pdf` → `PDFReport` ([#69](https://github.com/liquidz00/Patcher/issues/69)).
+
 ## [v3.1.0] - 2026-05-28
 ### Added
 - Jamf App Installers per-title metadata now includes bundle ID, version, and download URL (previously only title, source, and host).
