@@ -144,10 +144,15 @@ class PatcherClient:
         self._config = config
         self.debug = debug
         self.jamf = JamfClient(config=config, concurrency=concurrency)
-        self.data = DataManager(disable_cache=disable_cache)
         self.api = PatcherAPIClient(max_concurrency=concurrency) if enable_installomator else None
         self.enable_homebrew = enable_homebrew
+        # Resolve ``ui_config`` before constructing ``DataManager`` so the
+        # PDF export pipeline (``DataManager._export_pdf`` → ``PDFReport``)
+        # has access to the user's configured header / footer / font / logo
+        # values rather than falling through to ``UIDefaults`` placeholders.
+        # See issue #69.
         self.ui_config = ui_config if ui_config is not None else UIDefaults().model_dump()
+        self.data = DataManager(disable_cache=disable_cache, ui_config=self.ui_config)
 
     @classmethod
     def from_state(cls, **overrides: Any) -> "PatcherClient":

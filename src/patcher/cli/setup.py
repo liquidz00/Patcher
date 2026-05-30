@@ -1,3 +1,4 @@
+import sys
 from enum import Enum
 from pathlib import Path
 
@@ -492,6 +493,8 @@ class Setup:
 
         await animator.stop()
         await self.prompt_ui_settings()
+        # Record interpreter so the CLI preflight can flag mismatches before they fail mid-run (#68).
+        self.plist_manager.set("interpreter_path", sys.executable)
         self._mark_completion(value=True)
 
     def reset_setup(self) -> bool:
