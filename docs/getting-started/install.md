@@ -53,7 +53,7 @@ Patcher also ships a [Claude Code](https://claude.com/claude-code) skill that lo
 :sync: uv
 
 ```bash
-uv pip install patcherctl
+$ uv pip install patcherctl
 ```
 
 ::::
@@ -79,7 +79,7 @@ Quirks that may arise during installation or usage of Patcher.
 If `patcherctl --version` returns `command not found`, your Python user-base `bin` directory isn't on your `PATH`. To add it permanently, execute the following command in Terminal:
 
 ```bash
-echo 'export PATH=$(python3 -m site --user-base)/bin:$PATH' >> ~/.zshrc && source ~/.zshrc
+$ echo 'export PATH=$(python3 -m site --user-base)/bin:$PATH' >> ~/.zshrc && source ~/.zshrc
 ```
 
 Adjust the profile path for your shell if you're not using `zsh` (e.g. `~/.bashrc`).

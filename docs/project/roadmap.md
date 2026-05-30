@@ -1,5 +1,5 @@
 ---
-description: "Features and source integrations planned for upcoming Patcher releases. Homebrew Cask, AutoPkg, Jamf App Installers, and CVE sourcing for apps."
+description: "Features and source integrations planned for upcoming Patcher releases. Homebrew Cask, AutoPkg, and Jamf App Installers."
 ---
 
 # Roadmap
@@ -10,7 +10,7 @@ Features and source integrations planned for upcoming Patcher releases.
 
 ---
 
-This page is the source of truth for work that is scoped but not yet shipped. Items here are tracked in the [Patcher repository](https://github.com/liquidz00/Patcher); the API surface for some of them is already partially in place (the `App` model in the catalog reserves fields like `cves` that no ingest currently populates).
+This page is the source of truth for work that is scoped but not yet shipped. Items here are tracked in the [Patcher repository](https://github.com/liquidz00/Patcher).
 
 **Status legend:** {iconify}`lucide:circle-dot style=color:#ea580c` In progress &nbsp;&nbsp; {iconify}`lucide:circle style=color:#9ca3af` Planned &nbsp;&nbsp; {iconify}`lucide:circle-check style=color:#16a34a` Shipped
 
@@ -37,13 +37,6 @@ Match Jamf titles against the AutoPkg recipe catalog for broader, multi-maintain
 :link-type: ref
 
 Flag titles already covered by JAI so reports can surface "Patcher may not need to track this."
-:::
-
-:::{grid-item-card} {iconify}`lucide:shield-alert` CVE sourcing for apps {iconify}`lucide:circle style=color:#9ca3af`
-:link: roadmap-cves
-:link-type: ref
-
-Attach known CVE identifiers to catalog records so reports highlight titles with public vulnerabilities.
 :::
 
 ::::
@@ -83,21 +76,3 @@ Flag titles that already have coverage in the [Jamf App Installers](https://lear
 - Periodic ingest of the public JAI catalog.
 - Per-title indicator in exported PDF/HTML/Excel reports.
 - Optional filter on `patcherctl analyze` to focus on titles JAI does not cover.
-
-(roadmap-cves)=
-
-## CVE sourcing for apps
-
-Attach known CVE identifiers to catalog records so reports can highlight titles with public vulnerabilities. The `App` schema already reserves a `cves: list[str]` field; the work is to pick a source and populate it.
-
-**Candidate sources**
-
-- [NVD](https://nvd.nist.gov/) (NIST's National Vulnerability Database) for canonical CVE entries with severity and affected version ranges.
-- [OSV.dev](https://osv.dev/) for a unified open-source vulnerability feed.
-- [GitHub Advisory Database](https://github.com/advisories) for advisories scoped to packages and their ecosystems.
-
-**Planned scope**
-
-- Ingest path that joins CVE IDs to catalog records by vendor + product name (with fallback to bundle ID where available).
-- Severity and "affected versions" surfaced on `/apps/{slug}` so a single catalog read is enough for a security-aware report.
-- A `--with-cves` flag on `patcherctl export` that adds a vulnerability column to the report.

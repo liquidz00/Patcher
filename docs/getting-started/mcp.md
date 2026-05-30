@@ -29,7 +29,7 @@ The MCP server is just another method to query alongside the {doc}`REST API </re
 :sync: claude-code
 
 :::{code-block} console
-:caption: Add to `.mcp.json` in project directory
+:caption: Automatically creates .mcp.json in project directory
 $ claude mcp add --transport http patcher https://mcp.patcherctl.dev/mcp
 :::
 
@@ -43,7 +43,7 @@ If you want Patcher available in every Claude Code session, pass the `--scope us
 :sync: claude-desktop
 
 :::{code-block} json
-:caption: `~/Library/Application Support/Claude/claude_desktop_config.json`
+:caption: Add to ~/Library/Application Support/Claude/claude_desktop_config.json
 {
   "mcpServers": {
     "patcher": {
@@ -62,7 +62,7 @@ Fully quit Claude Desktop (Cmd-Q) and reopen. The Patcher tools appear in the {i
 :sync: cursor
 
 :::{code-block} json
-:caption: `~/.cursor/mcp.json`
+:caption: Add to ~/.cursor/mcp.json
 {
   "mcpServers": {
     "patcher": {
@@ -150,7 +150,7 @@ Should return `{"status":"ok"}`. If it does not, the catalog itself is unreachab
 
 :::{tab-item} {iconify}`material-icon-theme:claude` Claude Desktop
 
-Fully quit (Cmd-Q, not just close the window) and reopen.
+Fully quit (`CMD+Q`, not just close the window) and reopen.
 <br>The MCP config is read once at launch.
 :::
 
@@ -162,6 +162,12 @@ The MCP panel has a Refresh control.
 
 ::::
 :::::
-::::::
 
-For deeper protocol-level debugging, `fastmcp list https://mcp.patcherctl.dev/mcp --transport http --auth none` from the **Shell** tab above will speak MCP directly and surface any handshake errors verbatim.
+:::::{step} Check debugging logs
+```{code-block} bash
+$ fastmcp list https://mcp.patcherctl.dev/mcp --transport http --auth none
+```
+
+For deeper protocol-level debugging, speak MCP directly and surface any handshake errors verbatim.
+:::::
+::::::

@@ -108,4 +108,4 @@ The Installomator section uses three confidence flags:
 - **AutoPkg fallback is org-scoped.** When local `autopkg search` isn't available, the skill falls back to a GitHub code search across the `autopkg/` org only. Community recipes outside that org won't surface.
 - **Web search filters aggressively.** The Deployment docs section prefers vendor admin docs, `learn.jamf.com`, and `community.jamf.com` accepted solutions. Blog posts and YouTube tutorials are rejected by design. If nothing high-quality surfaces, the section reports `(no official deployment docs surfaced)` rather than fabricating links.
 - **Read-only.** The skill doesn't propose or write canonical-app-DB entries. That's intentional; it's a lookup utility, not an ingest tool.
-- **Not a version source.** For current versions, install commands, and CVE data, use the `patcherctl` CLI or {class}`~patcher.clients.patcher_api.PatcherAPIClient` against `api.patcherctl.dev`.
+- **Not a version source.** For current versions and install commands, use the `patcherctl` CLI or {class}`~patcher.clients.patcher_api.PatcherAPIClient` against `api.patcherctl.dev`.

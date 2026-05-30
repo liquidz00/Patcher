@@ -140,14 +140,25 @@ You do **not** need to concatenate certificates into `certifi`'s `cacert.pem`, e
 
 ### Diagnosing TLS errors
 
-If Patcher fails with an `APIResponseError: Network error fetching URL` and the underlying message mentions certificate verification:
+If Patcher fails with an `APIResponseError: Network error fetching URL` and the underlying message mentions certificate verification, follow these steps:
 
-1. **Verify the corporate CA is in your OS trust store:**
-   - **macOS:** Keychain Access → System keychain → Certificates. Look for your company's root CA.
-   - **Windows:** `certmgr.msc` → Trusted Root Certification Authorities → Certificates.
-   - **Linux:** `ls /etc/ssl/certs/` or `trust list --filter=ca-anchors`.
-2. **Confirm your MDM profile is fully applied.** New machines sometimes lack certificates until the next refresh.
-3. **If the CA is installed but the error persists**, get in touch ([Submit an issue](#submit-an-issue) or the MacAdmins Slack `#patcher` channel) with the full error output and any details about installed security software.
+::::{steps}
+
+:::{step} Verify the corporate CA is in Keychain
+
+Keychain Access → System keychain → Certificates. Look for your company's root CA.
+:::
+
+:::{step} Confirm MDM is communicating and profile is applied.
+
+New machines sometimes lack certificates until the next refresh.
+:::
+
+:::{step} Get in touch.
+
+If the CA is installed but the error persists, let us know. [Submit an issue](#submit-an-issue) with the full error output and any details about installed security software.
+:::
+::::
 
 ## Still stuck?
 

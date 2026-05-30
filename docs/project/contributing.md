@@ -36,7 +36,6 @@ We do our best to follow the standard [GitHub flow](https://docs.github.com/en/g
 ::::{tab-set}
 
 :::{tab-item} git
-
 ```bash
 $ git clone https://github.com/liquidz00/Patcher.git /clone/destination/here
 ```
