@@ -175,6 +175,7 @@ project/architecture
 project/pipelines/index
 project/roadmap
 project/data-storage
+project/self-hosting
 project/troubleshooting
 ```
 

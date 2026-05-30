@@ -1,0 +1,45 @@
+# VCS
+.git
+.gitignore
+.github
+.gitmodules
+
+# Local virtualenvs and caches
+.venv
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/htmlcov
+**/coverage
+**/.coverage
+**/.coverage.*
+
+# Build / dist artifacts
+build/
+dist/
+**/*.egg-info
+
+# Local SQLite catalogs (these can be huge; bake them via ingest instead)
+api/patcher_api.db
+api/patcher_api.db-*
+*.db
+*.db-shm
+*.db-wal
+
+# Editor / OS noise
+.DS_Store
+.vscode
+.cursor
+.claude
+
+# Docs and vendor docs aren't needed in the image
+docs/_build
+vendor-docs
+
+# Test scaffolding (the image runs the service, not the suite)
+tests/
+api/tests/

@@ -1,0 +1,50 @@
+# Reference docker-compose for self-hosting the Patcher API.
+# See docs/project/self-hosting.md for the full walkthrough.
+#
+# Two services share the same SQLite catalog via a named volume:
+#   - api:     long-running FastAPI process serving /apps, /health, /mcp
+#   - ingest:  one-shot job that pulls upstream sources, stitches, and exits.
+#             Schedule it from the host (cron, systemd.timer, k8s CronJob, etc.)
+#             with `docker compose run --rm ingest`.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: patcher-api:local
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      PATCHER_API_DATABASE_URL: "sqlite+aiosqlite:////data/patcher_api.db"
+      # JSON list of browser origins permitted to call the /mcp endpoint.
+      # PATCHER_API_MCP_ALLOWED_ORIGINS: '["https://claude.ai"]'
+    volumes:
+      - catalog:/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  ingest:
+    image: patcher-api:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles: ["ingest"]
+    environment:
+      PATCHER_API_DATABASE_URL: "sqlite+aiosqlite:////data/patcher_api.db"
+      # Authenticate the api.github.com calls the Installomator ingest makes
+      # (5000/hr instead of the shared 60/hr unauthenticated budget).
+      # PATCHER_API_GITHUB_TOKEN: "ghp_..."
+    volumes:
+      - catalog:/data
+    working_dir: /opt/patcher/api
+    entrypoint: ["/usr/bin/tini", "--"]
+    command: ["python", "scripts/ingest.py", "all"]
+
+volumes:
+  catalog:
