@@ -1,105 +1,86 @@
+"""
+Async-friendly spinner wrapper around :class:`rich.status.Status`.
+
+``Animation`` keeps the same public surface the rest of the CLI was already
+written against (constructor signature, ``start`` / ``stop`` / ``update_msg``
+coroutines, ``error_handling`` async context manager, a ``stop_event`` attr
+the report module flips defensively). The internals are now Rich, so output
+goes through the shared :data:`patcher.cli._console.console` and renders the
+same spinner everywhere.
+
+Rich's ``Status`` is a sync context manager but its ``start`` / ``stop`` /
+``update`` methods are safe to call directly from inside an event loop, so
+the async wrappers here just dispatch to them.
+"""
+
 import asyncio
 from contextlib import asynccontextmanager
 
-import asyncclick as click
+from rich.status import Status
+
+from ._console import console
+
+SPINNER_NAME = "dots"
 
 
 class Animation:
     def __init__(self, message_template: str = "Processing", enable_animation: bool = True):
         """
-        Handles displaying an animated spinner with a message during long-running operations.
+        Display an animated spinner with a message during long-running operations.
 
-        The ``Animation`` class provides a simple way to display a rotating spinner along with
-        a customizable message in the terminal, which can be useful for indicating progress
-        in asynchronous tasks.
-
-        Necessary attributes for controlling the Animation are set up during initialization
-        of Animation objects (e.g., the message template, spinner characters, and color scheme).
-
-        :param message_template: The base message to display alongside the spinner.
+        :param message_template: Initial message rendered next to the spinner.
         :type message_template: str
-        :param enable_animation: Flag to enable or disable the spinner animation.
+        :param enable_animation: When False, all start / update / stop calls are
+            no-ops. Used by ``--debug`` runs so spinner frames don't interleave
+            with log output.
         :type enable_animation: bool
         """
-        self.stop_event = asyncio.Event()
         self.message_template = message_template
         self.enable_animation = enable_animation
-        self.task = None
-        self.lock = asyncio.Lock()
-        self.spinner_chars = ["\u25e4", "\u25e5", "\u25e2", "\u25e3"]
-        self.colors = ["cyan", "magenta", "bright_cyan", "bright_magenta"]
-        self.last_message_length = 0
+        # Preserved for backwards compatibility. report.py defensively calls
+        # `animation.stop_event.set()` after the error_handling block exits.
+        self.stop_event = asyncio.Event()
+        self._status: Status | None = None
+        self._started = False
 
-    async def start(self):
-        """
-        Start the animation as an asyncio task. If animation is disabled, this
-        method does nothing.
-        """
-        if not self.enable_animation:
+    async def start(self) -> None:
+        """Start the Rich status spinner. No-op when animation is disabled or already running."""
+        if not self.enable_animation or self._started:
             return
+        self._status = console.status(self.message_template, spinner=SPINNER_NAME)
+        self._status.start()
+        self._started = True
 
-        self.task = asyncio.create_task(self._animate())
+    async def stop(self) -> None:
+        """Stop the spinner and clear its line. Safe to call multiple times."""
+        if self._status is not None and self._started:
+            self._status.stop()
+        self._started = False
+        self._status = None
+        self.stop_event.set()
 
-    async def stop(self):
+    async def update_msg(self, new_message_template: str) -> None:
         """
-        Stops the spinner animation by setting the stop event and
-        waiting for the animation task to complete.
-        """
-        if self.task:
-            self.stop_event.set()
-            await self.task
-
-    async def update_msg(self, new_message_template: str):
-        """
-        This method updates the message displayed alongside the spinner, clearing the
-        previous message before displaying the new one.
+        Swap the spinner's message in place.
 
         :param new_message_template: The new message to display alongside the spinner.
         :type new_message_template: str
         """
-        async with self.lock:
-            clear_message = "\r" + " " * self.last_message_length + "\r"
-            click.echo(clear_message, nl=False)
-            self.message_template = new_message_template
-
-    async def _animate(self):
-        """
-        Private method to handle the actual animation of the spinner, cycling through
-        a set of characters and colors while the stop event is not set. It runs in an
-        asynchronous loop, updating the spinner and message at regular intervals.
-        """
-        i = 0
-        color_index = 0
-        max_length = 0
-        while not self.stop_event.is_set():
-            async with self.lock:
-                spinner = self.spinner_chars[i % len(self.spinner_chars)]
-                color = self.colors[color_index % len(self.colors)]
-                colored_spinner = click.style(spinner, fg=color)
-                message = f"\r{self.message_template} {colored_spinner}"
-                self.last_message_length = len(message)
-                max_length = max(max_length, len(message))
-                click.echo(message, nl=False)
-                i += 1
-                color_index += 1
-            await asyncio.sleep(0.2)
-
-        # Clear animation line after stopping
-        click.echo("\r" + " " * max_length + "\r", nl=False)
+        self.message_template = new_message_template
+        if self._status is not None and self._started:
+            self._status.update(new_message_template)
 
     @asynccontextmanager
     async def error_handling(self):
         """
-        Context manager for error handling with animation.
+        Run a block of work with the spinner active.
 
-        This context manager starts the spinner animation when entering the context,
-        and stops it when exiting. If an exception occurs within the context, it stops
-        the animation and re-raises the exception.
+        Starts the spinner on entry, stops it on exit (success or failure),
+        and re-raises any exception so the caller's normal error handling
+        path runs.
         """
         await self.start()
         try:
             yield
-        except Exception:
-            raise  # Raise exception that was caught
         finally:
             await self.stop()

@@ -8,6 +8,9 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import asyncclick as click
+import rich.traceback
+from rich.panel import Panel
+from rich.text import Text
 
 from ..__about__ import __version__
 from ..clients.patcher_api import DriftEntry, DriftResponse
@@ -19,11 +22,18 @@ from ..core.logger import LogMe, PatcherLog
 from ..core.models.ui import UIDefaults
 from ..core.patcher_client import PatcherClient
 from ..core.plist_manager import PropertylistManager
+from ._console import ERROR_STYLE, err_console
 from .animation import Animation
 from .report import process_reports
 from .setup import Setup
 from .terminal_logger import install_terminal_excepthook, install_terminal_handler
 from .ui_manager import UIConfigManager
+
+# show_locals=False keeps tracebacks safe to paste publicly (no leaked tokens).
+# Suppressing asyncclick collapses the framework's own frames so only Patcher
+# code shows up. The project doesn't depend on stdlib click; asyncclick is the
+# async fork imported as `click` throughout the codebase.
+rich.traceback.install(show_locals=False, suppress=[click])
 
 DATE_FORMATS = {
     "Month-Year": "%B %Y",  # April 2024
@@ -182,15 +192,35 @@ def setup_logging(debug: bool) -> None:
 
 def format_err(exc: PatcherError) -> None:
     """
-    Formats error messages to console.
+    Render a :class:`PatcherError` in a red-bordered Rich panel on stderr.
+
+    The panel body carries the exception message in red. If the exception
+    exposes a ``recovery`` or ``remediation`` attribute (PatcherError lifts
+    keyword context onto the instance), it is rendered as a dim paragraph
+    below the main message. A footer line points the user at the log file.
 
     :param exc: The PatcherError exception to format.
     :type exc: PatcherError
     """
-    click.echo(click.style(f"❌ Error: {str(exc)}", fg="red", bold=True), err=True)
-    click.echo(
-        f"💡 For more details, please check the log file at: '{PatcherLog.LOG_FILE}'",
-        err=True,
+    body = Text(str(exc), style=ERROR_STYLE)
+
+    hint = getattr(exc, "recovery", None) or getattr(exc, "remediation", None)
+    if hint:
+        body.append("\n\n")
+        body.append(Text.from_markup(f"[dim]Recovery:[/] {hint}"))
+
+    body.append("\n\n")
+    body.append(
+        Text.from_markup(f"[dim]For more details, see the log file at: '{PatcherLog.LOG_FILE}'[/]")
+    )
+
+    err_console.print(
+        Panel(
+            body,
+            title="[bold red]Error[/]",
+            border_style=ERROR_STYLE,
+            expand=False,
+        )
     )
 
 
@@ -731,6 +761,27 @@ async def export(
 @click.option(
     "--top-n", "-n", metavar="<int>", type=int, help="Limit the number of results displayed."
 )
+@click.option(
+    "--min-compliance",
+    metavar="<percentage>",
+    type=float,
+    default=None,
+    help="Pre-filter: keep titles with completion_percent >= this value.",
+)
+@click.option(
+    "--min-hosts",
+    metavar="<int>",
+    type=int,
+    default=None,
+    help="Pre-filter: keep titles with total_hosts >= this value.",
+)
+@click.option(
+    "--released-after",
+    metavar="<YYYY-MM-DD>",
+    type=str,
+    default=None,
+    help="Pre-filter: keep titles released on or after this ISO date.",
+)
 @click.option("--summary", "-s", is_flag=True, help="Generate summary analysis for output.")
 @click.option(
     "--output-dir",
@@ -746,6 +797,9 @@ async def analyze(
     criteria: str,
     threshold: float,
     top_n: int = None,
+    min_compliance: float | None = None,
+    min_hosts: int | None = None,
+    released_after: str | None = None,
     summary: bool = False,
     output_dir: str | Path = None,
     all_time: bool = False,
@@ -771,6 +825,12 @@ async def analyze(
     :type output_dir: str | ~pathlib.Path | None
     :param all_time: Flag to analyze trends across all cached data.
     :type all_time: bool
+    :param min_compliance: Pre-filter cutoff for ``completion_percent``.
+    :type min_compliance: float | None
+    :param min_hosts: Pre-filter cutoff for ``total_hosts``.
+    :type min_hosts: int | None
+    :param released_after: Pre-filter ISO date; keep titles released on or after.
+    :type released_after: str | None
     """
     if summary and not output_dir:
         click.echo(
@@ -831,8 +891,21 @@ async def analyze(
                     )
         else:  # Filter analysis
             await animation.update_msg(f"Filtering titles by '{criteria}'...")
+            where_kwargs = {
+                k: v
+                for k, v in (
+                    ("min_compliance", min_compliance),
+                    ("min_hosts", min_hosts),
+                    ("released_after", released_after),
+                )
+                if v is not None
+            }
             filtered_titles = TitleFilter.apply(
-                data_manager.titles, criteria, threshold=threshold, top_n=top_n
+                data_manager.titles,
+                criteria,
+                threshold=threshold,
+                top_n=top_n,
+                where=where_kwargs or None,
             )
             if len(filtered_titles) == 0:
                 await animation.stop()
