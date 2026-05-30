@@ -52,7 +52,7 @@ def serialize_titles_to_dict(
 class DataManager:
     _IGNORED = ["install_label", "homebrew_cask", "title_id"]
 
-    def __init__(self, disable_cache: bool = False):
+    def __init__(self, disable_cache: bool = False, ui_config: dict | None = None):
         """
         The ``DataManager`` class handles data management for patch reports, including caching, validation and exporting to Excel.
 
@@ -60,6 +60,15 @@ class DataManager:
 
         :param disable_cache: Whether caching functionality should be disabled.
         :type disable_cache: bool
+        :param ui_config: Optional dict of UI settings (header text, footer
+            text, font paths, logo, header color) forwarded to
+            :class:`PDFReport` when generating PDF output. When ``None``,
+            ``PDFReport`` falls back to :class:`UIDefaults` values, which
+            is the right behavior for library callers that don't customize
+            PDF appearance. The CLI passes the plist-backed dict so the
+            user's configured ``header_text`` / ``footer_text`` / font /
+            logo land in the rendered PDF.
+        :type ui_config: dict | None
         """
         self.cache_dir = Path.home() / "Library/Caches/Patcher"
         self.cache_expiration_days = 90  # Increase for better trend analysis
@@ -67,6 +76,7 @@ class DataManager:
         self.log = LogMe(self.__class__.__name__)
         self._disabled = disable_cache
         self._titles: list[PatchTitle] | None = None
+        self._ui_config = ui_config
 
     @property
     def cache_off(self) -> bool:
@@ -238,7 +248,7 @@ class DataManager:
 
     async def _export_pdf(self, df: pd.DataFrame, pdf_path: Path, date_format: str):
         """Generates a PDF Report from a given DataFrame."""
-        pdf = PDFReport(date_format=date_format)
+        pdf = PDFReport(date_format=date_format, ui_config=self._ui_config)
         pdf.table_headers = df.columns.tolist()
         pdf.column_widths = pdf.calculate_column_widths(df)
 

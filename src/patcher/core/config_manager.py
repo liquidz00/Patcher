@@ -1,3 +1,5 @@
+import re
+
 import keyring
 from keyring.errors import KeyringError
 
@@ -5,6 +7,15 @@ from .exceptions import CredentialError
 from .logger import LogMe
 from .models.jamf import JamfCredentials
 from .models.token import AccessToken
+
+# macOS Security framework -25244 / errSecInvalidOwnerEdit fires when a
+# different process identity tries to update a Keychain item. See issue #68.
+_OWNER_EDIT_ERROR_PATTERN = re.compile(r"-25244|errSecInvalidOwnerEdit", re.IGNORECASE)
+
+
+def _is_owner_edit_error(exc: Exception) -> bool:
+    """True if ``exc`` is the macOS Keychain ``-25244`` ACL-block error."""
+    return bool(_OWNER_EDIT_ERROR_PATTERN.search(str(exc)))
 
 
 class ConfigManager:
@@ -105,9 +116,20 @@ class ConfigManager:
             keyring.set_password(self.service_name, key, value)
             self.log.info(f"Credential for key '{key}' set successfully")
         except KeyringError as e:
+            if _is_owner_edit_error(e):
+                # ``owner_mismatch=True`` lets the CLI preflight detect this case programmatically.
+                raise CredentialError(
+                    "Patcher's Keychain entries are bound to a different Python interpreter "
+                    "and can't be updated by this one. "
+                    "Clear existing entries with `security delete-generic-password -s Patcher` "
+                    "and re-run setup with `patcherctl --fresh`.",
+                    key=key,
+                    owner_mismatch=True,
+                    error_msg=str(e),
+                ) from e
             raise CredentialError(
                 "Unable to save credential as expected", key=key, error_msg=str(e)
-            )
+            ) from e
 
     def delete_credential(self, key: str) -> bool:
         """
@@ -125,10 +147,9 @@ class ConfigManager:
         try:
             keyring.delete_password(self.service_name, key)
             self.log.info(f"Credential for key '{key}' deleted successfully.")
-            return True
         except KeyringError as e:
             self.log.warning(f"Failed to delete credential for '{key}'. Details: {e}")
-            return False
+        return True
 
     def create_client(self, client: JamfCredentials, token: AccessToken) -> None:
         """

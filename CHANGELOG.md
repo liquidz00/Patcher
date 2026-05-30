@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `fastmcp` added as an API dependency. The server is composed into the existing FastAPI lifespan via `mcp.http_app(path="/", stateless_http=True, json_response=True)` and `app.mount("/mcp", ...)`, so it deploys alongside the REST API with no new infrastructure.
 - **Origin validation middleware on the MCP endpoint.** Per MCP spec rev 2025-06-18, Streamable HTTP servers MUST validate the `Origin` header on incoming requests to prevent DNS rebinding attacks. Patcher's MCP endpoint now enforces this via a Starlette middleware on the mounted ASGI sub-app. Browser requests with an `Origin` not in the allowlist receive HTTP 403 with `{"error":"Origin not allowed"}`. Native clients (Claude Desktop, Cursor, the `fastmcp` CLI) typically don't send an `Origin` header and pass through unchanged. The allowlist is configured via `PATCHER_API_MCP_ALLOWED_ORIGINS` as a JSON list; default is `["https://claude.ai"]`.
 
+## [v3.1.1] - 2026-05-30
+### Fixed
+- PDF reports now honor configured plist UI settings ([#69](https://github.com/liquidz00/Patcher/issues/69)).
+- Python interpreter mismatch on Keychain writes now surfaces a recoverable error ([#68](https://github.com/liquidz00/Patcher/issues/68)).
+- `patcherctl --fresh` now actually re-triggers setup ([#70](https://github.com/liquidz00/Patcher/issues/70)).
+- `asyncclick>=8.2.2` enforced as the minimum ([#72](https://github.com/liquidz00/Patcher/issues/72)).
+- `ctx.exit(0)` replaced with `sys.exit(0)` across the CLI ([#73](https://github.com/liquidz00/Patcher/issues/73)).
+
 ## [v3.1.0] - 2026-05-28
 ### Added
 - Jamf App Installers per-title metadata now includes bundle ID, version, and download URL (previously only title, source, and host).

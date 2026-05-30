@@ -348,3 +348,52 @@ async def test_export_default_includes_json(sample_patch_reports, temp_output_di
     assert "excel" in exported_files
     assert "html" in exported_files
     assert "pdf" in exported_files
+
+
+@pytest.mark.asyncio
+async def test_export_pdf_threads_ui_config_to_pdf_report(monkeypatch, tmp_path):
+    """
+    Regression for #69: ``DataManager`` must pass its ``ui_config`` into the
+    ``PDFReport`` it constructs. Before the fix, ``_export_pdf`` did
+    ``PDFReport(date_format=date_format)`` with no ``ui_config``, so the PDF
+    fell through to :class:`UIDefaults` placeholders ("Default header text"
+    / "Default footer text") regardless of what the user had configured.
+    """
+    captured: dict = {}
+
+    def fake_pdf_report(date_format, ui_config=None):
+        captured["date_format"] = date_format
+        captured["ui_config"] = ui_config
+        # Minimal stand-in for the PDFReport surface ``_export_pdf`` exercises.
+        # MagicMock auto-creates ``add_page``/``add_table_header``/``set_font``
+        # /``cell``/``output``; we only need to hand-set the attributes that
+        # participate in arithmetic or iteration.
+        pdf = MagicMock()
+        pdf.ui_config = ui_config or {}
+        pdf.calculate_column_widths = lambda df: [10] * len(df.columns)
+        pdf.h = 200
+        pdf.get_y = lambda: 0
+        return pdf
+
+    monkeypatch.setattr("src.patcher.core.data_manager.PDFReport", fake_pdf_report)
+
+    custom_ui = {
+        "header_text": "May-Patch-Report-2026",
+        "footer_text": "Confidential",
+        "font_name": "Helvetica",
+        "reg_font_path": "",
+        "bold_font_path": "",
+        "logo_path": "",
+        "header_color": "#abcdef",
+    }
+    data_manager = DataManager(disable_cache=True, ui_config=custom_ui)
+    df = pd.DataFrame({"Title": ["Firefox"], "Latest Version": ["121.0"]})
+    pdf_path = tmp_path / "test.pdf"
+
+    await data_manager._export_pdf(df, pdf_path, "%Y-%m-%d")
+
+    # The fix: ``ui_config`` reaches ``PDFReport`` so the configured header
+    # text actually renders, instead of the ``UIDefaults`` placeholder.
+    assert captured["ui_config"] is custom_ui
+    assert captured["ui_config"]["header_text"] == "May-Patch-Report-2026"
+    assert captured["ui_config"]["footer_text"] == "Confidential"

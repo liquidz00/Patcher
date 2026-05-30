@@ -251,7 +251,12 @@ def _install_cli_process_hooks() -> None:
 
 
 # Entry
-@click.group(context_settings=CONTEXT_SETTINGS, options_metavar="<options>")
+@click.group(
+    context_settings=CONTEXT_SETTINGS,
+    options_metavar="<options>",
+    invoke_without_command=True,
+    no_args_is_help=True,
+)
 @click.version_option(version=__version__)
 @click.option("--debug", "-x", is_flag=True, help="Enable debug logging (verbose mode).")
 @click.option(
@@ -357,19 +362,40 @@ async def cli(
         if not noninteractive and ctx.obj.get("plist_manager").needs_migration():
             ctx.obj.get("plist_manager").migrate_plist()
 
+        # Warn on Python interpreter mismatch. Keychain writes (e.g. token refresh)
+        # may fail with errSecInvalidOwnerEdit, but reads work fine so don't block:
+        # the run may succeed entirely if no write is needed. See #68.
+        if not noninteractive and setup.completed and not fresh:
+            recorded_interpreter = ctx.obj.get("plist_manager").get("interpreter_path")
+            if recorded_interpreter and recorded_interpreter != sys.executable:
+                click.echo(
+                    click.style(
+                        f"Warning: Patcher was set up under a different Python interpreter:\n"
+                        f"  recorded: {recorded_interpreter}\n"
+                        f"  current:  {sys.executable}\n\n"
+                        f"macOS Keychain ACLs may block this interpreter from updating saved "
+                        f"credentials (e.g. on token refresh). Reads work fine; only writes are at risk.\n"
+                        f"If you hit a -25244 / errSecInvalidOwnerEdit error mid-run, recover with:\n"
+                        f"  security delete-generic-password -s Patcher\n"
+                        f"  patcherctl --fresh",
+                        fg="yellow",
+                    ),
+                    err=True,
+                )
+
         if noninteractive:
             await setup.bootstrap_noninteractive(
                 client_id=client_id, client_secret=client_secret, url=url
             )
             # Fall through; let the requested subcommand run.
-        elif not setup.completed:
+        elif not setup.completed or fresh:
             await setup.start(animator=ctx.obj.get("animation"), fresh=fresh)
             click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
             click.echo(
                 "Patcher is now ready for use. You can use the --help flag to view available options."
             )
             click.echo("For more information, visit the project docs: https://docs.patcherctl.dev")
-            ctx.exit(0)  # Exit to avoid running a command
+            sys.exit(0)  # Exit to avoid running a command
 
 
 # Reset
@@ -494,7 +520,7 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
                         "⚠️ Caching is disabled. No cached data to reset.", fg="yellow", bold=True
                     )
                 )
-                ctx.exit(0)
+                sys.exit(0)
 
             await animation.update_msg("Clearing cached data...")
             if not data_manager.reset_cache():
@@ -779,7 +805,7 @@ async def analyze(
                         bold=True,
                     )
                 )
-                ctx.exit(0)
+                sys.exit(0)
 
             await animation.update_msg("Formatting trend results...")
             formatted_table = format_table(
@@ -816,7 +842,7 @@ async def analyze(
                     ),
                     err=False,
                 )
-                ctx.exit(0)
+                sys.exit(0)
 
             await animation.update_msg("Formatting filtered results...")
             table_data = [
@@ -945,12 +971,12 @@ async def diff(
                 ),
                 err=True,
             )
-            ctx.exit(0)
+            sys.exit(0)
         click.echo("Available cached snapshots (oldest → newest):")
         for path in cached:
             mtime = datetime.fromtimestamp(path.stat().st_mtime)
             click.echo(f"  {mtime.isoformat(timespec='seconds')}  {path.name}")
-        ctx.exit(0)
+        sys.exit(0)
 
     parsed_since = parse_since(since) if since else None
     parsed_between = (parse_iso_date(between[0]), parse_iso_date(between[1])) if between else None
