@@ -33,7 +33,6 @@ def _make_drift_app(
         install_method=None,
         sha256=None,
         sources=["installomator", "homebrew_cask"],
-        cves=[],
     )
     row.source_detail = AppSourceDetailRow(
         installomator={

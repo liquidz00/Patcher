@@ -34,7 +34,6 @@ def _make_app(
         install_method=install_method,
         sha256=None,
         sources=[],
-        cves=[],
     )
 
 

@@ -17,12 +17,14 @@ from sqlalchemy import func, or_, select
 
 from patcher_api.db import get_session_maker
 from patcher_api.drift import detect_drift, extract_versions
+from patcher_api.labels import build_installomator_label
 from patcher_api.mcp.server import mcp
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.schemas.app import App as AppSchema
 from patcher_api.schemas.app import InstallMethod
 from patcher_api.schemas.drift import DriftEntry, DriftResponse
+from patcher_api.schemas.sources import AppSources
 
 
 def _serialize_app(row: AppRow) -> dict:
@@ -118,7 +120,7 @@ async def get_app(slug: str) -> dict:
     Returns the full app projection: identity (slug, name, vendor,
     bundle_id), versioning (current_version, latest_release_date),
     download metadata (download_url, install_method, sha256), and
-    provenance (sources, cves). Identical to ``GET /apps/{slug}`` on
+    provenance (sources). Identical to ``GET /apps/{slug}`` on
     the REST API.
 
     ``slug`` is the URL-friendly app identifier (e.g. "firefox",
@@ -229,3 +231,112 @@ async def list_categories() -> dict:
         "sources": sources,
         "vendors": vendors,
     }
+
+
+@mcp.tool
+async def generate_installomator_label(slug: str) -> dict:
+    """
+    Generate an Installomator-shaped label for the app identified by ``slug``.
+
+    Projects the app's Homebrew Cask, Installomator, and Jamf App Installer
+    source payloads into the Installomator label format that consumers can
+    drop into their Installomator deployments. Mirrors the REST endpoint
+    ``POST /apps/{slug}/generate-label`` exactly.
+
+    ``slug`` is the URL-friendly app identifier (e.g. "firefox"); use
+    ``search_apps`` first if you don't know the exact slug. Raises
+    ``ValueError`` if no app with that slug exists, or if the app has no
+    source detail attached (rare, usually a leftover seed record without
+    upstream coverage).
+
+    Returned dict has ``label_name`` (str, the app's slug), ``content`` (dict
+    of Installomator variable name to value, with unresolved fields omitted),
+    ``sources_used`` (list[str] naming which upstream sources contributed),
+    and ``warnings`` (list[str] explaining any fields that couldn't be
+    resolved, most commonly ``expectedTeamID`` for Cask-only apps).
+    """
+    async with get_session_maker()() as session:
+        app_row = await session.scalar(select(AppRow).where(AppRow.slug == slug))
+        if app_row is None:
+            raise ValueError(f"App with slug '{slug}' not found")
+
+        detail = await session.scalar(
+            select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == app_row.id)
+        )
+
+        if detail is None or (
+            detail.homebrew_cask is None
+            and detail.installomator is None
+            and detail.jamf_app_installer is None
+        ):
+            raise ValueError(
+                f"App '{slug}' has no source detail, cannot generate a label. "
+                "This is usually a leftover seed record; expected for production data."
+            )
+
+        return build_installomator_label(app_row, detail).model_dump(mode="json")
+
+
+@mcp.tool
+async def get_app_sources(slug: str) -> dict:
+    """
+    Return the raw per-source payloads for the app identified by ``slug``.
+
+    Use this when the caller needs to inspect what each upstream source said
+    about an app (the raw Installomator label dict, the full Homebrew Cask
+    JSON, the Jamf App Installer catalog row), as opposed to the stitched
+    canonical projection that ``get_app`` returns. Mirrors the REST endpoint
+    ``GET /apps/{slug}/sources`` exactly.
+
+    ``slug`` is the URL-friendly app identifier. Raises ``ValueError`` if no
+    app with that slug exists. If the app exists but has no source detail
+    row attached, returns a dict with every source key set to ``None``
+    rather than raising.
+
+    Returned dict has keys ``installomator``, ``homebrew_cask``, ``autopkg``,
+    ``mas``, and ``jamf_app_installer``; each value is either the source's
+    native payload (dict) or ``None`` when that source has no data for the app.
+    """
+    async with get_session_maker()() as session:
+        app_row = await session.scalar(select(AppRow).where(AppRow.slug == slug))
+        if app_row is None:
+            raise ValueError(f"App with slug '{slug}' not found")
+
+        detail_row = await session.scalar(
+            select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == app_row.id)
+        )
+        if detail_row is None:
+            return AppSources().model_dump(mode="json")
+
+        return AppSources.model_validate(
+            {
+                "installomator": detail_row.installomator,
+                "homebrew_cask": detail_row.homebrew_cask,
+                "autopkg": detail_row.autopkg,
+                "jamf_app_installer": detail_row.jamf_app_installer,
+            }
+        ).model_dump(mode="json")
+
+
+@mcp.tool
+async def list_recent_changes(limit: int = 25) -> list[dict]:
+    """
+    Return the most recently added apps in the catalog, newest first.
+
+    Ordering uses ``App.id`` descending as a proxy for recency: rows are
+    autoincrement-assigned at ingest time, so a higher id means a later
+    insertion. This is honest about what the catalog can currently express;
+    once the ``App`` model grows a ``modified_at`` timestamp column, this
+    tool should switch to that column and accept a ``since_iso`` filter
+    parameter for true change-feed semantics.
+
+    ``limit`` defaults to 25 and is hard-capped at 100 to keep responses
+    small enough for an LLM context window.
+
+    Each result is the full app record (same shape as ``get_app``).
+    """
+    limit = max(1, min(limit, 100))
+    async with get_session_maker()() as session:
+        rows = (await session.scalars(select(AppRow).order_by(AppRow.id.desc()).limit(limit))).all()
+
+    return [_serialize_app(row) for row in rows]

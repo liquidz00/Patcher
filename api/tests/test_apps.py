@@ -380,7 +380,6 @@ async def test_generate_label_succeeds_for_jai_only_app(client, test_session):
         download_url="https://vendor.example/ChatGPT-Atlas.pkg",
         install_method=None,
         sources=["jamf_app_installer"],
-        cves=[],
     )
     test_session.add(app_row)
     await test_session.flush()  # populates app_row.id

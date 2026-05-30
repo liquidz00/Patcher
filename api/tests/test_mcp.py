@@ -65,7 +65,6 @@ async def _add_app(
         current_version=current_version,
         install_method=install_method,
         sources=sources or [],
-        cves=[],
     )
     session.add(app)
     await session.flush()  # populate app.id for the FK below
@@ -122,6 +121,9 @@ async def test_protocol_lists_all_registered_tools(mcp_client):
         "get_app",
         "list_drift",
         "list_categories",
+        "generate_installomator_label",
+        "get_app_sources",
+        "list_recent_changes",
     } <= names
 
 
@@ -362,3 +364,130 @@ async def test_list_categories_returns_distinct_vendors_and_sources(mcp_session,
 
     assert result.data["vendors"] == ["Microsoft", "Mozilla", "Slack"]
     assert result.data["sources"] == ["homebrew_cask", "installomator"]
+
+
+@pytest.mark.asyncio
+async def test_generate_installomator_label_returns_label_for_app_with_sources(
+    mcp_session, mcp_client
+):
+    """Happy path: an app with both Installomator + Cask sources produces a complete label."""
+    await _add_app(
+        mcp_session,
+        slug="firefox",
+        name="Firefox",
+        vendor="Mozilla",
+        bundle_id="org.mozilla.firefox",
+        current_version="121.0",
+        install_method="dmg",
+        sources=["installomator", "homebrew_cask"],
+        installomator={
+            "label_name": "firefox",
+            "label_url": "https://github.com/Installomator/Installomator/labels/firefox.sh",
+            "raw": {
+                "name": "Firefox",
+                "type": "dmg",
+                "expectedTeamID": "43AQ936H96",
+            },
+        },
+        homebrew_cask={
+            "token": "firefox",
+            "cask_json": {
+                "name": ["Mozilla Firefox"],
+                "url": "https://download.mozilla.org/firefox.dmg",
+            },
+        },
+    )
+
+    result = await mcp_client.call_tool("generate_installomator_label", {"slug": "firefox"})
+
+    assert result.is_error is False
+    assert result.data["label_name"] == "firefox"
+    assert "installomator" in result.data["sources_used"]
+    assert "homebrew_cask" in result.data["sources_used"]
+    assert result.data["content"]["name"] == "Mozilla Firefox"
+    assert result.data["content"]["expectedTeamID"] == "43AQ936H96"
+    assert result.data["content"]["appNewVersion"] == "121.0"
+
+
+@pytest.mark.asyncio
+async def test_generate_installomator_label_unknown_slug_raises(mcp_client):
+    """Unknown slug raises ValueError in-tool, surfaces as a protocol error result."""
+    with pytest.raises(Exception) as excinfo:
+        await mcp_client.call_tool("generate_installomator_label", {"slug": "does-not-exist"})
+    assert "does-not-exist" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_generate_installomator_label_no_source_detail_raises(mcp_session, mcp_client):
+    """An app with no source detail cannot produce a label; tool raises with a clear message."""
+    await _add_app(mcp_session, slug="bare-app")
+
+    with pytest.raises(Exception) as excinfo:
+        await mcp_client.call_tool("generate_installomator_label", {"slug": "bare-app"})
+    assert "no source detail" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_get_app_sources_returns_raw_payloads(mcp_session, mcp_client):
+    """Tool returns each source's native shape, not the stitched canonical projection."""
+    await _add_app(
+        mcp_session,
+        slug="firefox",
+        sources=["installomator", "homebrew_cask"],
+        installomator={
+            "label_name": "firefox",
+            "label_url": "https://github.com/Installomator/Installomator/labels/firefox.sh",
+            "raw": {"expectedTeamID": "43AQ936H96"},
+        },
+        homebrew_cask={
+            "token": "firefox",
+            "cask_json": {"version": "121.0"},
+        },
+    )
+
+    result = await mcp_client.call_tool("get_app_sources", {"slug": "firefox"})
+
+    assert result.is_error is False
+    assert result.data["installomator"]["label_name"] == "firefox"
+    assert result.data["installomator"]["raw"]["expectedTeamID"] == "43AQ936H96"
+    assert result.data["homebrew_cask"]["token"] == "firefox"
+    assert result.data["homebrew_cask"]["cask_json"]["version"] == "121.0"
+    assert result.data["autopkg"] is None
+    assert result.data["jamf_app_installer"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_app_sources_returns_all_none_for_app_without_sources(mcp_session, mcp_client):
+    """App exists but has no source detail row: every source key is None, no error."""
+    await _add_app(mcp_session, slug="bare-app")
+
+    result = await mcp_client.call_tool("get_app_sources", {"slug": "bare-app"})
+
+    assert result.is_error is False
+    assert result.data == {
+        "installomator": None,
+        "homebrew_cask": None,
+        "autopkg": None,
+        "mas": None,
+        "jamf_app_installer": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_app_sources_unknown_slug_raises(mcp_client):
+    """Unknown slug raises ValueError in-tool, surfaces as a protocol error result."""
+    with pytest.raises(Exception) as excinfo:
+        await mcp_client.call_tool("get_app_sources", {"slug": "does-not-exist"})
+    assert "does-not-exist" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_list_recent_changes_returns_newest_first_up_to_limit(mcp_session, mcp_client):
+    """Apps come back in id-desc order (newest insertion first), capped at limit."""
+    for slug in ("alpha", "beta", "gamma", "delta"):
+        await _add_app(mcp_session, slug=slug)
+
+    result = await mcp_client.call_tool("list_recent_changes", {"limit": 2})
+
+    assert result.is_error is False
+    assert [a["slug"] for a in result.data] == ["delta", "gamma"]
