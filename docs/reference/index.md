@@ -32,6 +32,13 @@ The four classes most callers import. Each one owns one external surface (Jamf, 
 The public catalog at `api.patcherctl.dev`. Any-language consumers and shell scripts call it directly; Python consumers should reach for {class}`~patcher.clients.patcher_api.PatcherAPIClient` instead, which wraps the same endpoints with typed responses.
 :::
 
+:::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `MCP Server`
+:link: mcp/index
+:link-type: doc
+
+The Model Context Protocol surface at `mcp.patcherctl.dev`. Five tools for querying the catalog from Claude, Cursor, Claude Code, and any other Streamable HTTP MCP client. See {doc}`/getting-started/mcp` for client setup.
+:::
+
 :::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `Data Models`
 :link: models/index
 :link-type: doc
@@ -66,6 +73,7 @@ Implementation detail of `patcherctl`. Not part of the library's stable surface;
 
 library/index
 api/index
+mcp/index
 models/index
 building-blocks/index
 helpers/index

@@ -148,6 +148,7 @@ getting-started/jamf-api
 getting-started/setup
 getting-started/customization
 getting-started/claude-code
+getting-started/mcp
 ```
 
 ```{toctree}
@@ -162,6 +163,7 @@ guides/reset
 guides/installomator
 guides/automation
 guides/recipes
+guides/mcp-recipes
 ```
 
 ```{toctree}
@@ -170,6 +172,7 @@ guides/recipes
 
 project/contributing
 project/architecture
+project/pipelines/index
 project/roadmap
 project/data-storage
 project/troubleshooting

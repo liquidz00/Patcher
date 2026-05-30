@@ -31,8 +31,8 @@ A python library and CLI for turning patch reports into something other than a s
 
 ## Installation
 
-```console
-$ python3 -m pip install --upgrade patcherctl
+```bash
+$ python3 -m pip install patcherctl
 ```
 
 ## Usage
@@ -59,15 +59,19 @@ asyncio.run(main())
 
 ### CLI
 
-```console
-$ patcherctl --client-id="..." --client-secret="..." --url="https://yourorg.jamfcloud.com" export --path="./reports" --format=pdf
+```bash
+$ patcherctl \
+    --client-id="..." \
+    --client-secret="..." \
+    --url="https://yourorg.jamfcloud.com" \
+    export --path="./reports" --format=pdf
 ```
 
 ## Patcher API
 
 [Patcher's API](https://api.patcherctl.dev/docs) is a community catalog of macOS app patching metadata stitched from [Installomator](https://github.com/Installomator/Installomator), [Homebrew Cask](https://github.com/Homebrew/homebrew-cask), [AutoPkg](https://github.com/autopkg/autopkg) (and more) into a single queryable surface.
 
-Read [endpoints](https://docs.patcherctl.dev/en/latest/reference/api/endpoints.html) are public, there is no authentication required. See [project docs](https://docs.patcherctl.dev/en/latest/reference/api/examples.html) for `curl` and `PatcherClient` examples.
+API is public, no authentication is required. See [project docs](https://docs.patcherctl.dev/en/latest/reference/api/examples.html) for `curl` and `PatcherClient` examples.
 
 ## Contributing
 

@@ -40,6 +40,11 @@ html.dark {
     background-color: unset !important;
 }
 
+/* Loosen definition list spacing */
+dl > dt:not(:first-child) {
+    margin-top: 0.75rem;
+}
+
 /* Numbered step sequences (docs/ext/steps.py) */
 .steps {
     counter-reset: step;
@@ -98,4 +103,111 @@ html.dark {
 
 .steps > .step > :last-child {
     margin-bottom: 0;
+}
+
+/* -- Prompt styling (docs/ext/prompt.py) --------------------------------
+ * Chat-input bubble for AI prompt examples. The base block holds only
+ * shared layout (positioning, padding, text color); each ``:type:``
+ * variant owns its full visual identity (background, border, glyphs)
+ * so the two supported looks (claude-desktop, claude-code) stay
+ * cleanly separated and don't fight a shared default. */
+.ai-prompt-box {
+    margin: 1.5rem 0;
+}
+
+.ai-prompt-input {
+    position: relative;
+    display: flex;
+    min-height: 2.75rem;
+    color: var(--sy-c-text);
+    line-height: 1.5;
+}
+
+/* -- :type: claude-desktop (default) ------------------------------------
+ * Visually mimics the Claude Desktop chat input: rounded rectangle with
+ * the prompt text up top, a ``+`` attachment glyph in the bottom-left,
+ * and a muted model-name indicator in the bottom-right. No separate send
+ * button — matches the idle/empty-state visual where send doesn't show. */
+.ai-prompt-claude-desktop .ai-prompt-input {
+    background: var(--gray-2);
+    border: 1px solid var(--sy-c-border);
+    border-radius: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    /* Multi-row: text up top, controls along the bottom edge. */
+    padding: 1rem 1.25rem 2.5rem 1.25rem;
+    min-height: 4.5rem;
+    align-items: flex-start;
+}
+
+.ai-prompt-claude-desktop .ai-prompt-input::before {
+    content: "+";
+    position: absolute;
+    left: 0.85rem;
+    bottom: 0.6rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--gray-10);
+    border-radius: 0.375rem;
+}
+
+.ai-prompt-claude-desktop .ai-prompt-input::after {
+    content: "Opus 4.8 ▾";
+    position: absolute;
+    right: 1rem;
+    bottom: 0.7rem;
+    font-size: 0.8rem;
+    color: var(--gray-10);
+}
+
+/* -- :type: claude-code -------------------------------------------------
+ * Faithful to the real Claude Code REPL: horizontal divider lines top
+ * and bottom (no side borders, no rounded corners), accent-colored ``❯``
+ * prompt prefix, no send button (CLI executes on Enter), and a status
+ * bar below the input mirroring the actual app. */
+.ai-prompt-claude-code .ai-prompt-input {
+    font-family: var(--sy-c-font-family-monospace, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace);
+    background: transparent;
+    border: none;
+    border-top: 1px solid var(--gray-6);
+    border-bottom: 1px solid var(--gray-6);
+    border-radius: 0;
+    padding: 0.5rem 1rem 0.5rem 2.5rem;
+    min-height: 2.5rem;
+    align-items: center;
+}
+
+.ai-prompt-claude-code .ai-prompt-input::before {
+    content: "❯";
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent-9);
+    font-weight: 600;
+}
+
+/* Status bar — sits below the input box, mirrors Claude Code's footer. */
+.ai-prompt-claude-code::after {
+    content: "? for shortcuts  ·  ← for agents";
+    display: block;
+    padding: 0.5rem 0 0 1rem;
+    font-family: var(--sy-c-font-family-monospace, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace);
+    font-size: 0.8rem;
+    color: var(--gray-10);
+}
+
+@media (max-width: 768px) {
+    .ai-prompt-claude-desktop .ai-prompt-input {
+        padding: 0.875rem 1rem 2rem 1rem;
+        min-height: 4rem;
+    }
+
+    .ai-prompt-claude-code .ai-prompt-input {
+        padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+    }
 }

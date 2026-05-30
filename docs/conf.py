@@ -40,6 +40,7 @@ extensions = [
     "myst_parser",
     "ghwiki",
     "steps",
+    "prompt",
 ]
 
 # ghwiki
@@ -67,6 +68,7 @@ autodoc_member_order = "bysource"
 autoclass_content = "both"
 autosectionlabel_prefix_document = True
 
+autodoc_mock_imports = ["fastmcp", "mcp"]  # FastMCP fix
 toc_object_entries_show_parents = "hide"
 
 # Pydantic options
@@ -74,7 +76,7 @@ autodoc_pydantic_model_show_json = False
 autodoc_pydantic_model_show_field_summary = False
 
 # MyST Options
-myst_enable_extensions = ["colon_fence"]
+myst_enable_extensions = ["colon_fence", "deflist"]
 myst_heading_anchors = 4
 
 # -- Link Code  --------------------------------------------------------------
@@ -85,6 +87,14 @@ def linkcode_resolve(domain, info):
         return None
 
     modname = info.get("module")
+
+    # linkcode only handles the ``patcher`` package (URL hardcoded to
+    # ``src/patcher/`` below). ``patcher_api.*`` lives at a different path
+    # in the repo (``api/patcher_api/``) and some of its callables are
+    # wrapped by decorators that trip ``inspect.unwrap`` here; skip them.
+    if not modname or not modname.startswith("patcher."):
+        return None
+
     fullname = info.get("fullname")
 
     submod = sys.modules.get(modname)

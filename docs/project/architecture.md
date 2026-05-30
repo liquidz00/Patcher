@@ -190,10 +190,90 @@ Anything reachable via deeper paths (`patcher.cli.*`, `patcher.clients.HTTPClien
 
 ## The hosted Patcher API service
 
-`patcher-api` is a separate workspace member living under `api/` in the monorepo. It's a FastAPI service that exposes a public catalog of macOS app patching metadata stitched from five sources (Installomator, Homebrew Cask, AutoPkg, MAS, and the Jamf App Installers index). The service is deployed at <https://api.patcherctl.dev>; the catalog reads are public, with only the admin `/admin/*` endpoints gated behind deploy tokens.
+`patcher-api` is a separate workspace member living under `api/` in the monorepo. It's a FastAPI service exposing a public catalog of macOS app patching metadata stitched from five sources (Installomator, Homebrew Cask, AutoPkg, Mac App Store, and Jamf App Installers). The service is reachable at <https://api.patcherctl.dev>. Catalog reads are public; admin upserts are token-gated.
 
-Admin-route hardening: deploy tokens carry an `expires_at` column (90-day default for new tokens; legacy NULL = never expires), and the `/admin/*` routes apply a `slowapi` per-IP rate limit (12 requests per hour) on top of the token check. Catalog reads on `/apps*` use a weak ETag whose value is the SHA-256 of the underlying SQLite catalog, with `If-None-Match` parsed per RFC 7232 (multi-value list and the `*` wildcard both honored).
+The workspace exists so the catalog service can ship on its own schedule, independent of the `patcherctl` PyPI package. For library consumers, the API is what `PatcherClient.fetch_patches` queries through `patcher.api`; you don't need to know about the workspace to use the library. For the HTTP surface see {doc}`/reference/api/endpoints` and {doc}`/reference/api/examples`; for module-level autodoc see {doc}`/reference/api/source/index`.
 
-The workspace keeps its own copy of `parse_fragment` at `api/patcher_api/installomator/parser.py`, deliberately duplicated from `patcher.clients.installomator.parse_fragment` so the api side ships on its own schedule without pulling in the library. The two copies are documented as intentional twins; if parsing behavior changes, update both on purpose. The Installomator subsystem is co-located under `api/patcher_api/installomator/` (`parser.py`, `resolver.py`, `ingest.py`); the stitch logic, per-source ingest modules, the FastAPI app itself, and everything else live under `api/patcher_api/` with its own dependencies, tests, and deploy pipeline.
+### Workspace layout
 
-For library users, the hosted API is what `PatcherClient.fetch_patches` queries through `patcher.api`. You don't need to know about the workspace to use the library; the workspace exists because deploying the catalog service is independent from shipping the patcherctl Python package. See {doc}`/reference/api/endpoints` for the API surface.
+```
+api/patcher_api/
+├── main.py                  # FastAPI app + lifespan + ETag middleware + /mcp mount
+├── config.py                # pydantic-settings, env-var-driven
+├── db.py                    # async SQLAlchemy engine + session, SQLite-tuned pragmas
+├── catalog.py               # SHA-256 of the catalog file for ETag derivation
+├── stitch.py                # canonical-row projection (see concept page)
+├── drift.py                 # cross-source version disagreement detection
+├── labels.py                # Installomator-shaped label fragment builder
+├── seed.py                  # smoke seed for empty DBs
+├── ingest/                  # per-source pullers (homebrew, autopkg, jamf, mas)
+├── installomator/           # parser, resolver, ingest (co-located subsystem)
+├── routes/
+│   ├── apps.py              # public catalog reads
+│   └── admin.py             # token-gated upserts from the macOS resolver runner
+├── mcp/                     # MCP server (Streamable HTTP, mounted at /mcp)
+│   ├── server.py
+│   ├── tools.py
+│   └── middleware.py        # Origin validation per MCP spec
+├── models/                  # SQLAlchemy ORM models
+└── schemas/                 # Pydantic models for response serialization
+```
+
+### Data flow
+
+```{mermaid}
+flowchart LR
+    subgraph EXT [Upstream sources]
+      direction TB
+      INST[Installomator]
+      CASK[Homebrew Cask]
+      AP[AutoPkg]
+      MAS[Mac App Store]
+      JAI[Jamf App Installers]
+    end
+
+    EXT --> ING[Ingest modules]
+    ING --> SD[(app_source_details)]
+
+    MACR[macOS GitHub<br/>Actions runner] -- POST /admin/labels/resolved --> ADM[Admin route]
+    ADM --> SD
+
+    SD --> ST[Stitch] --> APPS[(apps)]
+
+    APPS --> APP_R[/apps* routes/]
+    APPS --> MCP[/mcp tools/]
+
+    APP_R -.->|JSON| CLIENT1[REST clients<br/>PatcherAPIClient]
+    MCP -.->|JSON-RPC| CLIENT2[MCP clients<br/>Claude, Cursor, etc.]
+```
+
+### Ingest layer
+
+`patcher_api/ingest/` has one module per upstream source. Each runs on the catalog-refresh schedule, pulls fresh data from its upstream, and writes rows into `app_source_details` for the stitch pipeline to consume. Sources currently covered: Installomator (with its own parser + resolver dance described below), Homebrew Cask (JSON catalog from the brew API), AutoPkg (recipe repos cloned and parsed for app metadata), Jamf App Installers (the public title catalog scraped for coverage signal), and Mac App Store (bundle-ID lookups against the iTunes API).
+
+Adding a new source means writing one more ingest module that targets its own JSON column on `app_source_details`. No changes to the serving layer or the stitch logic structure required, just an additive entry in the per-field fallback chains.
+
+### Stitch and resolution
+
+Two domain pipelines worth following in their own pages:
+
+- {doc}`/project/pipelines/stitch` — how source-detail rows become canonical `apps` records via per-field fallback chains.
+- {doc}`/project/pipelines/resolution` — how Installomator's dynamic shell fragments become concrete versions and URLs via a Linux-ingest / macOS-runner producer-consumer split.
+
+### Serving layer
+
+A standard FastAPI app, with three nuances worth surfacing:
+
+- **ETag middleware on `/apps*`.** A weak ETag whose value is the SHA-256 of the underlying SQLite catalog file. The hash changes exactly when the catalog deploys (typically once per day, plus whenever a macOS runner pass uploads resolved values) and never otherwise. `If-None-Match` is parsed per RFC 7232, with both multi-value lists and the `*` wildcard honored. Revalidating clients short-circuit to 304 instantly between deploys; Cloudflare absorbs the bulk of traffic in front of the origin.
+- **Admin-route hardening.** Deploy tokens used by the macOS resolver runner carry an `expires_at` column (90-day default for new tokens; legacy NULL means never expires) and the `/admin/*` routes apply a per-IP rate limit on top of the token check. The token gate is fail-closed: no token configured means the endpoint refuses every request, so a misconfigured host can't accidentally expose a write surface.
+- **Lifespan composition.** The FastAPI lifespan owns DB initialization, optional seeding, and catalog SHA computation. It also enters the MCP session manager's context so the mounted MCP sub-app's task group is running during the serving window.
+
+### MCP layer
+
+`patcher_api/mcp/` is an ASGI sub-app mounted on the same FastAPI process at `/mcp`. It exposes the catalog over the [Model Context Protocol](https://modelcontextprotocol.io) so AI clients (Claude Desktop, Cursor, Claude Code, etc.) can query Patcher through natural-language tool calls. Same process, same SQLite, same lifespan; just a different transport.
+
+The MCP server is reachable publicly at <https://mcp.patcherctl.dev>. Setup for AI clients lives in {doc}`/getting-started/mcp`; tool reference at {doc}`/reference/mcp/index`; the conceptual relationship to the rest of the API is described in {doc}`/project/pipelines/stitch` (the underlying catalog the MCP tools read from).
+
+### Intentional duplication: `parse_fragment`
+
+The workspace keeps its own copy of `parse_fragment` at `api/patcher_api/installomator/parser.py`, deliberately duplicated from `patcher.clients.installomator.parse_fragment` so the API side can ship on its own schedule without pulling in the `patcher` library. The two copies are documented as intentional twins; if parsing behavior changes, update both on purpose. The Installomator subsystem is co-located under `api/patcher_api/installomator/` for the same reason — keeping it in one place makes the divergence (or future re-convergence) easier to manage.

@@ -29,6 +29,13 @@ HTTP-level reference for every path on `api.patcherctl.dev`. Covers list filters
 
 Worked `curl` and `PatcherAPIClient` walkthroughs for the common reads. Pagination, source filtering, ETag revalidation, and the error envelopes you'll see in practice.
 :::
+
+:::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `Source`
+:link: source/index
+:link-type: doc
+
+Module-level autodoc for the `patcher_api` codebase: stitch pipeline, drift detection, label builder, ingest modules, the Installomator subsystem, FastAPI routes, and Pydantic schemas. For contributors and anyone reading the internals.
+:::
 ::::
 
 ```{toctree}
@@ -36,4 +43,5 @@ Worked `curl` and `PatcherAPIClient` walkthroughs for the common reads. Paginati
 
 endpoints
 examples
+source/index
 ```
