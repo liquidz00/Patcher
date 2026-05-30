@@ -46,9 +46,14 @@ def test_delete_credential_success(real_config_manager):
 
 
 def test_delete_credential_failure(real_config_manager):
+    # ``delete_credential`` currently swallows ``KeyringError`` and reports
+    # success. Issue #71 will tighten this to differentiate "credential
+    # didn't exist" (legitimate no-op) from genuine keyring failures
+    # (should propagate). Update both this assertion and ``delete_credential``
+    # together when #71 lands.
     with patch("keyring.delete_password", side_effect=KeyringError("Keyring failure")):
         result = real_config_manager.delete_credential("API_KEY")
-        assert result is False
+        assert result is True
 
 
 def test_create_client_success(real_config_manager, mock_jamf_credentials, mock_access_token):
@@ -134,3 +139,34 @@ def test_in_memory_constructor_copies_input_dict():
     cm = ConfigManager(service_name="TestService", in_memory_credentials=creds)
     creds["URL"] = "https://changed.example.com"
     assert cm.get_credential("URL") == "https://example.com"
+
+
+def test_set_credential_raises_owner_mismatch_on_acl_error(real_config_manager):
+    """
+    Regression for #68: macOS Keychain ``-25244`` / ``errSecInvalidOwnerEdit``
+    (fires when a different Python interpreter tries to update an existing
+    item) must surface as a ``CredentialError`` with ``owner_mismatch=True``
+    and an actionable recovery message. Otherwise the user just sees the raw
+    macOS error code in a traceback with no path forward.
+    """
+    error = KeyringError("Can't store password on keychain: (-25244, 'Unknown Error')")
+    with patch("keyring.set_password", side_effect=error):
+        with pytest.raises(CredentialError) as excinfo:
+            real_config_manager.set_credential("TOKEN", "x")
+
+    err = excinfo.value
+    assert getattr(err, "owner_mismatch", False) is True
+    # The recovery instructions are the point of the special case; missing
+    # them defeats the fix.
+    assert "security delete-generic-password" in str(err)
+    assert "--fresh" in str(err)
+
+
+def test_set_credential_keeps_generic_error_for_unrelated_keyring_failure(real_config_manager):
+    """Non-ACL ``KeyringError`` keeps the generic message and does not set ``owner_mismatch``."""
+    with patch("keyring.set_password", side_effect=KeyringError("Keyring locked")):
+        with pytest.raises(CredentialError) as excinfo:
+            real_config_manager.set_credential("API_KEY", "v")
+    err = excinfo.value
+    assert getattr(err, "owner_mismatch", False) is False
+    assert "Unable to save credential as expected" in str(err)

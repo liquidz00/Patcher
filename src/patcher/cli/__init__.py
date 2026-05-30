@@ -357,6 +357,27 @@ async def cli(
         if not noninteractive and ctx.obj.get("plist_manager").needs_migration():
             ctx.obj.get("plist_manager").migrate_plist()
 
+        # Warn on Python interpreter mismatch. Keychain writes (e.g. token refresh)
+        # may fail with errSecInvalidOwnerEdit, but reads work fine so don't block:
+        # the run may succeed entirely if no write is needed. See #68.
+        if not noninteractive and setup.completed and not fresh:
+            recorded_interpreter = ctx.obj.get("plist_manager").get("interpreter_path")
+            if recorded_interpreter and recorded_interpreter != sys.executable:
+                click.echo(
+                    click.style(
+                        f"Warning: Patcher was set up under a different Python interpreter:\n"
+                        f"  recorded: {recorded_interpreter}\n"
+                        f"  current:  {sys.executable}\n\n"
+                        f"macOS Keychain ACLs may block this interpreter from updating saved "
+                        f"credentials (e.g. on token refresh). Reads work fine; only writes are at risk.\n"
+                        f"If you hit a -25244 / errSecInvalidOwnerEdit error mid-run, recover with:\n"
+                        f"  security delete-generic-password -s Patcher\n"
+                        f"  patcherctl --fresh",
+                        fg="yellow",
+                    ),
+                    err=True,
+                )
+
         if noninteractive:
             await setup.bootstrap_noninteractive(
                 client_id=client_id, client_secret=client_secret, url=url

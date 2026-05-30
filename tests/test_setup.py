@@ -334,3 +334,44 @@ async def test_bootstrap_noninteractive_token_failure_raises_setuperror(setup_in
     assert "non-interactive mode" in str(excinfo.value)
     # Completion NOT marked
     assert setup_instance._completed is None or setup_instance._completed is False
+
+
+@pytest.mark.asyncio
+async def test_start_records_interpreter_path_before_marking_complete(
+    setup_instance, mock_plist_manager
+):
+    """
+    Regression for #68: successful setup must persist ``sys.executable`` to the
+    plist under ``interpreter_path`` so the CLI preflight on later runs can
+    detect a Python interpreter binding mismatch and surface a friendly
+    recovery message before the Keychain ACL failure happens mid-run.
+    """
+    import sys as _sys
+
+    mock_plist_manager.get.return_value = False  # setup not completed
+
+    animator = AsyncMock()
+    sso_creds = {
+        "URL": "https://test.jamfcloud.com",
+        "CLIENT_ID": "abc-123",
+        "CLIENT_SECRET": "secret-xyz",
+    }
+    creds_with_token = {
+        **sso_creds,
+        "TOKEN": "bearer-token-value",
+        "TOKEN_EXPIRATION": "2030-01-01T00:00:00+00:00",
+    }
+
+    with patch("src.patcher.cli.setup.click.prompt", new=AsyncMock(return_value=2)):
+        setup_instance.prompt_credentials = AsyncMock(return_value=sso_creds)
+        setup_instance.prompt_installomator = MagicMock()
+        setup_instance.validate_creds = MagicMock()
+        setup_instance._save_creds = MagicMock()
+        setup_instance.get_token = AsyncMock(return_value="dummy-basic-token")
+        setup_instance.prompt_ui_settings = AsyncMock()
+        setup_instance._mark_completion = MagicMock()
+        setup_instance._get_creds = MagicMock(side_effect=[sso_creds, creds_with_token])
+
+        await setup_instance.start(fresh=True, animator=animator)
+
+    mock_plist_manager.set.assert_any_call("interpreter_path", _sys.executable)
