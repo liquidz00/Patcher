@@ -18,6 +18,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `list_categories` — distinct install methods, sources, and vendors present in the catalog.
 - `fastmcp` added as an API dependency. The server is composed into the existing FastAPI lifespan via `mcp.http_app(path="/", stateless_http=True, json_response=True)` and `app.mount("/mcp", ...)`, so it deploys alongside the REST API with no new infrastructure.
 - **Origin validation middleware on the MCP endpoint.** Per MCP spec rev 2025-06-18, Streamable HTTP servers MUST validate the `Origin` header on incoming requests to prevent DNS rebinding attacks. Patcher's MCP endpoint now enforces this via a Starlette middleware on the mounted ASGI sub-app. Browser requests with an `Origin` not in the allowlist receive HTTP 403 with `{"error":"Origin not allowed"}`. Native clients (Claude Desktop, Cursor, the `fastmcp` CLI) typically don't send an `Origin` header and pass through unchanged. The allowlist is configured via `PATCHER_API_MCP_ALLOWED_ORIGINS` as a JSON list; default is `["https://claude.ai"]`.
+- **Three more MCP tools mirroring REST functionality**: `generate_installomator_label(slug)` projects an app's source data into an Installomator-shaped label dict, `get_app_sources(slug)` returns the raw per-source payloads (complement to the stitched `get_app` projection), and `list_recent_changes(limit=25)` returns the most recently added apps in id-desc order. The MCP catalog now exposes 8 tools total.
+- **Self-hosting path for the Patcher API.** A reference `Dockerfile`, `.dockerignore`, and `deploy/docker-compose.yml` ship at the repo root, alongside a new `docs/project/self-hosting.md` walkthrough covering build, run, env-var configuration, and how to populate the catalog via the `scripts/ingest.py` pipeline. Treat the container setup as community-supported; the public `api.patcherctl.dev` deployment continues to run on systemd.
+- **Rich-based CLI output rendering.** New `patcher.cli._console` module exposes shared `console` / `err_console` singletons and a palette (`INFO_STYLE`, `WARNING_STYLE`, `ERROR_STYLE`, `SUCCESS_STYLE`, `DIM_STYLE`) for consistent terminal styling. Rich tracebacks are installed at the CLI entry point with `show_locals=False` so pasted tracebacks never leak credentials, and asyncclick frames are suppressed for readability. `rich>=13.7.0` is now a direct dependency (was already pulled in transitively).
+- **TrendAnalysis and TitleFilter expansion (v3.2 first pass).** Four new analysis methods plus a chainable pre-filter:
+  - `TitleFilter.impact_weighted_risk` ranks titles by `missing_patch × days_since_release`, surfacing accumulated exposure rather than raw gap size.
+  - `TitleFilter.coverage_gaps` returns titles with neither an Installomator label nor a Homebrew cask match, sorted by missing-patch count descending.
+  - `TitleFilter.where(min_compliance=, min_hosts=, released_after=)` chainable pre-filter; returns a new instance and composes with every existing filter method.
+  - `TrendAnalysis.time_to_patch(threshold=)` measures the average days between release and the first snapshot crossing a completion threshold per title.
+  - `TrendAnalysis.stale_apps(min_snapshots=)` identifies titles whose `latest_version` and `completion_percent` have not moved across the last N snapshots.
+  - `patcherctl analyze` now accepts `--min-compliance`, `--min-hosts`, and `--released-after` pre-filter options that compose with any `--criteria`. A follow-up will add `by_vendor`, `by_install_method`, and a `--has-drift` filter once vendor and install-method enrichment lands on `PatchTitle`.
+
+### Changed
+- `PatcherError` rendering now uses a red-bordered Rich `Panel` on stderr instead of a flat `click.echo`. Recovery hints on the exception (if present) render as a dim paragraph below the main message.
+- `Animation` is now a thin wrapper around `rich.status.Status` using the `dots` spinner. Public API is unchanged so existing callsites in `cli/__init__.py`, `cli/setup.py`, and `cli/report.py` continue to work. Internals lost the custom color cycle and manual line-clearing since Rich handles both.
+
+### Removed
+- The `cves` field on the `App` model and schema across the API, MCP responses, and package client. The field was reserved but never populated by any ingest, and Patcher's scope stays focused on patch reporting and analysis rather than vulnerability intelligence. Catalog consumers should drop any references to `app["cves"]`.
 
 ## [v3.1.1] - 2026-05-30
 ### Fixed
