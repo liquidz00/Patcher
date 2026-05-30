@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 from src.patcher.core.analyze import Diff, TitleFilter, TrendAnalysis
 from src.patcher.core.exceptions import PatcherError
+from src.patcher.core.models.cask import CaskMatch
 from src.patcher.core.models.label import Label
 from src.patcher.core.models.patch import PatchTitle
 
@@ -245,6 +246,364 @@ class TestTrendAnalysis:
         instance = TrendAnalysis.from_cache(dm)
         df = instance.patch_adoption()
         assert not df.empty
+
+
+class TestImpactWeightedRisk:
+    def test_orders_by_missing_times_age_descending(self):
+        # Newer, lots missing vs older, few missing. With age multiplier, the
+        # older one with even modest missing-patch count usually wins.
+        recent_huge = make_title(
+            "Recent Huge",
+            hosts_patched=10,
+            missing_patch=100,
+            released=(datetime.now() - timedelta(days=2)).strftime("%b %d %Y"),
+        )
+        old_modest = make_title(
+            "Old Modest",
+            hosts_patched=10,
+            missing_patch=10,
+            released=(datetime.now() - timedelta(days=365)).strftime("%b %d %Y"),
+        )
+        result = TitleFilter([recent_huge, old_modest]).impact_weighted_risk()
+        # 10*365 = 3650 vs 100*2 = 200 -> Old Modest first.
+        assert [t.title for t in result] == ["Old Modest", "Recent Huge"]
+
+    def test_top_n_caps_result(self):
+        titles = [
+            make_title(
+                f"P{i}",
+                hosts_patched=1,
+                missing_patch=i + 1,
+                released=(datetime.now() - timedelta(days=30 * (i + 1))).strftime("%b %d %Y"),
+            )
+            for i in range(5)
+        ]
+        result = TitleFilter(titles).impact_weighted_risk(top_n=2)
+        assert len(result) == 2
+
+    def test_unparseable_released_skipped_not_raised(self):
+        good = make_title(
+            "Good",
+            hosts_patched=10,
+            missing_patch=5,
+            released=(datetime.now() - timedelta(days=10)).strftime("%b %d %Y"),
+        )
+        bad = make_title("Bad", hosts_patched=10, missing_patch=5, released="not a date")
+        result = TitleFilter([good, bad]).impact_weighted_risk()
+        assert [t.title for t in result] == ["Good"]
+
+
+class TestCoverageGaps:
+    def test_only_uncovered_titles_returned(self):
+        label = Label(name="Firefox", installomator_label="firefox")
+        cask = CaskMatch(name="Slack", token="slack")
+        covered_label = make_title(
+            "Covered by Label", hosts_patched=10, missing_patch=5, install_label=[label]
+        )
+        covered_cask = make_title("Covered by Cask", hosts_patched=10, missing_patch=5)
+        covered_cask.homebrew_cask = [cask]
+        gap = make_title("Gap", hosts_patched=10, missing_patch=20)
+        result = TitleFilter([covered_label, covered_cask, gap]).coverage_gaps()
+        assert [t.title for t in result] == ["Gap"]
+
+    def test_sorts_by_missing_patch_desc(self):
+        small_gap = make_title("Small", hosts_patched=10, missing_patch=3)
+        big_gap = make_title("Big", hosts_patched=1, missing_patch=99)
+        mid_gap = make_title("Mid", hosts_patched=5, missing_patch=15)
+        result = TitleFilter([small_gap, big_gap, mid_gap]).coverage_gaps()
+        assert [t.title for t in result] == ["Big", "Mid", "Small"]
+
+    def test_top_n_caps_result(self):
+        titles = [make_title(f"P{i}", hosts_patched=1, missing_patch=i + 1) for i in range(5)]
+        result = TitleFilter(titles).coverage_gaps(top_n=2)
+        assert len(result) == 2
+
+    def test_empty_input_returns_empty(self):
+        assert TitleFilter([]).coverage_gaps() == []
+
+    def test_all_covered_returns_empty(self):
+        label = Label(name="Firefox", installomator_label="firefox")
+        covered = make_title("All Set", hosts_patched=10, missing_patch=5, install_label=[label])
+        assert TitleFilter([covered]).coverage_gaps() == []
+
+
+class TestWherePreFilter:
+    def test_min_compliance_filters(self, sample_titles):
+        # Patch A ~83%, Patch B 60%, Patch C 80% -> >=80 keeps A and C.
+        result = TitleFilter(sample_titles).where(min_compliance=80.0)
+        kept = sorted(t.title for t in result._titles)
+        assert kept == ["Patch A", "Patch C"]
+
+    def test_min_hosts_filters(self, sample_titles):
+        # Patch A 60, Patch B 50, Patch C 25 -> >=50 keeps A and B.
+        result = TitleFilter(sample_titles).where(min_hosts=50)
+        kept = sorted(t.title for t in result._titles)
+        assert kept == ["Patch A", "Patch B"]
+
+    def test_released_after_filters(self):
+        old = make_title("Old", hosts_patched=1, missing_patch=1, released="Jan 01 2024")
+        new = make_title("New", hosts_patched=1, missing_patch=1, released="Jun 01 2025")
+        result = TitleFilter([old, new]).where(released_after="2025-01-01")
+        assert [t.title for t in result._titles] == ["New"]
+
+    def test_released_after_skips_unparseable(self):
+        good = make_title("Good", hosts_patched=1, missing_patch=1, released="Jun 01 2025")
+        bad = make_title("Bad", hosts_patched=1, missing_patch=1, released="garbage")
+        result = TitleFilter([good, bad]).where(released_after="2025-01-01")
+        assert [t.title for t in result._titles] == ["Good"]
+
+    def test_combined_kwargs_compose_as_and(self, sample_titles):
+        # min_compliance=70 keeps A and C; min_hosts=50 keeps A and B; AND keeps only A.
+        result = TitleFilter(sample_titles).where(min_compliance=70.0, min_hosts=50)
+        assert [t.title for t in result._titles] == ["Patch A"]
+
+    def test_returns_new_instance_does_not_mutate_caller(self, sample_titles):
+        original = TitleFilter(sample_titles)
+        original_ids = [id(t) for t in original._titles]
+        filtered = original.where(min_compliance=70.0)
+        assert filtered is not original
+        # caller's title list unchanged
+        assert [id(t) for t in original._titles] == original_ids
+        assert len(original._titles) == 3
+
+    def test_no_kwargs_returns_copy_with_all_titles(self, sample_titles):
+        result = TitleFilter(sample_titles).where()
+        assert [t.title for t in result._titles] == [t.title for t in sample_titles]
+
+    def test_invalid_iso_date_raises(self, sample_titles):
+        with pytest.raises(PatcherError, match="Invalid ISO date"):
+            TitleFilter(sample_titles).where(released_after="not-a-date")
+
+    def test_apply_routes_through_where(self, sample_titles):
+        # where keeps only Patch A; most-installed then sorts what's left.
+        result = TitleFilter.apply(
+            sample_titles,
+            "most-installed",
+            where={"min_compliance": 70.0, "min_hosts": 50},
+        )
+        assert [t.title for t in result] == ["Patch A"]
+
+    def test_apply_unknown_where_kwarg_raises(self, sample_titles):
+        with pytest.raises(PatcherError, match="Unknown pre-filter kwargs"):
+            TitleFilter.apply(sample_titles, "most-installed", where={"bogus": 1})
+
+
+class TestTitleFilterCriteriaIncludesNewMethods:
+    def test_includes_impact_weighted_risk(self):
+        assert "impact-weighted-risk" in TitleFilter.criteria()
+
+    def test_includes_coverage_gaps(self):
+        assert "coverage-gaps" in TitleFilter.criteria()
+
+    def test_where_is_not_a_criterion(self):
+        # `where` is a chaining helper, not a dispatchable filter.
+        assert "where" not in TitleFilter.criteria()
+
+
+def _dump_trend_pkl(path, *, titles, mtime):
+    """Pickle a snapshot DataFrame and set its mtime."""
+    df = pd.DataFrame([t.model_dump() for t in titles])
+    with open(path, "wb") as f:
+        pickle.dump(df, f)
+    ts = mtime.timestamp()
+    os.utime(path, (ts, ts))
+    return path
+
+
+class TestTimeToPatch:
+    def test_titles_that_cross_threshold_measured(self, tmp_path):
+        # Title released Jan 01 2024; crosses 80% in snapshot dated Jan 11 (10 days).
+        release = "Jan 01 2024"
+        snap1_titles = [make_title("Slow", hosts_patched=5, missing_patch=5, released=release)]
+        snap2_titles = [make_title("Slow", hosts_patched=9, missing_patch=1, released=release)]
+        p1 = _dump_trend_pkl(
+            tmp_path / "snap1.pkl", titles=snap1_titles, mtime=datetime(2024, 1, 5, 12, 0, 0)
+        )
+        p2 = _dump_trend_pkl(
+            tmp_path / "snap2.pkl", titles=snap2_titles, mtime=datetime(2024, 1, 11, 12, 0, 0)
+        )
+        df = TrendAnalysis([p1, p2]).time_to_patch(threshold=80.0)
+        assert list(df.columns) == [
+            "Title",
+            "Avg Days to Threshold",
+            "Sample Size",
+            "Threshold",
+        ]
+        row = df[df["Title"] == "Slow"].iloc[0]
+        assert row["Sample Size"] == 1
+        assert row["Threshold"] == 80.0
+        # 10 days from release (Jan 01) to first crossing snapshot (Jan 11).
+        assert row["Avg Days to Threshold"] == 10.0
+
+    def test_titles_never_crossing_threshold_excluded(self, tmp_path):
+        release = "Jan 01 2024"
+        snap1_titles = [
+            make_title("Never", hosts_patched=1, missing_patch=9, released=release),
+            make_title("Yes", hosts_patched=9, missing_patch=1, released=release),
+        ]
+        snap2_titles = [
+            make_title("Never", hosts_patched=2, missing_patch=8, released=release),
+            make_title("Yes", hosts_patched=10, missing_patch=0, released=release),
+        ]
+        p1 = _dump_trend_pkl(
+            tmp_path / "s1.pkl", titles=snap1_titles, mtime=datetime(2024, 1, 5, 12, 0, 0)
+        )
+        p2 = _dump_trend_pkl(
+            tmp_path / "s2.pkl", titles=snap2_titles, mtime=datetime(2024, 1, 11, 12, 0, 0)
+        )
+        df = TrendAnalysis([p1, p2]).time_to_patch(threshold=80.0)
+        titles = set(df["Title"].tolist())
+        assert "Yes" in titles
+        assert "Never" not in titles
+
+    def test_single_snapshot_case_via_two_identical(self, tmp_path):
+        # The class requires >=2 datasets; produce two snapshots where nothing
+        # ever crosses the threshold to assert an empty result.
+        release = "Jan 01 2024"
+        snap_titles = [make_title("Low", hosts_patched=1, missing_patch=9, released=release)]
+        p1 = _dump_trend_pkl(
+            tmp_path / "s1.pkl", titles=snap_titles, mtime=datetime(2024, 1, 5, 12, 0, 0)
+        )
+        p2 = _dump_trend_pkl(
+            tmp_path / "s2.pkl", titles=snap_titles, mtime=datetime(2024, 1, 11, 12, 0, 0)
+        )
+        df = TrendAnalysis([p1, p2]).time_to_patch(threshold=99.0)
+        assert df.empty
+        assert list(df.columns) == [
+            "Title",
+            "Avg Days to Threshold",
+            "Sample Size",
+            "Threshold",
+        ]
+
+
+class TestStaleApps:
+    def test_identifies_stale_when_version_and_completion_unchanged(self, tmp_path):
+        release = "Jan 01 2024"
+        snaps = []
+        # Three snapshots, same version, same completion (50%).
+        for i, mt in enumerate(
+            [
+                datetime(2024, 1, 1, 12, 0, 0),
+                datetime(2024, 1, 8, 12, 0, 0),
+                datetime(2024, 1, 15, 12, 0, 0),
+            ]
+        ):
+            titles = [
+                make_title(
+                    "Stuck",
+                    hosts_patched=5,
+                    missing_patch=5,
+                    latest_version="1.0.0",
+                    released=release,
+                )
+            ]
+            snaps.append(_dump_trend_pkl(tmp_path / f"snap{i}.pkl", titles=titles, mtime=mt))
+        df = TrendAnalysis(snaps).stale_apps(min_snapshots=3)
+        assert list(df.columns) == [
+            "Title",
+            "Latest Version",
+            "Completion %",
+            "Days Stale",
+        ]
+        assert len(df) == 1
+        row = df.iloc[0]
+        assert row["Title"] == "Stuck"
+        assert row["Latest Version"] == "1.0.0"
+        assert row["Completion %"] == 50.0
+        assert row["Days Stale"] == 14
+
+    def test_ignores_titles_with_fewer_snapshots(self, tmp_path):
+        release = "Jan 01 2024"
+        titles_a = [
+            make_title(
+                "Both", hosts_patched=5, missing_patch=5, latest_version="1.0.0", released=release
+            )
+        ]
+        titles_b = [
+            make_title(
+                "Both", hosts_patched=5, missing_patch=5, latest_version="1.0.0", released=release
+            ),
+            make_title(
+                "Late", hosts_patched=5, missing_patch=5, latest_version="2.0.0", released=release
+            ),
+        ]
+        titles_c = [
+            make_title(
+                "Both", hosts_patched=5, missing_patch=5, latest_version="1.0.0", released=release
+            ),
+            make_title(
+                "Late", hosts_patched=5, missing_patch=5, latest_version="2.0.0", released=release
+            ),
+        ]
+        p1 = _dump_trend_pkl(tmp_path / "s1.pkl", titles=titles_a, mtime=datetime(2024, 1, 1))
+        p2 = _dump_trend_pkl(tmp_path / "s2.pkl", titles=titles_b, mtime=datetime(2024, 1, 8))
+        p3 = _dump_trend_pkl(tmp_path / "s3.pkl", titles=titles_c, mtime=datetime(2024, 1, 15))
+        df = TrendAnalysis([p1, p2, p3]).stale_apps(min_snapshots=3)
+        titles_in_result = set(df["Title"].tolist())
+        assert "Both" in titles_in_result
+        assert "Late" not in titles_in_result
+
+    def test_ignores_titles_whose_version_moved(self, tmp_path):
+        release = "Jan 01 2024"
+        snaps = []
+        for i, (mt, version) in enumerate(
+            [
+                (datetime(2024, 1, 1), "1.0.0"),
+                (datetime(2024, 1, 8), "1.0.1"),
+                (datetime(2024, 1, 15), "1.0.1"),
+            ]
+        ):
+            titles = [
+                make_title(
+                    "Moving",
+                    hosts_patched=5,
+                    missing_patch=5,
+                    latest_version=version,
+                    released=release,
+                )
+            ]
+            snaps.append(_dump_trend_pkl(tmp_path / f"s{i}.pkl", titles=titles, mtime=mt))
+        df = TrendAnalysis(snaps).stale_apps(min_snapshots=3)
+        assert df.empty
+
+    def test_no_stale_returns_empty_not_raise(self, tmp_path):
+        release = "Jan 01 2024"
+        snaps = []
+        # Completion changes each snapshot -> never stale.
+        for i, (mt, hp) in enumerate(
+            [
+                (datetime(2024, 1, 1), 5),
+                (datetime(2024, 1, 8), 6),
+                (datetime(2024, 1, 15), 7),
+            ]
+        ):
+            titles = [
+                make_title(
+                    "Progressing",
+                    hosts_patched=hp,
+                    missing_patch=10 - hp,
+                    latest_version="1.0.0",
+                    released=release,
+                )
+            ]
+            snaps.append(_dump_trend_pkl(tmp_path / f"s{i}.pkl", titles=titles, mtime=mt))
+        df = TrendAnalysis(snaps).stale_apps(min_snapshots=3)
+        assert df.empty
+        assert list(df.columns) == [
+            "Title",
+            "Latest Version",
+            "Completion %",
+            "Days Stale",
+        ]
+
+
+class TestTrendAnalysisCriteriaIncludesNewMethods:
+    def test_includes_time_to_patch(self):
+        assert "time-to-patch" in TrendAnalysis.criteria()
+
+    def test_includes_stale_apps(self):
+        assert "stale-apps" in TrendAnalysis.criteria()
 
 
 class TestDiff:
