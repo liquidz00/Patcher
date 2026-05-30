@@ -71,7 +71,6 @@ class App(BaseModel):
     install_method: InstallMethod | None = None
     sha256: str | None = None
     sources: list[str]
-    cves: list[str] = []
 
 
 class InstallomatorSource(BaseModel):

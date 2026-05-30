@@ -654,7 +654,6 @@ async def _upsert_app_with_sources(
         install_method=install_method,
         sha256=sha256,
         sources=sources,
-        cves=[],
     )
     apps_stmt = apps_stmt.on_conflict_do_update(
         index_elements=["slug"],
