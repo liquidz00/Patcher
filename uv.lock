@@ -1729,7 +1729,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "anyio", specifier = ">=4.11.0" },
-    { name = "asyncclick", specifier = ">=8.1.7.2" },
+    { name = "asyncclick", specifier = ">=8.2.2" },
     { name = "autodoc-pydantic", marker = "extra == 'dev'" },
     { name = "autodoc-pydantic", marker = "extra == 'docs'" },
     { name = "build", marker = "extra == 'dev'" },

@@ -251,7 +251,12 @@ def _install_cli_process_hooks() -> None:
 
 
 # Entry
-@click.group(context_settings=CONTEXT_SETTINGS, options_metavar="<options>")
+@click.group(
+    context_settings=CONTEXT_SETTINGS,
+    options_metavar="<options>",
+    invoke_without_command=True,
+    no_args_is_help=True,
+)
 @click.version_option(version=__version__)
 @click.option("--debug", "-x", is_flag=True, help="Enable debug logging (verbose mode).")
 @click.option(
@@ -383,14 +388,14 @@ async def cli(
                 client_id=client_id, client_secret=client_secret, url=url
             )
             # Fall through; let the requested subcommand run.
-        elif not setup.completed:
+        elif not setup.completed or fresh:
             await setup.start(animator=ctx.obj.get("animation"), fresh=fresh)
             click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
             click.echo(
                 "Patcher is now ready for use. You can use the --help flag to view available options."
             )
             click.echo("For more information, visit the project docs: https://docs.patcherctl.dev")
-            ctx.exit(0)  # Exit to avoid running a command
+            sys.exit(0)  # Exit to avoid running a command
 
 
 # Reset
@@ -515,7 +520,7 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
                         "⚠️ Caching is disabled. No cached data to reset.", fg="yellow", bold=True
                     )
                 )
-                ctx.exit(0)
+                sys.exit(0)
 
             await animation.update_msg("Clearing cached data...")
             if not data_manager.reset_cache():
@@ -800,7 +805,7 @@ async def analyze(
                         bold=True,
                     )
                 )
-                ctx.exit(0)
+                sys.exit(0)
 
             await animation.update_msg("Formatting trend results...")
             formatted_table = format_table(
@@ -837,7 +842,7 @@ async def analyze(
                     ),
                     err=False,
                 )
-                ctx.exit(0)
+                sys.exit(0)
 
             await animation.update_msg("Formatting filtered results...")
             table_data = [
@@ -966,12 +971,12 @@ async def diff(
                 ),
                 err=True,
             )
-            ctx.exit(0)
+            sys.exit(0)
         click.echo("Available cached snapshots (oldest → newest):")
         for path in cached:
             mtime = datetime.fromtimestamp(path.stat().st_mtime)
             click.echo(f"  {mtime.isoformat(timespec='seconds')}  {path.name}")
-        ctx.exit(0)
+        sys.exit(0)
 
     parsed_since = parse_since(since) if since else None
     parsed_between = (parse_iso_date(between[0]), parse_iso_date(between[1])) if between else None
