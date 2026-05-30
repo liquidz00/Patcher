@@ -41,17 +41,15 @@ def _serialize_app(row: AppRow) -> dict:
 @mcp.tool
 async def get_catalog_summary() -> dict:
     """
-    Return top-line statistics about the Patcher catalog.
+    Return top-line statistics about the Patcher catalog: the total number
+    of apps and per-source coverage counts (how many apps have data from
+    each upstream source: Installomator, Homebrew Cask, Jamf App Installer,
+    AutoPkg). Useful to orient on what data is available before drilling
+    into specific apps with ``search_apps`` or ``get_app``.
 
-    Includes the total number of apps in the catalog and per-source coverage
-    counts (how many apps have data from each upstream source: Installomator,
-    Homebrew Cask, Jamf App Installer, AutoPkg). Use this to orient yourself
-    on what data is available before drilling into specific apps with
-    ``search_apps`` or ``get_app``.
-
-    Returns:
-        A dict with keys ``total_apps`` (int) and ``sources`` (dict mapping
-        source name to the count of apps with that source's data).
+    Returned dict has keys ``total_apps`` (int) and ``sources`` (a dict
+    mapping each source name to the count of apps carrying that source's
+    data).
     """
     async with get_session_maker()() as session:
         total = (await session.scalar(select(func.count(AppRow.id)))) or 0
@@ -77,23 +75,18 @@ async def search_apps(query: str, limit: int = 20) -> list[dict]:
     """
     Search the catalog for apps matching ``query``.
 
-    Performs a case-insensitive substring match against the app's slug, name,
-    vendor, and bundle_id. Useful for fuzzy lookups when the caller knows
-    part of an app's identity but not its exact slug (e.g. "firefox" hits
-    ``firefox``, ``firefoxesr``, ``firefoxpkg``). Results are ordered by slug
-    for deterministic paging across repeated queries.
+    Performs a case-insensitive substring match against each app's slug,
+    name, vendor, and bundle_id. Useful for fuzzy lookups when the caller
+    knows part of an app's identity but not its exact slug (e.g. "firefox"
+    hits ``firefox``, ``firefoxesr``, ``firefoxpkg``). Results are ordered
+    by slug for deterministic paging across repeated queries.
 
-    Each result is the full app record (same shape as ``get_app``). Use
-    ``get_app`` when you already know the exact slug.
+    ``query`` is required but may be empty, in which case everything up to
+    ``limit`` is returned. ``limit`` defaults to 20 and is hard-capped at
+    100 to keep responses small enough for an LLM context window.
 
-    Args:
-        query: Substring to match. Required; empty strings still execute
-            but return everything up to ``limit``.
-        limit: Maximum number of records to return. Default 20, hard cap 100
-            to keep responses small enough for an LLM context window.
-
-    Returns:
-        A list of app dicts, each with the same shape as ``get_app``.
+    Each result is the full app record (same shape as ``get_app``); use
+    ``get_app`` directly when you already know the exact slug.
     """
     limit = max(1, min(limit, 100))
     pattern = f"%{query}%"
@@ -122,20 +115,16 @@ async def get_app(slug: str) -> dict:
     """
     Fetch a single app record by its slug.
 
-    Returns the full app projection: identity (slug, name, vendor, bundle_id),
-    versioning (current_version, latest_release_date), download metadata
-    (download_url, install_method, sha256), and provenance (sources, cves).
-    Identical to ``GET /apps/{slug}`` on the REST API.
+    Returns the full app projection: identity (slug, name, vendor,
+    bundle_id), versioning (current_version, latest_release_date),
+    download metadata (download_url, install_method, sha256), and
+    provenance (sources, cves). Identical to ``GET /apps/{slug}`` on
+    the REST API.
 
-    Args:
-        slug: URL-friendly app identifier (e.g. "firefox", "1password8").
-            Use ``search_apps`` first if you don't know the exact slug.
-
-    Returns:
-        The app's full record as a dict.
-
-    Raises:
-        ValueError: If no app with that slug exists in the catalog.
+    ``slug`` is the URL-friendly app identifier (e.g. "firefox",
+    "1password8"); use ``search_apps`` first if you don't know the
+    exact slug. Raises ``ValueError`` if no app with that slug exists
+    in the catalog.
     """
     async with get_session_maker()() as session:
         row = await session.scalar(select(AppRow).where(AppRow.slug == slug))
@@ -161,22 +150,19 @@ async def list_drift(
     don't, one source is usually silently stuck (vendor moved their release
     artifact, the label still finds the old location, and the source keeps
     reporting the old version indefinitely). Only sources that expose a
-    stable per-app version string participate — currently Installomator and
+    stable per-app version string participate, currently Installomator and
     Homebrew Cask.
 
-    Args:
-        vendor: Optional case-insensitive vendor filter (e.g. "Mozilla").
-            None disables.
-        source: Optional source-name filter; only return drift entries where
-            this source participated in the disagreement. None disables.
-        limit: Max entries on this page. Default 25, hard cap 100.
-        offset: Entries to skip before the page. Default 0.
+    ``vendor`` is an optional case-insensitive vendor filter (e.g. "Mozilla");
+    None disables. ``source`` optionally narrows results to drift entries
+    where the named source participated in the disagreement; None disables.
+    ``limit`` defaults to 25 and is hard-capped at 100; ``offset`` defaults
+    to 0.
 
-    Returns:
-        A dict with ``total_scanned`` (apps inspected, i.e. those with at
-        least two versioned sources), ``total_with_drift`` (subset where
-        sources disagreed, pre-pagination), and ``entries`` (the paged list
-        of :class:`patcher_api.schemas.drift.DriftEntry` dicts).
+    Returned dict has ``total_scanned`` (apps inspected, those with at
+    least two versioned sources), ``total_with_drift`` (subset where
+    sources disagreed, pre-pagination), and ``entries`` (the paged list of
+    :class:`patcher_api.schemas.drift.DriftEntry` dicts).
     """
     limit = max(1, min(limit, 100))
     offset = max(0, offset)
@@ -217,13 +203,12 @@ async def list_categories() -> dict:
     Useful for an MCP client that wants to describe the catalog's shape
     (which install methods are represented, which sources have data, which
     vendors are present) without iterating every app. ``install_methods``
-    is the static :class:`InstallMethod` enum — the universe of values
-    Patcher recognizes, not just those currently in use. ``sources`` and
+    is the static :class:`InstallMethod` enum (the universe of values
+    Patcher recognizes, not just those currently in use); ``sources`` and
     ``vendors`` reflect what's actually in the catalog right now.
 
-    Returns:
-        A dict with keys ``install_methods`` (list[str]), ``sources``
-        (list[str], sorted), and ``vendors`` (list[str], sorted).
+    Returned dict has keys ``install_methods`` (list[str]), ``sources``
+    (list[str], sorted), and ``vendors`` (list[str], sorted).
     """
     async with get_session_maker()() as session:
         # Distinct sources: union the per-app ``sources`` arrays in Python.
