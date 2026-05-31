@@ -503,14 +503,6 @@
             },
             "type": "array",
             "title": "Sources"
-          },
-          "cves": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Cves",
-            "default": []
           }
         },
         "type": "object",
