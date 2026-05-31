@@ -1,7 +1,7 @@
 # Installomator
 
 :::{seealso}
-{doc}`/guides/installomator` for the matching algorithm walkthrough.
+{doc}`/project/sources` for what each catalog source contributes.
 :::
 
 ```{eval-rst}

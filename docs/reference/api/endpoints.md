@@ -29,7 +29,7 @@ Pick the surface that matches your consumer:
 For Python consumers. Async client wrapping every public endpoint, returning typed Pydantic models. Lives in the `patcher` package: `from patcher import PatcherAPIClient`. {doc}`See examples <examples>`.
 :::
 
-:::{grid-item-card} {iconify}`material-icon-theme:console` REST
+:::{grid-item-card} {iconify}`mdi:bash` REST
 For any-language consumers, shell scripts, or one-off `curl` checks. The endpoint reference below plus the {ref}`OpenAPI schema <reference/api/endpoints:openapi schema>` are the full surface.
 :::
 

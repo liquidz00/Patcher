@@ -35,7 +35,7 @@ Debug mode, exit codes, log interpretation, and the most common fixes for quick 
 
 Pass `--debug` (or `-x`) at the root level (*before* any subcommand) to show DEBUG-level logs on stdout in addition to the log file:
 
-```console
+```bash
 $ patcherctl --debug export --path /path/to/save
 ```
 
@@ -45,7 +45,7 @@ Debug mode also suppresses the animated spinner so log lines don't fight for cur
 
 Every command and subcommand supports both `--help` and `-h`:
 
-```console
+```bash
 $ patcherctl --help
 $ patcherctl export --help
 ```
@@ -91,7 +91,7 @@ When something goes wrong, it helps to separate **environment issues** (API cred
 
 The cheapest first move. Make sure you're on the latest release:
 
-```console
+```bash
 $ python3 -m pip install --upgrade patcherctl
 ```
 
@@ -99,11 +99,11 @@ $ python3 -m pip install --upgrade patcherctl
 
 To rule out configuration drift, run a full reset. This wipes credentials, UI config, setup state, and cached data, then re-runs the setup wizard:
 
-```console
+```bash
 $ patcherctl reset full
 ```
 
-See {doc}`/guides/reset` for the granular alternatives.
+See {doc}`/guides/usage/cli` for the granular alternatives.
 
 :::{admonition} Known issue
 :class: danger
@@ -115,7 +115,7 @@ If a previous setup attempt failed *after* the Jamf API role / client were creat
 
 If a full reset doesn't help, reinstall via `pip`:
 
-```console
+```bash
 $ python3 -m pip uninstall patcherctl
 $ python3 -m pip install patcherctl
 ```

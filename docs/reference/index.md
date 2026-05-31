@@ -11,7 +11,7 @@ Patcher's entry points, API surface, models and more.
 
 ---
 
-Auto-generated API reference, grouped by what you're trying to do, not where the file lives. If you're looking for a `patcherctl` flag or subcommand, those are documented inline on the relevant {doc}`Usage page </guides/export>`.
+Auto-generated API reference, grouped by what you're trying to do, not where the file lives. If you're looking for a `patcherctl` flag or subcommand, those are documented inline on the relevant {doc}`Usage page </guides/usage/cli>`.
 
 ::::{grid} 1 2 2 2
 :gutter: 2
@@ -36,7 +36,7 @@ The public catalog at `api.patcherctl.dev`. Any-language consumers and shell scr
 :link: mcp/index
 :link-type: doc
 
-The Model Context Protocol surface at `mcp.patcherctl.dev`. Five tools for querying the catalog from Claude, Cursor, Claude Code, and any other Streamable HTTP MCP client. See {doc}`/getting-started/mcp` for client setup.
+The Model Context Protocol surface at `mcp.patcherctl.dev`. Five tools for querying the catalog from Claude, Cursor, Claude Code, and any other Streamable HTTP MCP client. See {doc}`/guides/usage/agents` for client setup.
 :::
 
 :::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `Data Models`
@@ -57,7 +57,7 @@ Stable, less commonly imported. Reach for these when you're extending Patcher (c
 :link: helpers/index
 :link-type: doc
 
-Utility classes Patcher uses across the codebase: animation, structured logging, the exception hierarchy.
+Utility classes Patcher uses across the codebase: structured logging and the exception hierarchy.
 :::
 
 :::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `CLI Internals`

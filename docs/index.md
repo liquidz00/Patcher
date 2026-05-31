@@ -30,14 +30,14 @@ A Python package and CLI for **patch analysis and reporting** on macOS fleets ma
 :class-row: surface
 
 :::{grid-item-card} {iconify}`octicon:graph-16` **Analysis**
-:link: guides/analyze
+:link: guides/usage/cli
 :link-type: doc
 
 Cross-reference Jamf Pro's patch-management view of your fleet against [Installomator](https://github.com/Installomator/Installomator), [Homebrew](https://github.com/Homebrew/brew), [AutoPkg](https://github.com/autopkg/autopkg), and [Jamf App Installers](https://learn.jamf.com/r/en-US/jamf-pro-documentation-current/App_Installers).
 :::
 
 :::{grid-item-card} {iconify}`octicon:checklist-16` **Reporting**
-:link: guides/export
+:link: guides/usage/cli
 :link-type: doc
 
 Export customizable reports into PDF, Excel, HTML and JSON formats tailored to a tracked Jamf Pro instance.
@@ -77,21 +77,20 @@ PDF and HTML reports take your header text, footer, fonts, logo and accent color
 ::::{tab-set}
 :sync-group: surface
 
-:::{tab-item} {iconify}`material-icon-theme:console` CLI
+:::{tab-item} {iconify}`mdi:bash` CLI
 :sync: cli
 
-```{code-block} console
-$ uv pip install patcherctl
-$ patcherctl
+```bash
+$ patcherctl export --path ./reports
 ```
 
-First run launches the interactive setup wizard for your Jamf URL, API client ID, and secret. After that, `patcherctl export --path ./reports` writes a full patch report. SSO intance? See {doc}`Setup </getting-started/setup>` for the manual API-client path.
+First run launches the interactive setup wizard for your Jamf URL, API client ID, and secret. SSO intance? See {doc}`Setup </getting-started/setup>` for the manual API-client path.
 :::
 
 :::{tab-item} {iconify}`material-icon-theme:python` Library
 :sync: library
 
-```{code-block} python
+```python
 
 import asyncio
 from patcher import PatcherClient
@@ -102,13 +101,13 @@ async def main():
         client_secret="...",
         server="https://yourorg.jamfcloud.com",
     ) as patcher:
-        titles = await patcher.fetch.patches()
+        titles = await patcher.fetch_patches()
         await patcher.export(titles, output_dir="./reports", formats={"pdf"})
 
 asyncio.run(main())
 ```
 
-Credentials are set in memory, no keyring touched. If you've already run setup on this Mac, swap to {meth}`PatcherClient.from_state() <patcher.core.patcher_client.PatcherClient.from_state>` to pick up keychain-backed creds.
+If you've already run setup on this Mac, swap to {meth}`PatcherClient.from_state() <patcher.core.patcher_client.PatcherClient.from_state>` to pick up existing configurations.
 :::
 
 ::::
@@ -147,23 +146,15 @@ getting-started/install
 getting-started/jamf-api
 getting-started/setup
 getting-started/customization
-getting-started/claude-code
-getting-started/mcp
 ```
 
 ```{toctree}
 :caption: Guides
 :hidden:
 
-guides/export
-guides/analyze
-guides/diff
-guides/drift
-guides/reset
-guides/installomator
+guides/usage/index
 guides/automation
 guides/recipes
-guides/mcp-recipes
 ```
 
 ```{toctree}
@@ -173,7 +164,7 @@ guides/mcp-recipes
 project/contributing
 project/architecture
 project/pipelines/index
-project/roadmap
+project/sources
 project/data-storage
 project/self-hosting
 project/troubleshooting

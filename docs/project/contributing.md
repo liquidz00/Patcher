@@ -79,7 +79,7 @@ Patcher uses [`uv`](https://github.com/astral-sh/uv) for dependency management a
 
 After cloning your fork:
 
-```{code-block} console
+```{code-block} bash
 $ make dev
 ```
 
@@ -93,13 +93,13 @@ The `Xcode Command Line Tools` are required for the `make` command on macOS.
 
 Patcher pins read-only copies of the [Installomator](https://github.com/Installomator/Installomator) and [AutoPkg](https://github.com/autopkg/autopkg) wikis as git submodules under `vendor-docs/`. These exist as a reference for contributors and for Claude when reasoning about upstream behavior; they are not surfaced into the user-facing docs. Initialize them once after cloning:
 
-```{code-block} console
+```{code-block} bash
 $ make init-vendor-docs
 ```
 
 Refresh against latest upstream when needed:
 
-```{code-block} console
+```{code-block} bash
 $ make update-vendor-docs
 ```
 
@@ -107,7 +107,7 @@ Working without them is fine — every Patcher build, test, and doc target runs 
 
 ### Optional but recommended: pre-commit hooks
 
-```{code-block} console
+```{code-block} bash
 $ make pre-commit
 $ make pre-commit-run
 ```
@@ -191,7 +191,7 @@ The [pytest workflow](https://github.com/liquidz00/Patcher/blob/main/.github/wor
 
 By default, integration tests target the Jamf dummy instance with public credentials, so no setup is needed. To point at your own test tenant:
 
-```{code-block} console
+```{code-block} bash
 $ export PATCHER_INTEGRATION_URL="https://your-tenant.jamfcloud.com"
 $ export PATCHER_INTEGRATION_CLIENT_ID="..."
 $ export PATCHER_INTEGRATION_CLIENT_SECRET="..."

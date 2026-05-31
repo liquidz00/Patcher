@@ -65,9 +65,24 @@ The resolved values plus the still-raw fragments both land in `app_source_detail
 
 A scheduled GitHub Actions workflow runs on a macOS runner. On each pass it:
 
-1. **GETs the worklist** from `/admin/labels/unresolved`. The API returns every label whose `downloadURL` or `appNewVersion` is still a raw shell fragment (or where the macOS runner previously owned the resolved value, so it stays fresh).
-2. **Runs `resolveLabel.sh`** against each label name on the worklist. This is the real Installomator-side script invoked in a real macOS environment, with the full userspace context (codesign, osascript, the lot).
-3. **POSTs the results back** to `/admin/labels/resolved` as NDJSON, one record per label.
+::::{steps}
+
+:::{step} GETs the worklist
+
+from `/admin/labels/unresolved`. The API returns every label whose `downloadURL` or `appNewVersion` is still a raw shell fragment (or where the macOS runner previously owned the resolved value, so it stays fresh).
+:::
+
+:::{step} Runs `resolveLabel.sh`
+
+against each label name on the worklist. This is the real Installomator-side script invoked in a real macOS environment, with the full userspace context (codesign, osascript, the lot).
+:::
+
+:::{step} POSTs the results back
+
+to `/admin/labels/resolved` as NDJSON, one record per label.
+:::
+
+::::
 
 The admin endpoint validates each value (URLs must be cleanly-formed `https://`, versions must look like versions, no HTML pages or multi-line junk slipping in), updates the matching `app_source_details` rows, and triggers a re-stitch so the canonical `apps` table reflects the new values. The catalog hash changes, the ETag rotates, downstream caches revalidate.
 

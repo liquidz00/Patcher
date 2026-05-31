@@ -5,16 +5,23 @@ description: "Create the Jamf Pro API role and client Patcher needs. Step-by-ste
 # Jamf Configuration
 
 :::{rst-class} lead
-Preparing your Jamf Pro Instance for usage with Patcher.
+Integrating Patcher with your Jamf instance.
 :::
 
 ---
 
-Patcher talks to Jamf via the Jamf API. Before Patcher can read any data, three things have to be in place on the Jamf side:
+In order for Patcher to operate as expected a few things need to be setup on the Jamf side beforehand.
 
-1. **Patch management software titles** configured for the apps you want to track.
-2. **An API role** with the right privileges.
-3. **An API client** with a client ID and client secret that Patcher uses to authenticate.
+::::{highlights}
+{iconify}`octicon:check-circle-fill-16` Software titles
+: Configured for the apps you want to track.
+
+{iconify}`octicon:check-circle-fill-16` API role
+: Created with the correct privileges.
+
+{iconify}`octicon:check-circle-fill-16` API client
+: A client ID and client secret that Patcher uses to authenticate.
+::::
 
 This page walks through each. If your Jamf instance uses SSO, see [SSO considerations](#sso-considerations) below for extra steps you'll need to follow.
 
@@ -160,9 +167,8 @@ security add-generic-password -a "TOKEN_EXPIRATION" -s "Patcher" -w "$expires_in
 ::::{tab-item} {iconify}`material-icon-theme:python` Python
 :sync: python
 
-Requires `httpx` and `keyring`. Both are already installed with `patcherctl`.
-
-```python
+:::{code-block} python
+:caption: Requires `httpx` and `keyring`. Both are already installed with `patcherctl`.
 import httpx
 import keyring
 
@@ -183,7 +189,7 @@ response.raise_for_status()
 data = response.json()
 keyring.set_password("Patcher", "TOKEN", data["access_token"])
 keyring.set_password("Patcher", "TOKEN_EXPIRATION", str(data["expires_in"]))
-```
+:::
 
 ::::
 :::::
@@ -215,4 +221,4 @@ Follow the steps above to create the API role, client, and secret yourself. Then
 
 ## Multi-instance support
 
-Patcher can be reset and pointed at a different Jamf URL via `patcherctl reset creds` (or by constructing {class}`~patcher.core.patcher_client.PatcherClient` with different credentials), but it has only been exercised against a single Jamf instance configured with two [sites](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Sites.html). Multi-tenant patterns (one workstation hopping between two distinct Jamf Pro instances) work in principle but are unverified. File a bug if you hit issues; that path is a candidate for a real test.
+Patcher can be reset and pointed at a different Jamf URL via `patcherctl reset creds` (or by constructing {class}`~patcher.core.patcher_client.PatcherClient` with different credentials), but it has only been exercised against a single Jamf instance configured with two [sites](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Sites.html). Multi-tenant patterns (one workstation hopping between two distinct Jamf Pro instances) should have no problem, but has not been *explicitly tested*. If you run into any issues, be sure to [submit an issue](https://github.com/liquidz00/Patcher/issues/new?template=bug_report.yml) and let us know about it.

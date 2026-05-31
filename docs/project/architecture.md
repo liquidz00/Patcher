@@ -38,11 +38,11 @@ src/patcher/
     ├── __init__.py         # click group, subcommand registrations
     ├── setup.py            # Interactive setup wizard
     ├── report.py           # CLI orchestration around PatcherClient
-    ├── animation.py        # Spinner + progress UI
+    ├── _console.py         # Rich console singletons + status spinner
     └── ui_manager.py       # PDF UI config (header/footer/font/logo) + interactive prompts
 ```
 
-Imports only flow in one direction. `core/` never reaches into `cli/`, and `clients/` never reaches into either. CLI-only pieces like animation, interactive prompts, and click-styled output all live in `cli/`. This allows the library to be usable independently and separates concerns appropriately.
+Imports only flow in one direction. `core/` never reaches into `cli/`, and `clients/` never reaches into either. CLI-only pieces like the status spinner, interactive prompts, and Rich-styled output all live in `cli/`. This allows the library to be usable independently and separates concerns appropriately.
 
 :::{note}
 `cli/setup.py` is the *one* exception to this rule as it must import from `clients/` and `core/` to drive the setup wizard.
@@ -88,12 +88,39 @@ The three top-level methods (`fetch_patches`, `analyze`, `export`) exist so libr
 
 `fetch_patches` runs `core/matching.py::match_titles` to enrich Jamf patch titles with Installomator labels via the Patcher API:
 
-1. Fetch the slug set: `api.list_apps(source="installomator", limit=1000)` returns every Installomator-tracked app in the stitched catalog.
-2. Fetch per-title app names from Jamf via `jamf.get_app_names`.
-3. For each title, match its Jamf-side app names against the slug set in three passes: direct → normalized (lowercase, dots stripped) → fuzzy (rapidfuzz ratio, threshold 85).
-4. Attach name-only `Label` stubs to matched titles' `install_label` list.
-5. Run a second pass on still-unmatched titles using the patch-title text itself.
-6. Write everything that never matched to `~/Library/Application Support/Patcher/unmatched_apps.json` for review, and emit an `InstallomatorWarning` via Python's `warnings` module so library callers can catch / escalate programmatically. The CLI installs `warnings.simplefilter("always", InstallomatorWarning)` at import time so end users always see the message.
+::::{steps}
+
+:::{step} Fetch the slug set.
+
+`api.list_apps(source="installomator", limit=1000)` returns every Installomator-tracked app in the stitched catalog.
+:::
+
+:::{step} Fetch per-title app names from Jamf.
+
+Fetch per-title app names from Jamf via `jamf.get_app_names`.
+:::
+
+:::{step} Match against the slug set in three passes.
+
+For each title, match its Jamf-side app names against the slug set in three passes: direct → normalized (lowercase, dots stripped) → fuzzy (rapidfuzz ratio, threshold 85).
+:::
+
+:::{step} Attach `Label` stubs to matched titles.
+
+Attach name-only `Label` stubs to matched titles' `install_label` list.
+:::
+
+:::{step} Run a second pass on unmatched titles.
+
+Run a second pass on still-unmatched titles using the patch-title text itself.
+:::
+
+:::{step} Write out what never matched.
+
+Write everything that never matched to `~/Library/Application Support/Patcher/unmatched_apps.json` for review, and emit an `InstallomatorWarning` via Python's `warnings` module so library callers can catch / escalate programmatically. The CLI installs `warnings.simplefilter("always", InstallomatorWarning)` at import time so end users always see the message.
+:::
+
+::::
 
 ```{mermaid}
 flowchart TD
@@ -117,12 +144,31 @@ The slug set comes from the API in one HTTP call instead of pulling `Labels.txt`
 
 `patcherctl` is built on [asyncclick](https://github.com/python-trio/asyncclick) and lives entirely in `cli/`. Each subcommand follows the same shape:
 
-1. **Resolve config**: credentials from keychain (or env vars in non-interactive mode), UI config from plist.
-2. **Construct a `PatcherClient`**: typically with `ConfigManager` populated by step 1.
-3. **Call a top-level method**: `patcher.fetch_patches()`, `patcher.analyze()`, etc.
-4. **Add CLI presentation**: spinner via {class}`~patcher.cli.animation.Animation`, styled echo, file persistence.
+::::{steps}
 
-For example, `patcherctl export` resolves config, builds a `PatcherClient`, then delegates the actual fetch+export work to `process_reports()` in `cli/report.py`. The orchestration in `cli/report.py` is small. It threads CLI args into `PatcherClient` method calls and wraps the whole thing in an animation.
+:::{step} Resolve config
+
+credentials from keychain (or env vars in non-interactive mode), UI config from plist.
+:::
+
+:::{step} Construct a `PatcherClient`
+
+typically with `ConfigManager` populated by step 1.
+:::
+
+:::{step} Call a top-level method
+
+`patcher.fetch_patches()`, `patcher.analyze()`, etc.
+:::
+
+:::{step} Add CLI presentation
+
+spinner via the `status()` helper in `cli/_console.py`, Rich-styled output, file persistence.
+:::
+
+::::
+
+For example, `patcherctl export` resolves config, builds a `PatcherClient`, then delegates the actual fetch+export work to `process_reports()` in `cli/report.py`. The orchestration in `cli/report.py` is small. It threads CLI args into `PatcherClient` method calls and wraps the whole thing in a status spinner.
 
 **What this means in practice:** if a feature can be expressed as "call this method on `PatcherClient`," it works the same from `patcherctl` and from a Python script. There's no private CLI-only menu the library is locked out of.
 
@@ -147,9 +193,24 @@ A few practical consequences:
 
 Jamf API access uses an OAuth2 bearer token issued by Jamf. {class}`~patcher.clients.token_manager.TokenManager` handles the full lifecycle:
 
-1. On first call, exchanges `client_id` + `client_secret` for an access token and writes `TOKEN` + `TOKEN_EXPIRATION` to the macOS keychain.
-2. On subsequent calls, reads the cached token and checks its expiration with a 5-minute safety margin.
-3. Refreshes proactively when the margin is hit. Library callers never have to think about token expiry; the TokenManager handles the whole "your bearer is about to expire" dance behind the scenes.
+::::{steps}
+
+:::{step} On first call, exchanges credentials for a token.
+
+On first call, exchanges `client_id` + `client_secret` for an access token and writes `TOKEN` + `TOKEN_EXPIRATION` to the macOS keychain.
+:::
+
+:::{step} On subsequent calls, checks expiration.
+
+On subsequent calls, reads the cached token and checks its expiration with a 5-minute safety margin.
+:::
+
+:::{step} Refreshes proactively when the margin is hit.
+
+Refreshes proactively when the margin is hit. Library callers never have to think about token expiry; the TokenManager handles the whole "your bearer is about to expire" dance behind the scenes.
+:::
+
+::::
 
 Library callers using `in_memory_credentials` (see {ref}`below <in-memory-credentials>`) get the same flow without keychain writes. The token still gets cached on the `JamfClient` instance for the process lifetime.
 
@@ -186,7 +247,7 @@ from patcher import (
 )
 ```
 
-Anything reachable via deeper paths (`patcher.cli.*`, `patcher.clients.HTTPClient`, `patcher.core.matching.match_titles`, etc.) is importable but **not** considered part of the stable surface. Internal refactors may shift it. CLI-only objects (`Setup`, `UIConfigManager`, `Animation`) are intentionally **not** re-exported from `patcher`.
+Anything reachable via deeper paths (`patcher.cli.*`, `patcher.clients.HTTPClient`, `patcher.core.matching.match_titles`, etc.) is importable but **not** considered part of the stable surface. Internal refactors may shift it. CLI-only objects (`Setup`, `UIConfigManager`) are intentionally **not** re-exported from `patcher`.
 
 ## The hosted Patcher API service
 
@@ -272,7 +333,7 @@ A standard FastAPI app, with three nuances worth surfacing:
 
 `patcher_api/mcp/` is an ASGI sub-app mounted on the same FastAPI process at `/mcp`. It exposes the catalog over the [Model Context Protocol](https://modelcontextprotocol.io) so AI clients (Claude Desktop, Cursor, Claude Code, etc.) can query Patcher through natural-language tool calls. Same process, same SQLite, same lifespan; just a different transport.
 
-The MCP server is reachable publicly at <https://mcp.patcherctl.dev>. Setup for AI clients lives in {doc}`/getting-started/mcp`; tool reference at {doc}`/reference/mcp/index`; the conceptual relationship to the rest of the API is described in {doc}`/project/pipelines/stitch` (the underlying catalog the MCP tools read from).
+The MCP server is reachable publicly at <https://mcp.patcherctl.dev>. Setup for AI clients lives in {doc}`/guides/usage/agents`; tool reference at {doc}`/reference/mcp/index`; the conceptual relationship to the rest of the API is described in {doc}`/project/pipelines/stitch` (the underlying catalog the MCP tools read from).
 
 ### Intentional duplication: `parse_fragment`
 

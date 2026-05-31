@@ -40,6 +40,16 @@ html.dark {
     background-color: unset !important;
 }
 
+/* Roomier tab panels. Shibuya overrides sd-tab-content to `padding: 0`, so
+ * prose hugs the top divider line. Out-specify it via the `.yue` content
+ * wrapper to add vertical breathing room. Horizontal padding stays 0 so text
+ * keeps aligning with the tab labels; code blocks carry their own box, so the
+ * extra space mostly helps text tabs. */
+.yue .sd-tab-content {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
 /* Loosen definition list spacing */
 dl > dt:not(:first-child) {
     margin-top: 0.75rem;
@@ -209,5 +219,70 @@ dl > dt:not(:first-child) {
 
     .ai-prompt-claude-code .ai-prompt-input {
         padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+    }
+}
+
+/* -- Highlights card strip (docs/ext/highlights.py) ------------------------
+ * Horizontal row of borderless, accent-topped cards. Two forms:
+ *   - A definition list becomes icon + bold-title + body cards.
+ *   - A plain bullet list becomes body-only cards.
+ * The directive rewrites deflist pairs into ``.point`` cards; the bullet form
+ * stays a ``<ul>``. Both share the card look below.
+ */
+.highlights {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+/* Bullet form: the list itself becomes the flex track. */
+.highlights > ul {
+    flex: 1 1 100%;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 0;
+    padding-left: 0;
+}
+
+/* The card surface, shared by both forms. */
+.highlights > ul > li,
+.highlights > .point {
+    flex: 1 1 220px;
+    margin: 0;
+    padding: 0.95rem 1.15rem;
+    border: none;
+    border-top: 2px solid var(--accent-9);
+    border-radius: 0.5rem;
+    background: var(--gray-a2);
+}
+
+.highlights > ul > li > p,
+.highlights > .point > p:last-child {
+    margin: 0;
+}
+
+/* Title row: leading icon aligned with a slightly bolder label. */
+.highlights .point-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0 0 0.35rem 0;
+    font-weight: 700;
+    color: var(--sy-c-text);
+}
+
+/* Body text reads a touch quieter than the title. */
+.highlights > .point > p:not(.point-title) {
+    margin: 0;
+    color: var(--gray-11);
+}
+
+@media (max-width: 768px) {
+    .highlights,
+    .highlights > ul {
+        flex-direction: column;
     }
 }

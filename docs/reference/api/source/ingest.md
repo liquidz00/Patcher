@@ -9,27 +9,33 @@ One module per upstream source. Each pulls data from the upstream (HTTP, git clo
 ## Homebrew Cask
 
 ```{eval-rst}
-.. automodule:: patcher_api.ingest.homebrew
-   :members:
+.. autofunction:: patcher_api.ingest.homebrew.fetch_homebrew_casks
+
+.. autofunction:: patcher_api.ingest.homebrew.ingest_homebrew_casks
 ```
 
 ## AutoPkg
 
 ```{eval-rst}
-.. automodule:: patcher_api.ingest.autopkg
-   :members:
+.. autofunction:: patcher_api.ingest.autopkg.fetch_autopkg_index
+
+.. autofunction:: patcher_api.ingest.autopkg.ingest_autopkg_index
 ```
 
 ## Jamf App Installers
 
 ```{eval-rst}
-.. automodule:: patcher_api.ingest.jamf_app_installers
-   :members:
+.. autofunction:: patcher_api.ingest.jamf_app_installers.fetch_jai_titles
+
+.. autofunction:: patcher_api.ingest.jamf_app_installers.fetch_jai_catalog
+
+.. autofunction:: patcher_api.ingest.jamf_app_installers.ingest_jai_titles
 ```
 
 ## Mac App Store
 
 ```{eval-rst}
-.. automodule:: patcher_api.ingest.mas
-   :members:
+.. autofunction:: patcher_api.ingest.mas.fetch_mas_lookup
+
+.. autofunction:: patcher_api.ingest.mas.ingest_mas_apps
 ```

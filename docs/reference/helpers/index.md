@@ -1,27 +1,20 @@
 ---
 layout: focused
-description: "Cross-cutting utility classes: terminal animation, structured logging, the exception hierarchy."
+description: "Cross-cutting utility classes: structured logging and the exception hierarchy."
 ---
 
 # Helpers
 
 :::{rst-class} lead
-Utilities used throughout the codebase: terminal animation, structured logging, and exceptions.
+Utilities used throughout the codebase: structured logging and exceptions.
 :::
 
 ---
 
-::::{grid} 1 2 3 3
+::::{grid} 1 2 2 2
 :gutter: 2
 :padding: 0
 :class-row: surface
-
-:::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `Animation`
-:link: animation
-:link-type: doc
-
-Async context-manager spinner for long-running CLI operations. Click-styled output, no external dependencies beyond `asyncclick`.
-:::
 
 :::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `Exceptions`
 :link: exceptions
@@ -41,7 +34,6 @@ Patcher's exception hierarchy. The base `PatcherError`, transport-specific error
 ```{toctree}
 :hidden:
 
-animation
 exceptions
 logger
 ```

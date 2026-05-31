@@ -4,7 +4,7 @@ description: "Self-host the Patcher API: build the Docker image, run it locally 
 
 (self-hosting)=
 
-# Self-Hosting the Patcher API
+# Self-Hosting
 
 :::{rst-class} lead
 Run your own copy of the Patcher catalog service. Community-supported.
@@ -180,7 +180,7 @@ A few things to know before this goes anywhere serious.
 - {doc}`architecture` for how the service is laid out.
 - {doc}`pipelines/index` for the stitch and resolution pipelines that produce the catalog.
 - {doc}`/reference/api/endpoints` for the REST surface the running container exposes.
-- {doc}`/getting-started/mcp` if you also want to expose the MCP endpoint to AI clients.
+- {doc}`/guides/usage/agents` if you also want to expose the MCP endpoint to AI clients.
 
 ## Contributing
 

@@ -12,7 +12,7 @@ End-to-end scripts for the workflows people actually wire up. Copy, tweak, deplo
 
 ---
 
-The per-command pages ({doc}`export`, {doc}`analyze`) cover one thing in isolation. The recipes below stitch `fetch_patches`, `export`, `analyze`, and {class}`~patcher.clients.patcher_api.PatcherAPIClient` into complete programs you'd actually point at production.
+The per-command pages ({doc}`/guides/usage/cli`, {doc}`/guides/usage/library`) cover one interface in isolation. The recipes below stitch `fetch_patches`, `export`, `analyze`, and {class}`~patcher.clients.patcher_api.PatcherAPIClient` into complete programs you'd actually point at production.
 
 ## Sending Summaries via Slack DM
 
@@ -206,7 +206,7 @@ if __name__ == "__main__":
 
 Example invocation and output for a Cask-only title:
 
-```{code-block} console
+```{code-block} bash
 $ python generate_label.py figma
 # Generated from Patcher catalog (homebrew_cask)
 ./Installomator.sh valuesfromarguments \

@@ -11,7 +11,7 @@ The two cooperating pipelines that turn raw upstream signals into the catalog AP
 
 ---
 
-The Patcher catalog you query via the {doc}`REST API </reference/api/endpoints>`, the {doc}`MCP server </getting-started/mcp>`, or the {class}`~patcher.clients.patcher_api.PatcherAPIClient` library is built by two cooperating pipelines. These pages describe each in plain language so you can follow what's happening between "an upstream source published a new version" and "the catalog reflects it."
+The Patcher catalog you query via the {doc}`REST API </reference/api/endpoints>`, the {doc}`MCP server </guides/usage/agents>`, or the {class}`~patcher.clients.patcher_api.PatcherAPIClient` library is built by two cooperating pipelines. These pages describe each in plain language so you can follow what's happening between "an upstream source published a new version" and "the catalog reflects it."
 
 ::::{grid} 1 2 2 2
 :gutter: 2

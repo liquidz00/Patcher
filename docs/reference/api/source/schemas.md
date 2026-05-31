@@ -9,62 +9,116 @@ Pydantic models the API uses for response serialization (and a few request bodie
 ## App
 
 ```{eval-rst}
-.. automodule:: patcher_api.schemas.app
+.. autoclass:: patcher_api.schemas.app.InstallMethod
    :members:
+
+.. autoclass:: patcher_api.schemas.app.App
+   :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
 ```
 
 ## Sources (composite payload)
 
 ```{eval-rst}
-.. automodule:: patcher_api.schemas.sources
+.. autoclass:: patcher_api.schemas.sources.InstallomatorSource
    :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
+
+.. autoclass:: patcher_api.schemas.sources.HomebrewCaskSource
+   :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
+
+.. autoclass:: patcher_api.schemas.sources.AutopkgRecipeEntry
+   :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
+
+.. autoclass:: patcher_api.schemas.sources.AutopkgSource
+   :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
+
+.. autoclass:: patcher_api.schemas.sources.MasSource
+   :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
+
+.. autoclass:: patcher_api.schemas.sources.JamfAppInstallerSource
+   :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
+
+.. autoclass:: patcher_api.schemas.sources.AppSources
+   :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
 ```
 
 ## Drift
 
 ```{eval-rst}
-.. automodule:: patcher_api.schemas.drift
+.. autoclass:: patcher_api.schemas.drift.SourceVersion
    :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
+
+.. autoclass:: patcher_api.schemas.drift.DriftEntry
+   :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
+
+.. autoclass:: patcher_api.schemas.drift.DriftResponse
+   :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
 ```
 
 ## Labels
 
 ```{eval-rst}
-.. automodule:: patcher_api.schemas.labels
+.. autoclass:: patcher_api.schemas.labels.GenerateLabelResponse
    :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
 ```
 
-## Installomator (raw payload)
+## Shared base
+
+`UpstreamModel` is the camelCase base every upstream payload schema inherits from (it is not Installomator-specific; Installomator's raw payload is stored as a dict rather than a typed model).
 
 ```{eval-rst}
-.. automodule:: patcher_api.schemas.base
+.. autoclass:: patcher_api.schemas.base.UpstreamModel
    :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
 ```
 
 ## Homebrew Cask
 
 ```{eval-rst}
-.. automodule:: patcher_api.schemas.homebrew
+.. autoclass:: patcher_api.schemas.homebrew.HomebrewCaskRecord
    :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
 ```
 
 ## AutoPkg
 
 ```{eval-rst}
-.. automodule:: patcher_api.schemas.autopkg
+.. autoclass:: patcher_api.schemas.autopkg.AutopkgIndexEntry
    :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
 ```
 
 ## Jamf App Installers
 
 ```{eval-rst}
-.. automodule:: patcher_api.schemas.jamf_app_installers
+.. autoclass:: patcher_api.schemas.jamf_app_installers.JaiMediaSource
    :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
+
+.. autoclass:: patcher_api.schemas.jamf_app_installers.JaiTitle
+   :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
+
+.. autoclass:: patcher_api.schemas.jamf_app_installers.JaiTitlePage
+   :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
 ```
 
 ## Mac App Store
 
 ```{eval-rst}
-.. automodule:: patcher_api.schemas.mas
+.. autoclass:: patcher_api.schemas.mas.MasLookupRecord
    :members:
+   :exclude-members: model_computed_fields, model_config, model_fields
 ```

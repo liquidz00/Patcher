@@ -16,26 +16,15 @@ Where Patcher writes on your Mac, and how to inspect, modify, or reset each piec
 
 Patcher stores information locally for session persistence:
 
-::::{grid} 1
-:gutter: 2
-:padding: 0
-:class-row: surface
+::::{highlights}
+{iconify}`octicon:shield-lock-16` Login keychain (service `Patcher`)
+: Jamf API URL, Client ID, Client Secret, OAuth token + expiration
 
-:::{grid-item-card} {iconify}`octicon:shield-lock-16` Login keychain (service `Patcher`)
+{iconify}`octicon:file-directory-16` `~/Library/Application Support/Patcher/`
+: Property list, cached Installomator labels, unmatched-apps file, custom fonts and logo
 
-Jamf API URL, Client ID, Client Secret, OAuth token + expiration
-:::
-
-:::{grid-item-card} {iconify}`octicon:file-directory-16` `~/Library/Application Support/Patcher/`
-
-Property list, cached Installomator labels, unmatched-apps file, custom fonts and logo
-:::
-
-:::{grid-item-card} {iconify}`octicon:file-binary-16` `~/Library/Caches/Patcher/`
-
-Cached patch report data in `.pkl` format
-:::
-
+{iconify}`octicon:file-binary-16` `~/Library/Caches/Patcher/`
+: Cached patch report data in `.pkl` format
 ::::
 
 (application_support_dir)=
@@ -99,7 +88,7 @@ The `enable_installomator` boolean controls whether Patcher matches Jamf titles 
 
 #### Setup completion
 
-```console
+```bash
 $ /usr/libexec/PlistBuddy -c "Print :setup_completed" ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 true
 ```

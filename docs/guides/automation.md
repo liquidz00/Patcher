@@ -80,10 +80,22 @@ $ launchctl list | grep com.liquidzoo.patcher-export
 
 To ensure the LaunchAgent is working:
 
-1. Manually run the ``patcherctl export`` command to confirm it executes as expected.
-2. Check the logs for errors or confirmation of success:
-   - **Standard Output**: ``~/Library/Application Support/Patcher/logs/patcher-agent.out.log``
-   - **Standard Error**: ``~/Library/Application Support/Patcher/logs/patcher-agent.err.log``
+::::{steps}
+
+:::{step} Manually run the export command.
+
+Manually run the ``patcherctl export`` command to confirm it executes as expected.
+:::
+
+:::{step} Check the logs.
+
+Check the logs for errors or confirmation of success:
+
+- **Standard Output**: ``~/Library/Application Support/Patcher/logs/patcher-agent.out.log``
+- **Standard Error**: ``~/Library/Application Support/Patcher/logs/patcher-agent.err.log``
+:::
+
+::::
 
 (ci-cd)=
 
@@ -107,32 +119,18 @@ Credentials can be set via command line flags **or** environment variables. If b
 
 In non-interactive mode, Patcher:
 
-::::{tab-set}
+::::{highlights}
+{iconify}`octicon:key-16` Memory-only credentials
+: Credentials are held in memory for the lifetime of the invocation. The macOS keychain is never read or written. Right for ephemeral runners and Docker containers where there's no persistent secret store anyway.
 
-:::{tab-item} {iconify}`octicon:key-16` Memory-only credentials
-:sync: creds
+{iconify}`octicon:skip-16` Skips every interactive prompt
+: Setup type, Installomator support, and UI configuration are all bypassed. Any code path that would normally pause for input proceeds with sane defaults instead.
 
-Credentials are held in memory for the lifetime of the invocation. The macOS keychain is never read or written. Right for ephemeral runners and Docker containers where there's no persistent secret store anyway.
-:::
+{iconify}`octicon:repo-deleted-16` No completion persistence
+: Setup completion is not written to disk. The next invocation must provide credentials again, which is exactly what you want on ephemeral runners that wipe their filesystem between jobs.
 
-:::{tab-item} {iconify}`octicon:skip-16` Skips every interactive prompt
-:sync: prompts
-
-Setup type, Installomator support, and UI configuration are all bypassed. Any code path that would normally pause for input proceeds with sane defaults instead.
-:::
-
-:::{tab-item} {iconify}`octicon:repo-deleted-16` No completion persistence
-:sync: no-persist
-
-Setup completion is not written to disk. The next invocation must provide credentials again, which is exactly what you want on ephemeral runners that wipe their filesystem between jobs.
-:::
-
-:::{tab-item} {iconify}`octicon:zap-16` Runs immediately
-:sync: immediate
-
-The requested subcommand executes as soon as an access token is fetched. No wizard, no prompts, no waiting.
-:::
-
+{iconify}`octicon:zap-16` Runs immediately
+: The requested subcommand executes as soon as an access token is fetched. No wizard, no prompts, no waiting.
 ::::
 
 (linux-keyring)=

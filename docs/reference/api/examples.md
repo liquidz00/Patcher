@@ -19,7 +19,7 @@ The catalog is public, no authentication required. Examples below talk to `api.p
 :::::{tab-set}
 :sync-group: lang
 
-::::{tab-item} {iconify}`material-icon-theme:console` bash
+::::{tab-item} {iconify}`mdi:bash` bash
 :sync: bash
 
 ```bash
@@ -55,7 +55,7 @@ The simplest call returns the first page of the catalog.
 :::::{tab-set}
 :sync-group: lang
 
-::::{tab-item} {iconify}`material-icon-theme:console` bash
+::::{tab-item} {iconify}`mdi:bash` bash
 :sync: bash
 
 ```bash
@@ -85,7 +85,7 @@ Find every app surfaced by Installomator that is also in the Homebrew Cask catal
 :::::{tab-set}
 :sync-group: lang
 
-::::{tab-item} {iconify}`material-icon-theme:console` bash
+::::{tab-item} {iconify}`mdi:bash` bash
 :sync: bash
 
 ```bash
@@ -118,7 +118,7 @@ The package method returns `None` on 404 rather than raising. The HTTP endpoint 
 :::::{tab-set}
 :sync-group: lang
 
-::::{tab-item} {iconify}`material-icon-theme:console` bash
+::::{tab-item} {iconify}`mdi:bash` bash
 :sync: bash
 
 ```bash
@@ -148,7 +148,7 @@ Useful for tooling that wants the original upstream data (Homebrew Cask JSON, th
 :::::{tab-set}
 :sync-group: lang
 
-::::{tab-item} {iconify}`material-icon-theme:console` bash
+::::{tab-item} {iconify}`mdi:bash` bash
 :sync: bash
 
 ```bash
@@ -184,7 +184,7 @@ Projects an app's Cask + Installomator source data into a label-shaped object yo
 :::::{tab-set}
 :sync-group: lang
 
-::::{tab-item} {iconify}`material-icon-theme:console` bash
+::::{tab-item} {iconify}`mdi:bash` bash
 :sync: bash
 
 ```bash
@@ -249,7 +249,7 @@ Walk the full catalog with `limit` + `offset`. Results are deterministically ord
 :::::{tab-set}
 :sync-group: lang
 
-::::{tab-item} {iconify}`material-icon-theme:console` bash
+::::{tab-item} {iconify}`mdi:bash` bash
 :sync: bash
 
 ```bash
@@ -295,7 +295,7 @@ All non-2xx responses are JSON with a `detail` field. The package wraps these as
 :::::{tab-set}
 :sync-group: lang
 
-::::{tab-item} {iconify}`material-icon-theme:console` bash
+::::{tab-item} {iconify}`mdi:bash` bash
 :sync: bash
 
 ```bash

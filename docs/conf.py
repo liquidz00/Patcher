@@ -41,6 +41,7 @@ extensions = [
     "ghwiki",
     "steps",
     "prompt",
+    "highlights",
 ]
 
 # ghwiki
@@ -67,6 +68,10 @@ autodoc_typehints = "both"
 autodoc_member_order = "bysource"
 autoclass_content = "both"
 autosectionlabel_prefix_document = True
+# Only auto-label top-level and section headings (H1/H2). Deeper headings like
+# the per-command "Options"/"Examples" repeat across command sections and would
+# otherwise collide; cross-references use explicit ``(label)=`` targets anyway.
+autosectionlabel_maxdepth = 2
 
 autodoc_mock_imports = ["fastmcp", "mcp"]  # FastMCP fix
 toc_object_entries_show_parents = "hide"
