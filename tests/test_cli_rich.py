@@ -1,20 +1,17 @@
 """
 Unit coverage for the Rich-backed CLI helpers.
 
-Covers two new surfaces from the Rich integration: the shared console
-singletons and palette constants in ``patcher.cli._console``, and the
-``rich.status.Status``-backed ``Animation`` wrapper.
+Covers two surfaces from the Rich integration: the shared console singletons
+and palette constants in ``patcher.cli._console``, and the debug-aware
+``status()`` spinner helper that replaced the old ``Animation`` class.
 
-Animation's behaviour is verified by patching ``rich.status.Status`` so we
-can assert lifecycle calls (``start`` / ``stop`` / ``update``) without
-spawning a real spinner against a terminal.
+The ``status()`` behaviour is verified by patching ``console.status`` so we
+can assert the lifecycle without spawning a real spinner against a terminal.
 """
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from src.patcher.cli import _console
-from src.patcher.cli.animation import Animation
 
 
 class TestConsoleModule:
@@ -32,96 +29,56 @@ class TestConsoleModule:
         assert _console.SUCCESS_STYLE == "green"
         assert _console.DIM_STYLE == "dim"
 
+    def test_spinner_name_constant(self):
+        assert _console.SPINNER_NAME == "dots"
 
-class TestAnimation:
-    def test_init_defaults(self):
-        anim = Animation()
-        assert anim.message_template == "Processing"
-        assert anim.enable_animation is True
-        assert anim._status is None
-        assert anim._started is False
 
-    def test_init_with_custom_message(self):
-        anim = Animation(message_template="Fetching titles...", enable_animation=False)
-        assert anim.message_template == "Fetching titles..."
-        assert anim.enable_animation is False
+class TestNoOpStatus:
+    def test_methods_are_safe_noops(self):
+        noop = _console._NoOpStatus()
+        # None of these should raise or return anything meaningful.
+        assert noop.update("anything", extra=True) is None
+        assert noop.start() is None
+        assert noop.stop() is None
 
-    @pytest.mark.asyncio
-    async def test_start_noop_when_disabled(self):
-        anim = Animation(enable_animation=False)
-        await anim.start()
-        assert anim._status is None
-        assert anim._started is False
 
-    @pytest.mark.asyncio
-    async def test_start_invokes_status(self):
-        anim = Animation(message_template="Working...")
-        fake_status = MagicMock()
-        with patch.object(_console.console, "status", return_value=fake_status) as status_factory:
-            await anim.start()
+class TestStatusHelper:
+    def test_disabled_yields_noop_stand_in(self):
+        with _console.status("Working...", enabled=False) as spinner:
+            assert isinstance(spinner, _console._NoOpStatus)
+            # Calling the surface inside the block must stay a no-op.
+            spinner.update("still working")
+
+    def test_disabled_never_touches_console_status(self):
+        with patch.object(_console.console, "status") as status_factory:
+            with _console.status("Working...", enabled=False):
+                pass
+        status_factory.assert_not_called()
+
+    def test_enabled_uses_console_status_with_spinner(self):
+        fake_cm = MagicMock()
+        fake_live = MagicMock()
+        fake_cm.__enter__.return_value = fake_live
+
+        with patch.object(_console.console, "status", return_value=fake_cm) as status_factory:
+            with _console.status("Working...") as spinner:
+                assert spinner is fake_live
+                spinner.update("New message")
+
         status_factory.assert_called_once_with("Working...", spinner="dots")
-        fake_status.start.assert_called_once()
-        assert anim._started is True
+        fake_cm.__enter__.assert_called_once()
+        fake_cm.__exit__.assert_called_once()
+        fake_live.update.assert_called_once_with("New message")
 
-    @pytest.mark.asyncio
-    async def test_double_start_is_idempotent(self):
-        anim = Animation()
-        fake_status = MagicMock()
-        with patch.object(_console.console, "status", return_value=fake_status) as status_factory:
-            await anim.start()
-            await anim.start()
-        assert status_factory.call_count == 1
-        assert fake_status.start.call_count == 1
+    def test_enabled_exits_status_on_exception(self):
+        fake_cm = MagicMock()
+        fake_cm.__enter__.return_value = MagicMock()
 
-    @pytest.mark.asyncio
-    async def test_update_msg_dispatches_to_status(self):
-        anim = Animation()
-        fake_status = MagicMock()
-        with patch.object(_console.console, "status", return_value=fake_status):
-            await anim.start()
-            await anim.update_msg("New message")
-        fake_status.update.assert_called_once_with("New message")
-        assert anim.message_template == "New message"
-
-    @pytest.mark.asyncio
-    async def test_update_msg_before_start_only_updates_template(self):
-        anim = Animation()
-        await anim.update_msg("Pending")
-        assert anim.message_template == "Pending"
-
-    @pytest.mark.asyncio
-    async def test_stop_clears_state_and_flags_event(self):
-        anim = Animation()
-        fake_status = MagicMock()
-        with patch.object(_console.console, "status", return_value=fake_status):
-            await anim.start()
-            await anim.stop()
-        fake_status.stop.assert_called_once()
-        assert anim._status is None
-        assert anim._started is False
-        assert anim.stop_event.is_set()
-
-    @pytest.mark.asyncio
-    async def test_stop_is_safe_without_start(self):
-        anim = Animation()
-        await anim.stop()
-        assert anim.stop_event.is_set()
-
-    @pytest.mark.asyncio
-    async def test_error_handling_stops_on_success(self):
-        anim = Animation()
-        fake_status = MagicMock()
-        with patch.object(_console.console, "status", return_value=fake_status):
-            async with anim.error_handling():
-                fake_status.start.assert_called_once()
-        fake_status.stop.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_error_handling_stops_on_exception(self):
-        anim = Animation()
-        fake_status = MagicMock()
-        with patch.object(_console.console, "status", return_value=fake_status):
-            with pytest.raises(RuntimeError, match="boom"):
-                async with anim.error_handling():
+        with patch.object(_console.console, "status", return_value=fake_cm):
+            try:
+                with _console.status("Working..."):
                     raise RuntimeError("boom")
-        fake_status.stop.assert_called_once()
+            except RuntimeError:
+                pass
+
+        fake_cm.__exit__.assert_called_once()

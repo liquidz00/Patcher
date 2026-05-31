@@ -18,6 +18,9 @@ class PatcherError(Exception):
     """
 
     default_message = "An error occurred"
+    # Presentation-only context. Kept as attributes for the CLI to render
+    # separately (see cli.format_err) but excluded from the message string.
+    presentation_keys = frozenset({"recovery", "remediation"})
 
     def __init__(self, message: str = None, **kwargs):
         self.message = message or self.default_message
@@ -33,7 +36,9 @@ class PatcherError(Exception):
     def format_message(self) -> str:
         """Format exception message properly."""
         context_details = " | ".join(
-            f"{key}: {value}" for key, value in self.context.items() if value
+            f"{key}: {value}"
+            for key, value in self.context.items()
+            if value and key not in self.presentation_keys
         )
         return f"{self.message} ({context_details})" if context_details else self.message
 

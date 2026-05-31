@@ -153,7 +153,7 @@ async def test_run_setup_standard(setup_instance):
     setup_instance._save_creds = mock_save_creds
     setup_instance._mark_completion = mock_mark_completion
 
-    async def mock_start(animator=None, fresh=False):
+    async def mock_start(spinner=None, fresh=False):
         # Simulate the standard setup flow
         mock_save_creds({"URL": "https://example.com", "USERNAME": "user", "PASSWORD": "pass"})
         mock_mark_completion(value=True)
@@ -176,7 +176,7 @@ async def test_run_setup_sso(setup_instance):
     setup_instance._save_creds = mock_save_creds
     setup_instance._mark_completion = mock_mark_completion
 
-    async def mock_start(animator=None, fresh=False):
+    async def mock_start(spinner=None, fresh=False):
         # Simulate the SSO setup flow
         mock_save_creds(
             {
@@ -213,7 +213,7 @@ async def test_start_persists_credentials_via_jamf_credentials(setup_instance, m
     ``patcherctl --setup`` end-to-end.
 
     This test runs the real ``start()`` with only the I/O collaborators
-    mocked (prompts, animator, token fetch) and asserts the
+    mocked (prompts, spinner, token fetch) and asserts the
     credential-persistence call sees a real ``JamfCredentials`` instance.
     A future regression of the same shape (wrong class, missing import,
     bad kwargs) fails this test immediately.
@@ -224,8 +224,8 @@ async def test_start_persists_credentials_via_jamf_credentials(setup_instance, m
     # setup_completed gate: not completed, so start() runs the body
     mock_plist_manager.get.return_value = False
 
-    # No-op animator
-    animator = AsyncMock()
+    # No-op spinner (sync; its .update is called without await).
+    spinner = MagicMock()
 
     sso_creds = {
         "URL": "https://test.jamfcloud.com",
@@ -251,7 +251,7 @@ async def test_start_persists_credentials_via_jamf_credentials(setup_instance, m
         # _get_creds is called twice: once without token, once with.
         setup_instance._get_creds = MagicMock(side_effect=[sso_creds, creds_with_token])
 
-        await setup_instance.start(fresh=True, animator=animator)
+        await setup_instance.start(fresh=True, spinner=spinner)
 
     # The whole point of this test: config.create_client must receive a
     # JamfCredentials instance, not JamfClient or some other class. If
@@ -350,7 +350,7 @@ async def test_start_records_interpreter_path_before_marking_complete(
 
     mock_plist_manager.get.return_value = False  # setup not completed
 
-    animator = AsyncMock()
+    spinner = MagicMock()
     sso_creds = {
         "URL": "https://test.jamfcloud.com",
         "CLIENT_ID": "abc-123",
@@ -372,6 +372,6 @@ async def test_start_records_interpreter_path_before_marking_complete(
         setup_instance._mark_completion = MagicMock()
         setup_instance._get_creds = MagicMock(side_effect=[sso_creds, creds_with_token])
 
-        await setup_instance.start(fresh=True, animator=animator)
+        await setup_instance.start(fresh=True, spinner=spinner)
 
     mock_plist_manager.set.assert_any_call("interpreter_path", _sys.executable)

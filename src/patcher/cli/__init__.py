@@ -9,7 +9,9 @@ from pathlib import Path
 
 import asyncclick as click
 import rich.traceback
+from rich.console import Group
 from rich.panel import Panel
+from rich.rule import Rule
 from rich.text import Text
 
 from ..__about__ import __version__
@@ -22,8 +24,15 @@ from ..core.logger import LogMe, PatcherLog
 from ..core.models.ui import UIDefaults
 from ..core.patcher_client import PatcherClient
 from ..core.plist_manager import PropertylistManager
-from ._console import ERROR_STYLE, err_console
-from .animation import Animation
+from ._console import (
+    DIM_STYLE,
+    ERROR_STYLE,
+    SUCCESS_STYLE,
+    WARNING_STYLE,
+    console,
+    err_console,
+    status,
+)
 from .report import process_reports
 from .setup import Setup
 from .terminal_logger import install_terminal_excepthook, install_terminal_handler
@@ -197,26 +206,26 @@ def format_err(exc: PatcherError) -> None:
     The panel body carries the exception message in red. If the exception
     exposes a ``recovery`` or ``remediation`` attribute (PatcherError lifts
     keyword context onto the instance), it is rendered as a dim paragraph
-    below the main message. A footer line points the user at the log file.
+    below the main message. A dim rule separates the log-file pointer from
+    the error content.
 
     :param exc: The PatcherError exception to format.
     :type exc: PatcherError
     """
-    body = Text(str(exc), style=ERROR_STYLE)
+    message = Text(str(exc), style=ERROR_STYLE)
 
     hint = getattr(exc, "recovery", None) or getattr(exc, "remediation", None)
     if hint:
-        body.append("\n\n")
-        body.append(Text.from_markup(f"[dim]Recovery:[/] {hint}"))
+        message.append("\n\n")
+        message.append(Text.from_markup(f"[dim]Recovery:[/] {hint}"))
 
-    body.append("\n\n")
-    body.append(
-        Text.from_markup(f"[dim]For more details, see the log file at: '{PatcherLog.LOG_FILE}'[/]")
+    log_hint = Text.from_markup(
+        f"[dim]For more details, see the log file at:[/]\n[dim]{PatcherLog.LOG_FILE}[/]"
     )
 
     err_console.print(
         Panel(
-            body,
+            Group(message, Rule(style=DIM_STYLE), log_hint),
             title="[bold red]Error[/]",
             border_style=ERROR_STYLE,
             expand=False,
@@ -377,7 +386,6 @@ async def cli(
         "debug": debug,
         "disable_cache": disable_cache,
         "noninteractive": noninteractive,
-        "animation": Animation(enable_animation=not debug),
         "log": LogMe(__name__),
         "plist_manager": PropertylistManager(),
         "config": config_manager,
@@ -388,7 +396,7 @@ async def cli(
     ctx.obj["setup"] = setup
 
     # Check Setup completion
-    async with ctx.obj.get("animation").error_handling():
+    with status("Processing", enabled=not debug) as spinner:
         if not noninteractive and ctx.obj.get("plist_manager").needs_migration():
             ctx.obj.get("plist_manager").migrate_plist()
 
@@ -398,19 +406,16 @@ async def cli(
         if not noninteractive and setup.completed and not fresh:
             recorded_interpreter = ctx.obj.get("plist_manager").get("interpreter_path")
             if recorded_interpreter and recorded_interpreter != sys.executable:
-                click.echo(
-                    click.style(
-                        f"Warning: Patcher was set up under a different Python interpreter:\n"
-                        f"  recorded: {recorded_interpreter}\n"
-                        f"  current:  {sys.executable}\n\n"
-                        f"macOS Keychain ACLs may block this interpreter from updating saved "
-                        f"credentials (e.g. on token refresh). Reads work fine; only writes are at risk.\n"
-                        f"If you hit a -25244 / errSecInvalidOwnerEdit error mid-run, recover with:\n"
-                        f"  security delete-generic-password -s Patcher\n"
-                        f"  patcherctl --fresh",
-                        fg="yellow",
-                    ),
-                    err=True,
+                err_console.print(
+                    f"Warning: Patcher was set up under a different Python interpreter:\n"
+                    f"  recorded: {recorded_interpreter}\n"
+                    f"  current:  {sys.executable}\n\n"
+                    f"macOS Keychain ACLs may block this interpreter from updating saved "
+                    f"credentials (e.g. on token refresh). Reads work fine; only writes are at risk.\n"
+                    f"If you hit a -25244 / errSecInvalidOwnerEdit error mid-run, recover with:\n"
+                    f"  security delete-generic-password -s Patcher\n"
+                    f"  patcherctl --fresh",
+                    style=WARNING_STYLE,
                 )
 
         if noninteractive:
@@ -419,12 +424,14 @@ async def cli(
             )
             # Fall through; let the requested subcommand run.
         elif not setup.completed or fresh:
-            await setup.start(animator=ctx.obj.get("animation"), fresh=fresh)
-            click.echo(click.style(text="Setup has completed successfully!", fg="green", bold=True))
-            click.echo(
+            await setup.start(spinner=spinner, fresh=fresh)
+            console.print("Setup has completed successfully!", style=SUCCESS_STYLE)
+            console.print(
                 "Patcher is now ready for use. You can use the --help flag to view available options."
             )
-            click.echo("For more information, visit the project docs: https://docs.patcherctl.dev")
+            console.print(
+                "For more information, visit the project docs: https://docs.patcherctl.dev"
+            )
             sys.exit(0)  # Exit to avoid running a command
 
 
@@ -467,7 +474,7 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
     config = ctx.obj.get("config")
     ui_config = ctx.obj.get("ui_config")
     setup = ctx.obj.get("setup")
-    animation = ctx.obj.get("animation")
+    debug = ctx.obj.get("debug")
     disable_cache = ctx.obj.get("disable_cache")
 
     reset_steps: list[tuple[str, Callable[[], bool]]] = [
@@ -480,13 +487,13 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
         data_manager = get_data_manager(ctx)
         reset_steps.append(("Clearing cached data...", data_manager.reset_cache))
 
-    async with animation.error_handling():
+    with status("Processing", enabled=not debug) as spinner:
         if kind.lower() == "full":
             log.info("Performing full reset...")
 
             results: list[bool] = []
             for msg, reset_method in reset_steps:
-                await animation.update_msg(msg)
+                spinner.update(msg)
                 results.append(reset_method())
 
             if not all(results):
@@ -498,19 +505,17 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
                 )
             else:
                 log.info("All resets successful. Triggering setup.")
-                await animation.update_msg("Launching setup wizard...")
-                await setup.start(animation)
+                spinner.update("Launching setup wizard...")
+                await setup.start(spinner=spinner)
         elif kind.lower() == "ui":
             log.info("Resetting UI elements...")
-            await animation.update_msg("Resetting UI configuration...")
+            spinner.update("Resetting UI configuration...")
             if ui_config.reset_config():
-                await animation.update_msg("Prompting for new UI settings...")
+                spinner.update("Prompting for new UI settings...")
                 await setup.prompt_ui_settings()
         elif kind.lower() == "creds":
             log.info(f"Resetting credentials... (specific: {credential if credential else 'all'})")
-            await animation.update_msg(
-                f"Resetting credentials ({credential if credential else 'all'})..."
-            )
+            spinner.update(f"Resetting credentials ({credential if credential else 'all'})...")
 
             # Keyring automatically overwrites existing passwords if key and service_name are the same.
             # This allows us to just call the set_credential method instead of having to delete existing
@@ -518,15 +523,15 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
             match credential:
                 case "url":
                     new_url = await click.prompt("Enter your Jamf Pro URL")
-                    await animation.update_msg("Saving Jamf Pro URL to keychain...")
+                    spinner.update("Saving Jamf Pro URL to keychain...")
                     config.set_credential("URL", new_url)
                 case "client_id":
                     new_client_id = await click.prompt("Enter your API Client ID")
-                    await animation.update_msg("Saving Client ID to keychain...")
+                    spinner.update("Saving Client ID to keychain...")
                     config.set_credential("CLIENT_ID", new_client_id)
                 case "client_secret":
                     new_client_secret = await click.prompt("Enter your API Client Secret")
-                    await animation.update_msg("Saving Client Secret to keychain...")
+                    spinner.update("Saving Client Secret to keychain...")
                     config.set_credential("CLIENT_SECRET", new_client_secret)
                 case None:
                     log.info("Attempting to delete all credentials from keychain...")
@@ -536,7 +541,7 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
                         "CLIENT_SECRET": await click.prompt("Enter your API Client Secret"),
                     }
                     for k, v in cred_map.items():
-                        await animation.update_msg(f"Saving {k} to keychain...")
+                        spinner.update(f"Saving {k} to keychain...")
                         config.set_credential(k, v)
         elif kind.lower() == "cache":
             log.info("Removing cached data...")
@@ -545,18 +550,17 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
             data_manager = ctx.obj.get("data_manager")
             if not data_manager:
                 log.warning("Caching is disabled. No cache data to reset.")
-                click.echo(
-                    click.style(
-                        "⚠️ Caching is disabled. No cached data to reset.", fg="yellow", bold=True
-                    )
+                spinner.stop()
+                console.print(
+                    "⚠️ Caching is disabled. No cached data to reset.", style=WARNING_STYLE
                 )
                 sys.exit(0)
 
-            await animation.update_msg("Clearing cached data...")
+            spinner.update("Clearing cached data...")
             if not data_manager.reset_cache():
                 raise PatcherError("Encountered an error trying to reset cache.")
 
-    click.echo(click.style("\n✅ Reset finished successfully.", fg="green", bold=True))
+    console.print("✅ Reset finished successfully.", style=SUCCESS_STYLE)
 
 
 # Export
@@ -698,18 +702,15 @@ async def export(
         if ui_at_defaults:
             log = ctx.obj.get("log")
             log.warning("PDF export requested with default UI configuration.")
-            click.echo(
-                click.style(
-                    "⚠️  PDF export will use placeholder header / footer text; "
-                    "no UI configuration detected. Run `patcherctl reset UI` to "
-                    "customize, or drop pdf from --format if you only need the "
-                    "machine-readable formats (excel, html, json).",
-                    fg="yellow",
-                    bold=True,
-                )
+            console.print(
+                "⚠️  PDF export will use placeholder header / footer text; "
+                "no UI configuration detected. Run `patcherctl reset UI` to "
+                "customize, or drop pdf from --format if you only need the "
+                "machine-readable formats (excel, html, json).",
+                style=WARNING_STYLE,
             )
 
-    # Animation + error handling are scoped inside process_reports
+    # Status spinner + error handling are scoped inside process_reports
     await process_reports(
         patcher,
         path=path,
@@ -833,55 +834,48 @@ async def analyze(
     :type released_after: str | None
     """
     if summary and not output_dir:
-        click.echo(
-            click.style(
-                "The --summary flag requires a valid directory specified with --output-dir.",
-                fg="yellow",
-            ),
-            err=True,
+        err_console.print(
+            "The --summary flag requires a valid directory specified with --output-dir.",
+            style=WARNING_STYLE,
         )
         return
 
-    animation = ctx.obj.get("animation")
+    debug = ctx.obj.get("debug")
     ui_config = ctx.obj.get("ui_config")
     data_manager = get_data_manager(ctx)
 
-    async with animation.error_handling():
-        await animation.update_msg("Loading cached patch data...")
+    with status("Processing", enabled=not debug) as spinner:
+        spinner.update("Loading cached patch data...")
         # NOTE: --excel-file is currently accepted but not read. Excel-to-PatchTitle
         # hydration is parked for v3.0.1.
         _ = excel_file
 
         if all_time:  # Analyze trends
-            await animation.update_msg(f"Calculating '{criteria}' trend across cached datasets...")
+            spinner.update(f"Calculating '{criteria}' trend across cached datasets...")
             trend_df = TrendAnalysis.apply(data_manager.get_cached_files(), criteria)
 
             if trend_df.empty:
-                await animation.stop()
-                click.echo(
-                    click.style(
-                        f"⚠️ No trend data available for criteria '{criteria}'.",
-                        fg="yellow",
-                        bold=True,
-                    )
+                spinner.stop()
+                console.print(
+                    f"⚠️ No trend data available for criteria '{criteria}'.",
+                    style=WARNING_STYLE,
                 )
                 sys.exit(0)
 
-            await animation.update_msg("Formatting trend results...")
+            spinner.update("Formatting trend results...")
             formatted_table = format_table(
                 trend_df.values.tolist(), headers=trend_df.columns.tolist()
             )
-            click.echo(formatted_table)
+            # markup=False: rendered tables contain literal brackets we must not parse as markup.
+            console.print(formatted_table, markup=False)
 
             if summary:
                 try:
-                    await animation.update_msg("Saving trend analysis report...")
+                    spinner.update("Saving trend analysis report...")
                     output_file = output_dir / f"trend-analysis-{criteria}.html"
                     trend_df.to_html(output_file, index=False)
-                    click.echo(
-                        click.style(
-                            f"✅ Trend analysis HTML saved to {output_file}.", fg="green", bold=True
-                        )
+                    console.print(
+                        f"✅ Trend analysis HTML saved to {output_file}.", style=SUCCESS_STYLE
                     )
                 except (OSError, PermissionError, FileNotFoundError) as exc:
                     raise PatcherError(
@@ -890,7 +884,7 @@ async def analyze(
                         error_msg=str(exc),
                     )
         else:  # Filter analysis
-            await animation.update_msg(f"Filtering titles by '{criteria}'...")
+            spinner.update(f"Filtering titles by '{criteria}'...")
             where_kwargs = {
                 k: v
                 for k, v in (
@@ -908,16 +902,13 @@ async def analyze(
                 where=where_kwargs or None,
             )
             if len(filtered_titles) == 0:
-                await animation.stop()
-                click.echo(
-                    click.style(
-                        f"⚠️ No PatchTitle objects meet criteria {criteria}", fg="yellow", bold=True
-                    ),
-                    err=False,
+                spinner.stop()
+                console.print(
+                    f"⚠️ No PatchTitle objects meet criteria {criteria}", style=WARNING_STYLE
                 )
                 sys.exit(0)
 
-            await animation.update_msg("Formatting filtered results...")
+            spinner.update("Formatting filtered results...")
             table_data = [
                 [
                     t.title,
@@ -942,12 +933,11 @@ async def analyze(
                 "Label Available (Y/N)",
             ]
             formatted_table = format_table(table_data, headers)
+            console.print(formatted_table, markup=False)
 
-        click.echo(formatted_table)
-
-        if summary:
+        if summary and not all_time:
             try:
-                await animation.update_msg("Writing HTML summary report...")
+                spinner.update("Writing HTML summary report...")
                 exported = await data_manager.export(
                     filtered_titles,
                     output_dir,
@@ -960,9 +950,7 @@ async def analyze(
                     "Unable to save summary report as expected.", path=exported, error_msg=str(exc)
                 )
             output_paths = "\n".join(list(exported.values()))
-            click.echo(
-                click.style(f"✅ HTML summary saved to {output_paths}", fg="green", bold=True)
-            )
+            console.print(f"✅ HTML summary saved to {output_paths}", style=SUCCESS_STYLE)
 
 
 @cli.command(
@@ -1029,7 +1017,7 @@ async def diff(
     :param list_snapshots: Print available cached snapshot dates and exit.
     :param output_format: ``text`` or ``json``.
     """
-    animation = ctx.obj.get("animation")
+    debug = ctx.obj.get("debug")
     plist_manager = ctx.obj.get("plist_manager")
     ui_config = ctx.obj.get("ui_config")
     data_manager = get_data_manager(ctx)
@@ -1037,18 +1025,15 @@ async def diff(
     if list_snapshots:
         cached = sorted(data_manager.get_cached_files(), key=lambda p: p.stat().st_mtime)
         if not cached:
-            click.echo(
-                click.style(
-                    "No cached snapshots. Run `patcherctl export` first to seed the cache.",
-                    fg="yellow",
-                ),
-                err=True,
+            err_console.print(
+                "No cached snapshots. Run `patcherctl export` first to seed the cache.",
+                style=WARNING_STYLE,
             )
             sys.exit(0)
-        click.echo("Available cached snapshots (oldest → newest):")
+        console.print("Available cached snapshots (oldest → newest):")
         for path in cached:
             mtime = datetime.fromtimestamp(path.stat().st_mtime)
-            click.echo(f"  {mtime.isoformat(timespec='seconds')}  {path.name}")
+            console.print(f"  {mtime.isoformat(timespec='seconds')}  {path.name}")
         sys.exit(0)
 
     parsed_since = parse_since(since) if since else None
@@ -1062,11 +1047,11 @@ async def diff(
         ui_config=ui_config.config,
     )
 
-    async with animation.error_handling():
+    with status("Processing", enabled=not debug) as spinner:
         if no_fetch or parsed_between:
-            await animation.update_msg("Comparing cached snapshots...")
+            spinner.update("Comparing cached snapshots...")
         else:
-            await animation.update_msg("Fetching live patch data + comparing against cache...")
+            spinner.update("Fetching live patch data + comparing against cache...")
 
         result = await patcher.diff(
             since=parsed_since,
@@ -1076,10 +1061,12 @@ async def diff(
         )
 
     if output_format == "json":
-        click.echo(result.model_dump_json(indent=2))
+        # print_json preserves literal brackets in the JSON (no Rich markup parsing).
+        console.print_json(result.model_dump_json(indent=2))
         return
 
-    click.echo(render_diff(result))
+    # markup=False: rendered diff tables contain literal brackets.
+    console.print(render_diff(result), markup=False)
 
 
 @cli.command(
@@ -1150,23 +1137,23 @@ async def drift(
     :param offset: Page offset.
     :param output_format: ``text`` or ``json``.
     """
-    animation = ctx.obj.get("animation")
+    debug = ctx.obj.get("debug")
     plist_manager = ctx.obj.get("plist_manager")
     ui_config = ctx.obj.get("ui_config")
 
     patcher = PatcherClient(
         config=ctx.obj.get("config"),
         disable_cache=ctx.obj.get("disable_cache"),
-        debug=ctx.obj.get("debug"),
+        debug=debug,
         enable_installomator=bool(plist_manager.get("enable_installomator")),
         ui_config=ui_config.config,
     )
 
-    async with animation.error_handling():
+    with status("Processing", enabled=not debug) as spinner:
         if slug:
-            await animation.update_msg(f"Inspecting drift for '{slug}'...")
+            spinner.update(f"Inspecting drift for '{slug}'...")
         else:
-            await animation.update_msg("Scanning catalog for cross-source drift...")
+            spinner.update("Scanning catalog for cross-source drift...")
 
         result = await patcher.detect_drift(
             slug=slug,
@@ -1177,18 +1164,23 @@ async def drift(
         )
 
     if output_format == "json":
-        click.echo("null" if result is None else result.model_dump_json(indent=2))
+        if result is None:
+            console.print("null")
+        else:
+            # print_json preserves literal brackets in the JSON (no Rich markup parsing).
+            console.print_json(result.model_dump_json(indent=2))
         return
 
     if result is None:
-        click.echo(f"No drift detected for '{slug}'.")
+        console.print(f"No drift detected for '{slug}'.")
         return
 
+    # markup=False: rendered drift tables contain literal brackets.
     if isinstance(result, DriftEntry):
-        click.echo(render_drift_entry(result))
+        console.print(render_drift_entry(result), markup=False)
         return
 
-    click.echo(render_drift(result))
+    console.print(render_drift(result), markup=False)
 
 
 if __name__ == "__main__":
