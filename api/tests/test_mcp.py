@@ -8,6 +8,8 @@ sessions via :func:`get_session_maker`, which the ``mcp_session`` fixture
 monkeypatches to point at the test engine.
 """
 
+import json
+
 import pytest
 import pytest_asyncio
 from fastmcp import Client
@@ -26,8 +28,14 @@ async def mcp_session(monkeypatch, test_engine):
     engine. Yields the session unseeded for tests to populate explicitly.
     """
     session_maker = async_sessionmaker(test_engine, expire_on_commit=False)
+    # Both the tools and resources modules import get_session_maker into their
+    # own namespace, so each reference is patched to hit the test engine.
     monkeypatch.setattr(
         "patcher_api.mcp.tools.get_session_maker",
+        lambda: session_maker,
+    )
+    monkeypatch.setattr(
+        "patcher_api.mcp.resources.get_session_maker",
         lambda: session_maker,
     )
     async with session_maker() as session:
@@ -491,3 +499,103 @@ async def test_list_recent_changes_returns_newest_first_up_to_limit(mcp_session,
 
     assert result.is_error is False
     assert [a["slug"] for a in result.data] == ["delta", "gamma"]
+
+
+def _resource_json(read_result) -> dict:
+    """Decode a ``read_resource`` result into the JSON dict it carries."""
+    contents = read_result.contents if hasattr(read_result, "contents") else read_result
+    return json.loads(contents[0].text)
+
+
+@pytest.mark.asyncio
+async def test_protocol_lists_resources_and_prompts(mcp_client):
+    """Static resources, the app template, and every prompt are discoverable."""
+    resources = {str(r.uri) for r in await mcp_client.list_resources()}
+    templates = {t.uriTemplate for t in await mcp_client.list_resource_templates()}
+    prompts = {p.name for p in await mcp_client.list_prompts()}
+
+    assert {"catalog://summary", "catalog://categories"} <= resources
+    assert "catalog://apps/{slug}" in templates
+    assert {"audit_app_coverage", "find_label_for", "catalog_health_report"} <= prompts
+
+
+@pytest.mark.asyncio
+async def test_summary_resource_mirrors_tool(mcp_session, mcp_client):
+    """The catalog://summary resource returns the same shape as the tool."""
+    await _add_app(
+        mcp_session,
+        slug="firefox",
+        installomator={"label_name": "firefox"},
+        homebrew_cask={"token": "firefox"},
+    )
+
+    data = _resource_json(await mcp_client.read_resource("catalog://summary"))
+
+    assert data["total_apps"] == 1
+    assert data["sources"]["installomator"] == 1
+    assert data["sources"]["homebrew_cask"] == 1
+
+
+@pytest.mark.asyncio
+async def test_categories_resource_returns_distinct_values(mcp_session, mcp_client):
+    """The catalog://categories resource surfaces distinct vendors and sources."""
+    await _add_app(mcp_session, slug="firefox", vendor="Mozilla", sources=["installomator"])
+    await _add_app(mcp_session, slug="slack", vendor="Slack", sources=["homebrew_cask"])
+
+    data = _resource_json(await mcp_client.read_resource("catalog://categories"))
+
+    assert data["vendors"] == ["Mozilla", "Slack"]
+    assert set(data["sources"]) == {"installomator", "homebrew_cask"}
+    assert "dmg" in data["install_methods"]
+
+
+@pytest.mark.asyncio
+async def test_app_resource_returns_record(mcp_session, mcp_client):
+    """The catalog://apps/{slug} template returns the canonical app projection."""
+    await _add_app(mcp_session, slug="firefox", name="Firefox", vendor="Mozilla")
+
+    data = _resource_json(await mcp_client.read_resource("catalog://apps/firefox"))
+
+    assert data["slug"] == "firefox"
+    assert data["name"] == "Firefox"
+    assert data["vendor"] == "Mozilla"
+
+
+@pytest.mark.asyncio
+async def test_app_resource_unknown_slug_errors(mcp_session, mcp_client):
+    """An unknown slug surfaces as a protocol error naming the missing slug."""
+    with pytest.raises(Exception) as excinfo:
+        await mcp_client.read_resource("catalog://apps/does-not-exist")
+    assert "does-not-exist" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_audit_prompt_interpolates_slug(mcp_client):
+    """The audit prompt renders a single user message naming the slug + tools."""
+    result = await mcp_client.get_prompt("audit_app_coverage", {"slug": "firefox"})
+
+    assert len(result.messages) == 1
+    assert result.messages[0].role == "user"
+    text = result.messages[0].content.text
+    assert "firefox" in text
+    assert "get_app_sources" in text
+
+
+@pytest.mark.asyncio
+async def test_find_label_prompt_interpolates_name(mcp_client):
+    """The label prompt renders the app name and names the generate tool."""
+    result = await mcp_client.get_prompt("find_label_for", {"app_name": "Google Chrome"})
+
+    text = result.messages[0].content.text
+    assert "Google Chrome" in text
+    assert "generate_installomator_label" in text
+
+
+@pytest.mark.asyncio
+async def test_health_report_prompt_takes_no_arguments(mcp_client):
+    """The health-report prompt renders without arguments and names both tools."""
+    result = await mcp_client.get_prompt("catalog_health_report", {})
+
+    text = result.messages[0].content.text
+    assert "get_catalog_summary" in text
+    assert "list_categories" in text

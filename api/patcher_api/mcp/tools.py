@@ -13,31 +13,17 @@ records are projected through :class:`patcher_api.schemas.app.App` so the
 shape an MCP client sees is identical to ``GET /apps/{slug}``.
 """
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 
 from patcher_api.db import get_session_maker
 from patcher_api.drift import detect_drift, extract_versions
 from patcher_api.labels import build_installomator_label
+from patcher_api.mcp._queries import catalog_categories, catalog_summary, serialize_app
 from patcher_api.mcp.server import mcp
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
-from patcher_api.schemas.app import App as AppSchema
-from patcher_api.schemas.app import InstallMethod
 from patcher_api.schemas.drift import DriftEntry, DriftResponse
 from patcher_api.schemas.sources import AppSources
-
-
-def _serialize_app(row: AppRow) -> dict:
-    """
-    Project an ``AppRow`` into the same dict shape the REST API returns.
-
-    Routes through the public Pydantic schema with ``mode="json"`` so dates
-    become ISO strings, ``HttpUrl`` becomes a plain string, and the
-    ``InstallMethod`` enum becomes its string value. Keeping the conversion
-    here means the two tools that return apps stay structurally identical
-    to ``GET /apps/{slug}`` automatically.
-    """
-    return AppSchema.model_validate(row).model_dump(mode="json")
 
 
 @mcp.tool
@@ -54,22 +40,7 @@ async def get_catalog_summary() -> dict:
     data).
     """
     async with get_session_maker()() as session:
-        total = (await session.scalar(select(func.count(AppRow.id)))) or 0
-        # Per-source counts have to be done in Python rather than SQL
-        # ``COUNT(column)``: SQLAlchemy's ``JSON`` type stores Python ``None``
-        # as the JSON ``null`` literal (non-empty TEXT), which the SQL
-        # aggregate would over-count. SQLAlchemy deserializes both SQL NULL
-        # and JSON null back to Python ``None`` on read, so a truthiness
-        # check here is correct regardless of how the row was written.
-        details = (await session.scalars(select(AppSourceDetailRow))).all()
-        sources = {
-            "installomator": sum(1 for d in details if d.installomator),
-            "homebrew_cask": sum(1 for d in details if d.homebrew_cask),
-            "jamf_app_installer": sum(1 for d in details if d.jamf_app_installer),
-            "autopkg": sum(1 for d in details if d.autopkg),
-        }
-
-    return {"total_apps": total, "sources": sources}
+        return await catalog_summary(session)
 
 
 @mcp.tool
@@ -109,7 +80,7 @@ async def search_apps(query: str, limit: int = 20) -> list[dict]:
             )
         ).all()
 
-    return [_serialize_app(row) for row in rows]
+    return [serialize_app(row) for row in rows]
 
 
 @mcp.tool
@@ -134,7 +105,7 @@ async def get_app(slug: str) -> dict:
     if row is None:
         raise ValueError(f"App with slug '{slug}' not found")
 
-    return _serialize_app(row)
+    return serialize_app(row)
 
 
 @mcp.tool
@@ -213,24 +184,7 @@ async def list_categories() -> dict:
     (list[str], sorted), and ``vendors`` (list[str], sorted).
     """
     async with get_session_maker()() as session:
-        # Distinct sources: union the per-app ``sources`` arrays in Python.
-        # SQLite's json_each could do this in SQL but the catalog is small
-        # enough that the Python set is clearer and just as fast.
-        all_source_arrays = (await session.scalars(select(AppRow.sources))).all()
-        sources = sorted({src for arr in all_source_arrays for src in (arr or [])})
-
-        vendor_rows = (
-            await session.scalars(
-                select(AppRow.vendor).where(AppRow.vendor.is_not(None)).distinct()
-            )
-        ).all()
-        vendors = sorted(vendor_rows)
-
-    return {
-        "install_methods": [m.value for m in InstallMethod],
-        "sources": sources,
-        "vendors": vendors,
-    }
+        return await catalog_categories(session)
 
 
 @mcp.tool
@@ -339,4 +293,4 @@ async def list_recent_changes(limit: int = 25) -> list[dict]:
     async with get_session_maker()() as session:
         rows = (await session.scalars(select(AppRow).order_by(AppRow.id.desc()).limit(limit))).all()
 
-    return [_serialize_app(row) for row in rows]
+    return [serialize_app(row) for row in rows]
