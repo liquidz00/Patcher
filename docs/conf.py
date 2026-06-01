@@ -10,6 +10,12 @@ import warnings
 
 from patcher.__about__ import __version__
 
+# linkcode skips api objects when it is None.
+try:
+    import patcher_api
+except ImportError:
+    patcher_api = None
+
 sys.path.insert(0, os.path.abspath("./ext"))
 
 # -- Project information -----------------------------------------------------
@@ -68,9 +74,6 @@ autodoc_typehints = "both"
 autodoc_member_order = "bysource"
 autoclass_content = "both"
 autosectionlabel_prefix_document = True
-# Only auto-label top-level and section headings (H1/H2). Deeper headings like
-# the per-command "Options"/"Examples" repeat across command sections and would
-# otherwise collide; cross-references use explicit ``(label)=`` targets anyway.
 autosectionlabel_maxdepth = 2
 
 autodoc_mock_imports = ["fastmcp", "mcp"]  # FastMCP fix
@@ -92,12 +95,17 @@ def linkcode_resolve(domain, info):
         return None
 
     modname = info.get("module")
+    if not modname:
+        return None
 
-    # linkcode only handles the ``patcher`` package (URL hardcoded to
-    # ``src/patcher/`` below). ``patcher_api.*`` lives at a different path
-    # in the repo (``api/patcher_api/``) and some of its callables are
-    # wrapped by decorators that trip ``inspect.unwrap`` here; skip them.
-    if not modname or not modname.startswith("patcher."):
+    # Map two first-party packages to in-repo source roots
+    if modname.startswith("patcher_api."):
+        if patcher_api is None:
+            return None
+        package, source_root = patcher_api, "api/patcher_api"
+    elif modname.startswith("patcher."):
+        package, source_root = patcher, "src/patcher"
+    else:
         return None
 
     fullname = info.get("fullname")
@@ -115,12 +123,13 @@ def linkcode_resolve(domain, info):
         except AttributeError:
             return None
 
+    # Skip callables quietly inspect can't wrap (route handlers, MCP tools)
     try:
         fn = inspect.getsourcefile(inspect.unwrap(obj))
-    except TypeError:
+    except (TypeError, ValueError):
         try:  # property
             fn = inspect.getsourcefile(inspect.unwrap(obj.fget))
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError, ValueError):
             fn = None
     if not fn:
         return None
@@ -130,18 +139,18 @@ def linkcode_resolve(domain, info):
     except (TypeError, OSError):
         try:
             source, lineno = inspect.getsourcelines(obj.fget)  # property
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError, OSError):
             lineno = None
 
     linespec = f"#L{lineno}-L{lineno + len(source) - 1}" if lineno else ""
 
-    # Convert to relative path for GHlinks
-    fn = os.path.relpath(fn, start=os.path.dirname(patcher.__file__))
+    # Convert to a path relative to the chosen package for the GitHub link.
+    fn = os.path.relpath(fn, start=os.path.dirname(package.__file__))
 
     # If development version, link to `develop`
     branch_or_tag = "develop" if "dev" in __version__ else release
 
-    return f"https://github.com/liquidz00/Patcher/blob/{branch_or_tag}/src/patcher/{fn}{linespec}"
+    return f"https://github.com/liquidz00/Patcher/blob/{branch_or_tag}/{source_root}/{fn}{linespec}"
 
 # -- Options for copy button  ------------------------------------------------
 # https://sphinx-copybutton.readthedocs.io/en/latest/use.html
