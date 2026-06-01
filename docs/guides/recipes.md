@@ -12,7 +12,7 @@ End-to-end scripts for the workflows people actually wire up. Copy, tweak, deplo
 
 ---
 
-The per-command pages ({doc}`/guides/usage/cli`, {doc}`/guides/usage/library`) cover one interface in isolation. The recipes below stitch `fetch_patches`, `export`, `analyze`, and {class}`~patcher.clients.patcher_api.PatcherAPIClient` into complete programs you'd actually point at production.
+Recipes below stitch `fetch_patches`, `export`, `analyze`, and {class}`~patcher.clients.patcher_api.PatcherAPIClient` into complete programs you'd actually point at production.
 
 ## Sending Summaries via Slack DM
 
@@ -204,16 +204,16 @@ if __name__ == "__main__":
     sys.exit(asyncio.run(main(sys.argv[1])))
 ```
 
-Example invocation and output for a Cask-only title:
-
 ```{code-block} bash
-$ python generate_label.py figma
+:caption: Example invocation and output for a Cask-only title
+
+$ python generate_label.py chatgpt-atlas
 # Generated from Patcher catalog (homebrew_cask)
 ./Installomator.sh valuesfromarguments \
-  name=Figma \
+  name="ChatGPT Atlas" \
   type=dmg \
-  downloadURL=https://desktop.figma.com/mac/Figma.zip \
-  expectedTeamID=T8RA8NE3B7
+  downloadURL=https://persistent.oaistatic.com/... \
+  expectedTeamID=2DC432GLL2
 ```
 
-The endpoint's most common warning is missing `expectedTeamID` for Cask-only apps; Cask metadata doesn't include the developer Team ID, so a Cask-only slug will surface a warning if it can't be inferred. See {ghwiki}`the Installomator wiki <Installomator:Configuration-and-Variables>` for the full set of variables Installomator accepts and {ghwiki}`Tutorial 3 <Installomator:Tutorial-3-for-a-label-with-a-bad-versioning>` for an example of when `valuesfromarguments` is the right tool.
+The endpoint's most common warning is missing `expectedTeamID`. Cask metadata doesn't include the developer Team ID, so a Cask-only slug will surface a warning if it can't be inferred. See {ghwiki}`the Installomator wiki <Installomator:Configuration-and-Variables>` for the full set of variables Installomator accepts and {ghwiki}`Tutorial 3 <Installomator:Tutorial-3-for-a-label-with-a-bad-versioning>` for an example of when `valuesfromarguments` is the right tool.

@@ -12,22 +12,22 @@ Everything `patcherctl` does, as importable async Python.
 
 ---
 
-Patcher is a library first and a CLI second. The same domain code that backs every `patcherctl` subcommand is reachable through one class, {class}`~patcher.core.patcher_client.PatcherClient`. Import it, hand it Jamf credentials, and call methods that fetch, analyze, and export patch data. Nothing the CLI does is off-limits to a script.
+The same domain code that backs every `patcherctl` subcommand is reachable through one class, {class}`~patcher.core.patcher_client.PatcherClient`. Import it, hand it Jamf credentials, and call methods that fetch, analyze, and export patch data. Nothing the CLI does is off-limits to a script.
 
 ::::{highlights}
 {iconify}`octicon:workflow-16` Inside a larger program
-: Wiring Patcher into a Python automation (a scheduled job, a Slack bot, a custom dashboard) rather than shelling out to `patcherctl`.
+: Wiring Patcher into a Python automation rather than shelling out to `patcherctl`.
 
 {iconify}`octicon:code-16` Typed results
-: You want typed return values ({class}`~patcher.core.models.patch.PatchTitle` objects) to filter and transform in code.
+: You want typed return values to filter and transform in code.
 
 {iconify}`octicon:server-16` Explicit credentials
-: Running on a host where you pass credentials directly (CI, a server) instead of through the interactive setup wizard.
+: Running on a host where you pass credentials directly instead of the setup wizard.
 ::::
 
 ## Instantiation
 
-Library callers pass Jamf credentials directly. An in-memory config is built internally, so no keyring backend is required and nothing is written to disk on construction. `PatcherClient` is an async context manager; use `async with` so the underlying Jamf and Patcher API connection pools are released cleanly.
+Library callers can pass Jamf credentials directly when constructing {class}`~patcher.core.patcher_client.PatcherClient` objects. These clients are async context managers, so to release the underlying API connections cleanly, be sure to use `async with`.
 
 ```python
 import asyncio
@@ -44,13 +44,6 @@ async def main():
 asyncio.run(main())
 ```
 
-If you have already run `patcherctl` setup on this Mac, skip the explicit credentials and read keychain-backed state instead with {meth}`PatcherClient.from_state() <patcher.core.patcher_client.PatcherClient.from_state>`. It pulls Jamf credentials from the keychain plus the UI customization and `enable_installomator` / `enable_homebrew` toggles from the property list. Any `__init__` keyword (commonly `concurrency` or `debug`) can be passed as an override.
-
-```python
-async with PatcherClient.from_state(concurrency=10) as patcher:
-    ...
-```
-
 ### Construction options
 
 | Kwarg | Default | Purpose |
@@ -60,7 +53,9 @@ async with PatcherClient.from_state(concurrency=10) as patcher:
 | `enable_installomator` | `True` | Set to `False` to skip the catalog client entirely. `patcher.api` becomes `None` and `match_titles` is never called during `fetch_patches`. |
 | `disable_cache` | `False` | Disable on-disk caching under `~/Library/Application Support/Patcher/`. Useful for stateless / CI runs. |
 
-```python
+```{code-block} python
+:caption: Any `__init__` keyword can be passed as an override
+
 async with PatcherClient(
     client_id="...",
     client_secret="...",
@@ -74,9 +69,11 @@ async with PatcherClient(
 
 ## Export
 
-{meth}`~patcher.core.patcher_client.PatcherClient.fetch_patches` is the one call that gathers what a report needs: it pulls policies and summaries from Jamf, then (by default) matches each title against the Installomator catalog to populate `install_label`. It returns a list of {class}`~patcher.core.models.patch.PatchTitle` objects. {meth}`~patcher.core.patcher_client.PatcherClient.export` then writes those titles to one or more report formats and returns a mapping of format to output path. With no `formats` argument it emits all four (`excel`, `html`, `pdf`, `json`).
+{meth}`~patcher.core.patcher_client.PatcherClient.fetch_patches` is the one call that gathers what a report needs. It pulls policies and summaries from Jamf and returns a list of {class}`~patcher.core.models.patch.PatchTitle` objects. The {meth}`~patcher.core.patcher_client.PatcherClient.export` method then writes those titles to one or more formats and returns a mapping of format-to-output-path. Omit the `formats` argument entirely to export all four (Excel, PDF, JSON, HTML).
 
-```python
+```{code-block} python
+:caption: Gather titles and export
+
 from pathlib import Path
 from patcher import PatcherClient
 
@@ -94,23 +91,49 @@ async with PatcherClient.from_state() as patcher:
     )
 ```
 
-`fetch_patches` takes keyword arguments that mirror the CLI's flags, for example `include_ios=True` to append per-iOS-version summaries, `sort_by="released"` to order the result, and `omit_recent_hours=24` to drop titles released in the last day. Pass `match_installomator=False` to skip the catalog match entirely. {meth}`export <patcher.core.patcher_client.PatcherClient.export>` returns the dict of written-file paths, keyed by format.
+The fetch patches method takes keyword arguments that mirror the CLI's flags. For example:
+
+`include_ios=True`
+: Append per-iOS-version summaries
+
+`sort_by="released"`
+: Order the result
+
+`omit_recent_hours=24`
+: Drop titles released in the last day
+
+`match_installomator=False`
+: Skip catalog match entirely
 
 ### Customizing report appearance
 
-PDF report styling (header text, footer text, custom font, logo, HTML header color) is configured via Patcher's property list. UI configuration only applies to PDF and HTML formats; Excel and JSON exports render correctly without it. See {ref}`property_list_file` for the full plist schema, valid keys, and how to modify them.
+PDF report styling (header text, footer text, custom font, logo, HTML header color) is configured via Patcher's property list. UI configuration only applies to PDF and HTML formats; Excel and JSON exports render correctly without it. See {ref}`Patcher's property list file <property_list_file>` for the full plist schema and valid keys.
 
 ### iOS device data
 
 Passing `include_ios=True` appends iOS / mobile device data to the report so you can see what's running on your fleet alongside the macOS patch coverage. Behind the scenes Patcher calls three Jamf APIs:
 
-- {meth}`~patcher.clients.jamf.JamfClient.get_device_ids` pulls the IDs of all enrolled mobile devices.
-- {meth}`~patcher.clients.jamf.JamfClient.get_device_os_versions` resolves each ID to its current OS version.
-- {meth}`~patcher.clients.jamf.JamfClient.get_sofa_feed` fetches the latest released iOS/iPadOS versions from the [SOFA feed](https://sofa.macadmins.io/) to determine "on the latest" vs "behind."
+::::{steps}
+
+:::{step} {meth}`~patcher.clients.jamf.JamfClient.get_device_ids`
+
+Pulls the IDs of all enrolled mobile devices.
+:::
+
+:::{step} {meth}`~patcher.clients.jamf.JamfClient.get_device_os_versions`
+
+Resolves each ID to its current OS version.
+:::
+
+:::{step} {meth}`~patcher.clients.jamf.JamfClient.get_sofa_feed`
+
+Fetches the latest released iOS/iPadOS versions from [SOFA](https://sofa.macadmins.io/) to determine version recency.
+:::
+::::
 
 ### Homebrew Cask matching
 
-Constructing the client with `enable_homebrew=True` widens catalog matching to a second dimension: the catalog's [Homebrew Cask](https://github.com/Homebrew/homebrew-cask) source, which covers apps that carry no Installomator label and exposes identity fields (bundle ID, canonical name) that labels often omit. An Installomator hit lands in each title's `install_label`; a Homebrew Cask hit lands in the `homebrew_cask` field; an app covered by both gets both.
+Constructing the client with `enable_homebrew=True` widens catalog matching to [Homebrew Cask's](https://github.com/Homebrew/homebrew-cask) catalog, which covers apps that carry no Installomator label. Installomator matches are assigned to each title's `install_label` attribute, Cask matches are assigned to each title's `homebrew_cask` attribute.
 
 ```python
 from pathlib import Path
@@ -124,9 +147,13 @@ async with PatcherClient.from_state(enable_homebrew=True) as patcher:
 
 ### Disabling Installomator matching
 
-Construct `PatcherClient` with `enable_installomator=False` to turn the catalog client off entirely. The plist value is ignored in favor of the explicit kwarg:
+```{note}
+Explicit keyword arguments take precedence over property list values.
+```
 
-```python
+```{code-block} python
+:caption: Construct `PatcherClient` with `enable_installomator=False` to turn the catalog client off entirely.
+
 patcher = PatcherClient(
     client_id=...,
     client_secret=...,
@@ -135,7 +162,7 @@ patcher = PatcherClient(
 )
 ```
 
-With `enable_installomator=False`, `PatcherClient.api` is `None` and `match_titles` is never called from `fetch_patches`. The `install_label` field on every {class}`~patcher.core.models.patch.PatchTitle` stays empty.
+With matching disabled, patch title fetching never calls the matching algorithm. `install_label` field on every patch title stays empty.
 
 ## Analyze
 
@@ -153,46 +180,83 @@ async with PatcherClient.from_state() as patcher:
     # Or call TitleFilter methods directly (same result, less indirection)
     least = TitleFilter(titles).least_installed(top_n=5)
     high_missing = TitleFilter(titles).high_missing(top_n=10)
-```
 
-Filter a saved Excel report directly (skip `fetch_patches`):
-
-```python
-async with PatcherClient.from_state() as patcher:
+    # Filter a saved Excel report directly (skip fetching patches)
     stale = await patcher.analyze_excel(
         "/path/to/report.xlsx",
         criteria="most-installed",
     )
 ```
 
-Trend analysis across cached datasets returns a `pandas.DataFrame`:
+### Criteria
+
+Two criteria families drive analyze, used in different contexts.
+
+::::{steps}
+
+:::{step} {class}`~patcher.core.analyze.TitleFilter`
+
+For analyzing a **single** patch report.
+:::
+
+:::{step} {class}`~patcher.core.analyze.TrendAnalysis`
+
+For analyzing patch data **over time**, comparing across multiple cached datasets.
+:::
+::::
+
+:::{admonition} Important
+:class: warning
+
+Panda's [Dataframes](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html) are returned when perform trend analysis.
 
 ```python
 async with PatcherClient.from_state() as patcher:
     trend = await patcher.analyze_trend("patch-adoption")
     print(trend.head())
 ```
+:::
 
-{meth}`analyze <patcher.core.patcher_client.PatcherClient.analyze>` takes a kebab-case criterion string and returns the filtered list of {class}`~patcher.core.models.patch.PatchTitle` objects. {meth}`analyze_excel <patcher.core.patcher_client.PatcherClient.analyze_excel>` is the saved-report variant (Excel hydration is parked for v3.0.1; today it filters the cached titles regardless of the path passed). {meth}`analyze_trend <patcher.core.patcher_client.PatcherClient.analyze_trend>` operates across cached datasets over time.
+::::{grid} 1 2 2 2
+:gutter: 2
+:padding: 0
 
-For full method signatures see {class}`~patcher.core.analyze.TitleFilter` and {class}`~patcher.core.analyze.TrendAnalysis`.
+:::{grid-item-card} Filter criteria
+:class-card: outline
 
-### Criteria
+- `most-installed`
+- `least-installed`
+- `oldest-least-complete`
+- `below-threshold`
+- `recent-release`
+- `zero-completion`
+- `top-performers`
+- `high-missing`
+- `installomator`
+:::
 
-Two criteria families drive analyze, used in different contexts:
+:::{grid-item-card} Trend criteria
+:class-card: outline
 
-- {class}`~patcher.core.analyze.TitleFilter` for analyzing a **single** patch report
-- {class}`~patcher.core.analyze.TrendAnalysis` for analyzing patch data **over time**, comparing across multiple cached datasets
-
-Filter criteria: `most-installed`, `least-installed`, `oldest-least-complete`, `below-threshold`, `recent-release`, `zero-completion`, `top-performers`, `high-missing`, `installomator`. Trend criteria (requiring at least two cached datasets): `patch-adoption`, `release-frequency`, `completion-trends`.
+- `patch-adoption`
+- `release-frequency`
+- `completion-trends`
+:::
+::::
 
 CLI criteria names are dash-flexible, but library method names use the underscore form (`TitleFilter(titles).most_installed()`).
 
+```{seealso}
+For full method signatures see {class}`~patcher.core.analyze.TitleFilter` and {class}`~patcher.core.analyze.TrendAnalysis`.
+```
+
 ### Generating a summary
 
-Pass `save_to=...` to `analyze_trend` to write an HTML version of the analysis alongside the returned DataFrame.
+To write an HTML version of the analysis alongside the returned DataFrame, pass `save_to=...` when analyzing trends.
 
-```python
+```{code-block} python
+:caption: Creating HTML summary from trend analysis
+
 async with PatcherClient.from_state() as patcher:
     trend = await patcher.analyze_trend(
         "patch-adoption",
@@ -200,11 +264,11 @@ async with PatcherClient.from_state() as patcher:
     )
 ```
 
-The DataFrame is returned regardless of whether `save_to` is provided. If the DataFrame is empty (e.g. no cached data matches the criterion), no file is written.
+The DataFrame is returned regardless of whether a summary is generated or not. No file is written if the DataFrame is empty (e.g. no cached data matches the criterion).
 
 ## Diff
 
-{meth}`~patcher.core.patcher_client.PatcherClient.diff` compares two patch-state snapshots. It reuses the same `~/Library/Caches/Patcher/patch_data_*.pkl` snapshots that drive analyze, so it works against history Patcher has already been collecting.
+Compare two patch-state snapshots against each other to determine differences between them. This method reuses the same cache snapshots, so it works against history Patcher has already been collecting.
 
 ```python
 from datetime import date, timedelta
@@ -231,21 +295,15 @@ async with PatcherClient.from_state() as patcher:
         print(f"  {change.title}: {change.from_completion_percent:.1f}% → {change.to_completion_percent:.1f}%")
 ```
 
-Drop down to {class}`~patcher.core.analyze.Diff` directly for two snapshots you already have in hand (e.g. two `Path` objects, two `DataFrame` objects, two `list[PatchTitle]` objects):
-
-```python
-from patcher.core.analyze import Diff
-
-result = Diff(from_titles, to_titles, from_label="2026-04-01", to_label="2026-05-01").compute()
-```
-
-{meth}`Diff.from_cache <patcher.core.analyze.Diff.from_cache>` picks two cached snapshots; {meth}`Diff.live_vs_cache <patcher.core.analyze.Diff.live_vs_cache>` compares a fresh fetch against cache. {meth}`PatcherClient.diff <patcher.core.patcher_client.PatcherClient.diff>` wraps both with flag validation.
+:::{tip}
+To compare two snapshots, construct a {class}`~patcher.core.analyze.Diff` directly. Each side can be a `PatchTitle` list, a DataFrame, or a path to a `.pkl`/`.xlsx` export, as long as it's a Patcher-produced report. See {class}`~patcher.core.analyze.Diff` for full source reference.
+:::
 
 ### What gets compared
 
-A title is **changed** if any of these differ between the two snapshots: completion percent, hosts patched, total hosts, or latest version. Released date and Installomator label changes are intentionally ignored (they tend to flip for upstream reasons unrelated to fleet state). A {class}`~patcher.core.analyze.TitleChange` row carries both before/after values plus the deltas, so consumers don't need to recompute.
+A title is **changed** if completion percent, hosts patched, total hosts, or latest version differ between the two snapshots. Released date and Installomator label changes are intentionally ignored. A {class}`~patcher.core.analyze.TitleChange` row carries both before/after values plus the deltas, so consumers don't need to recompute.
 
-The flag arguments (`since`, `all_time`, `between`, `no_fetch`) select which two snapshots get compared; see [the CLI's snapshot-selection table](cli.md#diff) for the full matrix.
+The flag arguments (`since`, `all_time`, `between`, `no_fetch`) select which two snapshots get compared. See [the CLI's snapshot-selection table](cli.md#diff) for the full matrix.
 
 ## Drift
 
@@ -272,19 +330,9 @@ async with PatcherClient.from_state() as patcher:
         print(f"Slack: {one.leader} is ahead of {one.laggard}")
 ```
 
-Drop down to {class}`~patcher.clients.patcher_api.PatcherAPIClient` directly to skip the `PatcherClient` wrapper:
-
-```python
-from patcher import PatcherAPIClient
-
-async with PatcherAPIClient() as api:
-    response = await api.list_drift(vendor="Mozilla")
-    one = await api.get_app_drift("firefox")
-```
-
 ### What gets returned
 
-Every catalog source independently reports a current version for each app (Installomator's `appNewVersion`, Homebrew Cask's `version`). When they disagree, one source is probably silently stuck. A {class}`~patcher.clients.patcher_api.DriftEntry` carries the slug, name, vendor, every source's reported version, and a `leader`/`laggard` pair (the highest and lowest parsed versions). Both are `None` when any version couldn't be parsed; the raw versions are still in `versions` so you can render the disagreement without ordering it.
+Every catalog source independently reports a current version for each app (Installomator's `appNewVersion`, Homebrew Cask's `version`). When they disagree, one source is probably silently stuck. A {class}`~patcher.clients.patcher_api.DriftEntry` carries the slug, name, vendor, every source's reported version, and a `leader`/`laggard` pair (the highest and lowest parsed versions). Both are `None` when any version couldn't be parsed, the raw versions are still in `versions` so you can render the disagreement without ordering it.
 
 ```python
 DriftEntry(
@@ -304,28 +352,22 @@ The list endpoint returns a {class}`~patcher.clients.patcher_api.DriftResponse` 
 
 ## Reset
 
-{meth}`PatcherClient.reset <patcher.core.patcher_client.PatcherClient.reset>` mirrors the CLI's four reset kinds (`cache`, `UI`, `creds`, `full`). The library version doesn't re-launch the setup wizard after a `"full"` reset; re-construct a `PatcherClient` yourself once you've populated new credentials.
+The {meth}`~patcher.core.patcher_client.PatcherClient.reset` method mirrors the CLI's four reset kinds, but only `cache` is broadly useful for library usage. It empties the on-disk patch cache and works in any credential mode.
 
 ```python
 async with PatcherClient.from_state() as patcher:
     await patcher.reset("cache")
-    await patcher.reset("UI")
-    await patcher.reset("creds")
-    await patcher.reset("creds", credential="url")
-    await patcher.reset("full")
 ```
 
-The `"creds"`, `"UI"`, and `"full"` kinds require keychain-backed credentials and raise {class}`~patcher.core.exceptions.PatcherError` when called on a client constructed with in-memory credentials.
-
-:::{seealso}
-For more about cached data and where Patcher stores it, see {doc}`/project/data-storage`.
-:::
+The other three (`UI`, `creds`, `full`) clear keychain and property-list state, so they require keychain-backed credentials and raise {class}`~patcher.core.exceptions.PatcherError` on a client built with in-memory credentials. Reach for those from the {doc}`CLI </guides/usage/cli>`.
 
 ## End to end
 
 Putting the pieces together: fetch, filter to the titles that are behind, and export just those to a PDF.
 
 ```{code-block} python
+:caption: Full end to end example
+
 import asyncio
 from patcher import PatcherClient
 

@@ -12,46 +12,227 @@ Query the stitched macOS app catalog over plain HTTP, from any language.
 
 ---
 
-The Patcher API is a public, read-only catalog of macOS app patching metadata, stitched from Installomator, Homebrew Cask, AutoPkg, and Jamf App Installers into one canonical record per app. It is hosted at `https://api.patcherctl.dev` and needs no authentication for any catalog read. Where the {doc}`library <library>` talks to *your* Jamf instance, the API serves the *shared* upstream catalog that Patcher matches against.
+The Patcher API is a public, read-only catalog of macOS app patching metadata, stitched from Installomator, Homebrew Cask, AutoPkg, and Jamf App Installers into one canonical record per app. The {doc}`library <library>` talks to **your** Jamf instance, the API serves the *shared* upstream catalog that Patcher matches against.
 
 ::::{highlights}
 {iconify}`octicon:terminal-16` Outside Python
-: You want catalog data from a shell script, another language, or a one-off `curl`.
+: You want catalog data from a shell script, or another language.
 
 {iconify}`octicon:package-16` Catalog lookups
-: You need the current version, download URL, or source coverage for an app without standing up your own ingestion.
+: You need the app metadata for an app without standing up your own ingestion.
 
 {iconify}`octicon:git-compare-16` Drift and labels
-: You want to check cross-source version drift, or generate an Installomator-shaped label, programmatically.
+: You want to check cross-source version drift, or generate Installomator-shaped labels.
 ::::
 
-## What the API is for
+:::{seealso}
 
-The catalog answers questions like "what is the current version of Firefox," "which sources cover Slack," "do any apps have version drift across sources," and "give me an Installomator label for this app." Python consumers should prefer {class}`~patcher.clients.patcher_api.PatcherAPIClient` from the `patcher` package, which wraps every endpoint with typed Pydantic models. Everyone else talks raw HTTP.
+{iconify}`material-icon-theme:swagger` [Swagger Docs](https://api.patcherctl.dev/docs)  |  {iconify}`material-icon-theme:document` [Redoc](https://api.patcherctl.dev/redoc)  |  {iconify}`material-icon-theme:openapi` [OpenAPI Schema](https://api.patcherctl.dev/openapi.json)
+:::
 
-## A couple of requests
+## Common requests
 
-List the first page of the catalog:
+The catalog is plain HTTP, so reach it from whatever you already script in. Each tab runs the same four calls: list the catalog, pull one app's version and download URL, generate an Installomator label, and check for cross-source version drift. The `patcher` package ships a typed wrapper, {class}`~patcher.clients.patcher_api.PatcherAPIClient` (its own tab below); everyone else hits the URLs directly.
 
-```{code-block} bash
-curl -sS "https://api.patcherctl.dev/apps?limit=10" | jq .
+::::{tab-set}
+
+:::{tab-item} {iconify}`mdi:bash` Bash
+:sync: bash
+
+```bash
+#!/bin/bash
+
+BASE="https://api.patcherctl.dev"
+
+# List the first page of the catalog
+curl -sS "$BASE/apps?limit=10" | jq .
+
+# One app's current version and download URL
+curl -sS "$BASE/apps/firefox" | jq '{version: .current_version, url: .download_url}'
+
+# Generate an Installomator label
+curl -sS -X POST "$BASE/apps/firefox/generate-label" | jq .
+
+# Check cross-source version drift (null if no drift)
+curl -sS "$BASE/apps/firefox/drift" | jq .
 ```
+:::
 
-Fetch a single app by slug (returns `404` with a `detail` field if the slug is not in the catalog):
+:::{tab-item} {iconify}`material-icon-theme:python` Python
+:sync: python
 
-```{code-block} bash
-curl -sS "https://api.patcherctl.dev/apps/firefox" | jq '.current_version, .download_url'
+```python
+import httpx
+
+BASE = "https://api.patcherctl.dev"
+
+with httpx.Client(base_url=BASE) as client:
+    # List the first page of the catalog
+    apps = client.get("/apps", params={"limit": 10}).json()
+
+    # One app's current version and download URL
+    firefox = client.get("/apps/firefox").json()
+    print(firefox["current_version"], firefox["download_url"])
+
+    # Generate an Installomator label
+    label = client.post("/apps/firefox/generate-label").json()
+    print(label["content"])
+
+    # Check cross-source version drift (None if no drift)
+    drift = client.get("/apps/firefox/drift").json()
+    if drift:
+        print(drift["leader"], "leads", drift["laggard"])
 ```
+:::
 
-Source and pagination filters compose server-side. For worked examples covering per-source payloads, label generation, ETag revalidation, and error shapes, see {doc}`/reference/api/examples`.
+:::{tab-item} <span class="patcher-tab-icon"></span> PatcherAPIClient
+:sync: patcher
+
+The `patcher` package wraps every endpoint with typed Pydantic models, so you get attribute access (`app.current_version`) and editor autocomplete. Methods return `None` rather than raising when a slug isn't found.
+
+```python
+from patcher import PatcherAPIClient
+
+async with PatcherAPIClient() as api:
+    # List the first page of the catalog
+    apps = await api.list_apps(limit=10)
+
+    # One app's current version and download URL
+    firefox = await api.get_app("firefox")
+    print(firefox.current_version, firefox.download_url)
+
+    # Generate an Installomator label
+    label = await api.generate_label("firefox")
+    print(label.content)
+
+    # Check cross-source version drift (None if no drift)
+    drift = await api.get_app_drift("firefox")
+    if drift:
+        print(f"{drift.leader} leads {drift.laggard}")
+```
+:::
+
+:::{tab-item} {iconify}`material-icon-theme:javascript` JavaScript
+:sync: javascript
+
+```javascript
+const BASE = "https://api.patcherctl.dev";
+
+// List the first page of the catalog
+const apps = await fetch(`${BASE}/apps?limit=10`).then((r) => r.json());
+
+// One app's current version and download URL
+const firefox = await fetch(`${BASE}/apps/firefox`).then((r) => r.json());
+console.log(firefox.current_version, firefox.download_url);
+
+// Generate an Installomator label
+const label = await fetch(`${BASE}/apps/firefox/generate-label`, {
+  method: "POST",
+}).then((r) => r.json());
+console.log(label.content);
+
+// Check cross-source version drift (null if no drift)
+const drift = await fetch(`${BASE}/apps/firefox/drift`).then((r) => r.json());
+if (drift) console.log(`${drift.leader} leads ${drift.laggard}`);
+```
+:::
+
+:::{tab-item} {iconify}`material-icon-theme:swift` Swift
+:sync: swift
+
+```swift
+import Foundation
+
+func get(_ path: String) async throws -> Any {
+    let url = URL(string: "https://api.patcherctl.dev\(path)")!
+    let (data, _) = try await URLSession.shared.data(from: url)
+    return try JSONSerialization.jsonObject(with: data)
+}
+
+// List the first page of the catalog
+let apps = try await get("/apps?limit=10")
+
+// One app's current version and download URL
+let firefox = try await get("/apps/firefox") as! [String: Any]
+print(firefox["current_version"] ?? "", firefox["download_url"] ?? "")
+
+// Generate an Installomator label (POST)
+var request = URLRequest(url: URL(string: "https://api.patcherctl.dev/apps/firefox/generate-label")!)
+request.httpMethod = "POST"
+let (labelData, _) = try await URLSession.shared.data(for: request)
+let label = try JSONSerialization.jsonObject(with: labelData) as! [String: Any]
+print(label["content"] ?? "")
+
+// Check cross-source version drift (null if no drift)
+if let drift = try await get("/apps/firefox/drift") as? [String: Any] {
+    print(drift["leader"] ?? "", "leads", drift["laggard"] ?? "")
+}
+```
+:::
+
+:::{tab-item} {iconify}`material-icon-theme:ruby` Ruby
+:sync: ruby
+
+```ruby
+require "net/http"
+require "json"
+
+BASE = "https://api.patcherctl.dev"
+
+# List the first page of the catalog
+apps = JSON.parse(Net::HTTP.get(URI("#{BASE}/apps?limit=10")))
+
+# One app's current version and download URL
+firefox = JSON.parse(Net::HTTP.get(URI("#{BASE}/apps/firefox")))
+puts firefox["current_version"], firefox["download_url"]
+
+# Generate an Installomator label
+label = JSON.parse(Net::HTTP.post(URI("#{BASE}/apps/firefox/generate-label"), "").body)
+puts label["content"]
+
+# Check cross-source version drift (nil if no drift)
+drift = JSON.parse(Net::HTTP.get(URI("#{BASE}/apps/firefox/drift")))
+puts "#{drift['leader']} leads #{drift['laggard']}" if drift
+```
+:::
+
+::::
+
+A `404` (with a `detail` field) means the slug isn't in the catalog. For the full cookbook, source payloads, drift, pagination, ETag revalidation, and error shapes, see {doc}`/reference/api/examples`.
 
 ## Caching
 
-Catalog responses carry a weak `ETag` whose value is the SHA-256 of the underlying catalog file. It changes only when a fresh catalog deploys (typically once per day). Store the ETag from your first response and send it back as `If-None-Match` to get a `304 Not Modified` short-circuit when nothing has changed. The API also sits behind Cloudflare, so hot paths usually resolve from edge cache before reaching the origin.
+The catalog only changes when a fresh build deploys, usually once a day. So most of the time, the data you fetched earlier is still current and you don't need to download it again. Two things make that cheap.
 
-## The full endpoint list
+### ETags
 
-This page is a usage primer, not the spec. The complete set of endpoints, parameter constraints, and response shapes (auto-generated from the live OpenAPI schema) lives in the {doc}`endpoint reference </reference/api/endpoints>`. The raw schema is served at `https://api.patcherctl.dev/openapi.json`, with Swagger UI at `/docs` and ReDoc at `/redoc`.
+Every response includes an `ETag` header, a short fingerprint of the current catalog. Hand it back on your next request and the API tells you whether anything actually changed.
+
+::::{steps}
+
+:::{step} Save the ETag
+
+Your first response includes a header like `ETag: "a1b2c3..."`. Hold onto that value (and the response body).
+:::
+
+:::{step} Send it back
+
+On your next request, add the header `If-None-Match: "a1b2c3..."`.
+:::
+
+:::{step} Check the status code
+
+`304 Not Modified` means nothing changed, so reuse the copy you already have (the response body is empty). `200 OK` means the catalog moved, so use the fresh body and save its new ETag.
+:::
+::::
+
+### Cloudflare
+
+The API sits behind Cloudflare's edge cache, so even a plain request usually resolves from a server near you instead of the origin. You get fast responses without doing anything.
+
+:::{seealso}
+For a worked ETag round-trip in `curl`, see {doc}`/reference/api/examples`.
+:::
 
 ## Running your own
 

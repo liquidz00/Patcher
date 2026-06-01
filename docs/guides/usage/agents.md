@@ -18,13 +18,7 @@ Patcher meets agents on two surfaces. The server exposes the public catalog over
 
 ## MCP server
 
-Connect your AI clients to the server at `mcp.patcherctl.dev`. Once connected, you can ask natural-language questions and the assistant calls Patcher on your behalf, returning structured catalog data inline.
-
-As the catalog is public, no authentication is required.
-
-:::{seealso}
-The MCP server is just another method to query alongside the {doc}`REST API </reference/api/endpoints>` and the {class}`~patcher.clients.patcher_api.PatcherAPIClient` Python wrapper.
-:::
+Connect your AI clients to the server at `mcp.patcherctl.dev`. Once connected, you can ask natural-language questions and the assistant calls Patcher on your behalf, returning structured catalog data inline. **No authentication is required** as the catalog is public.
 
 ### Connect your client
 
@@ -60,7 +54,7 @@ If you want Patcher available in every Claude Code session, pass the `--scope us
 }
 :::
 
-Fully quit Claude Desktop (Cmd-Q) and reopen. The Patcher tools appear in the {iconify}`octicon:tools-16` menu next to the input box.
+Fully quit Claude Desktop (`CMD+Q`) and reopen. The Patcher tools appear in the {iconify}`octicon:tools-16` menu next to the input box.
 
 ::::
 
@@ -339,6 +333,20 @@ The Installomator section uses three confidence flags:
 
 ### Limitations
 
-- **AutoPkg fallback is org-scoped.** When local `autopkg search` isn't available, the skill falls back to a GitHub code search across the `autopkg/` org only. Community recipes outside that org won't surface.
-- **Web search filters aggressively.** The Deployment docs section prefers vendor admin docs, `learn.jamf.com`, and `community.jamf.com` accepted solutions. Blog posts and YouTube tutorials are rejected by design. If nothing high-quality surfaces, the section reports `(no official deployment docs surfaced)` rather than fabricating links.
-- **Not a version source.** For current versions and install commands, use the `patcherctl` CLI or {class}`~patcher.clients.patcher_api.PatcherAPIClient` against `api.patcherctl.dev`.
+::::{steps}
+
+:::{step} AutoPkg fallback is org-scoped.
+
+When local `autopkg search` isn't available, the skill falls back to a GitHub code search across the `autopkg/` org only. Community recipes outside that org won't surface.
+:::
+
+:::{step} Web search filters aggressively.
+
+The Deployment docs section prefers vendor admin docs, `learn.jamf.com`, and `community.jamf.com` accepted solutions. Blog posts and YouTube tutorials are rejected by design. If nothing high-quality surfaces, the section reports `(no official deployment docs surfaced)` rather than fabricating links.
+:::
+
+:::{step} Not a version source.
+
+For current versions and install commands, use the `patcherctl` CLI or {class}`~patcher.clients.patcher_api.PatcherAPIClient` against `api.patcherctl.dev`.
+:::
+::::
