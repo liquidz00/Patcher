@@ -190,6 +190,10 @@ html_css_files = [
     "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"
 ]
 
+html_js_files = [
+    "js/collapse-usage.js",
+]
+
 html_theme_options = {
     "color_mode": "auto",
     "announcement": _announcement,
