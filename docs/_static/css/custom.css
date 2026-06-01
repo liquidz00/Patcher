@@ -286,3 +286,20 @@ dl > dt:not(:first-child) {
         flex-direction: column;
     }
 }
+
+/* -- Patcher logo as a tab-item icon (e.g. the PatcherAPIClient tab) --------
+ * Put an empty <span class="patcher-tab-icon"></span> in a tab-item title.
+ * The favicon mark is a self-colored square that reads on both light and dark,
+ * so one image covers both modes. URL is relative to this file in _static/css/.
+ */
+.patcher-tab-icon {
+    display: inline-block;
+    width: 1.15em;
+    height: 1.15em;
+    vertical-align: -0.2em;
+    margin-right: 0.15em;
+    background-image: url("../v2-logo-favicon.svg");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
