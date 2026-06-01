@@ -44,7 +44,8 @@ The wizard prompts for header text, footer text, font choice, logo, and HTML hea
 :sync: plist
 
 ```bash
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:header_text 'AnyOrg Patch Report'" \
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:header_text 'AnyOrg Patch Report'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 ```
 
@@ -77,10 +78,7 @@ async with PatcherClient(
 
 Pass values directly to {class}`~patcher.core.patcher_client.PatcherClient`. Values stay in memory for the lifetime of the client, nothing is written to disk, making it the natural fit for CI/CD pipelines, ephemeral runners, or services that need per-tenant branding.
 :::
-
 ::::
-
-The rest of the page covers each element in detail, with command and library snippets included.
 
 ## Customizable Elements
 
@@ -93,10 +91,20 @@ The rest of the page covers each element in detail, with command and library sni
 :::{tab-item} {iconify}`material-icon-theme:xml` PlistBuddy
 :sync: plist
 
-```bash
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:header_text 'AnyOrg Patch Report'" \
+```{code-block} bash
+:caption: Set header text
+
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:header_text 'AnyOrg Patch Report'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:footer_text 'Made with <3 from IT'" \
+```
+<br>
+
+```{code-block} bash
+:caption: Set footer text
+
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:footer_text 'Made with <3 from IT'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 ```
 
@@ -129,12 +137,22 @@ Custom fonts can introduce alignment or spacing quirks in the PDF. Run a test ex
 :::{tab-item} {iconify}`material-icon-theme:xml` PlistBuddy
 :sync: plist
 
-```bash
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:font_name 'Helvetica'" \
+```{code-block} bash
+:caption: Configuring font options
+
+# Font name
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:font_name 'Helvetica'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:reg_font_path '/path/to/Helvetica-Regular.ttf'" \
+
+# Regular font
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:reg_font_path '/path/to/Helvetica-Regular.ttf'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:bold_font_path '/path/to/Helvetica-Bold.ttf'" \
+
+# Bold font
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:bold_font_path '/path/to/Helvetica-Bold.ttf'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 ```
 
@@ -165,7 +183,8 @@ ui_config = {
 :sync: plist
 
 ```bash
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:header_color '#0071bc'" \
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:header_color '#0071bc'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 ```
 
@@ -213,7 +232,8 @@ Need to generate a logo file from an existing icon? SAP's [`macOS-icon-generator
 :sync: plist
 
 ```bash
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:logo_path '/path/to/logo.png'" \
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:logo_path '/path/to/logo.png'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 ```
 

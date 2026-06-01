@@ -12,35 +12,40 @@ Configuring the settings that power Patcher.
 
 ---
 
-Set up your Jamf credentials once and the `patcherctl` CLI uses them on every run. The setup wizard writes them to the macOS keychain so you don't have to re-enter them.
+Set up your Jamf credentials once and the CLI uses them on every run. Using Patcher as a library? You don't have to hardcode credentials. Run `patcherctl --fresh` once on the machine, then construct with {meth}`PatcherClient.from_state() <patcher.core.patcher_client.PatcherClient.from_state>` to pick up the credentials and UI config automatically.
 
-:::{seealso}
-Using Patcher as a library? You don't have to hardcode credentials. Run `patcherctl --fresh` once on the machine, then construct with {meth}`PatcherClient.from_state() <patcher.core.patcher_client.PatcherClient.from_state>` to pick up the keychain-backed credentials (and persisted UI config) automatically. See the {doc}`library guide </guides/usage/library>` for usage from there.
-:::
+```{code-block} bash
+:caption: Trigger Patcher's setup assistant.
 
-After installing Patcher and creating your Jamf API role + client ({doc}`jamf-api`), launch the wizard with `--fresh`:
-
-```bash
 $ patcherctl --fresh
 ```
 
-It walks you through credential entry, optional Installomator and UI configuration, and writes the result to your macOS keychain so subsequent runs don't have to re-prompt.
-
-:::{note}
-A bare `patcherctl` with no arguments prints the help screen; it does not start setup. The wizard also kicks in automatically the first time you invoke a command while setup is incomplete, but it finishes and exits without running that command, so re-run the command afterward. `patcherctl --fresh` is the reliable way to launch setup on demand.
+:::{seealso}
+For more Library usage examples, see the {doc}`library guide </guides/usage/library>`
 :::
+
+The setup assistant will walk you through credential entry, optional Installomator and UI configuration, and write the result to your macOS keychain for persistence.
 
 ## How first-run detection works
 
-Patcher stores its configuration state in a property list at `~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist`. When you run a `patcherctl` command, the wizard kicks in if:
+Patcher stores its configuration state in a property list in the {ref}`Application Support directory <application_support_dir>` of the User library. When you run a `patcherctl` command, the wizard kicks in if:
 
-- The file doesn't exist yet (truly first run), or
-- The file exists but `setup_completed` is `False`.
+::::{steps}
 
-Once setup completes successfully, `setup_completed` is set to `True` and the wizard is skipped from then on.
+:::{step} The file doesn't exist yet
+
+:::
+
+:::{step} The file exists, but `setup_completed` is `False`
+
+:::
+
+::::
+
+Once setup completes successfully, the setup flag is marked as `True` and the wizard is skipped from then on.
 
 :::{warning}
-Don't edit `setup_completed` by hand. If you need to start over, use `patcherctl reset full` or `patcherctl --fresh` (see [Re-running setup](#starting_fresh) below).
+Don't edit `setup_completed` by hand. If you need to start over, use `patcherctl reset full` or re-rerun `patcherctl --fresh` (see [Re-running setup](#starting_fresh) below).
 :::
 
 (setup_type)=
@@ -77,16 +82,16 @@ Use SSO if your Jamf account uses Single Sign-On.
 
 ## Re-running setup
 
-`--fresh` forces the wizard regardless of saved completion state:
+```{code-block} bash
+:caption: `--fresh` forces the wizard regardless of saved completion state
 
-```bash
 $ patcherctl --fresh
 ```
 
 Use this when you want a clean slate without nuking cached data (for testing, fixing a typo'd credential, or rotating an API client). To also wipe credentials and cached data, use `patcherctl reset full` instead (see {doc}`/guides/usage/cli`).
 
 :::{note}
-If a previous Standard setup attempt failed *after* creating the API role and client on the Jamf side, a second Standard run will fail with a `400` because those objects already exist. Either delete them manually in Jamf and retry, or switch to SSO setup to reuse the existing client credentials.
+If a previous Standard setup attempt failed **after** creating the API role and client on the Jamf side, a second Standard run will fail with a `400` because those objects already exist. Either delete them manually in Jamf and retry, or switch to SSO setup to reuse the existing client credentials.
 :::
 
 ## Storing credentials manually (advanced)
@@ -102,7 +107,3 @@ keyring.set_password("Patcher", "CLIENT_SECRET", "your-client-secret")
 ```
 
 After running the script, the entries appear under the **login** keychain in Keychain Access under the service name `Patcher`.
-
-:::{tip}
-You can skip generating a bearer token. Patcher handles obtaining and refreshing tokens automatically.
-:::

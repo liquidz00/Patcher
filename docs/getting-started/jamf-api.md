@@ -123,7 +123,7 @@ Record the generated client secret immediately and securely as it is shown **onl
 
 ::::
 
-You now have everything Patcher needs: a **Jamf URL**, a **Client ID**, and a **Client Secret**. On macOS, Patcher stores them in your login Keychain on first run and refreshes the OAuth token automatically as needed. On Linux and Windows there is no usable Keychain backend, so Patcher installs a no-op `keyring` backend at import time; library callers on those platforms construct `PatcherClient` with credentials in memory instead (`client_id=...`, `client_secret=...`, `server=...`) rather than relying on disk persistence.
+You now have everything Patcher needs: a **Jamf URL**, a **Client ID**, and a **Client Secret**. Patcher stores them in your login Keychain on first run and refreshes the Bearer token automatically as needed.
 
 ## Token lifetime
 

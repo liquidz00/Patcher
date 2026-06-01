@@ -12,7 +12,7 @@ Getting Patcher onto your Mac in a single command.
 
 ---
 
-Patcher ships as a single PyPI package (`patcherctl`) that includes both the CLI and the importable `patcher` Python library. Pick whichever one fits your workflow.
+Patcher ships as a single package (`patcherctl`) that includes both the CLI and the importable Python library. Pick whichever one fits your workflow.
 
 ## Prerequisites
 
@@ -44,23 +44,21 @@ $ uv pip install patcherctl
 :sync: pip
 
 ```bash
-python3 -m pip install patcherctl
+$ python3 -m pip install patcherctl
 ```
 
 ::::
 :::::
 
-## Nuances
-
-Quirks that may arise during installation or usage of Patcher.
-
 (add-path)=
 
-### Adding to environment path
+## Adding to environment path
 
-If `patcherctl --version` returns `command not found`, your Python user-base `bin` directory isn't on your `PATH`. To add it permanently, execute the following command in Terminal:
+If `patcherctl --version` returns `command not found`, your Python user-base directory isn't set on your environment path.
 
-```bash
+```{code-block} bash
+:caption: Add Patcher's CLI to `$PATH`
+
 $ echo 'export PATH=$(python3 -m site --user-base)/bin:$PATH' >> ~/.zshrc && source ~/.zshrc
 ```
 
@@ -68,7 +66,7 @@ Adjust the profile path for your shell if you're not using `zsh` (e.g. `~/.bashr
 
 (ssl-verify)=
 
-### SSL verification
+## SSL verification
 
 Patcher uses [`httpx`](https://www.python-httpx.org/) with [`truststore`](https://github.com/sethmlarson/truststore) to bridge TLS verification to your macOS Keychain. Any CA your MDM installs at the OS level is automatically trusted (no Python-specific configuration required), and TLS-inspecting proxies (Zscaler, Netskope, Cloudflare Gateway, Palo Alto GlobalProtect) work transparently.
 
