@@ -7,7 +7,7 @@ in :func:`setup`.
 """
 from sphinx.application import Sphinx
 
-from . import highlights, markers, prompt, steps
+from . import definition, highlights, markers, prompt, steps
 
 
 def setup(app: Sphinx) -> dict[str, object]:
@@ -16,4 +16,5 @@ def setup(app: Sphinx) -> dict[str, object]:
     markers.register(app)
     highlights.register(app)
     prompt.register(app)
-    return {"version": "0.2", "parallel_read_safe": True, "parallel_write_safe": True}
+    definition.register(app)
+    return {"version": "0.3", "parallel_read_safe": True, "parallel_write_safe": True}

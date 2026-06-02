@@ -46,6 +46,14 @@ html.light .admonition.seealso {
     --color-3: var(--gray-11);
 }
 
+/* -- definition admonition (docs/ext/styling/definition.py) -----------------
+ * Defines a term inline. Inherits the generic admonition's brand-accent color
+ * tokens (grape in light, dodger blue in dark), so the only override needed is
+ * the icon: a bookmark, to read as "noted term" rather than the default bell. */
+.admonition.definition {
+    --icon-url: var(--lucide-bookmark-url);
+}
+
 /* Center the announcement message. */
 .announcement-inner {
     text-align: center;
