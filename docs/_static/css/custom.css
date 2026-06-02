@@ -47,12 +47,31 @@ html.light .admonition.seealso {
 }
 
 /* -- definition admonition (docs/ext/styling/definition.py) -----------------
- * Defines a term inline. Inherits the generic admonition's brand-accent color
- * tokens (grape in light, dodger blue in dark), so the only override needed is
- * the icon: a bookmark, to read as "noted term" rather than the default bell. */
+ * Defines a term inline. Teal is the one hue no built-in Shibuya admonition
+ * uses (note=blue, important=violet, hint=cyan, tip=green), so a definition
+ * reads as its own thing rather than a recolored note. All four tokens come
+ * from the teal scale (theme-aware) so the surface, border, and title harmonize
+ * instead of fighting the brand accent. Icon is a bookmark, not the default bell. */
 .admonition.definition {
     --icon-url: var(--lucide-bookmark-url);
+    --color-1: var(--teal-surface);   /* body background */
+    --color-2: var(--teal-a3);        /* title-bar background */
+    --color-3: var(--teal-9);         /* left border + icon strip */
+    --color-4: var(--teal-a11);       /* title text */
 }
+
+/* The `$` prompt in shell blocks, tagged Generic.Prompt by docs/ext/cli_lexer.py.
+ * Colored to match Python keywords (from / import / async with) so shell and
+ * Python blocks share the same coral accent, and not selectable so a manual copy
+ * skips it (copybutton already strips it too). Theme-prefixed to match Shibuya's
+ * own Pygments specificity. */
+html.light .highlight .gp,
+html.dark .highlight .gp {
+    -webkit-user-select: none;
+    user-select: none;
+}
+html.light .highlight .gp { color: var(--syntax-light-keyword); }
+html.dark .highlight .gp { color: var(--syntax-dark-keyword); }
 
 /* Center the announcement message. */
 .announcement-inner {
