@@ -12,7 +12,18 @@ Tailor Patcher's PDF and HTML reports to match your organization's branding.
 
 ---
 
-Customizable branding covers the header and footer text, the PDF font, an optional company logo, and the HTML report's header color. The sample below shows where each element ends up.
+::::{highlights}
+{iconify}`octicon:pencil-16` Header & Footer
+: Set the title line and footer credit on every report.
+
+{iconify}`octicon:typography-16` Font
+: Swap in a custom typeface for the PDF.
+
+{iconify}`octicon:image-16` Logo & Color
+: Add a company logo and an HTML accent color.
+::::
+
+The sample below shows where each element ends up.
 
 ```{image} ../_static/example_pdf.png
 :alt: Example PDF
@@ -20,11 +31,12 @@ Customizable branding covers the header and footer text, the PDF font, an option
 :align: center
 ```
 
-:::{important}
-UI customization affects **PDF and HTML reports only**. Excel and JSON exports never read these settings. See [Customizing report appearance](/guides/usage/cli.md#customizing-report-appearance) in the export docs for the full story.
+:::{admonition} Important
+:class: warning
+UI customization affects **PDF and HTML reports only**. Excel and JSON exports never read these settings.
 :::
 
-## How customization works
+## How Customization Works
 
 Different methods to get to the same end result. Pick whichever fits your environment.
 
@@ -128,7 +140,7 @@ ui_config = {
 
 The PDF font is controlled by a display name, and paths to the regular and bold weighted font files. The default is [Google's Assistant](https://fonts.google.com/specimen/Assistant) which is bundled with Patcher.
 
-:::{warning}
+:::{caution}
 Custom fonts can introduce alignment or spacing quirks in the PDF. Run a test export after switching to verify everything still lines up the way you expect.
 :::
 
@@ -209,9 +221,21 @@ A logo on the PDF report ties branding together. Patcher places the logo in the 
 
 ### Supported Logo Requirements
 
-- **File formats**: PNG, JPEG, or any [Pillow-supported image format](https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#fully-supported-formats).
-- **Validation**: Patcher loads the file via Pillow before accepting it; corrupt or unreadable images are rejected at runtime.
-- **Path requirements**: Use an absolute path. The wizard copies the file to `~/Library/Application Support/Patcher/logo.png` and stores that path in the plist, so you only need the file to exist long enough for the copy.
+::::{markers}
+:icon: octicon:check-16
+
+:::{marker} File formats
+PNG, JPEG, or any [Pillow-supported image format](https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#fully-supported-formats).
+:::
+
+:::{marker} Validation
+Patcher loads the file via Pillow before accepting it, so corrupt or unreadable images are rejected at runtime.
+:::
+
+:::{marker} Path requirements
+Use an absolute path. The wizard copies the file to `~/Library/Application Support/Patcher/logo.png` and stores that path in the plist, so you only need the file to exist long enough for the copy.
+:::
+::::
 
 :::{tip}
 Need to generate a logo file from an existing icon? SAP's [`macOS-icon-generator`](https://github.com/SAP/macOS-icon-generator) produces standardized PNG icons at the right resolutions. To copy an absolute path from Finder: hold ⌥, right-click the file, and select **Copy "filename" as Pathname**.
@@ -258,6 +282,6 @@ The path is consulted at export time. Make sure the file is readable by whatever
 
 ## Persistence
 
-When you customize via the CLI (wizard or PlistBuddy), values are written to Patcher's property list at `~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist` and persist across runs. When you customize via the library (`ui_config=`), values stay in memory for the lifetime of the `PatcherClient` and disappear when the process exits.
+When you customize via the CLI (wizard or PlistBuddy), values are written to Patcher's property list and persist across runs. When you customize via the library (`ui_config=`), values stay in memory for the lifetime of the `PatcherClient` and disappear when the process exits.
 
 For the full plist schema, the v2 format-change history, and details on every other key Patcher stores there, see {ref}`property_list_file`.
