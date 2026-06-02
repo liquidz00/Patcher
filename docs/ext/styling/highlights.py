@@ -70,7 +70,6 @@ class HighlightsDirective(SphinxDirective):
         return card
 
 
-def setup(app: Sphinx) -> dict[str, object]:
-    """Sphinx extension setup."""
+def register(app: Sphinx) -> None:
+    """Register the highlights directive."""
     app.add_directive("highlights", HighlightsDirective)
-    return {"version": "0.1", "parallel_read_safe": True, "parallel_write_safe": True}

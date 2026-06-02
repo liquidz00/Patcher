@@ -30,6 +30,22 @@ html.dark {
     --yue-c-code-background: var(--gray-a3);
 }
 
+/* -- seealso admonition → neutral gray --------------------------------------
+ * Shibuya colors seealso with its gold accent. Remap the four admonition color
+ * tokens to grays so the box, title bar, border, and white glyph all read
+ * neutral. Light mode takes a darker border (gray-11) per request; dark mode
+ * keeps the lighter gray-9 the token scale already gives it. */
+.admonition.seealso {
+    --color-1: var(--gray-a2);   /* body background */
+    --color-2: var(--gray-a3);   /* title-bar background */
+    --color-3: var(--gray-9);    /* left border + icon strip */
+    --color-4: var(--gray-12);   /* title text */
+}
+
+html.light .admonition.seealso {
+    --color-3: var(--gray-11);
+}
+
 /* Center the announcement message. */
 .announcement-inner {
     text-align: center;
@@ -55,7 +71,7 @@ dl > dt:not(:first-child) {
     margin-top: 0.75rem;
 }
 
-/* Numbered step sequences (docs/ext/steps.py) */
+/* Numbered step sequences (docs/ext/styling/steps.py) */
 .steps {
     counter-reset: step;
     margin: 1.5rem 0;
@@ -115,7 +131,63 @@ dl > dt:not(:first-child) {
     margin-bottom: 0;
 }
 
-/* -- Prompt styling (docs/ext/prompt.py) --------------------------------
+/* Unordered marker sequences (docs/ext/styling/markers.py). Steps' sibling: the
+ * same vertical spine, but the marker is a real element holding an iconify icon
+ * (a CSS ::before can't render one), and there's no numbering. */
+.markers {
+    margin: 1.5rem 0;
+}
+
+.markers > .marker {
+    position: relative;
+    margin-left: 0.85rem;
+    padding-left: 2.75rem;
+    padding-bottom: 1.5rem;
+    border-left: 2px solid var(--gray-a5);
+}
+
+/* Last marker drops the trailing connector and bottom gap. */
+.markers > .marker:last-child {
+    border-left-color: transparent;
+    padding-bottom: 0;
+}
+
+.markers > .marker > .marker-bullet {
+    position: absolute;
+    left: -0.9rem;
+    top: 0;
+    box-sizing: border-box;
+    width: 1.75rem;
+    height: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--gray-3);
+    color: var(--sy-c-text);
+    border: 1px solid var(--sy-c-border);
+    box-shadow: 0 0 0 4px var(--sy-c-background);
+    font-size: 0.9rem;
+    line-height: 1;
+}
+
+/* marker title */
+.markers > .marker > .marker-title {
+    margin: 0 0 0.5rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.75rem;
+}
+
+.markers > .marker > .marker-title + * {
+    margin-top: 0;
+}
+
+.markers > .marker > :last-child {
+    margin-bottom: 0;
+}
+
+/* -- Prompt styling (docs/ext/styling/prompt.py) ------------------------
  * Chat-input bubble for AI prompt examples. The base block holds only
  * shared layout (positioning, padding, text color); each ``:type:``
  * variant owns its full visual identity (background, border, glyphs)
@@ -222,7 +294,7 @@ dl > dt:not(:first-child) {
     }
 }
 
-/* -- Highlights card strip (docs/ext/highlights.py) ------------------------
+/* -- Highlights card strip (docs/ext/styling/highlights.py) ----------------
  * Horizontal row of borderless, accent-topped cards. Two forms:
  *   - A definition list becomes icon + bold-title + body cards.
  *   - A plain bullet list becomes body-only cards.

@@ -95,18 +95,10 @@ class PromptDirective(SphinxDirective):
         return [node]
 
 
-def setup(app: Sphinx):
-    """Register the extension with Sphinx."""
-
-    # Add the node and directive
+def register(app: Sphinx) -> None:
+    """Register the prompt node and directive."""
     app.add_node(
         prompt,
         html=(visit_prompt_html, None)  # No depart function needed
     )
     app.add_directive('prompt', PromptDirective)
-
-    return {
-        'version': '0.1.0',
-        'parallel_read_safe': True,
-        'parallel_write_safe': True,
-    }
