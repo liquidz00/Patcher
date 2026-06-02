@@ -52,25 +52,25 @@ $ python3 -m pip install patcherctl
 
 (add-path)=
 
-## Adding to environment path
+## Adding to Environment Path
 
 If `patcherctl --version` returns `command not found`, your Python user-base directory isn't set on your environment path.
 
 ```{code-block} bash
-:caption: Add Patcher's CLI to `$PATH`
+:caption: Adjust the profile path for your shell if you're not using `zsh` (e.g. `~/.bashrc`).
 
 $ echo 'export PATH=$(python3 -m site --user-base)/bin:$PATH' >> ~/.zshrc && source ~/.zshrc
 ```
 
-Adjust the profile path for your shell if you're not using `zsh` (e.g. `~/.bashrc`).
-
 (ssl-verify)=
 
-## SSL verification
+## SSL Verification
 
 Patcher uses [`httpx`](https://www.python-httpx.org/) with [`truststore`](https://github.com/sethmlarson/truststore) to bridge TLS verification to your macOS Keychain. Any CA your MDM installs at the OS level is automatically trusted (no Python-specific configuration required), and TLS-inspecting proxies (Zscaler, Netskope, Cloudflare Gateway, Palo Alto GlobalProtect) work transparently.
 
-```{versionchanged} 2.5
+```{admonition} Changed in version 2.4.1
+:class: warning
+
 The HTTP transport migrated from subprocess-`curl` to `httpx`. This is an internal change; `patcherctl` and `PatcherClient` behavior is unchanged for end users.
 ```
 
