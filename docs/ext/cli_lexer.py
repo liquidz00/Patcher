@@ -18,11 +18,25 @@ Registered for the ``bash`` highlight language, so every ```` ```bash ```` block
 gets the same treatment with no per-block changes.
 """
 from pygments.lexers.shell import BashLexer
-from pygments.token import Generic, Name
+from pygments.token import Generic, Name, Text
 from sphinx.application import Sphinx
 
 # CLIs to color when they lead a command line. Extend as needed.
-COMMANDS = frozenset({"patcherctl", "git", "uv", "pip", "gh", "python3", "/usr/libexec/PlistBuddy"})
+COMMANDS = frozenset(
+    {
+        "patcherctl",
+        "git",
+        "uv",
+        "pip",
+        "gh",
+        "python3",
+        "/usr/libexec/PlistBuddy",
+        "curl",
+        "claude",
+        "fastmcp",
+        "jq",
+    }
+)
 
 
 class PatcherBashLexer(BashLexer):
@@ -42,6 +56,8 @@ class PatcherBashLexer(BashLexer):
                     at_command = True  # a new line starts a new command
             elif at_command:
                 if value in COMMANDS:
+                    token = Name.Builtin
+                if token is Text:
                     token = Name.Builtin
                 at_command = False  # only the first word is the command
             else:
