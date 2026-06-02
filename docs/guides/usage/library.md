@@ -29,7 +29,9 @@ The same domain code that backs every `patcherctl` subcommand is reachable throu
 
 Library callers can pass Jamf credentials directly when constructing {class}`~patcher.core.patcher_client.PatcherClient` objects. These clients are async context managers, so to release the underlying API connections cleanly, be sure to use `async with`.
 
-```python
+```{code-block} python
+:caption: Creating a `PatcherClient` instance in async context
+
 import asyncio
 from patcher import PatcherClient
 
@@ -44,14 +46,19 @@ async def main():
 asyncio.run(main())
 ```
 
-### Construction options
+### Construction Options
 
-| Kwarg | Default | Purpose |
-|---|---|---|
-| `client_id`, `client_secret`, `server` | required | Jamf API credentials |
-| `concurrency` | `5` | Max concurrent Jamf API requests |
-| `enable_installomator` | `True` | Set to `False` to skip the catalog client entirely. `patcher.api` becomes `None` and `match_titles` is never called during `fetch_patches`. |
-| `disable_cache` | `False` | Disable on-disk caching under `~/Library/Application Support/Patcher/`. Useful for stateless / CI runs. |
+`client_id`, `client_secret`, `server` *(required)*
+: Jamf API credentials
+
+`concurrency`
+: Max concurrent Jamf API requests *(Default: 5)*
+
+`enable_installomator`
+: Set to `False` to skip the catalog client entirely. *(Default: True)*
+
+`disable_cache`
+: Disable on-disk caching. Useful for stateless / CI runs *(Default: False)*
 
 ```{code-block} python
 :caption: Any `__init__` keyword can be passed as an override
@@ -69,7 +76,7 @@ async with PatcherClient(
 
 ## Export
 
-{meth}`~patcher.core.patcher_client.PatcherClient.fetch_patches` is the one call that gathers what a report needs. It pulls policies and summaries from Jamf and returns a list of {class}`~patcher.core.models.patch.PatchTitle` objects. The {meth}`~patcher.core.patcher_client.PatcherClient.export` method then writes those titles to one or more formats and returns a mapping of format-to-output-path. Omit the `formats` argument entirely to export all four (Excel, PDF, JSON, HTML).
+The {meth}`~patcher.core.patcher_client.PatcherClient.fetch_patches` method is the one call that gathers everything a report needs. It pulls policies and summaries from Jamf and returns a list of {class}`~patcher.core.models.patch.PatchTitle` objects. The {meth}`~patcher.core.patcher_client.PatcherClient.export` method then writes those titles to one or more formats and returns a mapping of format-to-output-path. To export all four formats (Excel, PDF, JSON, HTML), omit the `formats` argument entirely.
 
 ```{code-block} python
 :caption: Gather titles and export
@@ -91,7 +98,10 @@ async with PatcherClient.from_state() as patcher:
     )
 ```
 
-The fetch patches method takes keyword arguments that mirror the CLI's flags. For example:
+:::{card}
+:class-card: sd-card
+Keyword arguments mirror the CLI's flags.
+^^^
 
 `include_ios=True`
 : Append per-iOS-version summaries
@@ -104,12 +114,13 @@ The fetch patches method takes keyword arguments that mirror the CLI's flags. Fo
 
 `match_installomator=False`
 : Skip catalog match entirely
+:::
 
-### Customizing report appearance
+### Customizing Report Appearance
 
 PDF report styling (header text, footer text, custom font, logo, HTML header color) is configured via Patcher's property list. UI configuration only applies to PDF and HTML formats; Excel and JSON exports render correctly without it. See {ref}`Patcher's property list file <property_list_file>` for the full plist schema and valid keys.
 
-### iOS device data
+### iOS Device Data
 
 Passing `include_ios=True` appends iOS / mobile device data to the report so you can see what's running on your fleet alongside the macOS patch coverage. Behind the scenes Patcher calls three Jamf APIs:
 
@@ -131,7 +142,7 @@ Fetches the latest released iOS/iPadOS versions from [SOFA](https://sofa.macadmi
 :::
 ::::
 
-### Homebrew Cask matching
+### Homebrew Cask Matching
 
 Constructing the client with `enable_homebrew=True` widens catalog matching to [Homebrew Cask's](https://github.com/Homebrew/homebrew-cask) catalog, which covers apps that carry no Installomator label. Installomator matches are assigned to each title's `install_label` attribute, Cask matches are assigned to each title's `homebrew_cask` attribute.
 
@@ -145,7 +156,7 @@ async with PatcherClient.from_state(enable_homebrew=True) as patcher:
     await patcher.export(titles, output_dir=Path("~/reports").expanduser())
 ```
 
-### Disabling Installomator matching
+### Disabling Installomator Matching
 
 ```{note}
 Explicit keyword arguments take precedence over property list values.
@@ -192,15 +203,15 @@ async with PatcherClient.from_state() as patcher:
 
 Two criteria families drive analyze, used in different contexts.
 
-::::{steps}
+::::{markers}
 
-:::{step} {class}`~patcher.core.analyze.TitleFilter`
-
+:::{marker} {class}`~patcher.core.analyze.TitleFilter`
+:icon: octicon:file-16
 For analyzing a **single** patch report.
 :::
 
-:::{step} {class}`~patcher.core.analyze.TrendAnalysis`
-
+:::{marker} {class}`~patcher.core.analyze.TrendAnalysis`
+:icon: octicon:graph-16
 For analyzing patch data **over time**, comparing across multiple cached datasets.
 :::
 ::::
@@ -224,23 +235,45 @@ async with PatcherClient.from_state() as patcher:
 :::{grid-item-card} Filter criteria
 :class-card: outline
 
-- `most-installed`
-- `least-installed`
-- `oldest-least-complete`
-- `below-threshold`
-- `recent-release`
-- `zero-completion`
-- `top-performers`
-- `high-missing`
-- `installomator`
+`most-installed`
+: Software titles with the highest number of total installations
+
+`least-installed`
+: Top N least-installed titles (default 5)
+
+`oldest-least-complete`
+: Oldest patches with the lowest completion percent
+
+`below-threshold`
+: Titles with completion below the configured threshold (default 70%)
+
+`recent-release`
+: Patches released in the last week
+
+`zero-completion`
+: Titles with 0% completion
+
+`top-performers`
+: Titles with completion above 90%
+
+`high-missing`
+: Titles where missing patches are >50% of total hosts
+
+`installomator`
+: Titles that match an [Installomator](/project/sources) label
 :::
 
 :::{grid-item-card} Trend criteria
 :class-card: outline
 
-- `patch-adoption`
-- `release-frequency`
-- `completion-trends`
+`patch-adoption`
+: Completion rates over time for each software title
+
+`release-frequency`
+: Frequency of updates per software title
+
+`completion-trends`
+: Correlation between release dates and completion percentages
 :::
 ::::
 
@@ -250,7 +283,7 @@ CLI criteria names are dash-flexible, but library method names use the underscor
 For full method signatures see {class}`~patcher.core.analyze.TitleFilter` and {class}`~patcher.core.analyze.TrendAnalysis`.
 ```
 
-### Generating a summary
+### Generating a Summary
 
 To write an HTML version of the analysis alongside the returned DataFrame, pass `save_to=...` when analyzing trends.
 
@@ -299,7 +332,7 @@ async with PatcherClient.from_state() as patcher:
 To compare two snapshots, construct a {class}`~patcher.core.analyze.Diff` directly. Each side can be a `PatchTitle` list, a DataFrame, or a path to a `.pkl`/`.xlsx` export, as long as it's a Patcher-produced report. See {class}`~patcher.core.analyze.Diff` for full source reference.
 :::
 
-### What gets compared
+### What Gets Compared
 
 A title is **changed** if completion percent, hosts patched, total hosts, or latest version differ between the two snapshots. Released date and Installomator label changes are intentionally ignored. A {class}`~patcher.core.analyze.TitleChange` row carries both before/after values plus the deltas, so consumers don't need to recompute.
 
@@ -330,7 +363,7 @@ async with PatcherClient.from_state() as patcher:
         print(f"Slack: {one.leader} is ahead of {one.laggard}")
 ```
 
-### What gets returned
+### What Gets Returned
 
 Every catalog source independently reports a current version for each app (Installomator's `appNewVersion`, Homebrew Cask's `version`). When they disagree, one source is probably silently stuck. A {class}`~patcher.clients.patcher_api.DriftEntry` carries the slug, name, vendor, every source's reported version, and a `leader`/`laggard` pair (the highest and lowest parsed versions). Both are `None` when any version couldn't be parsed, the raw versions are still in `versions` so you can render the disagreement without ordering it.
 
@@ -361,7 +394,7 @@ async with PatcherClient.from_state() as patcher:
 
 The other three (`UI`, `creds`, `full`) clear keychain and property-list state, so they require keychain-backed credentials and raise {class}`~patcher.core.exceptions.PatcherError` on a client built with in-memory credentials. Reach for those from the {doc}`CLI </guides/usage/cli>`.
 
-## End to end
+## End to End
 
 Putting the pieces together: fetch, filter to the titles that are behind, and export just those to a PDF.
 
@@ -390,11 +423,11 @@ async def main():
 asyncio.run(main())
 ```
 
-## Working with individual clients
+## Working with Individual Clients
 
 If you only need a subset (Jamf without Installomator, or Installomator labels without Jamf credentials), instantiate the per-service clients directly.
 
-### `JamfClient` standalone
+### `JamfClient` Standalone
 
 ```python
 from patcher import JamfClient
@@ -413,7 +446,7 @@ finally:
 
 {meth}`JamfClient.from_credentials <patcher.clients.jamf.JamfClient.from_credentials>` wraps credentials in an in-memory {class}`~patcher.core.config_manager.ConfigManager`. No keyring backend, no disk I/O.
 
-### `InstallomatorClient` standalone
+### `InstallomatorClient` Standalone
 
 Fetch and parse Installomator labels without any Jamf credentials:
 

@@ -55,6 +55,14 @@ Find apps where upstream sources disagree on what "latest" means, the strongest 
 +++
 {iconify}`material-icon-theme:python` [Library](library.md#drift) {iconify}`mdi:bash` [CLI](cli.md#drift)
 :::
+
+:::{grid-item-card} Catalog API
+
+Query the stitched upstream catalog (versions, download URLs, drift, generated labels) over plain HTTP from any language. Reach for it when you need catalog data outside Python, or without standing up your own ingestion.
+
++++
+{iconify}`octicon:globe-16` [Catalog API](api.md)
+:::
 ::::
 
 ```{toctree}
@@ -63,5 +71,4 @@ Find apps where upstream sources disagree on what "latest" means, the strongest 
 library
 cli
 api
-agents
 ```

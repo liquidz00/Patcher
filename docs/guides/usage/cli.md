@@ -33,17 +33,32 @@ Pulling patch data out of Jamf and into formats you can actually share. By defau
 
 ### Options
 
-| Flag | Description |
-|---|---|
-| `--path`, `-p` | Where to save the reports (required) |
-| `--format`, `-f` | Restrict output to specific formats (`excel`, `pdf`, `html`, `json`). Pass multiple times on the CLI |
-| `--sort`, `-s` | Sort reports by a column |
-| `--omit`, `-o` | Skip patches released in the last 48 hours |
-| `--date-format`, `-d` | PDF header date format (see [Date format](#date-format) below) |
-| `--ios`, `-m` | Include iOS device data in reports (see [iOS device data](#ios)) |
-| `--concurrency` | Max concurrent Jamf API requests. Default: `5` |
-| `--device-details`, `-D` | Per-title device sheets in the Excel export (slower on large fleets) |
-| `--homebrew` / `--no-homebrew` | Also match titles against Homebrew Cask; adds a `Homebrew` coverage column (see [Homebrew matching](#homebrew)) |
+`--path`, `-p` *(required)*
+: Where to save the reports
+
+`--format`, `-f`
+: Restrict output to specific formats (`excel`, `pdf`, `html`, `json`). Pass multiple times on the CLI
+
+`--sort`, `-s`
+: Sort reports by a column
+
+`--omit`, `-o`
+: Skip patches released in the last 48 hours
+
+`--date-format`, `-d`
+: PDF header date format (see [Date format](#date-format) below)
+
+`--ios`, `-m`
+: Include iOS device data in reports (see [iOS device data](#ios))
+
+`--concurrency`
+: Max concurrent Jamf API requests *(Default: 5)*
+
+`--device-details`, `-D`
+: Per-title device sheets in the Excel export (slower on large fleets)
+
+`--homebrew` / `--no-homebrew`
+: Also match titles against Homebrew Cask; adds a `Homebrew` coverage column (see [Homebrew matching](#homebrew))
 
 ### Examples
 
@@ -73,7 +88,7 @@ $ patcherctl export --path ~/reports --ios --homebrew
 
 (date-format)=
 
-### Date format
+### Date Format
 
 The PDF header date format defaults to `Month-Day-Year` (e.g. `January 31 2026`). Available options:
 
@@ -97,7 +112,7 @@ Cranking concurrency too high can starve other workloads on your Jamf server. **
 
 (ios)=
 
-### iOS device data
+### iOS Device Data
 
 Passing `--ios` appends iOS / mobile device data to the report so you can see what's running on your fleet alongside the macOS patch coverage. Behind the scenes Patcher calls three Jamf APIs:
 
@@ -123,7 +138,7 @@ The aggregate appears in the report as a count of mobile devices on the latest O
 
 (homebrew)=
 
-### Homebrew Cask matching
+### Homebrew Cask Matching
 
 Patcher matches each Jamf patch title against the Installomator-sourced slugs in the Patcher API catalog. Passing `--homebrew` widens catalog matching to [Homebrew Cask's](https://github.com/Homebrew/homebrew-cask) catalog, which covers apps that carry no Installomator label.
 
@@ -131,7 +146,7 @@ The flag is off by default, so reports without it stay byte-for-byte unchanged. 
 
 (disabling_installomator_support)=
 
-### Disabling Installomator matching
+### Disabling Installomator Matching
 
 If Installomator-style matching doesn't fit your environment, turn the catalog client off entirely. When disabled, no catalog calls are made and the `install_label` field on every {class}`~patcher.core.models.patch.PatchTitle` stays empty.
 
@@ -161,15 +176,15 @@ By default, the analyze command works against the latest exported report. To ana
 
 Two criteria families drive analyze, used in different contexts.
 
-::::{steps}
+::::{markers}
 
-:::{step} {class}`~patcher.core.analyze.TitleFilter`
-
+:::{marker} {class}`~patcher.core.analyze.TitleFilter`
+:icon: octicon:file-16
 For analyzing a **single** patch report.
 :::
 
-:::{step} {class}`~patcher.core.analyze.TrendAnalysis`
-
+:::{marker} {class}`~patcher.core.analyze.TrendAnalysis`
+:icon: octicon:graph-16
 For analyzing patch data **over time**, comparing across multiple cached datasets.
 :::
 ::::
@@ -235,14 +250,23 @@ CLI criteria names are dash-flexible: `most-installed` and `most_installed` both
 
 ### Options
 
-| Flag | Description |
-|---|---|
-| `--criteria X` | Filter or trend criterion. Accepts dash or underscore form. |
-| `--top-n N` | Cap result size for top-N criteria. Ignored by `below-threshold` and `zero-completion` (those return all matching titles). |
-| `--threshold X` | Completion-percent cutoff for `below-threshold`. Default `70.0`. |
-| `--excel-file <path>` | Operate on a specific Excel report rather than the latest cached one. |
-| `--all-time` | Switch from single-report filtering to trend analysis across every cached dataset. |
-| `--summary` + `--output-dir <path>` | Write an HTML version of the analysis alongside the printed table. |
+`--criteria X`
+: Filter or trend criterion. Accepts dash or underscore form
+
+`--top-n N`
+: Cap result size for top-N criteria. Ignored by `below-threshold` and `zero-completion` (those return all matching titles)
+
+`--threshold X`
+: Completion-percent cutoff for `below-threshold` *(Default 70.0)*
+
+`--excel-file <path>`
+: Operate on a specific Excel report rather than the latest cached one
+
+`--all-time`
+: Switch from single-report filtering to trend analysis across every cached dataset
+
+`--summary` + `--output-dir <path>`
+: Write an HTML version of the analysis alongside the printed table
 
 ### Examples
 
@@ -278,7 +302,7 @@ $ patcherctl analyze --all-time --criteria release-frequency
 $ patcherctl analyze --all-time --criteria completion-trends
 ```
 
-### Generating a summary
+### Generating a Summary
 
 Pass `--summary` along with `--output-dir` to write an HTML version of the analysis alongside the stdout table. Summary files follow the naming pattern `patch-analysis-<date>.html` (or `trend-analysis-<criteria>.html` for trend analysis).
 
@@ -306,7 +330,7 @@ Compare patch state across two points in time. Find what shifted, what regressed
 
 Diff reuses the same `~/Library/Caches/Patcher/patch_data_*.pkl` snapshots that drive [Analyze](#analyze), so it works against history Patcher has already been collecting; no extra opt-in.
 
-### How snapshots are selected
+### How Snapshots Are Selected
 
 | Flag | Meaning |
 |---|---|
@@ -324,14 +348,23 @@ Snapshot timestamps come from filesystem mtime, not from the timestamp embedded 
 
 ### Options
 
-| Flag | Description |
-|---|---|
-| `--since <window>` | Trailing window. Accepts `Nd`/`Nh`/`Nw`. |
-| `--all-time` | Earliest snapshot ever. Mutually exclusive with `--since`. |
-| `--between <from> <to>` | Two ISO dates. Cannot combine with `--since`, `--all-time`, or `--no-fetch`. |
-| `--no-fetch` | Compare cached snapshots only. |
-| `--list-snapshots` | Print cache contents and exit. |
-| `--format text\|json` | `text` (default) prints a table; `json` emits a structured {class}`~patcher.core.analyze.DiffResult` for piping. |
+`--since <window>`
+: Trailing window. Accepts `Nd`/`Nh`/`Nw`
+
+`--all-time`
+: Earliest snapshot ever. Mutually exclusive with `--since`
+
+`--between <from> <to>`
+: Two ISO dates. Cannot combine with `--since`, `--all-time`, or `--no-fetch`
+
+`--no-fetch`
+: Compare cached snapshots only
+
+`--list-snapshots`
+: Print cache contents and exit
+
+`--format text\|json`
+: `text` (default) prints a table. `json` emits a structured {class}`~patcher.core.analyze.DiffResult` for piping
 
 ### Examples
 
@@ -381,11 +414,11 @@ Available cached snapshots (oldest → newest):
   2026-05-01T09:14:11  patch_data_05-01-26_09-14-11.pkl
 ```
 
-### What gets compared
+### What Gets Compared
 
 A title is **changed** if completion percent, hosts patched, total hosts, or latest version differ between the two snapshots. Released date and Installomator label changes are intentionally ignored. A {class}`~patcher.core.analyze.TitleChange` row carries both before/after values plus the deltas, so consumers don't need to recompute.
 
-### Output anatomy
+### Output Anatomy
 
 ```{code-block} text
 :caption: Text output: added, changed, removed, and a summary
@@ -433,7 +466,7 @@ Every catalog source independently reports a current version for each app: Insta
 
 `patcherctl drift` surfaces these disagreements. Pair it with a weekly or monthly cadence and you'll catch silent failures upstream tools can't detect themselves.
 
-### Sources that participate
+### Sources That Participate
 
 Only sources that expose a stable per-app version string get compared:
 
@@ -449,14 +482,23 @@ Versions are compared via `packaging.Version` (so `4.32` and `4.32.0` are treate
 
 ### Options
 
-| Flag | Description |
-|---|---|
-| `--slug <slug>` | Inspect a single app. Mutually exclusive with `--vendor`/`--source`. |
-| `--vendor <vendor>` | Case-insensitive exact vendor match. List mode only. |
-| `--source <source>` | Require this source to be one of the disagreeing sources. List mode only. |
-| `--limit <N>` | Page size. Server caps at 1000. Default 100. |
-| `--offset <N>` | Entries to skip before the page. |
-| `--format text\|json` | `json` emits a structured `DriftResponse` or `DriftEntry`. |
+`--slug <slug>`
+: Inspect a single app. Mutually exclusive with `--vendor`/`--source`
+
+`--vendor <vendor>`
+: Case-insensitive exact vendor match. List mode only
+
+`--source <source>`
+: Require this source to be one of the disagreeing sources. List mode only
+
+`--limit <N>`
+: Page size. Server caps at 1000 *(Default 100)*
+
+`--offset <N>`
+: Entries to skip before the page
+
+`--format <text|json>`
+: `json` emits a structured `DriftResponse` or `DriftEntry`
 
 ### Examples
 
@@ -491,7 +533,7 @@ $ patcherctl drift \
   --format json | jq '.entries[] | select(.leader == "homebrew_cask")'
 ```
 
-### What gets returned
+### What Gets Returned
 
 Every catalog source independently reports a current version for each app (Installomator's `appNewVersion`, Homebrew Cask's `version`). When they disagree, one source is probably silently stuck. A {class}`~patcher.clients.patcher_api.DriftEntry` carries the slug, name, vendor, every source's reported version, and a `leader`/`laggard` pair (the highest and lowest parsed versions). Both are `None` when any version couldn't be parsed, the raw versions are still in `versions` so you can render the disagreement without ordering it.
 
@@ -512,12 +554,17 @@ Options are case-insensitive. `full`, `Full`, and `FULL` all work.
 
 ### Options
 
-| Option | What it resets |
-|---|---|
-| `full` | Credentials, UI config, setup state, and cache, then re-runs the setup wizard |
-| `UI` | PDF report appearance (header / footer text, font, optional logo) |
-| `creds` | Keychain credentials (URL, Client ID, Client Secret), all of them or just one |
-| `cache` | Cached patch data under `~/Library/Caches/Patcher` |
+`full`
+: Credentials, UI config, setup state, and cache, then re-runs the setup wizard
+
+`UI`
+: PDF report appearance (header / footer text, font, optional logo)
+
+`creds`
+: Keychain credentials (URL, Client ID, Client Secret), all of them or just one
+
+`cache`
+: Cached patch data under `~/Library/Caches/Patcher`
 
 :::{caution}
 A full credential reset prompts for **all three** values (URL, Client ID, Client Secret). Only run it if you have access to the new credentials, particularly if your environment doesn't use SSO, or you originally relied on Patcher's automatic setup wizard.

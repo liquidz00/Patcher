@@ -14,13 +14,24 @@ Two ways to put Patcher in front of an AI assistant.
 
 Patcher meets agents on two surfaces. The server exposes the public catalog over the [Model Context Protocol](https://modelcontextprotocol.io) (MCP) so that Claude (Code & Desktop), Cursor, or any MCP-aware client can query app coverage through natural language. The [Claude Code skill](#claude-code-skill) is a bundled slash command that looks up a Mac app across catalog sources, and vendor docs in one shot.
 
+::::{highlights}
+{iconify}`material-icon-theme:claude` Connect your client
+: Connecting Claude, Cursor, and other agents to Patcher.
+
+{iconify}`octicon:mcp-16` MCP Recipes
+: Interacting with Patcher via AI Agents
+
+{iconify}`material-icon-theme:claude` Claude Code Skill
+: MCP not the right fit? The bundled Patcher skill for Claude Code can act as a middleground.
+::::
+
 (patcher-mcp)=
 
-## MCP server
+## MCP Server
 
 Connect your AI clients to the server at `mcp.patcherctl.dev`. Once connected, you can ask natural-language questions and the assistant calls Patcher on your behalf, returning structured catalog data inline. **No authentication is required** as the catalog is public.
 
-### Connect your client
+### Connect Your Client
 
 :::::{tab-set}
 :sync-group: mcp-client
@@ -76,28 +87,42 @@ Restart Cursor or use **Refresh** in the MCP panel to load the new server.
 ::::
 :::::
 
-### Verify it works
+### Verify It Works
 
 Smoke-test the connection by asking a Patcher-flavored question. Structured catalog data back means you're connected; if not, see [Troubleshooting](#troubleshooting).
 
-### What you can ask
+### What You Can Ask
 
 You don't need to call these tools by name, your AI client picks the right one automatically based on your question.
 
-Get a catalog summary
-: Top-line stats. Total apps and per-source coverage counts.
+::::{markers}
+:icon: octicon:dependabot-16
 
-Search apps
-: Fuzzy lookup across slug, name, vendor, and bundle ID.
+:::{marker} Get a catalog summary
 
-Get a specific app
-: The full record for one app (versions, sources, download URL, installation method).
+Top-line stats. Total apps and per-source coverage counts.
+:::
 
-Listing drift
-: Apps where upstream sources disagree on the latest version.
+:::{marker} Search apps
 
-List categories
-: Distinct install methods, sources, and vendors present in the catalog.
+Fuzzy lookup across slug, name, vendor, and bundle ID.
+:::
+
+:::{marker} Get a specific app
+
+The full record for one app (versions, sources, download URL, installation method).
+:::
+
+:::{marker} Listing drift
+
+Apps where upstream sources disagree on the latest version.
+:::
+
+:::{marker} Listing categories
+
+Distinct install methods, sources, and vendors present in the catalog.
+:::
+::::
 
 See the {doc}`MCP tools reference </reference/mcp/tools>` for full signatures, and [MCP recipes](#mcp-recipes) for worked prompt examples.
 
@@ -105,58 +130,46 @@ See the {doc}`MCP tools reference </reference/mcp/tools>` for full signatures, a
 
 If the tools don't appear after configuring:
 
-::::::{steps}
+::::{steps}
 
-:::::{step} Check server health
-```{code-block} bash
+:::{step} Check server health
+```bash
 $ curl -sS https://mcp.patcherctl.dev/health
 ```
 Should return `{"status":"ok"}`. If it does not, the catalog itself is unreachable. If it does, the server is up and running and the issue is client-side.
-:::::
-
-:::::{step} Check your agents
-
-::::{tab-set}
-
-:::{tab-item} {iconify}`material-icon-theme:claude` Claude Code
-
-`claude mcp list` confirms whether the server is registered.
-<br>Re-run `claude mcp add` if it's missing.
 :::
 
-:::{tab-item} {iconify}`material-icon-theme:claude` Claude Desktop
+:::{step} Check your agents
 
-Fully quit (`CMD+Q`, not just close the window) and reopen.
-<br>The MCP config is read once at launch.
+{iconify}`material-icon-theme:claude` Claude Code
+: `claude mcp list` confirms whether the server is registered. Re-run `claude mcp add` if it's missing.
+
+{iconify}`material-icon-theme:claude` Claude Desktop
+: Fully quit (`CMD+Q`, not just close the window) and reopen. The MCP config is read once at launch.
+
+{iconify}`material-icon-theme:cursor` Cursor
+: The MCP panel has a Refresh control. Restart Cursor if it still doesn't appear.
+
 :::
 
-:::{tab-item} {iconify}`material-icon-theme:cursor` Cursor
-
-The MCP panel has a Refresh control.
-<br>Restart Cursor if it still doesn't appear.
-:::
-
-::::
-:::::
-
-:::::{step} Check debugging logs
+:::{step} Check debugging logs
 ```{code-block} bash
+:caption: Speak MCP directly and surface any handshake errors verbatim.
+
 $ fastmcp list https://mcp.patcherctl.dev/mcp --transport http --auth none
 ```
-
-For deeper protocol-level debugging, speak MCP directly and surface any handshake errors verbatim.
-:::::
-::::::
+:::
+::::
 
 (mcp-recipes)=
 
-## MCP recipes
+## MCP Recipes
 
 Five tools, lots of useful questions. This section groups example prompts by intent so you can crib whichever match your workflow. The assistant picks the right tool based on phrasing; you don't have to invoke them by name.
 
 For full tool signatures, see {doc}`/reference/mcp/tools`.
 
-### Catalog-wide questions
+### Catalog-Wide Questions
 
 Top-level reads when you want to know what Patcher knows or which sources cover what.
 
@@ -174,7 +187,7 @@ How many apps does Patcher track from Mozilla?
 
 These call `get_catalog_summary` or `list_categories`.
 
-### Single-app drilldowns
+### Single-App Drilldowns
 
 When you know (or roughly know) the app and want the full record.
 
@@ -195,7 +208,7 @@ What's the download URL for the latest Firefox build?
 
 These call `get_app`, or `search_apps` first to disambiguate (e.g. `firefox`, `firefoxesr`, `firefoxpkg`).
 
-### Drift and quality audits
+### Drift and Quality Audits
 
 Do upstream sources agree on the latest version?
 
@@ -211,9 +224,9 @@ Show me drift for Mozilla apps specifically.
 Which apps have Installomator and Homebrew Cask disagreeing on what's latest?
 :::
 
-Backed by `list_drift`, which can filter by vendor or by which source must have participated in the disagreement. Useful for triaging "did this label fall behind upstream?" without scanning the full catalog by hand. For the underlying mental model, see {doc}`/project/pipelines/resolution`.
+Backed by `list_drift`, which can filter by vendor or by which source must have participated in the disagreement. Useful for triaging "did this label fall behind upstream?" without scanning the full catalog by hand. For the underlying mental model, see {doc}`/project/architecture/resolution`.
 
-### Search and exploration
+### Search and Exploration
 
 When you only have a partial app name, or want to compare a few apps.
 
@@ -234,7 +247,7 @@ Search the catalog for anything matching "vsc".
 
 Backed by `search_apps`, which matches case-insensitively against slug, name, vendor, and bundle ID.
 
-### Chained questions
+### Chained Questions
 
 The assistant happily calls multiple tools in one turn when a question requires it. A prompt like the one below first calls `search_apps` to find Mozilla apps, then `list_drift` filtered to that vendor.
 
@@ -264,7 +277,7 @@ List apps where my Installomator label is silently behind Homebrew Cask
 
 (claude-code-skill)=
 
-## Patcher skill
+## Patcher Skill
 
 Patcher ships a [Claude Code](https://claude.com/claude-code) skill alongside the repository. It's a read-only lookup utility that takes an app name, checks {doc}`catalog sources </project/sources>`, and pulls vendor and Jamf deployment documentation into one report. No database writes, no Jamf access required.
 
@@ -323,7 +336,9 @@ Deployment docs
     https://slack.com/help/articles/115004629603
 :::
 
-The Installomator section uses three confidence flags:
+### Confidence Flags
+
+Skill will output a confidence score so you can determine accuracy of findings.
 
 | Score | Flag | Meaning |
 |---|---|---|
@@ -333,20 +348,18 @@ The Installomator section uses three confidence flags:
 
 ### Limitations
 
-::::{steps}
+::::{markers}
+:icon: octicon:alert-16
 
-:::{step} AutoPkg fallback is org-scoped.
-
+:::{marker} AutoPkg fallback is org-scoped
 When local `autopkg search` isn't available, the skill falls back to a GitHub code search across the `autopkg/` org only. Community recipes outside that org won't surface.
 :::
 
-:::{step} Web search filters aggressively.
-
+:::{marker} Web search filters aggressively
 The Deployment docs section prefers vendor admin docs, `learn.jamf.com`, and `community.jamf.com` accepted solutions. Blog posts and YouTube tutorials are rejected by design. If nothing high-quality surfaces, the section reports `(no official deployment docs surfaced)` rather than fabricating links.
 :::
 
-:::{step} Not a version source.
-
+:::{marker} Not a version source
 For current versions and install commands, use the `patcherctl` CLI or {class}`~patcher.clients.patcher_api.PatcherAPIClient` against `api.patcherctl.dev`.
 :::
 ::::

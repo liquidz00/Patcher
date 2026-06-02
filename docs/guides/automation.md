@@ -23,7 +23,7 @@ Create a LaunchAgent on a workstation for time-of-day scheduling, or run Patcher
 : The command runs as soon as a token is fetched. No wizard, no waiting.
 ::::
 
-## Scheduling locally
+## Scheduling Locally
 
 (launch_agent)=
 
@@ -111,12 +111,12 @@ Standard Error
 
 (ci-cd)=
 
-## CI/CD & non-interactive mode
+## CI/CD & Non-Interactive Mode
 
 On a CI runner or build server, Patcher runs in **non-interactive mode**. It reads credentials from flags or environment variables, skips every prompt, and keeps no keychain access or saved state.
 
-:::{important}
-Credentials can be set via command line flags **or** environment variables. If both are used, command line flags take precedence.
+:::{definition} ephemeral runner
+A CI worker created fresh for a single job and destroyed when it finishes, like a GitHub Actions runner or a short-lived container. It keeps no state between runs, so there's no saved keychain or config to read. That's exactly why Patcher takes credentials from flags or environment variables here.
 :::
 
 | CLI flag | Environment variable | Description |
@@ -125,11 +125,17 @@ Credentials can be set via command line flags **or** environment variables. If b
 | `--client-secret` | `PATCHER_CLIENT_SECRET` | Jamf Pro API client secret |
 | `--url` | `PATCHER_URL` | Jamf Pro instance URL |
 
+:::{admonition} Important
+:class: caution
+
+Credentials can be set via command line flags **or** environment variables. If both are used, command line flags take precedence.
+:::
+
 ### Linux and Keyring
 
 Linux runners do not have a built-in keyring backend by default. To handle this, Patcher automatically detects which platform it is being invoked on, and accordingly installs a null backend automatically. CI runners, containers, and Linux cron jobs just work with no setup. To force a specific backend, set `KEYRING_BACKEND` (Patcher won't override one you've already set).
 
-### Quick example
+### Quick Example
 
 ::::{tab-set}
 
@@ -157,7 +163,7 @@ $ patcherctl export --path=/tmp/reports --format=json
 
 ::::
 
-### GitHub Actions workflow
+### GitHub Actions Workflow
 
 Runs Patcher on a schedule and uploads the JSON report as a build artifact. Adjust schedule, output path, and retention to fit your needs.
 
@@ -202,7 +208,7 @@ jobs:
 
 JSON pairs well with downstream automation. Feed it into a job that posts to Slack, ingests into a dashboard, or triggers patching policies based on coverage thresholds.
 
-### Library equivalent
+### Library Equivalent
 
 The CLI invocation in the workflow above is a convenience over the library API. Drop in a Python script if you'd rather build the report logic in-process. This can be useful when you want to filter or transform titles before exporting, or you're integrating Patcher into an existing automation.
 
@@ -234,22 +240,20 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-## What's not supported in non-interactive mode
+## What's Not Supported in Non-Interactive Mode
 
-::::{steps}
+::::{markers}
+:icon: octicon:circle-slash-16
 
-:::{step} Resetting credentials via `reset`
-
+:::{marker} Resetting credentials via `reset`
 Designed for keychain workflows. In CI, update the secrets and re-run.
 :::
 
-:::{step} Interactive setup (`--fresh`)
-
+:::{marker} Interactive setup (`--fresh`)
 Non-interactive mode skips the setup state machine entirely, so this flag does nothing.
 :::
 
-:::{step} Customization prompts
-
+:::{marker} Customization prompts
 PDF header, footer, and logo use built-in defaults. To customize the PDF, configure UI settings on a workstation first and commit the plist values to your CI image, or generate JSON and style it downstream.
 :::
 ::::

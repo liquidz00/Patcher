@@ -30,7 +30,7 @@ The Patcher API is a public, read-only catalog of macOS app patching metadata, s
 {iconify}`material-icon-theme:swagger` [Swagger Docs](https://api.patcherctl.dev/docs)  |  {iconify}`material-icon-theme:document` [Redoc](https://api.patcherctl.dev/redoc)  |  {iconify}`material-icon-theme:openapi` [OpenAPI Schema](https://api.patcherctl.dev/openapi.json)
 :::
 
-## Common requests
+## Common Requests
 
 The catalog is plain HTTP, so reach it from whatever you already script in. Each tab runs the same four calls: list the catalog, pull one app's version and download URL, generate an Installomator label, and check for cross-source version drift. The `patcher` package ships a typed wrapper, {class}`~patcher.clients.patcher_api.PatcherAPIClient` (its own tab below); everyone else hits the URLs directly.
 
@@ -206,7 +206,9 @@ The catalog only changes when a fresh build deploys, usually once a day. So most
 
 ### ETags
 
-Every response includes an `ETag` header, a short fingerprint of the current catalog. Hand it back on your next request and the API tells you whether anything actually changed.
+:::{definition} ETag
+A short fingerprint of the catalog's current state, returned in a response header. Send it back on your next request and the API tells you whether anything changed, so you can skip re-downloading data you already have.
+:::
 
 ::::{steps}
 
@@ -234,6 +236,6 @@ The API sits behind Cloudflare's edge cache, so even a plain request usually res
 For a worked ETag round-trip in `curl`, see {doc}`/reference/api/examples`.
 :::
 
-## Running your own
+## Running Your Own
 
 The hosted instance is the easiest path, but the API is open source and self-hostable. To run your own catalog (your own ingestion schedule, your own data, or an air-gapped deployment), see {doc}`/project/self-hosting`. `PatcherAPIClient` accepts a `base_url=` override to point at a self-hosted instance or a local `make serve-api` run.
