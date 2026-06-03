@@ -45,9 +45,8 @@ extensions = [
     "sphinx_sitemap",
     "myst_parser",
     "ghwiki",
-    "steps",
-    "prompt",
-    "highlights",
+    "styling",
+    "cli_lexer",
 ]
 
 # ghwiki
@@ -190,15 +189,10 @@ html_css_files = [
     "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"
 ]
 
-html_js_files = [
-    "js/collapse-usage.js",
-]
-
 html_theme_options = {
     "color_mode": "auto",
     "announcement": _announcement,
     "accent_color": "violet",
-    "globaltoc_expand_depth": 1,
     "light_logo": "_static/logo-light.svg",
     "dark_logo": "_static/logo-dark.svg",
     "open_in_chatgpt": True,
