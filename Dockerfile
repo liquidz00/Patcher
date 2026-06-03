@@ -1,13 +1,15 @@
-# Patcher API container image.
-# This Dockerfile was AI-assisted in its initial draft. The Patcher maintainer
-# is not a Docker expert; community contributions that improve correctness,
-# image size, security, or build performance are welcome on GitHub.
+# Patcher API container image. AI-assisted initial draft; the maintainer isn't a
+# Docker expert, so community PRs (correctness, size, security, build perf) are welcome.
 
 # syntax=docker/dockerfile:1.7
 
 ARG PYTHON_VERSION=3.13
+ARG UV_VERSION=0.9.7
 
 FROM python:${PYTHON_VERSION}-slim AS builder
+
+# Re-declared here so ${UV_VERSION} is visible to the COPY below (global ARGs aren't).
+ARG UV_VERSION
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -15,29 +17,23 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never \
     UV_PROJECT_ENVIRONMENT=/opt/patcher/.venv
 
-# Install uv from the official distroless image. Pinning by tag rather than
-# digest is intentional for a community-facing example; bump as needed.
-COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /uvx /usr/local/bin/
+# uv from its official image, pinned by tag (not digest) for a community example.
+COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /uvx /usr/local/bin/
 
 WORKDIR /opt/patcher
 
-# Copy only the metadata files first so dependency resolution caches across
-# source-only changes. The api/ workspace member needs its own pyproject.toml
-# present at resolve time because the root pyproject declares it as a member.
-COPY pyproject.toml uv.lock README.md ./
+# Metadata only first, so dependency resolution caches across source-only changes.
+COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY api/pyproject.toml ./api/pyproject.toml
 
-# Materialize the patcherctl source tree just enough for hatchling to read
-# __version__ during workspace resolution. The full source is copied next.
+# Only __about__.py so hatchling can read __version__ at resolve time; full source follows.
 COPY src/patcher/__about__.py ./src/patcher/__about__.py
 
-# Resolve the lockfile, building the API workspace member and its deps.
-# --frozen refuses to update uv.lock; that's what we want in a build context.
+# Resolve deps; --frozen keeps uv.lock read-only during the build.
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --package patcher-api --no-install-project
 
-# Now bring in the rest of the source and install the workspace projects
-# themselves on top of the resolved env.
+# Bring in the full source and install the workspace projects on the resolved env.
 COPY src/ ./src/
 COPY api/ ./api/
 
@@ -53,14 +49,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATCHER_API_DATABASE_URL="sqlite+aiosqlite:////data/patcher_api.db" \
     PATCHER_API_ENV_FILE="/etc/patcher-api/env"
 
-# curl is used by HEALTHCHECK. tini gives us a proper init for signal handling
-# under `docker run` without --init.
+# curl for HEALTHCHECK, tini for init/signal handling without --init.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl tini \
     && rm -rf /var/lib/apt/lists/*
 
-# Non-root runtime user. UID/GID are fixed so bind-mounted /data volumes have
-# predictable ownership on the host side.
+# Non-root user with a fixed UID/GID for predictable /data ownership on bind mounts.
 RUN groupadd --system --gid 1000 patcher \
     && useradd --system --uid 1000 --gid patcher --home-dir /opt/patcher --shell /usr/sbin/nologin patcher \
     && mkdir -p /data /etc/patcher-api \
