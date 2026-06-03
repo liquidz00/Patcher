@@ -6,7 +6,7 @@ description: "Reference for the Patcher MCP server's tool surface."
 # MCP Reference
 
 :::{rst-class} lead
-The five tools the Patcher MCP server exposes.
+The tools the Patcher MCP server exposes.
 :::
 
 ---

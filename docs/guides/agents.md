@@ -165,7 +165,7 @@ $ fastmcp list https://mcp.patcherctl.dev/mcp --transport http --auth none
 
 ## MCP Recipes
 
-Five tools, lots of useful questions. This section groups example prompts by intent so you can crib whichever match your workflow. The assistant picks the right tool based on phrasing; you don't have to invoke them by name.
+A handful of tools, lots of useful questions. This section groups example prompts by intent so you can crib whichever match your workflow. The assistant picks the right tool based on phrasing; you don't have to invoke them by name.
 
 For full tool signatures, see {doc}`/reference/mcp/tools`.
 

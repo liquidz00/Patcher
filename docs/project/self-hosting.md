@@ -71,7 +71,13 @@ $ docker run --rm \
     patcher-api:local
 ```
 
-Visit <http://localhost:8000/health> to confirm the service is up. The first run will start with an empty catalog; see {ref}`populate the catalog <self-hosting-ingest>` below.
+Visit <http://localhost:8000/health> to confirm the service is up.
+
+:::{admonition} Important
+:class: caution
+
+Building and running the image does **not** populate the catalog. On first boot the container drops in a small `SEED_ON_STARTUP` sample (a handful of apps) so `/apps` isn't empty, but the real catalog of thousands of apps comes **only** from the separate {ref}`ingest step <self-hosting-ingest>` below. Don't expect a full catalog straight from `docker run`.
+:::
 
 ### Environment Variables
 
