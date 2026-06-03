@@ -9,34 +9,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [v3.2.0] - 2026-06-03
 ### Added
-- **MCP server mounted on the Patcher API at `/mcp`.** Mac admins can point Claude (or any Streamable HTTP MCP client) at the Patcher catalog and query it through natural-language tool calls — no curl, no API client to install. Five tools ship in v0.1:
-  - `get_catalog_summary` — total apps in the catalog and per-source coverage counts (Installomator, Homebrew Cask, Jamf App Installer, AutoPkg).
-  - `search_apps(query, limit=20)` — case-insensitive substring match across slug, name, vendor, and bundle_id. Slug-ordered for deterministic paging.
-  - `get_app(slug)` — full app projection by exact slug; same shape as `GET /apps/{slug}`.
-  - `list_drift(vendor=None, source=None, limit=25, offset=0)` — surfaces apps where Installomator and Homebrew Cask disagree on the latest version. Same filter/pagination shape as `GET /apps/drift`.
-  - `list_categories` — distinct install methods, sources, and vendors present in the catalog.
-- `fastmcp` added as an API dependency. The server is composed into the existing FastAPI lifespan via `mcp.http_app(path="/", stateless_http=True, json_response=True)` and `app.mount("/mcp", ...)`, so it deploys alongside the REST API with no new infrastructure.
-- **Origin validation middleware on the MCP endpoint.** Per MCP spec rev 2025-06-18, Streamable HTTP servers MUST validate the `Origin` header on incoming requests to prevent DNS rebinding attacks. Patcher's MCP endpoint now enforces this via a Starlette middleware on the mounted ASGI sub-app. Browser requests with an `Origin` not in the allowlist receive HTTP 403 with `{"error":"Origin not allowed"}`. Native clients (Claude Desktop, Cursor, the `fastmcp` CLI) typically don't send an `Origin` header and pass through unchanged. The allowlist is configured via `PATCHER_API_MCP_ALLOWED_ORIGINS` as a JSON list; default is `["https://claude.ai"]`.
-- **Three more MCP tools mirroring REST functionality**: `generate_installomator_label(slug)` projects an app's source data into an Installomator-shaped label dict, `get_app_sources(slug)` returns the raw per-source payloads (complement to the stitched `get_app` projection), and `list_recent_changes(limit=25)` returns the most recently added apps in id-desc order. The MCP catalog now exposes 8 tools total.
-- **MCP resources and prompts.** Beyond the tools, the MCP server now exposes three read-only catalog resources a client can pin to context: `catalog://summary`, `catalog://categories`, and the `catalog://apps/{slug}` template. It also ships three prompts that drive the tools through common workflows: `audit_app_coverage(slug)`, `find_label_for(app_name)`, and `catalog_health_report()`. Shared query helpers keep each resource identical to its mirror tool.
-- **Self-hosting path for the Patcher API.** A reference `Dockerfile`, `.dockerignore`, and `docker-compose.yml` ship at the repo root, alongside a new `docs/project/self-hosting.md` walkthrough covering build, run, env-var configuration, and how to populate the catalog via the `scripts/ingest.py` pipeline. Treat the container setup as community-supported; the public `api.patcherctl.dev` deployment continues to run on systemd.
-- **Rich-based CLI output rendering.** New `patcher.cli._console` module exposes shared `console` / `err_console` singletons and a palette (`INFO_STYLE`, `WARNING_STYLE`, `ERROR_STYLE`, `SUCCESS_STYLE`, `DIM_STYLE`) for consistent terminal styling. Rich tracebacks are installed at the CLI entry point with `show_locals=False` so pasted tracebacks never leak credentials, and asyncclick frames are suppressed for readability. `rich>=13.7.0` is now a direct dependency (was already pulled in transitively).
-- **TrendAnalysis and TitleFilter expansion (v3.2 first pass).** Four new analysis methods plus a chainable pre-filter:
-  - `TitleFilter.impact_weighted_risk` ranks titles by `missing_patch × days_since_release`, surfacing accumulated exposure rather than raw gap size.
-  - `TitleFilter.coverage_gaps` returns titles with neither an Installomator label nor a Homebrew cask match, sorted by missing-patch count descending.
-  - `TitleFilter.where(min_compliance=, min_hosts=, released_after=)` chainable pre-filter; returns a new instance and composes with every existing filter method.
-  - `TrendAnalysis.time_to_patch(threshold=)` measures the average days between release and the first snapshot crossing a completion threshold per title.
-  - `TrendAnalysis.stale_apps(min_snapshots=)` identifies titles whose `latest_version` and `completion_percent` have not moved across the last N snapshots.
-  - `patcherctl analyze` now accepts `--min-compliance`, `--min-hosts`, and `--released-after` pre-filter options that compose with any `--criteria`. A follow-up will add `by_vendor`, `by_install_method`, and a `--has-drift` filter once vendor and install-method enrichment lands on `PatchTitle`.
+- **MCP server for the Patcher catalog.** Point Claude or any Streamable HTTP MCP client at the catalog and ask about it in natural language, with no `curl` or API client required. Eight read-only tools cover catalog summaries, app lookups, search, version drift, categories, Installomator label generation, per-source data, and recent additions, alongside pinnable catalog resources and ready-made prompts. Live at `mcp.patcherctl.dev`, or self-hosted at `/mcp`.
+- **Self-hosting for the Patcher API.** A reference `Dockerfile` and `docker-compose.yml` ship at the repo root with a [self-hosting guide](https://docs.patcherctl.dev/en/latest/project/self-hosting.html), so you can run your own catalog mirror. Community-supported, with the public `api.patcherctl.dev` still running on systemd.
+- **New filters and trends for `analyze`.** Impact-weighted risk ranking (missing patches weighed against days since release), coverage-gap detection (titles with neither an Installomator label nor a Homebrew match), chainable `--min-compliance` / `--min-hosts` / `--released-after` pre-filters, average time-to-patch, and stale-app detection across snapshots.
 
 ### Changed
-- `PatcherError` rendering now uses a red-bordered Rich `Panel` on stderr instead of a flat `click.echo`. A dim rule separates the log-file pointer from the error content, and recovery hints on the exception (if present) render once as a dim paragraph below the message. Presentation-only context keys (`recovery`, `remediation`) are no longer folded into the message string.
-- The custom async `Animation` spinner has been removed entirely in favor of Rich's native `console.status()`, surfaced through a debug-aware `status()` helper so spinner frames no longer interleave with `--debug` log output.
-- All remaining CLI output (status banners, warnings, success messages, tables, JSON, and the `--debug` terminal log handler) now routes through the shared Rich console and palette, replacing the last `click.echo` / `click.style` callsites. Structured output (tables, diff/drift renders) prints with markup disabled, and JSON output pretty-prints via Rich's `print_json`.
+- **CLI output now renders through [Rich](https://github.com/Textualize/rich).** Status messages, warnings, errors, tables, and spinners share one consistent style, errors appear in a bordered panel with recovery hints, and tracebacks hide local variables so pasted output never leaks credentials.
 
 ### Removed
-- The `cves` field on the `App` model and schema across the API, MCP responses, and package client. The field was reserved but never populated by any ingest, and Patcher's scope stays focused on patch reporting and analysis rather than vulnerability intelligence. Catalog consumers should drop any references to `app["cves"]`.
+- Removed the unused `cves` field from the `App` model and from API, MCP, and package-client responses. It was reserved but never populated, and Patcher stays focused on patch reporting and analysis rather than vulnerability intelligence. Drop any references to `app["cves"]`.
 
 ## [v3.1.1] - 2026-05-30
 ### Fixed
