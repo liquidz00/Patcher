@@ -248,8 +248,13 @@ Need to generate a logo file from an existing icon? SAP's [`macOS-icon-generator
 :::{tab-item} {iconify}`mdi:bash` CLI wizard
 :sync: wizard
 
-`patcherctl reset UI` prompts for a logo path during the UI walkthrough. If you provide one, Patcher copies the file to its Application Support directory and writes the resulting path to the plist.
+```{code-block} bash
+:caption: Prompt for logo path during UI walkthrough
 
+$ patcherctl reset UI
+```
+
+If you provide one, Patcher copies the file to its Application Support directory and writes the resulting path to the plist.
 :::
 
 :::{tab-item} {iconify}`material-icon-theme:xml` PlistBuddy

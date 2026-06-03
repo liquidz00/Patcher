@@ -101,7 +101,7 @@ Use this when you want a clean slate without nuking cached data (for testing, fi
 If a previous Standard setup attempt failed **after** creating the API role and client on the Jamf side, a second Standard run will fail with a `400` because those objects already exist. Either delete them manually in Jamf and retry, or switch to SSO setup to reuse the existing client credentials.
 :::
 
-## Storing Credentials Manually (Advanced)
+## Storing Credentials Manually (Optional)
 
 Patcher uses the [`keyring`](https://pypi.org/project/keyring/) library to persist credentials in the macOS login keychain. The wizard does this for you, but if you'd rather seed credentials ahead of time (e.g. provisioning a workstation script-side), this snippet writes them directly:
 
