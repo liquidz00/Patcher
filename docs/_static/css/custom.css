@@ -402,3 +402,72 @@ dl > dt:not(:first-child) {
     background-repeat: no-repeat;
     background-position: center;
 }
+
+/* -- Split card footer (docs/guides/usage/index.md) -------------------------
+ * Opt in per card via grid-item-card's ``:class-footer: split-footer``. Turns a
+ * footer of two markdown links into two equal clickable cells. Putting the link
+ * text (and the trailing arrow glyph) inside the anchor is what makes the whole
+ * half the clickable area, which a sphinx-design button can't do. overflow +
+ * inherited bottom radius keep the hover outline clipped to the card's corners. */
+.yue .surface .sd-card-footer.split-footer {
+    padding: 0;                /* out-specify Shibuya's 1.5rem footer side padding */
+    overflow: hidden;
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
+}
+
+.sd-card-footer.split-footer > p {
+    display: flex;
+    margin: 0;
+    gap: 0;
+}
+
+.sd-card-footer.split-footer > p > a {
+    position: relative;
+    flex: 1 1 50%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0.4rem 1rem;
+    color: var(--sy-c-text);
+    text-decoration: none;
+    border-bottom: none;       /* kill Shibuya's link underline so no accent bar */
+    box-shadow: none;
+    transition: box-shadow 0.15s ease;
+}
+
+/* Muted vertical divider between the halves, inset top and bottom so it never
+ * touches the footer's horizontal separator or the card's bottom edge. */
+.sd-card-footer.split-footer > p > a + a::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 25%;
+    bottom: 25%;
+    width: 1px;
+    background: var(--gray-a5);
+}
+
+/* Leading brand icon (python / bash) sits inline just before the label. */
+.sd-card-footer.split-footer > p > a iconify-icon:first-child {
+    margin-right: 0.45rem;
+    vertical-align: -0.15em;
+}
+
+/* Trailing up-right arrow pinned far-right in each cell to signal "button." */
+.sd-card-footer.split-footer > p > a iconify-icon:last-child {
+    position: absolute;
+    right: 0.7rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gray-10);
+}
+
+/* Hover: outline the hovered cell in the brand accent (inset shadow, no shift). */
+.sd-card-footer.split-footer > p > a:hover {
+    box-shadow: inset 0 0 0 1px var(--accent-9);
+}
+
+.sd-card-footer.split-footer > p > a:hover iconify-icon:last-child {
+    color: var(--accent-9);
+}
