@@ -14,7 +14,10 @@ sphinx:
 
 python:
   install:
+    # Root package first as patcher_api depends on patcherctl
     - method: pip
       path: .
       extra_requirements:
         - docs
+    - method: pip # API autodoc
+      path: api

@@ -1,3 +1,7 @@
+---
+description: "Reference for the CaskMatch model: Homebrew Cask match stubs attached to patch titles."
+---
+
 # Cask Match Model
 
 ```{eval-rst}

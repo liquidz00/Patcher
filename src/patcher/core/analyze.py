@@ -16,6 +16,8 @@ from .models.patch import PatchTitle
 
 _log = LogMe("analyze")
 _CHANGE_FIELDS = ("completion_percent", "hosts_patched", "total_hosts", "latest_version")
+_RELEASED_FMT = "%b %d %Y"
+_WHERE_KWARGS = ("min_compliance", "min_hosts", "released_after")
 
 
 async def sort_titles(titles: list[PatchTitle], sort_key: str) -> list[PatchTitle]:
@@ -266,6 +268,99 @@ class TitleFilter:
         result = [pt for pt in self._titles if pt.install_label != []]
         return self._cap(result, top_n)
 
+    def impact_weighted_risk(self, top_n: int | None = None) -> list[PatchTitle]:
+        """
+        Rank titles by ``missing_patch * days_since_release`` descending.
+
+        A title that's been out for months and still has many unpatched
+        hosts scores higher than a fresh release with the same gap, since
+        the older title represents accumulated exposure. Titles whose
+        ``released`` cannot be parsed are skipped with a debug log.
+
+        :param top_n: Optional cap on result length.
+        :returns: Titles sorted by score descending, capped to ``top_n``.
+        """
+        today = datetime.now()
+        scored: list[tuple[float, PatchTitle]] = []
+        for pt in self._titles:
+            try:
+                released_dt = datetime.strptime(pt.released, _RELEASED_FMT)
+            except (ValueError, TypeError) as exc:
+                self._log.debug(
+                    f"Skipping '{pt.title}' in impact_weighted_risk: unparseable released '{pt.released}' ({exc})"
+                )
+                continue
+            days_since = max((today - released_dt).days, 0)
+            score = pt.missing_patch * days_since
+            scored.append((score, pt))
+
+        scored.sort(key=lambda item: item[0], reverse=True)
+        result = [pt for _, pt in scored]
+        return self._cap(result, top_n)
+
+    def coverage_gaps(self, top_n: int | None = None) -> list[PatchTitle]:
+        """
+        Titles with no Installomator label and no Homebrew cask match,
+        sorted by ``missing_patch`` descending (worst non-covered first).
+
+        :param top_n: Optional cap on result length.
+        :returns: Uncovered titles sorted by missing-patch count.
+        """
+        uncovered = [pt for pt in self._titles if not pt.install_label and not pt.homebrew_cask]
+        result = sorted(uncovered, key=lambda pt: pt.missing_patch, reverse=True)
+        return self._cap(result, top_n)
+
+    def where(
+        self,
+        *,
+        min_compliance: float | None = None,
+        min_hosts: int | None = None,
+        released_after: str | None = None,
+    ) -> "TitleFilter":
+        """
+        Return a new :class:`TitleFilter` whose titles satisfy every supplied
+        constraint. Chainable: ``TitleFilter(titles).where(min_hosts=10).coverage_gaps()``.
+
+        All kwargs are optional and compose as AND. ``released_after`` accepts
+        an ISO date string (``YYYY-MM-DD``); titles whose ``released`` cannot
+        be parsed are skipped with a debug log when this kwarg is set.
+
+        :param min_compliance: Keep titles with ``completion_percent >= min_compliance``.
+        :param min_hosts: Keep titles with ``total_hosts >= min_hosts``.
+        :param released_after: ISO date string; keep titles released on or after this date.
+        :returns: A new ``TitleFilter`` instance. The caller is not mutated.
+        """
+        cutoff_dt: datetime | None = None
+        if released_after is not None:
+            try:
+                cutoff_dt = datetime.fromisoformat(released_after)
+            except (ValueError, TypeError) as exc:
+                raise PatcherError(
+                    "Invalid ISO date for `released_after`.",
+                    received=released_after,
+                    error_msg=str(exc),
+                )
+
+        filtered: list[PatchTitle] = []
+        for pt in self._titles:
+            if min_compliance is not None and pt.completion_percent < min_compliance:
+                continue
+            if min_hosts is not None and pt.total_hosts < min_hosts:
+                continue
+            if cutoff_dt is not None:
+                try:
+                    released_dt = datetime.strptime(pt.released, _RELEASED_FMT)
+                except (ValueError, TypeError) as exc:
+                    self._log.debug(
+                        f"Skipping '{pt.title}' in where(released_after=...): unparseable released '{pt.released}' ({exc})"
+                    )
+                    continue
+                if released_dt < cutoff_dt:
+                    continue
+            filtered.append(pt)
+
+        return TitleFilter(filtered)
+
     @classmethod
     def criteria(cls) -> list[str]:
         """List of CLI-flag-style names for every filter method on this class."""
@@ -279,18 +374,33 @@ class TitleFilter:
         *,
         threshold: float | None = None,
         top_n: int | None = None,
+        where: dict | None = None,
     ) -> list[PatchTitle]:
         """
         Resolve a CLI-style criterion string (e.g. ``"most-installed"``,
         ``"below-threshold"``) to the corresponding filter method and invoke
         it with whichever of ``threshold`` / ``top_n`` the method accepts.
 
+        When ``where`` is provided, the criterion is dispatched against a
+        pre-filtered :class:`TitleFilter` built via :meth:`where`. Unknown
+        keys in the ``where`` dict raise ``PatcherError`` cleanly.
+
         Used by the CLI's ``analyze`` subcommand and by
         :meth:`patcher.core.patcher_client.PatcherClient.analyze`. Library
         callers that already know which filter they want should construct
         directly: ``TitleFilter(titles).most_installed(top_n=10)``.
         """
-        method = _resolve_method(cls, titles, criterion)
+        instance = cls(titles)
+        if where:
+            unknown = [k for k in where if k not in _WHERE_KWARGS]
+            if unknown:
+                raise PatcherError(
+                    "Unknown pre-filter kwargs.",
+                    received=", ".join(unknown),
+                    supported=", ".join(_WHERE_KWARGS),
+                )
+            instance = instance.where(**where)
+        method = _resolve_method_on_instance(instance, criterion)
         kwargs = _accepted_kwargs(method, threshold=threshold, top_n=top_n)
         return method(**kwargs)
 
@@ -328,7 +438,11 @@ class TrendAnalysis:
                 amount_found=len(datasets),
             )
         self._log = LogMe(self.__class__.__name__)
-        self._combined = self._combine_datasets(datasets)
+        # Per-snapshot tuples preserve mtime for snapshot-aware methods
+        # (time_to_patch, stale_apps). _combined keeps the old single-frame
+        # shape for the original trend methods.
+        self._snapshots = self._load_snapshots(datasets)
+        self._combined = self._concat_snapshots(self._snapshots)
 
     @classmethod
     def from_cache(cls, data_manager: DataManager) -> "TrendAnalysis":
@@ -409,6 +523,140 @@ class TrendAnalysis:
         )
         return self._maybe_sort(df, sort_by, ascending)
 
+    def time_to_patch(
+        self,
+        threshold: float = 80.0,
+        sort_by: str | None = None,
+        ascending: bool = True,
+    ) -> pd.DataFrame:
+        """
+        For each title, average the days between release and first snapshot
+        in which ``completion_percent`` crosses ``threshold``.
+
+        Walks snapshots in chronological order. A title's measurement is the
+        gap (in days) between its parsed ``released`` date and the snapshot
+        mtime when the threshold is first met. Titles that never crossed the
+        threshold across any snapshot are excluded.
+
+        :param threshold: Completion-percent value the title must reach.
+        :param sort_by: Optional column name to sort the result by.
+        :param ascending: Sort direction for ``sort_by``.
+        :returns: DataFrame with columns ``Title``, ``Avg Days to Threshold``,
+            ``Sample Size``, ``Threshold``.
+        """
+        ordered = sorted(self._snapshots, key=lambda item: item[0])
+        # Per-title bookkeeping: list of (snapshot_date, gap_days) crossings
+        # plus the most-recent release date observed for that title.
+        measurements: dict[str, list[float]] = {}
+        seen_titles: set[str] = set()
+
+        for snapshot_date, df in ordered:
+            if "title" not in df.columns or "completion_percent" not in df.columns:
+                continue
+            for _, row in df.iterrows():
+                title = row.get("title")
+                if not isinstance(title, str) or not title:
+                    continue
+                seen_titles.add(title)
+                pct = row.get("completion_percent")
+                if pct is None or pd.isna(pct) or float(pct) < threshold:
+                    continue
+                released = row.get("released")
+                if released is None or pd.isna(released):
+                    continue
+                released_dt = self._coerce_datetime(released)
+                if released_dt is None:
+                    self._log.debug(
+                        f"Skipping '{title}' in time_to_patch: unparseable released '{released}'"
+                    )
+                    continue
+                gap_days = (snapshot_date - released_dt).days
+                measurements.setdefault(title, []).append(gap_days)
+
+        rows = []
+        for title, gaps in measurements.items():
+            rows.append(
+                {
+                    "Title": title,
+                    "Avg Days to Threshold": round(sum(gaps) / len(gaps), 2),
+                    "Sample Size": len(gaps),
+                    "Threshold": threshold,
+                }
+            )
+
+        excluded = len(seen_titles) - len(measurements)
+        if excluded > 0:
+            self._log.debug(
+                f"time_to_patch excluded {excluded} title(s) that never crossed threshold {threshold}."
+            )
+
+        df_out = pd.DataFrame(
+            rows, columns=["Title", "Avg Days to Threshold", "Sample Size", "Threshold"]
+        )
+        return self._maybe_sort(df_out, sort_by, ascending)
+
+    def stale_apps(
+        self,
+        min_snapshots: int = 3,
+        sort_by: str | None = None,
+        ascending: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Identify titles whose ``latest_version`` and ``completion_percent``
+        haven't moved across the last ``min_snapshots`` snapshots.
+
+        A title needs to appear in at least ``min_snapshots`` snapshots to
+        qualify. Completion percent is rounded to two decimals before the
+        identity check. "Days Stale" measures the span between the oldest
+        and newest of the considered snapshots.
+
+        :param min_snapshots: Lookback length and minimum samples required.
+        :param sort_by: Optional column name to sort the result by.
+        :param ascending: Sort direction for ``sort_by``.
+        :returns: DataFrame with columns ``Title``, ``Latest Version``,
+            ``Completion %``, ``Days Stale``.
+        """
+        ordered = sorted(self._snapshots, key=lambda item: item[0])
+        # title -> list of (snapshot_date, latest_version, completion_percent)
+        per_title: dict[str, list[tuple[datetime, str, float]]] = {}
+        for snapshot_date, df in ordered:
+            if "title" not in df.columns:
+                continue
+            for _, row in df.iterrows():
+                title = row.get("title")
+                if not isinstance(title, str) or not title:
+                    continue
+                version = row.get("latest_version", "")
+                pct = row.get("completion_percent", 0.0)
+                if pct is None or pd.isna(pct):
+                    pct = 0.0
+                per_title.setdefault(title, []).append(
+                    (snapshot_date, str(version) if version is not None else "", float(pct))
+                )
+
+        rows = []
+        for title, entries in per_title.items():
+            if len(entries) < min_snapshots:
+                continue
+            window = entries[-min_snapshots:]
+            versions = {v for _, v, _ in window}
+            pcts = {round(p, 2) for _, _, p in window}
+            if len(versions) == 1 and len(pcts) == 1:
+                days_stale = (window[-1][0] - window[0][0]).days
+                rows.append(
+                    {
+                        "Title": title,
+                        "Latest Version": next(iter(versions)),
+                        "Completion %": next(iter(pcts)),
+                        "Days Stale": days_stale,
+                    }
+                )
+
+        df_out = pd.DataFrame(
+            rows, columns=["Title", "Latest Version", "Completion %", "Days Stale"]
+        )
+        return self._maybe_sort(df_out, sort_by, ascending)
+
     @classmethod
     def criteria(cls) -> list[str]:
         """List of CLI-flag-style names for every trend method on this class."""
@@ -437,28 +685,66 @@ class TrendAnalysis:
         kwargs = _accepted_kwargs(method, sort_by=sort_by, ascending=ascending)
         return method(**kwargs)
 
-    def _combine_datasets(self, datasets: list[pd.DataFrame | Path | str]) -> pd.DataFrame:
-        dataframes = []
-        for dataset in datasets:
+    def _load_snapshots(
+        self, datasets: list[pd.DataFrame | Path | str]
+    ) -> list[tuple[datetime, pd.DataFrame]]:
+        """
+        Load each dataset and attach a snapshot_date.
+
+        Path inputs use the file mtime as their snapshot date; in-memory
+        DataFrames receive ``datetime.now()`` shifted by their index in the
+        sequence so order is preserved deterministically without colliding.
+        """
+        loaded: list[tuple[datetime, pd.DataFrame]] = []
+        now = datetime.now()
+        for idx, dataset in enumerate(datasets):
             if isinstance(dataset, pd.DataFrame):
-                df = dataset
+                df = dataset.copy()
+                snapshot_date = now - timedelta(seconds=(len(datasets) - idx))
             elif isinstance(dataset, (Path, str)):
                 self._log.debug(f"Loading dataset from: {dataset}")
-                df = self._read_file(Path(dataset))
+                path = Path(dataset)
+                df = self._read_file(path)
+                snapshot_date = datetime.fromtimestamp(path.stat().st_mtime)
             else:
                 raise PatcherError(
                     "Unsupported dataset type.",
                     received=type(dataset).__name__,
                 )
 
-            df.columns = [col.lower().replace(" ", "_") for col in df.columns]
+            df.columns = [str(col).lower().replace(" ", "_") for col in df.columns]
             if "released" in df.columns:
                 df["released"] = pd.to_datetime(df["released"], format="%b %d %Y")
-            dataframes.append(df)
+            loaded.append((snapshot_date, df))
 
-        combined = pd.concat(dataframes, ignore_index=True)
-        self._log.info(f"Combined {len(dataframes)} datasets into a single DataFrame.")
-        return combined
+        self._log.info(f"Loaded {len(loaded)} datasets with snapshot dates.")
+        return loaded
+
+    def _concat_snapshots(self, snapshots: list[tuple[datetime, pd.DataFrame]]) -> pd.DataFrame:
+        """Concatenate snapshot frames into the single combined frame."""
+        if not snapshots:
+            return pd.DataFrame()
+        return pd.concat([df for _, df in snapshots], ignore_index=True)
+
+    def _coerce_datetime(self, value: Any) -> datetime | None:
+        """Best-effort coercion of a released cell into a datetime."""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, pd.Timestamp):
+            return value.to_pydatetime()
+        if isinstance(value, date):
+            return datetime.combine(value, datetime.min.time())
+        if isinstance(value, str):
+            try:
+                return datetime.strptime(value, _RELEASED_FMT)
+            except ValueError:
+                try:
+                    return datetime.fromisoformat(value)
+                except ValueError:
+                    return None
+        return None
 
     def _read_file(self, file_path: Path) -> pd.DataFrame:
         if not file_path.exists() or not file_path.is_file():
@@ -513,7 +799,7 @@ def _filter_method_names(cls: type) -> list[str]:
     ``apply`` / ``criteria`` so :meth:`TitleFilter.criteria` and
     :meth:`TrendAnalysis.criteria` reflect only the criterion surface.
     """
-    skip = {"apply", "criteria", "from_cache"}
+    skip = {"apply", "criteria", "from_cache", "where"}
     return [
         name
         for name in vars(cls)

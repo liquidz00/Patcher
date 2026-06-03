@@ -1,3 +1,7 @@
+---
+description: "Reference for HTTPClient: the httpx and truststore base client with per-instance concurrency limits."
+---
+
 (http_client)=
 
 # HTTPClient

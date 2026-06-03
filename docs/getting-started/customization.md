@@ -12,7 +12,18 @@ Tailor Patcher's PDF and HTML reports to match your organization's branding.
 
 ---
 
-Customizable branding covers the header and footer text, the PDF font, an optional company logo, and the HTML report's header color. The sample below shows where each element ends up.
+::::{highlights}
+{iconify}`octicon:pencil-16` Header & Footer
+: Set the title line and footer credit on every report.
+
+{iconify}`octicon:typography-16` Font
+: Swap in a custom typeface for the PDF.
+
+{iconify}`octicon:image-16` Logo & Color
+: Add a company logo and an HTML accent color.
+::::
+
+The sample below shows where each element ends up.
 
 ```{image} ../_static/example_pdf.png
 :alt: Example PDF
@@ -20,47 +31,41 @@ Customizable branding covers the header and footer text, the PDF font, an option
 :align: center
 ```
 
-:::{important}
-UI customization affects **PDF and HTML reports only**. Excel and JSON exports never read these settings. See [Customizing report appearance](/guides/export.md#customizing-report-appearance) in the export docs for the full story.
+:::{admonition} Important
+:class: warning
+UI customization affects **PDF and HTML reports only**. Excel and JSON exports never read these settings.
 :::
 
-## How customization works
+## How Customization Works
 
-Three flows. Pick whichever fits your environment:
+Different methods to get to the same end result. Pick whichever fits your environment.
 
 ::::{tab-set}
 
-:::{tab-item} {iconify}`material-icon-theme:console` CLI wizard
+:::{tab-item} {iconify}`mdi:bash` Interactive
 :sync: wizard
 
-The simplest path. `patcherctl reset UI` walks you through every UI setting in order and writes the result to your property list. Run it once when onboarding, or any time you want to refresh your branding.
-
-```console
+```bash
 $ patcherctl reset UI
 ```
 
-The wizard prompts for header text, footer text, font choice, optional logo, and HTML header color.
-
+The wizard prompts for header text, footer text, font choice, logo, and HTML header color. Patcher then writes the result to your property list. Run it once when onboarding, or any time you want to refresh your branding.
 :::
 
-:::{tab-item} {iconify}`material-icon-theme:xml` Manual plist edit
+:::{tab-item} {iconify}`material-icon-theme:xml` PlistBuddy
 :sync: plist
 
-Best for scripted provisioning where you want to seed Patcher's branding before any user runs the wizard. Use `PlistBuddy` to write directly to the property list:
-
-```console
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:header_text 'AnyOrg Patch Report'" \
+```bash
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:header_text 'AnyOrg Patch Report'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 ```
 
-Per-key examples are in the sections below. For the full plist schema (including non-UI keys), see {ref}`property_list_file`.
-
+Best for scripted provisioning where you want to seed Patcher's branding before any user runs the wizard. For the full plist schema (including non-UI keys), see {ref}`property_list_file`.
 :::
 
-:::{tab-item} {iconify}`material-icon-theme:python` Library
+:::{tab-item} {iconify}`material-icon-theme:python` Python
 :sync: library
-
-Pass a `ui_config` dict when constructing {class}`~patcher.core.patcher_client.PatcherClient`. Values stay in memory for the lifetime of the client; nothing is written to disk.
 
 ```python
 from patcher import PatcherClient
@@ -83,35 +88,41 @@ async with PatcherClient(
     await patcher.export(titles, output_dir="~/reports", formats={"pdf"})
 ```
 
-This is the natural fit for CI/CD pipelines, ephemeral runners, or services that need per-tenant branding.
-
+Pass values directly to {class}`~patcher.core.patcher_client.PatcherClient`. Values stay in memory for the lifetime of the client, nothing is written to disk, making it the natural fit for CI/CD pipelines, ephemeral runners, or services that need per-tenant branding.
 :::
-
 ::::
-
-The rest of the page covers each element in detail, with both a `PlistBuddy` command and a library snippet. Pick whichever flow fits, or mix them.
 
 ## Customizable Elements
 
 ### Editing the Header & Footer Text
 
-`header_text` sits at the top of every report. `footer_text` sits at the bottom of every PDF page (the page number is appended automatically with ` | <n>`). Both are plain strings, no length cap.
+`header_text` sits at the top of every report. `footer_text` sits at the bottom of every PDF page with the page number appended automatically after it. Both are plain strings, no length restriction.
 
 ::::{tab-set}
 
-:::{tab-item} {iconify}`material-icon-theme:xml` plist
+:::{tab-item} {iconify}`material-icon-theme:xml` PlistBuddy
 :sync: plist
 
-```console
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:header_text 'AnyOrg Patch Report'" \
+```{code-block} bash
+:caption: Set header text
+
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:header_text 'AnyOrg Patch Report'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:footer_text 'Made with <3 from IT'" \
+```
+<br>
+
+```{code-block} bash
+:caption: Set footer text
+
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:footer_text 'Made with <3 from IT'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 ```
 
 :::
 
-:::{tab-item} {iconify}`material-icon-theme:python` Library
+:::{tab-item} {iconify}`material-icon-theme:python` Python
 :sync: library
 
 ```python
@@ -127,29 +138,39 @@ ui_config = {
 
 ### Customizing the Font
 
-The PDF font is controlled by three keys: a display name, a path to the regular weight `.ttf`, and a path to the bold weight `.ttf`. The default is [Google's Assistant](https://fonts.google.com/specimen/Assistant), bundled with Patcher.
+The PDF font is controlled by a display name, and paths to the regular and bold weighted font files. The default is [Google's Assistant](https://fonts.google.com/specimen/Assistant) which is bundled with Patcher.
 
-:::{warning}
+:::{caution}
 Custom fonts can introduce alignment or spacing quirks in the PDF. Run a test export after switching to verify everything still lines up the way you expect.
 :::
 
 ::::{tab-set}
 
-:::{tab-item} {iconify}`material-icon-theme:xml` plist
+:::{tab-item} {iconify}`material-icon-theme:xml` PlistBuddy
 :sync: plist
 
-```console
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:font_name 'Helvetica'" \
+```{code-block} bash
+:caption: Configuring font options
+
+# Font name
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:font_name 'Helvetica'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:reg_font_path '/path/to/Helvetica-Regular.ttf'" \
+
+# Regular font
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:reg_font_path '/path/to/Helvetica-Regular.ttf'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:bold_font_path '/path/to/Helvetica-Bold.ttf'" \
+
+# Bold font
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:bold_font_path '/path/to/Helvetica-Bold.ttf'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 ```
 
 :::
 
-:::{tab-item} {iconify}`material-icon-theme:python` Library
+:::{tab-item} {iconify}`material-icon-theme:python` Python
 :sync: library
 
 ```python
@@ -170,17 +191,18 @@ ui_config = {
 
 ::::{tab-set}
 
-:::{tab-item} {iconify}`material-icon-theme:xml` plist
+:::{tab-item} {iconify}`material-icon-theme:xml` PlistBuddy
 :sync: plist
 
-```console
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:header_color '#0071bc'" \
+```bash
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:header_color '#0071bc'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 ```
 
 :::
 
-:::{tab-item} {iconify}`material-icon-theme:python` Library
+:::{tab-item} {iconify}`material-icon-theme:python` Python
 :sync: library
 
 ```python
@@ -195,13 +217,25 @@ ui_config = {
 
 ## Company Logo
 
-A logo on the PDF report ties branding together. Patcher places the logo in the report header alongside `header_text`.
+A logo on the PDF report ties branding together. Patcher places the logo in the report header alongside the header text.
 
 ### Supported Logo Requirements
 
-- **File formats**: PNG, JPEG, or any [Pillow-supported image format](https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#fully-supported-formats).
-- **Validation**: Patcher loads the file via Pillow before accepting it; corrupt or unreadable images are rejected at runtime.
-- **Path requirements**: Use an absolute path. The wizard copies the file to `~/Library/Application Support/Patcher/logo.png` and stores that path in the plist, so you only need the file to exist long enough for the copy.
+::::{markers}
+:icon: octicon:check-16
+
+:::{marker} File formats
+PNG, JPEG, or any [Pillow-supported image format](https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#fully-supported-formats).
+:::
+
+:::{marker} Validation
+Patcher loads the file via Pillow before accepting it, so corrupt or unreadable images are rejected at runtime.
+:::
+
+:::{marker} Path requirements
+Use an absolute path. The wizard copies the file to `~/Library/Application Support/Patcher/logo.png` and stores that path in the plist, so you only need the file to exist long enough for the copy.
+:::
+::::
 
 :::{tip}
 Need to generate a logo file from an existing icon? SAP's [`macOS-icon-generator`](https://github.com/SAP/macOS-icon-generator) produces standardized PNG icons at the right resolutions. To copy an absolute path from Finder: hold ⌥, right-click the file, and select **Copy "filename" as Pathname**.
@@ -211,18 +245,24 @@ Need to generate a logo file from an existing icon? SAP's [`macOS-icon-generator
 
 ::::{tab-set}
 
-:::{tab-item} {iconify}`material-icon-theme:console` CLI wizard
+:::{tab-item} {iconify}`mdi:bash` CLI wizard
 :sync: wizard
 
-`patcherctl reset UI` prompts for a logo path during the UI walkthrough. If you provide one, Patcher copies the file to its Application Support directory and writes the resulting path to the plist.
+```{code-block} bash
+:caption: Prompt for logo path during UI walkthrough
 
+$ patcherctl reset UI
+```
+
+If you provide one, Patcher copies the file to its Application Support directory and writes the resulting path to the plist.
 :::
 
-:::{tab-item} {iconify}`material-icon-theme:xml` plist
+:::{tab-item} {iconify}`material-icon-theme:xml` PlistBuddy
 :sync: plist
 
-```console
-$ /usr/libexec/PlistBuddy -c "Set :UserInterfaceSettings:logo_path '/path/to/logo.png'" \
+```bash
+$ /usr/libexec/PlistBuddy \
+  -c "Set :UserInterfaceSettings:logo_path '/path/to/logo.png'" \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist
 ```
 
@@ -230,7 +270,7 @@ If you set the path manually, copy the logo file somewhere stable yourself. Patc
 
 :::
 
-:::{tab-item} {iconify}`material-icon-theme:python` Library
+:::{tab-item} {iconify}`material-icon-theme:python` Python
 :sync: library
 
 ```python
@@ -247,6 +287,6 @@ The path is consulted at export time. Make sure the file is readable by whatever
 
 ## Persistence
 
-When you customize via the CLI (wizard or `PlistBuddy`), values are written to Patcher's property list at `~/Library/Application Support/Patcher/com.liquidzoo.patcher.plist` and persist across runs. When you customize via the library (`ui_config=`), values stay in memory for the lifetime of the `PatcherClient` and disappear when the process exits.
+When you customize via the CLI (wizard or PlistBuddy), values are written to Patcher's property list and persist across runs. When you customize via the library (`ui_config=`), values stay in memory for the lifetime of the `PatcherClient` and disappear when the process exits.
 
 For the full plist schema, the v2 format-change history, and details on every other key Patcher stores there, see {ref}`property_list_file`.

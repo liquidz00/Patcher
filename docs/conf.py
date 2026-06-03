@@ -9,6 +9,13 @@ import sys
 import warnings
 
 from patcher.__about__ import __version__
+from sphinx.ext.autodoc.mock import ismock
+
+# linkcode skips api objects when it is None.
+try:
+    import patcher_api
+except ImportError:
+    patcher_api = None
 
 sys.path.insert(0, os.path.abspath("./ext"))
 
@@ -39,7 +46,8 @@ extensions = [
     "sphinx_sitemap",
     "myst_parser",
     "ghwiki",
-    "steps",
+    "styling",
+    "cli_lexer",
 ]
 
 # ghwiki
@@ -66,7 +74,9 @@ autodoc_typehints = "both"
 autodoc_member_order = "bysource"
 autoclass_content = "both"
 autosectionlabel_prefix_document = True
+autosectionlabel_maxdepth = 2
 
+autodoc_mock_imports = ["fastmcp", "mcp"]  # FastMCP fix
 toc_object_entries_show_parents = "hide"
 
 # Pydantic options
@@ -74,7 +84,7 @@ autodoc_pydantic_model_show_json = False
 autodoc_pydantic_model_show_field_summary = False
 
 # MyST Options
-myst_enable_extensions = ["colon_fence"]
+myst_enable_extensions = ["colon_fence", "deflist"]
 myst_heading_anchors = 4
 
 # -- Link Code  --------------------------------------------------------------
@@ -85,6 +95,19 @@ def linkcode_resolve(domain, info):
         return None
 
     modname = info.get("module")
+    if not modname:
+        return None
+
+    # Map two first-party packages to in-repo source roots
+    if modname.startswith("patcher_api."):
+        if patcher_api is None:
+            return None
+        package, source_root = patcher_api, "api/patcher_api"
+    elif modname.startswith("patcher."):
+        package, source_root = patcher, "src/patcher"
+    else:
+        return None
+
     fullname = info.get("fullname")
 
     submod = sys.modules.get(modname)
@@ -100,12 +123,19 @@ def linkcode_resolve(domain, info):
         except AttributeError:
             return None
 
+    # Objects mocked via autodoc_mock_imports (fastmcp / mcp) have no real source,
+    # and inspect.unwrap on a mock spins out thousands of mock subclasses before it
+    # finally errors. Bail before that: these never produced a source link anyway.
+    if ismock(obj):
+        return None
+
+    # Skip callables quietly inspect can't wrap (route handlers, MCP tools)
     try:
         fn = inspect.getsourcefile(inspect.unwrap(obj))
-    except TypeError:
+    except (TypeError, ValueError):
         try:  # property
             fn = inspect.getsourcefile(inspect.unwrap(obj.fget))
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError, ValueError):
             fn = None
     if not fn:
         return None
@@ -115,18 +145,18 @@ def linkcode_resolve(domain, info):
     except (TypeError, OSError):
         try:
             source, lineno = inspect.getsourcelines(obj.fget)  # property
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError, OSError):
             lineno = None
 
     linespec = f"#L{lineno}-L{lineno + len(source) - 1}" if lineno else ""
 
-    # Convert to relative path for GHlinks
-    fn = os.path.relpath(fn, start=os.path.dirname(patcher.__file__))
+    # Convert to a path relative to the chosen package for the GitHub link.
+    fn = os.path.relpath(fn, start=os.path.dirname(package.__file__))
 
     # If development version, link to `develop`
     branch_or_tag = "develop" if "dev" in __version__ else release
 
-    return f"https://github.com/liquidz00/Patcher/blob/{branch_or_tag}/src/patcher/{fn}{linespec}"
+    return f"https://github.com/liquidz00/Patcher/blob/{branch_or_tag}/{source_root}/{fn}{linespec}"
 
 # -- Options for copy button  ------------------------------------------------
 # https://sphinx-copybutton.readthedocs.io/en/latest/use.html
@@ -170,7 +200,6 @@ html_theme_options = {
     "color_mode": "auto",
     "announcement": _announcement,
     "accent_color": "violet",
-    "globaltoc_expand_depth": 1,
     "light_logo": "_static/logo-light.svg",
     "dark_logo": "_static/logo-dark.svg",
     "open_in_chatgpt": True,

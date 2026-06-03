@@ -20,33 +20,33 @@ import sys
 from types import TracebackType
 from typing import Type
 
-import asyncclick as click
-
 from ..core.logger import PatcherLog
+from ._console import console, err_console
 
 
 class TerminalHandler(logging.Handler):
     """
-    Logging handler that emits records as click-styled lines on stdout.
+    Logging handler that emits records as Rich-styled lines on stdout.
 
     Maps each log level to a color so a debug run produces the same visual
     output the legacy in-class ``click.echo`` calls did (magenta DEBUG, blue
-    INFO, bold-yellow WARNING, bold-red ERROR. The leading ``\\r`` preserves
-    the existing behavior of overwriting the current terminal line (used to
-    coexist with the :class:`~patcher.cli.animation.Animation` spinner).
+    INFO, bold-yellow WARNING, bold-red ERROR). The leading ``\\r`` preserves
+    the existing behavior of overwriting the current terminal line. Output
+    routes through the shared :data:`~patcher.cli._console.console`.
     """
 
-    LEVEL_STYLES: dict[int, dict] = {
-        logging.DEBUG: {"fg": "magenta"},
-        logging.INFO: {"fg": "blue"},
-        logging.WARNING: {"fg": "yellow", "bold": True},
-        logging.ERROR: {"fg": "red", "bold": True},
+    LEVEL_STYLES: dict[int, str] = {
+        logging.DEBUG: "magenta",
+        logging.INFO: "blue",
+        logging.WARNING: "bold yellow",
+        logging.ERROR: "bold red",
     }
 
     def emit(self, record: logging.LogRecord) -> None:
-        style = self.LEVEL_STYLES.get(record.levelno, {})
+        style = self.LEVEL_STYLES.get(record.levelno)
         line = f"\r{record.levelname}: {record.getMessage().strip()}"
-        click.echo(click.style(line, **style))
+        # markup=False: log messages can carry literal brackets we must not parse as Rich markup.
+        console.print(line, style=style, markup=False)
 
 
 def install_terminal_handler(debug: bool) -> None:
@@ -93,13 +93,10 @@ def install_terminal_excepthook() -> None:
         if exc_type.__name__ == "KeyboardInterrupt":
             return  # base_hook already exits 130
 
-        click.echo(
-            click.style(f"❌ {exc_type.__name__}: {exc_value}", fg="red", bold=True),
-            err=True,
-        )
-        click.echo(
+        err_console.print(f"❌ {exc_type.__name__}: {exc_value}", style="bold red", markup=False)
+        err_console.print(
             f"💡 For more details, please check the log file at: '{PatcherLog.LOG_FILE}'",
-            err=True,
+            markup=False,
         )
 
     sys.excepthook = hook

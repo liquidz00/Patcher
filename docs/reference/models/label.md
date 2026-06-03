@@ -1,3 +1,7 @@
+---
+description: "Reference for the Label model: Installomator label stubs and generated-label payloads."
+---
+
 # Label Model
 
 ```{eval-rst}

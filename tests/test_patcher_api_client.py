@@ -34,7 +34,6 @@ _FIREFOX_RECORD = {
     "install_method": "pkg",
     "sha256": None,
     "sources": ["installomator", "homebrew_cask"],
-    "cves": [],
 }
 
 

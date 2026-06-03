@@ -11,7 +11,7 @@
 ![](https://img.shields.io/github/v/release/liquidz00/Patcher?logo=github&logoColor=white&color=orange)
 ![](https://img.shields.io/github/actions/workflow/status/liquidz00/Patcher/pytest.yml?logo=github&logoColor=white&label=Run+Tests)
 ![](https://img.shields.io/pypi/v/patcherctl?logo=pypi&logoColor=white&color=yellow)
-![](https://img.shields.io/badge/macOS-10.13%2B-blueviolet?logo=apple&logoColor=white&logoSize=auto)
+![](https://img.shields.io/badge/macOS-13%2B-blueviolet?logo=apple&logoColor=white&logoSize=auto)
 
 <p align="center">
     <img src="https://cdn.worldvectorlogo.com/logos/slack-new-logo.svg" width="16" style="vertical-align: middle; margin-right: 5px;"/>
@@ -26,18 +26,18 @@ A python library and CLI for turning patch reports into something other than a s
 <p align="center">
     <img src="docs/_static/example_pdf.png" width="750" alt="Sample Patcher PDF report"/>
     <br>
-    <sub><i>An exported PDF report for "AnyOrg". See <a href="https://docs.patcherctl.dev/en/latest/getting-started/customization.html">Customization</a> in the project docs for more.</i></sub>
+    <sub>An exported PDF report for "AnyOrg". See <a href="https://docs.patcherctl.dev/en/latest/getting-started/customization.html">Customization</a> in the project docs for more.</sub>
 </p>
 
 ## Installation
 
-```console
-$ python3 -m pip install --upgrade patcherctl
+```bash
+$ python3 -m pip install patcherctl
 ```
 
 ## Usage
 
-Full library and CLI references plus assembled recipes live in the [Guides section](https://docs.patcherctl.dev/en/latest/guides/export.html) of the docs. The two quick examples below cover the common case of fetching Jamf's patch-management view and exporting reports.
+Full library and CLI references plus assembled recipes live in the [Guides section](https://docs.patcherctl.dev/en/latest/guides/usage/index.html) of the docs. The two quick examples below cover the common case of fetching Jamf's patch-management view and exporting reports.
 
 ### Library
 
@@ -59,15 +59,19 @@ asyncio.run(main())
 
 ### CLI
 
-```console
-$ patcherctl --client-id="..." --client-secret="..." --url="https://yourorg.jamfcloud.com" export --path="./reports" --format=pdf
+```bash
+$ patcherctl \
+    --client-id="..." \
+    --client-secret="..." \
+    --url="https://yourorg.jamfcloud.com" \
+    export --path="./reports" --format=pdf
 ```
 
 ## Patcher API
 
-[Patcher's API](https://api.patcherctl.dev/docs) is a community catalog of macOS app patching metadata stitched from [Installomator](https://github.com/Installomator/Installomator), [Homebrew Cask](https://github.com/Homebrew/homebrew-cask), [AutoPkg](https://github.com/autopkg/autopkg) (and more) into a single queryable surface.
+Patcher's API is a community catalog of macOS app patching metadata stitched from [Installomator](https://github.com/Installomator/Installomator), [Homebrew Cask](https://github.com/Homebrew/homebrew-cask), [AutoPkg](https://github.com/autopkg/autopkg) (and more) into a single queryable surface.
 
-Read [endpoints](https://docs.patcherctl.dev/en/latest/reference/api/endpoints.html) are public, there is no authentication required. See [project docs](https://docs.patcherctl.dev/en/latest/reference/api/examples.html) for `curl` and `PatcherClient` examples.
+API is public, no authentication is required. See [project docs](https://docs.patcherctl.dev/en/latest/reference/api/examples.html) for `curl` and `PatcherClient` examples.
 
 ## Contributing
 

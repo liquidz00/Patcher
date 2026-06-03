@@ -5,20 +5,25 @@ description: "Create the Jamf Pro API role and client Patcher needs. Step-by-ste
 # Jamf Configuration
 
 :::{rst-class} lead
-Preparing your Jamf Pro Instance for usage with Patcher.
+Integrating Patcher with your Jamf instance.
 :::
 
 ---
 
-Patcher talks to Jamf via the Jamf API. Before Patcher can read any data, three things have to be in place on the Jamf side:
+In order for Patcher to operate as expected a few things need to be setup on the Jamf side beforehand. This page walks through each. If your Jamf instance uses SSO, see [SSO considerations](#sso-considerations) below for extra steps you'll need to follow.
 
-1. **Patch management software titles** configured for the apps you want to track.
-2. **An API role** with the right privileges.
-3. **An API client** with a client ID and client secret that Patcher uses to authenticate.
+::::{highlights}
+{iconify}`octicon:check-circle-fill-16` Software titles
+: Configured for the apps you want to track.
 
-This page walks through each. If your Jamf instance uses SSO, see [SSO considerations](#sso-considerations) below for extra steps you'll need to follow.
+{iconify}`octicon:check-circle-fill-16` API role
+: Created with the correct privileges.
 
-## Patch management software titles
+{iconify}`octicon:check-circle-fill-16` API client
+: A client ID and client secret that Patcher uses to authenticate.
+::::
+
+## Patch Management Software Titles
 
 Patcher only pulls data from **configured patch management titles**. A title can be available in the [catalog](https://learn.jamf.com/en-US/bundle/jamf-app-catalog/page/Patch_Management_Software_Titles.html) and still be invisible to Patcher. It won't show up in reports until you've configured it for your instance.
 
@@ -26,7 +31,7 @@ Patcher only pulls data from **configured patch management titles**. A title can
 [Configuring a Patch Management Software Title](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Configuring_a_Patch_Management_Software_Title.html) (Jamf Pro Documentation).
 :::
 
-## Create an API role
+## Create an API Role
 
 ::::{steps}
 
@@ -58,7 +63,7 @@ Patcher only pulls data from **configured patch management titles**. A title can
 :::
 ::::
 
-## Create an API client
+## Create an API Client
 
 Once your API role is ready, proceed to create an API client:
 
@@ -94,9 +99,11 @@ This defines how long each token remains valid. See [Token lifetime](#token-life
 
 ::::
 
-### Generate a client secret
+### Generate a Client Secret
 
-:::{important}
+:::{admonition} Important
+:class: caution
+
 Record the generated client secret immediately and securely as it is shown **only once**.
 :::
 
@@ -116,9 +123,9 @@ Record the generated client secret immediately and securely as it is shown **onl
 
 ::::
 
-You now have everything Patcher needs: a **Jamf URL**, a **Client ID**, and a **Client Secret**. On macOS, Patcher stores them in your login Keychain on first run and refreshes the OAuth token automatically as needed. On Linux and Windows there is no usable Keychain backend, so Patcher installs a no-op `keyring` backend at import time; library callers on those platforms construct `PatcherClient` with credentials in memory instead (`client_id=...`, `client_secret=...`, `server=...`) rather than relying on disk persistence.
+You now have everything Patcher needs: a **Jamf URL**, a **Client ID**, and a **Client Secret**. Patcher stores them in your login Keychain on first run and refreshes the Bearer token automatically as needed.
 
-## Token lifetime
+## Token Lifetime
 
 :::{note}
 You don't need to generate access tokens yourself. Patcher's {class}`~patcher.clients.token_manager.TokenManager` handles obtaining and refreshing tokens automatically.
@@ -126,7 +133,7 @@ You don't need to generate access tokens yourself. Patcher's {class}`~patcher.cl
 
 When configuring the API client's access token lifetime, **at least 5 minutes** is recommended. Longer durations reduce regeneration frequency and administrative overhead, but should align with your organization's security policies.
 
-### Generate a token manually (optional)
+### Generate a Token Manually (Optional)
 
 In situations where AccessTokens *need* to be generated manually, copy the bash script below into the code editor of your choice. Substitute your Jamf Pro URL in the `url` variable, and modify the `client_id` and `client_secret` values with the Client ID and secret generated from the steps above.
 
@@ -160,9 +167,8 @@ security add-generic-password -a "TOKEN_EXPIRATION" -s "Patcher" -w "$expires_in
 ::::{tab-item} {iconify}`material-icon-theme:python` Python
 :sync: python
 
-Requires `httpx` and `keyring`. Both are already installed with `patcherctl`.
-
-```python
+:::{code-block} python
+:caption: Requires `httpx` and `keyring`. Both are already installed with `patcherctl`.
 import httpx
 import keyring
 
@@ -183,22 +189,22 @@ response.raise_for_status()
 data = response.json()
 keyring.set_password("Patcher", "TOKEN", data["access_token"])
 keyring.set_password("Patcher", "TOKEN_EXPIRATION", str(data["expires_in"]))
-```
+:::
 
 ::::
 :::::
 
 (handling-sso)=
 
-## SSO considerations
+## SSO Considerations
 
 Patcher's [setup wizard](setup.md) can create the API role and client for you automatically, but only if your Jamf Pro account [doesn't use SSO](https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview#authentication-and-authorization). If SSO is in play, you have two options:
 
-### Option 1: Create the role and client manually
+### Option 1: Create the Role and Client Manually
 
 Follow the steps above to create the API role, client, and secret yourself. Then provide the Client ID and Client Secret to Patcher's setup wizard when prompted. This is the recommended path for SSO environments.
 
-### Option 2: Temporary standard account
+### Option 2: Temporary Standard Account
 
 ::::{steps}
 
@@ -213,6 +219,6 @@ Follow the steps above to create the API role, client, and secret yourself. Then
 
 ::::
 
-## Multi-instance support
+## Multi-Instance Support
 
-Patcher can be reset and pointed at a different Jamf URL via `patcherctl reset creds` (or by constructing {class}`~patcher.core.patcher_client.PatcherClient` with different credentials), but it has only been exercised against a single Jamf instance configured with two [sites](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Sites.html). Multi-tenant patterns (one workstation hopping between two distinct Jamf Pro instances) work in principle but are unverified. File a bug if you hit issues; that path is a candidate for a real test.
+Patcher can be reset and pointed at a different Jamf URL via `patcherctl reset creds` (or by constructing {class}`~patcher.core.patcher_client.PatcherClient` with different credentials), but it has only been exercised against a single Jamf instance configured with two [sites](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Sites.html). Multi-tenant patterns (one workstation hopping between two distinct Jamf Pro instances) should have no problem, but has not been *explicitly tested*. If you run into any issues, be sure to [submit an issue](https://github.com/liquidz00/Patcher/issues/new?template=bug_report.yml) and let us know about it.

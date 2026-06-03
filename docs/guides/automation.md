@@ -5,18 +5,29 @@ description: "Run Patcher unattended via launchd or in CI. Covers non-interactiv
 # Automating Patcher
 
 :::{rst-class} lead
-Running Patcher on a schedule with `launchd` or in CI/CD pipelines.
+Running Patcher on a schedule or in CI/CD pipelines.
 :::
 
 ---
 
-Two patterns cover most automation needs: a `launchd` LaunchAgent on a workstation for time-of-day scheduling, or non-interactive invocations on ephemeral runners (GitHub Actions, Linux build agents, anything without a keychain).
+Create a LaunchAgent on a workstation for time-of-day scheduling, or run Patcher non-interactively with GitHub Actions.
 
-## Scheduling locally with `launchd`
+::::{highlights}
+{iconify}`octicon:key-16` In-memory credentials
+: Passed at runtime and never written to the keychain.
+
+{iconify}`octicon:skip-16` No prompts
+: Setup, Installomator, and UI prompts are skipped. Defaults apply instead.
+
+{iconify}`octicon:zap-16` Runs right away
+: The command runs as soon as a token is fetched. No wizard, no waiting.
+::::
+
+## Scheduling Locally
 
 (launch_agent)=
 
-For a workstation that runs Patcher on a schedule, a `launchd` LaunchAgent is the cleanest option. It hands the scheduling off to macOS and writes stdout/stderr to log files you can tail when something misbehaves.
+On a workstation, a LaunchAgent runs Patcher on a schedule. It hands scheduling to macOS and writes stdout/stderr to log files you can tail when something misbehaves.
 
 :::{warning}
 Make sure both `python3` and `patcherctl` are on your `PATH`. When you install via PyPI, `patcherctl` lands in your Python user-base `bin` directory. See {ref}`add-path` if `patcherctl --version` fails to resolve.
@@ -24,7 +35,7 @@ Make sure both `python3` and `patcherctl` are on your `PATH`. When you install v
 
 ::::{steps}
 :::{step} Build the property list file
-Customize the example `.plist` below to fit your needs. Specifically, be sure to adjust paths and flags under `ProgramArguments` to match what you'd run by hand. `StartCalendarInterval` configures the schedule the agent will run. Reference [Launched](https://launched.zerowidth.com/) as it is a great helper for building these.
+Customize the example property list below to fit your needs. Specifically, be sure to adjust paths and flags under `ProgramArguments` to match what you'd run by hand. `StartCalendarInterval` configures the schedule the agent will run. Reference [Launched](https://launched.zerowidth.com/) as it is a great helper for building these.
 
 ```{code-block} xml
 :caption: ~/Library/LaunchAgents/com.liquidzoo.patcher.plist
@@ -78,23 +89,34 @@ $ launchctl list | grep com.liquidzoo.patcher-export
 
 ### Test the Configuration
 
-To ensure the LaunchAgent is working:
+::::{steps}
 
-1. Manually run the ``patcherctl export`` command to confirm it executes as expected.
-2. Check the logs for errors or confirmation of success:
-   - **Standard Output**: ``~/Library/Application Support/Patcher/logs/patcher-agent.out.log``
-   - **Standard Error**: ``~/Library/Application Support/Patcher/logs/patcher-agent.err.log``
+:::{step} Manually run the export command.
+
+Manually run ``patcherctl export`` command to confirm it executes as expected.
+:::
+
+:::{step} Check the logs.
+
+Check the logs for errors or confirmation of success.
+
+Standard Output
+: `~/Library/Application Support/Patcher/logs/patcher-agent.out.log`
+
+Standard Error
+: `~/Library/Application Support/Patcher/logs/patcher-agent.err.log`
+:::
+
+::::
 
 (ci-cd)=
 
-## CI/CD & non-interactive mode
+## CI/CD & Non-Interactive Mode
 
-For ephemeral environments (GitHub Actions runners, Linux build agents, etc.), Patcher can run in **non-interactive mode**. The same mode {class}`PatcherClient <patcher.core.patcher_client.PatcherClient>` engages when library callers pass `client_id`, `client_secret`, and `server` directly. No keychain access, no setup wizard, no persistent state.
+On a CI runner or build server, Patcher runs in **non-interactive mode**. It reads credentials from flags or environment variables, skips every prompt, and keeps no keychain access or saved state.
 
-### Engaging non-interactive mode
-
-:::{note}
-Credentials can be set via command line flags **or** environment variables. If both are used, command line flags take precedence.
+:::{definition} ephemeral runner
+A CI worker created fresh for a single job and destroyed when it finishes, like a GitHub Actions runner or a short-lived container. It keeps no state between runs, so there's no saved keychain or config to read. That's exactly why Patcher takes credentials from flags or environment variables here.
 :::
 
 | CLI flag | Environment variable | Description |
@@ -103,58 +125,24 @@ Credentials can be set via command line flags **or** environment variables. If b
 | `--client-secret` | `PATCHER_CLIENT_SECRET` | Jamf Pro API client secret |
 | `--url` | `PATCHER_URL` | Jamf Pro instance URL |
 
-#### Important considerations
+:::{admonition} Important
+:class: caution
 
-In non-interactive mode, Patcher:
-
-::::{tab-set}
-
-:::{tab-item} {iconify}`octicon:key-16` Memory-only credentials
-:sync: creds
-
-Credentials are held in memory for the lifetime of the invocation. The macOS keychain is never read or written. Right for ephemeral runners and Docker containers where there's no persistent secret store anyway.
+Credentials can be set via command line flags **or** environment variables. If both are used, command line flags take precedence.
 :::
 
-:::{tab-item} {iconify}`octicon:skip-16` Skips every interactive prompt
-:sync: prompts
+### Linux and Keyring
 
-Setup type, Installomator support, and UI configuration are all bypassed. Any code path that would normally pause for input proceeds with sane defaults instead.
-:::
+Linux runners do not have a built-in keyring backend by default. To handle this, Patcher automatically detects which platform it is being invoked on, and accordingly installs a null backend automatically. CI runners, containers, and Linux cron jobs just work with no setup. To force a specific backend, set `KEYRING_BACKEND` (Patcher won't override one you've already set).
 
-:::{tab-item} {iconify}`octicon:repo-deleted-16` No completion persistence
-:sync: no-persist
-
-Setup completion is not written to disk. The next invocation must provide credentials again, which is exactly what you want on ephemeral runners that wipe their filesystem between jobs.
-:::
-
-:::{tab-item} {iconify}`octicon:zap-16` Runs immediately
-:sync: immediate
-
-The requested subcommand executes as soon as an access token is fetched. No wizard, no prompts, no waiting.
-:::
-
-::::
-
-(linux-keyring)=
-
-### Linux runners: keyring backend
-
-`patcherctl` imports the [`keyring`](https://pypi.org/project/keyring/) library as part of its credential plumbing. On Linux, `keyring` requires a backend that talks to a session keyring (typically Secret Service via D-Bus); CI runners and headless servers don't have one, which historically meant the import would crash before Patcher had a chance to run.
-
-Patcher now handles this automatically. On any non-macOS platform, importing `patcher` installs the no-op `keyring.backends.null.Keyring` so that CI runners, Docker containers, scheduled cron jobs on Linux servers, and Windows hosts all just work — no env-var dance required. Non-interactive mode never reads or writes the keychain anyway, so the null backend has no behavioral cost.
-
-```{important}
-If you want a specific custom backend (e.g. a real Secret Service backend on a graphical Linux desktop), set `KEYRING_BACKEND` explicitly. Patcher honors an existing `KEYRING_BACKEND` env var and does not overwrite it.
-```
-
-### Quick example
+### Quick Example
 
 ::::{tab-set}
 
 :::{tab-item} Via flags
 
 ```bash
-patcherctl \
+$ patcherctl \
   --client-id="abc-123" \
   --client-secret="my-secret" \
   --url="https://my.jamfcloud.com" \
@@ -165,17 +153,17 @@ patcherctl \
 :::{tab-item} Via environment
 
 ```bash
-export PATCHER_CLIENT_ID=abc-123
-export PATCHER_CLIENT_SECRET=my-secret
-export PATCHER_URL=https://my.jamfcloud.com
+$ export PATCHER_CLIENT_ID=abc-123
+$ export PATCHER_CLIENT_SECRET=my-secret
+$ export PATCHER_URL=https://my.jamfcloud.com
 
-patcherctl export --path=/tmp/reports --format=json
+$ patcherctl export --path=/tmp/reports --format=json
 ```
 :::
 
 ::::
 
-### GitHub Actions workflow
+### GitHub Actions Workflow
 
 Runs Patcher on a schedule and uploads the JSON report as a build artifact. Adjust schedule, output path, and retention to fit your needs.
 
@@ -220,11 +208,13 @@ jobs:
 
 JSON pairs well with downstream automation. Feed it into a job that posts to Slack, ingests into a dashboard, or triggers patching policies based on coverage thresholds.
 
-### Library equivalent
+### Library Equivalent
 
 The CLI invocation in the workflow above is a convenience over the library API. Drop in a Python script if you'd rather build the report logic in-process. This can be useful when you want to filter or transform titles before exporting, or you're integrating Patcher into an existing automation.
 
-```python
+```{code-block} python
+:caption: Library callers that pass credentials directly to `PatcherClient(...)` bypass the keyring on every platform.
+
 import asyncio
 import os
 from pathlib import Path
@@ -237,7 +227,7 @@ async def main() -> None:
         client_id=os.environ["PATCHER_CLIENT_ID"],
         client_secret=os.environ["PATCHER_CLIENT_SECRET"],
         server=os.environ["PATCHER_URL"],
-        disable_cache=True,  # ephemeral runner; no on-disk cache wanted
+        disable_cache=True,  # CI runner, no on-disk cache
     ) as patcher:
         titles = await patcher.fetch_patches(sort_by="released")
         await patcher.export(
@@ -250,24 +240,20 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Library callers benefit from one additional advantage: arbitrary transforms between `fetch_patches()` and `export()` (filter to a subset, decorate titles, push to multiple destinations) without piping through the CLI's output formats. No environment-variable dance is required: importing `patcher` installs the null `keyring` backend on non-macOS platforms automatically (see [Linux runners: keyring backend](#linux-runners-keyring-backend) above), and library callers that pass `client_id` / `client_secret` / `server` directly to `PatcherClient(...)` bypass the keyring entirely regardless of platform. Set `KEYRING_BACKEND` only if you specifically want a different backend than the null default.
+## What's Not Supported in Non-Interactive Mode
 
-### Security considerations
+::::{markers}
+:icon: octicon:circle-slash-16
 
-- **Never commit credentials to your repository.** Use GitHub Secrets (or your CI platform's equivalent).
-- **Use a dedicated API client** for CI/CD. Minimum privileges, easy to rotate independently of your interactive account. See {doc}`../getting-started/jamf-api`.
-- **Rotate the client secret periodically.** Treat it like any other long-lived credential.
+:::{marker} Resetting credentials via `reset`
+Designed for keychain workflows. In CI, update the secrets and re-run.
+:::
 
-### Recommended output formats
+:::{marker} Interactive setup (`--fresh`)
+Non-interactive mode skips the setup state machine entirely, so this flag does nothing.
+:::
 
-For machine consumption, JSON is the preferred format. For both machine *and* human output in one run, pass `--format` multiple times:
-
-```bash
-patcherctl export --path=./reports --format=json --format=pdf
-```
-
-### What's not supported in non-interactive mode
-
-- **`patcherctl reset creds`**: designed for keychain workflows. In CI, update the secrets and re-run.
-- **`--fresh` setup flag**: non-interactive mode skips the setup state machine entirely; this flag has no effect.
-- **UI configuration prompts**: PDF header/footer/logo use built-in defaults. If you need a customized PDF, configure UI settings on a workstation first and commit the resulting plist values to your CI image, or generate JSON in CI and style downstream.
+:::{marker} Customization prompts
+PDF header, footer, and logo use built-in defaults. To customize the PDF, configure UI settings on a workstation first and commit the plist values to your CI image, or generate JSON and style it downstream.
+:::
+::::

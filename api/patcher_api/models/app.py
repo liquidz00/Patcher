@@ -35,7 +35,6 @@ class App(Base):
     install_method: Mapped[str | None] = mapped_column(String, nullable=True)
     sha256: Mapped[str | None] = mapped_column(String, nullable=True)
     sources: Mapped[list[str]] = mapped_column(JSON, default=list)
-    cves: Mapped[list[str]] = mapped_column(JSON, default=list)
 
     source_detail: Mapped["AppSourceDetail | None"] = relationship(
         back_populates="app",

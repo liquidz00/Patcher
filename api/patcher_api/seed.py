@@ -35,7 +35,6 @@ async def seed_database(session: AsyncSession) -> int:
             install_method=app.install_method.value,
             sha256=app.sha256,
             sources=app.sources,
-            cves=app.cves,
         )
         if app.slug in SEED_SOURCES:
             sources = SEED_SOURCES[app.slug]

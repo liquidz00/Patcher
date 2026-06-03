@@ -3,8 +3,8 @@ CLI-side report orchestration.
 
 Drives the ``patcherctl export`` workflow: wraps the patch-data pipeline
 (fetch policies → fetch summaries → filter/sort → match Installomator
-labels → export to disk) in an :class:`~patcher.cli.animation.Animation` spinner and prints a
-success banner. Library callers should use the underlying transforms in
+labels → export to disk) in a Rich status spinner and prints a success
+banner. Library callers should use the underlying transforms in
 :mod:`patcher.core.analyze` and call ``patcher.data.export(...)``
 directly.
 """
@@ -12,13 +12,11 @@ directly.
 import os
 from pathlib import Path
 
-import asyncclick as click
-
 from ..core.analyze import append_ios_status, omit_recent, sort_titles
 from ..core.exceptions import APIResponseError, PatcherError
 from ..core.matching import match_titles
 from ..core.patcher_client import PatcherClient
-from .animation import Animation
+from ._console import SUCCESS_STYLE, console, status
 
 
 def _validate_output_dir(path: str | Path) -> str:
@@ -56,9 +54,9 @@ async def process_reports(
     Drive the full CLI report-generation workflow against a configured
     :class:`~patcher.core.patcher_client.PatcherClient`.
 
-    Wraps the orchestration in an :class:`~patcher.cli.animation.Animation`
-    spinner and prints a success banner on completion. Both are CLI-presentation
-    concerns that don't belong in the core layer. Library callers should call
+    Wraps the orchestration in a Rich status spinner and prints a success
+    banner on completion. Both are CLI-presentation concerns that don't
+    belong in the core layer. Library callers should call
     ``patcher.jamf``, the transforms in :mod:`patcher.core.analyze`, and
     ``patcher.data.export(...)`` directly.
 
@@ -92,12 +90,10 @@ async def process_reports(
     :param device_details: If True, include per-title device sheets in Excel export.
     :type device_details: bool
     """
-    animation = Animation(enable_animation=not patcher.debug)
-
-    async with animation.error_handling():
+    with status("Initializing...", enabled=not patcher.debug) as spinner:
         output_path = _validate_output_dir(path)
 
-        await animation.update_msg("Retrieving policy IDs from Jamf...")
+        spinner.update("Retrieving policy IDs from Jamf...")
         try:
             patch_ids = await patcher.jamf.get_policies()
         except APIResponseError as e:
@@ -105,7 +101,7 @@ async def process_reports(
                 "Failed to retrieve policy IDs from Jamf instance.", error_msg=str(e)
             )
 
-        await animation.update_msg("Retrieving patch summaries from Jamf...")
+        spinner.update("Retrieving patch summaries from Jamf...")
         try:
             patch_reports = await patcher.jamf.get_summaries(patch_ids)
         except APIResponseError as e:
@@ -114,15 +110,15 @@ async def process_reports(
             )
 
         if sort:
-            await animation.update_msg("Sorting reports...")
+            spinner.update("Sorting reports...")
             patch_reports = await sort_titles(patch_reports, sort)
 
         if omit:
-            await animation.update_msg("Omitting recent releases...")
+            spinner.update("Omitting recent releases...")
             patch_reports = await omit_recent(patch_reports)
 
         if ios:
-            await animation.update_msg("Including iOS info...")
+            spinner.update("Including iOS info...")
             patch_reports = await append_ios_status(patch_reports, patcher.jamf)
 
         if enable_iom and patcher.api is not None:
@@ -131,7 +127,7 @@ async def process_reports(
                 if enable_homebrew
                 else "Identifying Installomator support for titles..."
             )
-            await animation.update_msg(msg)
+            spinner.update(msg)
             try:
                 await match_titles(
                     patch_reports,
@@ -145,11 +141,11 @@ async def process_reports(
 
         device_reports = None
         if device_details:
-            await animation.update_msg("Fetching per-title patch reports...")
+            spinner.update("Fetching per-title patch reports...")
             title_ids = [patch.title_id for patch in patch_reports]
             device_reports = await patcher.jamf.get_title_reports(title_ids)
 
-        await animation.update_msg("Generating reports...")
+        spinner.update("Generating reports...")
         await patcher.export(
             patch_reports,
             output_dir=output_path,
@@ -160,5 +156,4 @@ async def process_reports(
             device_reports=device_reports,
         )
 
-    animation.stop_event.set()
-    click.echo(click.style(f"\r✅ Success! Reports saved to {output_path}", bold=True, fg="green"))
+    console.print(f"✅ Success! Reports saved to {output_path}", style=SUCCESS_STYLE)

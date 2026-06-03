@@ -12,38 +12,20 @@ Getting Patcher onto your Mac in a single command.
 
 ---
 
-Patcher ships as a single PyPI package (`patcherctl`) that exposes both the `patcherctl` CLI and the importable `patcher` Python library. One install gives you both surfaces; pick whichever fits your workflow.
-
-```{note}
-The package is named `patcherctl` because `patcher` was already taken on PyPI. The project itself is still Patcher; only the install command and CLI binary carry the `ctl` suffix.
-```
+Patcher ships as a single package (`patcherctl`) that includes both the CLI and the importable Python library. Pick whichever one fits your workflow.
 
 ## Prerequisites
 
-::::{grid} 1 2 3 3
-:gutter: 2
-:padding: 0
-:class-row: surface
+::::{highlights}
+{iconify}`material-icon-theme:applescript` macOS (13+)
+: Patcher is macOS-only, sorry Windows users!
 
-:::{grid-item-card} {iconify}`material-icon-theme:applescript` macOS (13+)
+{iconify}`material-icon-theme:python` Python 3.11+
+: From [Python.org](https://www.python.org/downloads/release/python-31115/) or install and use [uv](https://docs.astral.sh/uv/)
 
-Patcher is macOS-only, sorry Windows users!
-:::
-
-:::{grid-item-card} {iconify}`material-icon-theme:python` Python 3.11+
-
-From [Python.org](https://www.python.org/downloads/release/python-31115/) or install and use [uv](https://docs.astral.sh/uv/)
-:::
-
-:::{grid-item-card} {iconify}`material-icon-theme:key` Jamf Pro Access
-
-For OAuth client credential creation and patch title management
-:::
+{iconify}`material-icon-theme:key` Jamf Pro Access
+: For OAuth client credential creation and patch title management
 ::::
-
-```{tip}
-Patcher also ships a [Claude Code](https://claude.com/claude-code) skill that looks up Mac apps across Installomator, Homebrew Cask, AutoPkg, and vendor deployment docs with one slash command. See {doc}`claude-code` for install and usage.
-```
 
 ## Install
 
@@ -53,7 +35,7 @@ Patcher also ships a [Claude Code](https://claude.com/claude-code) skill that lo
 :sync: uv
 
 ```bash
-uv pip install patcherctl
+$ uv pip install patcherctl
 ```
 
 ::::
@@ -62,35 +44,33 @@ uv pip install patcherctl
 :sync: pip
 
 ```bash
-python3 -m pip install --upgrade patcherctl
+$ python3 -m pip install patcherctl
 ```
 
 ::::
 :::::
 
-## Nuances
-
-Quirks that may arise during installation or usage of Patcher.
-
 (add-path)=
 
-### `command not found` Error
+## Adding to Environment Path
 
-If `patcherctl --version` returns `command not found`, your Python user-base `bin` directory isn't on your `PATH`. To add it permanently, execute the following command in Terminal:
+If `patcherctl --version` returns `command not found`, your Python user-base directory isn't set on your environment path.
 
-```bash
-echo 'export PATH=$(python3 -m site --user-base)/bin:$PATH' >> ~/.zshrc && source ~/.zshrc
+```{code-block} bash
+:caption: Adjust the profile path for your shell if you're not using `zsh` (e.g. `~/.bashrc`).
+
+$ echo 'export PATH=$(python3 -m site --user-base)/bin:$PATH' >> ~/.zshrc && source ~/.zshrc
 ```
-
-Adjust the profile path for your shell if you're not using `zsh` (e.g. `~/.bashrc`).
 
 (ssl-verify)=
 
-### SSL verification
+## SSL Verification
 
-Patcher uses [`httpx`](https://www.python-httpx.org/) with [`truststore`](https://github.com/sethmlarson/truststore) to bridge TLS verification to your operating system's native trust store (macOS Keychain). Any CA your MDM installs at the OS level is automatically trusted (no Python-specific configuration required), and TLS-inspecting proxies (Zscaler, Netskope, Cloudflare Gateway, Palo Alto GlobalProtect) work transparently.
+Patcher uses [`httpx`](https://www.python-httpx.org/) with [`truststore`](https://github.com/sethmlarson/truststore) to bridge TLS verification to your macOS Keychain. Any CA your MDM installs at the OS level is automatically trusted (no Python-specific configuration required), and TLS-inspecting proxies (Zscaler, Netskope, Cloudflare Gateway, Palo Alto GlobalProtect) work transparently.
 
-```{versionchanged} 2.5
+```{admonition} Changed in version 2.4.1
+:class: warning
+
 The HTTP transport migrated from subprocess-`curl` to `httpx`. This is an internal change; `patcherctl` and `PatcherClient` behavior is unchanged for end users.
 ```
 

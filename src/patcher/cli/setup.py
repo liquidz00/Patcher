@@ -15,7 +15,7 @@ from ..core.models.jamf import JamfCredentials
 from ..core.models.token import AccessToken
 from ..core.models.ui import UIConfigKeys, UIDefaults
 from ..core.plist_manager import PropertylistManager
-from .animation import Animation
+from ._console import ERROR_STYLE, INFO_STYLE, _NoOpStatus, console
 
 # Welcome messages
 GREET = "Thanks for downloading Patcher!\n"
@@ -66,7 +66,9 @@ class Setup:
         self.ui_config = ui_config
         self.plist_manager = plist_manager
         self.log = LogMe(self.__class__.__name__)
-        self.animator = Animation()
+        # Live Rich status for the duration of a run. Defaults to a no-op so methods
+        # can always call self._spinner.update(...) without guarding on setup state.
+        self._spinner = _NoOpStatus()
         self._completed = None
 
     @property
@@ -85,9 +87,9 @@ class Setup:
     @staticmethod
     def _greet() -> None:
         """Displays the greeting and welcome messages."""
-        click.echo(click.style(GREET, fg="cyan", bold=True))
-        click.echo(click.style(WELCOME), nl=False)
-        click.echo(click.style(DOC, fg="bright_magenta", bold=True))
+        console.print(GREET, style=f"bold {INFO_STYLE}")
+        console.print(WELCOME, end="")
+        console.print(DOC, style="bold bright_magenta")
 
     def _mark_completion(self, value: bool = False) -> None:
         """Update the ``setup_completed`` plist key and the in-memory cache."""
@@ -397,7 +399,7 @@ class Setup:
         self._completed = True
         self.log.info("Non-interactive bootstrap completed successfully.")
 
-    async def start(self, animator: Animation | None = None, fresh: bool = False) -> None:
+    async def start(self, spinner=None, fresh: bool = False) -> None:
         """
         Run the interactive setup flow end-to-end.
 
@@ -425,9 +427,10 @@ class Setup:
             those objects already exist. Either delete them from Jamf and
             retry, or switch to SSO setup and reuse them.
 
-        :param animator: The animation instance to update messages. Defaults
-            to ``self.animator``.
-        :type animator: Animation | None
+        :param spinner: The live Rich status (or :class:`_NoOpStatus`) whose
+            message is updated as setup progresses. Stored on ``self._spinner``
+            so helper methods can update it. Defaults to a no-op.
+        :type spinner: rich.status.Status | _NoOpStatus | None
         :param fresh: If True, re-run setup even when already completed.
         :type fresh: bool
         :raises SetupError: If a token cannot be fetched, credentials are
@@ -436,7 +439,8 @@ class Setup:
         if self.completed and not fresh:
             return
 
-        animator = animator or self.animator
+        if spinner is not None:
+            self._spinner = spinner
         self._greet()
 
         setup_type_map = {1: SetupType.STANDARD, 2: SetupType.SSO}
@@ -453,7 +457,7 @@ class Setup:
             )
             if choice in setup_type_map:
                 break
-            click.echo(click.style("Invalid choice, please choose 1 or 2", fg="red"))
+            console.print("Invalid choice, please choose 1 or 2", style=ERROR_STYLE)
         setup_type = setup_type_map[choice]
 
         creds = await self.prompt_credentials(setup_type)
@@ -461,23 +465,23 @@ class Setup:
 
         if setup_type == SetupType.STANDARD:
             self.validate_creds(creds, ("USERNAME", "PASSWORD", "URL"), SetupType.STANDARD)
-            await animator.update_msg("Retrieving basic token")
+            self._spinner.update("Retrieving basic token")
             basic_token = await self.get_token(setup_type=setup_type, creds=creds)
-            await animator.update_msg("Creating API integrations")
+            self._spinner.update("Creating API integrations")
             client_id, client_secret = await self.create_api_client(basic_token, creds.get("URL"))
             self._save_creds(
                 {"URL": creds.get("URL"), "CLIENT_ID": client_id, "CLIENT_SECRET": client_secret}
             )
         else:  # SSO
             self.validate_creds(creds, ("CLIENT_ID", "CLIENT_SECRET", "URL"), SetupType.SSO)
-            await animator.update_msg("Saving credentials...")
+            self._spinner.update("Saving credentials...")
             self._save_creds(creds)
 
-        await animator.update_msg("Fetching AccessToken")
+        self._spinner.update("Fetching AccessToken")
         client_creds = self._get_creds()
         await self.get_token(setup_type=SetupType.SSO, creds=client_creds)
 
-        await animator.update_msg("Persisting credentials...")
+        self._spinner.update("Persisting credentials...")
         client_creds = self._get_creds(include_token=True)
         token = AccessToken(
             token=client_creds.get("TOKEN"), expires=client_creds.get("TOKEN_EXPIRATION")
@@ -491,7 +495,8 @@ class Setup:
             token=token,
         )
 
-        await animator.stop()
+        # Stop the spinner before interactive UI prompts so they don't render under a spinning line.
+        self._spinner.stop()
         await self.prompt_ui_settings()
         # Record interpreter so the CLI preflight can flag mismatches before they fail mid-run (#68).
         self.plist_manager.set("interpreter_path", sys.executable)

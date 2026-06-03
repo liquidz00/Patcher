@@ -34,7 +34,7 @@ First-run wizard. Drives credential entry, optional API role/client creation on 
 :link: terminal_logger
 :link-type: doc
 
-Click-backed adapter onto `PatcherLog`. Adds colored, level-prefixed console lines on top of the always-present file log when the CLI installs its handler.
+Click-backed adapter onto `PatcherLog`. Adds colored, level-prefixed bash lines on top of the always-present file log when the CLI installs its handler.
 :::
 
 :::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `UIConfigManager`

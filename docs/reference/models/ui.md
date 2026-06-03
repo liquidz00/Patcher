@@ -1,3 +1,7 @@
+---
+description: "Reference for Patcher's UI configuration model behind PDF and HTML report styling."
+---
+
 # UI Config Model
 
 ```{eval-rst}

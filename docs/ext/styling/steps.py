@@ -1,8 +1,9 @@
 """Numbered step-sequence directives (``steps`` / ``step``)."""
 from docutils import nodes
-from docutils.statemachine import StringList
 from sphinx.application import Sphinx
 from sphinx.util.docutils import SphinxDirective
+
+from ._shared import parse_inline
 
 
 class StepsDirective(SphinxDirective):
@@ -26,19 +27,13 @@ class StepDirective(SphinxDirective):
     def run(self) -> list[nodes.Node]:
         node = nodes.container(classes=["step"])
         title = nodes.paragraph(classes=["step-title"])
-        parsed = nodes.container()
-        self.state.nested_parse(StringList([self.arguments[0]]), self.content_offset, parsed)
-        if parsed.children and isinstance(parsed.children[0], nodes.paragraph):
-            title += parsed.children[0].children
-        else:
-            title += nodes.Text(self.arguments[0])
+        title += parse_inline(self, self.arguments[0])
         node += title
         self.state.nested_parse(self.content, self.content_offset, node)
         return [node]
 
 
-def setup(app: Sphinx) -> dict[str, object]:
-    """Sphinx extension setup."""
+def register(app: Sphinx) -> None:
+    """Register the steps directives."""
     app.add_directive("steps", StepsDirective)
     app.add_directive("step", StepDirective)
-    return {"version": "0.1", "parallel_read_safe": True, "parallel_write_safe": True}

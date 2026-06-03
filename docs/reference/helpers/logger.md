@@ -1,3 +1,7 @@
+---
+description: "Reference for PatcherLog: Patcher's logging setup and child-logger helpers."
+---
+
 # Logging
 
 (child-logger)=

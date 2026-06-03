@@ -1,5 +1,5 @@
 ---
-description: "Assembled Patcher workflows: Slack DM patch summary to a CISO, CI gate that blocks merges when adoption drops, structured-log export to Datadog or Scanner, public-catalog CSV walk, and Installomator label generation for Cask-only titles via valuesfromarguments."
+description: "Assembled Patcher workflows: a Slack DM patch summary to a CISO, structured-log export to Datadog or Scanner, and Installomator label generation for Cask-only titles via valuesfromarguments."
 ---
 
 (recipes)=
@@ -12,11 +12,11 @@ End-to-end scripts for the workflows people actually wire up. Copy, tweak, deplo
 
 ---
 
-The per-command pages ({doc}`export`, {doc}`analyze`) cover one thing in isolation. The recipes below stitch `fetch_patches`, `export`, `analyze`, and {class}`~patcher.clients.patcher_api.PatcherAPIClient` into complete programs you'd actually point at production.
+Recipes below stitch `fetch_patches`, `export`, `analyze`, and {class}`~patcher.clients.patcher_api.PatcherAPIClient` into complete programs you'd actually point at production.
 
 ## Sending Summaries via Slack DM
 
-Say you wanted to message your CISO weekly with patch reports; here's how. Following recipe posts directly to a Slack user (not a channel) using a Slack Bot Token and Block Kit formatting.
+Say you wanted to message your CISO weekly with patch reports. The following recipe posts directly to a Slack user (not a channel) using a Slack Bot Token and Block Kit formatting.
 
 ```{code-block} python
 :caption: slack_summary.py
@@ -77,15 +77,30 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-Env vars required: `JAMF_CLIENT_ID`, `JAMF_CLIENT_SECRET`, `JAMF_URL`, `SLACK_BOT_TOKEN`, `CISO_SLACK_USER_ID`. The bot needs the `chat:write` scope and must be installed to the workspace. To DM a user, pass their user ID (`U…`) as the `channel`; Slack opens the IM conversation automatically.
+### Script Requirements
+
+::::{markers}
+
+:::{marker} Environment Variables
+:icon: octicon:key-16
+
+`JAMF_CLIENT_ID`, `JAMF_CLIENT_SECRET`, `JAMF_URL`, `SLACK_BOT_TOKEN`, `CISO_SLACK_USER_ID`
+:::
+
+:::{marker} Slack OAuth Scopes
+:icon: devicon:slack
+
+The bot needs the `chat:write` scope and must be installed to the workspace. To DM a user, pass their user ID (`U…`) as the `channel`, Slack will open the IM conversation automatically.
+:::
+::::
 
 ```{tip}
 Channel-wide alerting (a `#patch-state` channel rather than a person's DMs) is the same recipe, swap `CISO_SLACK_USER_ID` for a channel ID (`C…`) or name (`#patch-state`). For a one-line incident bridge, post a Block Kit `actions` block with a button linking to the HTML report URL.
 ```
 
-## Logging tool export (Datadog, Scanner, generic HTTP intake)
+## Logging Tool Export (Datadog, Scanner, Generic HTTP Intake)
 
-Stream patch state to a logging platform as structured log events. The example below targets Datadog's HTTP intake; [Scanner](https://scanner.dev) and any other HTTP-intake log platform accept the same shape if you swap the URL and auth header.
+Stream patch state to a logging platform as structured log events. The example below targets Datadog's HTTP intake, but any other HTTP-intake log platform accepts the same shape if you swap the URL and auth header.
 
 ```{code-block} python
 :caption: logging_exporter.py
@@ -142,13 +157,32 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-Patch state becomes queryable as structured logs (`service:patcher AND completion_percent:<50`), graphable as facets, and alertable via the platform's native monitor rules. For Scanner, swap `DD_INTAKE` for the Scanner ingest URL and the header for `Authorization: Bearer <scanner-token>`. The event shape itself is generic JSON.
+### Script Requirements
 
-```{note}
+::::{markers}
+
+:::{marker} Environment Variables
+:icon: octicon:key-16
+
+`DATADOG_API_KEY`, `JAMF_CLIENT_ID`, `JAMF_CLIENT_SECRET`, `JAMF_URL`
+:::
+
+:::{marker} Intake Endpoint
+:icon: devicon:datadog
+
+A Datadog account with [Logs HTTP intake](https://docs.datadoghq.com/api/latest/logs/) enabled, or any other platform that accepts JSON log events. Swap `DD_INTAKE` and the auth header to retarget.
+:::
+::::
+
+Patch state becomes queryable as structured logs (`service:patcher AND completion_percent:<50`), graphable as facets, and alertable via the platform's native monitor rules. The event shape itself is generic JSON.
+
+```{admonition} Important
+:class: caution
+
 Datadog's HTTP intake has a 5 MB body cap and 1 000 events per batch. A typical Patcher run is well under both ceilings, but batch if you're tracking thousands of titles. The same caveat applies to most log-intake APIs.
 ```
 
-## Generate an Installomator label for a Cask-only title
+## Generate an Installomator Label for a Cask-Only Title
 
 The Patcher catalog stitches Homebrew Cask, Installomator, AutoPkg, JAI, and MAS into one view. For apps that exist in Cask but have no Installomator label, the catalog's `generate-label` endpoint projects Cask's metadata into a label-shaped object. You can pipe that into Installomator's {ghwiki}`valuesfromarguments <Installomator:Configuration-and-Variables#install-without-a-label>` mode to install the app without writing a real label first.
 
@@ -204,16 +238,16 @@ if __name__ == "__main__":
     sys.exit(asyncio.run(main(sys.argv[1])))
 ```
 
-Example invocation and output for a Cask-only title:
+```{code-block} bash
+:caption: Example invocation and output for a Cask-only title
 
-```{code-block} console
-$ python generate_label.py figma
+$ python generate_label.py chatgpt-atlas
 # Generated from Patcher catalog (homebrew_cask)
 ./Installomator.sh valuesfromarguments \
-  name=Figma \
+  name="ChatGPT Atlas" \
   type=dmg \
-  downloadURL=https://desktop.figma.com/mac/Figma.zip \
-  expectedTeamID=T8RA8NE3B7
+  downloadURL=https://persistent.oaistatic.com/... \
+  expectedTeamID=2DC432GLL2
 ```
 
-The endpoint's most common warning is missing `expectedTeamID` for Cask-only apps; Cask metadata doesn't include the developer Team ID, so a Cask-only slug will surface a warning if it can't be inferred. See {ghwiki}`the Installomator wiki <Installomator:Configuration-and-Variables>` for the full set of variables Installomator accepts and {ghwiki}`Tutorial 3 <Installomator:Tutorial-3-for-a-label-with-a-bad-versioning>` for an example of when `valuesfromarguments` is the right tool.
+The endpoint's most common warning is missing `expectedTeamID`. Cask metadata doesn't include the developer Team ID, so a Cask-only slug will surface a warning if it can't be inferred. See {ghwiki}`the Installomator wiki <Installomator:Configuration-and-Variables>` for the full set of variables Installomator accepts and {ghwiki}`Tutorial 3 <Installomator:Tutorial-3-for-a-label-with-a-bad-versioning>` for an example of when `valuesfromarguments` is the right tool.
