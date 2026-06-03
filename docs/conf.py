@@ -9,6 +9,7 @@ import sys
 import warnings
 
 from patcher.__about__ import __version__
+from sphinx.ext.autodoc.mock import ismock
 
 # linkcode skips api objects when it is None.
 try:
@@ -121,6 +122,12 @@ def linkcode_resolve(domain, info):
                 obj = getattr(obj, part)
         except AttributeError:
             return None
+
+    # Objects mocked via autodoc_mock_imports (fastmcp / mcp) have no real source,
+    # and inspect.unwrap on a mock spins out thousands of mock subclasses before it
+    # finally errors. Bail before that: these never produced a source link anyway.
+    if ismock(obj):
+        return None
 
     # Skip callables quietly inspect can't wrap (route handlers, MCP tools)
     try:
