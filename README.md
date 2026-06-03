@@ -69,7 +69,7 @@ $ patcherctl \
 
 ## Patcher API
 
-[Patcher's API](https://api.patcherctl.dev/docs) is a community catalog of macOS app patching metadata stitched from [Installomator](https://github.com/Installomator/Installomator), [Homebrew Cask](https://github.com/Homebrew/homebrew-cask), [AutoPkg](https://github.com/autopkg/autopkg) (and more) into a single queryable surface.
+Patcher's API is a community catalog of macOS app patching metadata stitched from [Installomator](https://github.com/Installomator/Installomator), [Homebrew Cask](https://github.com/Homebrew/homebrew-cask), [AutoPkg](https://github.com/autopkg/autopkg) (and more) into a single queryable surface.
 
 API is public, no authentication is required. See [project docs](https://docs.patcherctl.dev/en/latest/reference/api/examples.html) for `curl` and `PatcherClient` examples.
 

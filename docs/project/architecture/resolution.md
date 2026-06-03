@@ -1,5 +1,5 @@
 ---
-description: "How Patcher resolves Installomator labels' dynamic shell expressions via a producer/consumer split between the Linux ingest and a macOS GitHub Actions runner."
+description: "How Patcher resolves Installomator labels' dynamic shell expressions across two stages: a Linux ingest server that handles what it safely can, and a macOS GitHub Actions runner for the rest."
 ---
 
 (resolution)=
@@ -22,11 +22,11 @@ appNewVersion=$(curl -fsL "https://product-details.mozilla.org/1.0/firefox_versi
 expectedTeamID="43AQ936H96"
 ```
 
-The catalog needs these resolved into concrete values like `https://download.mozilla.org/firefox-118.0.dmg` and `118.0` before clients can use them. But the ingest server isn't on macOS, and "just run the bash" is the wrong answer (`$(curl ...)` against thousands of vendor sites every refresh is rude, slow, and brittle). Patcher uses a two-stage resolution pipeline. This page is the mental model. For the parser, resolver, and ingest source-level reference see {doc}`/reference/api/source/installomator`.
+The catalog needs these resolved into concrete values like `https://download.mozilla.org/firefox-118.0.dmg` and `118.0` before clients can use them. But the ingest server isn't on macOS, and running the bash as-is isn't an option (firing `$(curl ...)` at thousands of vendor sites every refresh is slow and unreliable). So Patcher resolves labels in two stages. This page walks through how it works. For the parser, resolver, and ingest source-level reference see {doc}`/reference/api/source/installomator`.
 
-## The producer/consumer split
+## Two Stages, Two Machines
 
-The work splits across two environments, with the catalog acting as the shared message bus:
+The work happens in two places. A Linux ingest server resolves everything it safely can, then a macOS runner handles the rest. The catalog database is how the two pass work back and forth:
 
 ```{mermaid}
 flowchart TB
@@ -51,17 +51,31 @@ flowchart TB
     ROWS --> STITCH[stitch] --> APPS[(apps)]
 ```
 
-### Stage 1: ingest-time resolution (the Linux producer)
+### Stage 1: On the Linux Ingest Server
 
 When the ingest pipeline pulls labels from Installomator, the parser tokenizes each label into structured fields. The resolver then evaluates as many dynamic fields as it can without leaving the ingest server:
 
-- **Pure-shell pipelines** that translate cleanly to native Python (string ops, regex, `sort | uniq`, etc.) get evaluated inline.
-- **`$(curl ...)` against the open internet** is permitted with strict URL validation and aggressive timeouts. The resolver fetches the URL once and runs the rest of the pipeline on the body.
-- **Anything that needs the real macOS userspace** (e.g. `osascript`, `defaults read`, `getJSONValue` from a binary plist) gets skipped. The original raw fragment stays in the source-detail row so the consumer side can pick it up.
+::::{markers}
+
+:::{marker} Pure-shell pipelines
+:icon: octicon:check-circle-16
+Translate cleanly to native Python (string ops, regex, `sort | uniq`, etc.), so they're evaluated inline.
+:::
+
+:::{marker} `$(curl ...)` against the open internet
+:icon: octicon:alert-16
+Permitted, with strict URL validation and aggressive timeouts. The resolver fetches the URL once and runs the rest of the pipeline on the body.
+:::
+
+:::{marker} Fragments needing real macOS userspace
+:icon: octicon:skip-16
+Anything that needs the macOS userspace (`osascript`, `defaults read`, `getJSONValue` from a binary plist) is skipped. The raw fragment stays in the source-detail row so the macOS runner can pick it up in stage 2.
+:::
+::::
 
 The resolved values plus the still-raw fragments both land in `app_source_details`. A field that resolved cleanly has its concrete value (e.g. `download_url: "https://download.mozilla.org/firefox-118.0.dmg"`); a field that couldn't has the raw fragment (e.g. `download_url: "$(osascript -e ... )"`).
 
-### Stage 2: macOS runner resolution (the consumer)
+### Stage 2: On the macOS Runner
 
 A scheduled GitHub Actions workflow runs on a macOS runner. On each pass it:
 
@@ -86,20 +100,32 @@ to `/admin/labels/resolved` as NDJSON, one record per label.
 
 The admin endpoint validates each value (URLs must be cleanly-formed `https://`, versions must look like versions, no HTML pages or multi-line junk slipping in), updates the matching `app_source_details` rows, and triggers a re-stitch so the canonical `apps` table reflects the new values. The catalog hash changes, the ETag rotates, downstream caches revalidate.
 
-## What "user-context" labels means
+## What "User-Context" Labels Means
 
 A small set of Installomator labels resolve from data only the logged-in user has access to (e.g. browser profiles, app-specific user containers). Those are explicitly excluded from the worklist because the headless GitHub Actions runner has no logged-in user. Patcher serves them as best-effort with whatever Installomator's metadata declared, and the {doc}`drift detector </reference/api/source/drift>` won't try to compare versions for labels in this category.
 
-## Why this design
+## Why This Design
 
 A few alternatives were considered and rejected:
 
-- **Run all label evaluation in a single macOS environment.** Conceptually simplest, but it means every refresh of a static label (just `version="119.0"` baked in) pays the macOS-runner cost. The two-stage split lets the Linux ingest handle the boring majority cheaply.
-- **Run the macOS resolver per-request inside the API.** Latency would be unacceptable, and exposing a path that synchronously shells out to vendor sites per request would invite abuse.
-- **Skip dynamic fields entirely.** Would cut Patcher's coverage substantially, since a large chunk of Installomator's labels depend on dynamic resolution. The macOS runner exists precisely so that coverage isn't sacrificed.
+::::{markers}
+:icon: octicon:x-circle-16
 
-## What it looks like to a catalog consumer
+:::{marker} Run all label evaluation in a single macOS environment
+Conceptually simplest, but every refresh of a static label (just `version="119.0"` baked in) pays the macOS-runner cost. The two-stage split lets the Linux ingest handle the boring majority cheaply.
+:::
 
-You don't see any of this. The `GET /apps/firefox` response carries a `download_url`, `current_version`, and `install_method` like every other app. Whether those values came from the Linux ingest's inline resolver or from a macOS runner pass last night is irrelevant to consumers; they get clean, concrete values either way.
+:::{marker} Run the macOS resolver per-request inside the API
+Latency would be unacceptable, and exposing a path that synchronously shells out to vendor sites per request would invite abuse.
+:::
+
+:::{marker} Skip dynamic fields entirely
+This would cut Patcher's coverage substantially, since a large chunk of Installomator's labels depend on dynamic resolution. The macOS runner exists precisely so that coverage isn't sacrificed.
+:::
+::::
+
+## What This Looks Like to API Callers
+
+You don't see any of this. The `GET /apps/firefox` response carries a `download_url`, `current_version`, and `install_method` like every other app. Whether those values came from the Linux ingest's inline resolver or from a macOS runner pass last night doesn't matter to callers. They get clean, concrete values either way.
 
 The only place the split surfaces in the public API is in admin tooling and the `resolution_source` column on `installomator_labels` (a row with `resolution_source = "macos"` was last updated by the runner; `NULL` means the Linux ingest still owns it).

@@ -14,15 +14,15 @@ Contributions are welcome and don't require writing Python.
 
 We firmly believe that diverse backgrounds strengthen a product. Share your ideas regardless of your programming experience, half the time the most valuable contribution is naming a problem clearly.
 
-```{important}
+```{note}
 The MacAdmin community is full of people who quietly believe they're the only one who doesn't actually know what they're doing. If you've ever second-guessed whether you should create an issue or reach out, or ever thought "it's not worth it", **consider this an invitation to send the next one**. Seriously. Reports of all types and all experiences are not only welcomed but genuinely encouraged.
 ```
 
-## How to contribute
+## How to Contribute
 
 The shortest path is to **get in touch first**. Open a [bug report](https://github.com/liquidz00/Patcher/issues/new?template=bug_report.yml), [feature request](https://github.com/liquidz00/Patcher/issues/new?template=feature_request.yml), or [feedback issue](https://github.com/liquidz00/Patcher/issues/new?template=feedback.yml) describing what you want to change before writing code. This avoids the "you already shipped the same thing in a branch" problem and lets us scope the change together.
 
-### Pull request workflow
+### Pull Request Workflow
 
 We do our best to follow the standard [GitHub flow](https://docs.github.com/en/get-started/using-github/github-flow):
 
@@ -35,13 +35,13 @@ We do our best to follow the standard [GitHub flow](https://docs.github.com/en/g
 :::::{step} Clone your fork locally.
 ::::{tab-set}
 
-:::{tab-item} git
+:::{tab-item} {iconify}`devicon:git` git
 ```bash
-$ git clone https://github.com/liquidz00/Patcher.git /clone/destination/here
+$ git clone https://github.com/liquidz00/Patcher.git
 ```
 :::
 
-:::{tab-item} gh
+:::{tab-item} {iconify}`octicon:mark-github-16` gh
 ```bash
 $ gh repo clone liquidz00/Patcher /clone/destination/here
 ```
@@ -63,23 +63,22 @@ $ git fetch origin develop && git pull
 :::::
 
 :::::{step} Open the PR against the develop branch.
-```{note}
-PRs go to the `develop` branch, not `main`. The `main` branch tracks stable releases; ongoing development lands on `develop` and is merged to `main` as part of the release cut. Tests must pass on the [pytest workflow](https://github.com/liquidz00/Patcher/blob/main/.github/workflows/pytest.yml) before a PR can merge.
+```{admonition} Important
+:class: caution
+
+PRs go to the `develop` branch, not `main`. The `main` branch tracks stable releases, ongoing development lands on `develop` and is merged to `main` as part of the release cut. Tests must pass on the [pytest workflow](https://github.com/liquidz00/Patcher/blob/main/.github/workflows/pytest.yml) before a PR can merge.
 ```
 :::::
 
 ::::::
 
 
-## Environment setup
+## Environment Setup
 
-Patcher uses [`uv`](https://github.com/astral-sh/uv) for dependency management and `ruff` for formatting and linting. The `Makefile` wraps the common workflows.
-
-### One-time
-
-After cloning your fork:
+Patcher uses [`uv`](https://github.com/astral-sh/uv) for dependency management and [`ruff`](https://docs.astral.sh/ruff/) for formatting and linting. The `Makefile` wraps the common workflows.
 
 ```{code-block} bash
+:caption: Execute after cloning your fork
 $ make dev
 ```
 
@@ -89,36 +88,45 @@ $ make dev
 The `Xcode Command Line Tools` are required for the `make` command on macOS.
 ```
 
-### Vendor documentation submodules
+### Vendor Documentation Submodules
 
-Patcher pins read-only copies of the [Installomator](https://github.com/Installomator/Installomator) and [AutoPkg](https://github.com/autopkg/autopkg) wikis as git submodules under `vendor-docs/`. These exist as a reference for contributors and for Claude when reasoning about upstream behavior; they are not surfaced into the user-facing docs. Initialize them once after cloning:
+Patcher pins read-only copies of the [Installomator](https://github.com/Installomator/Installomator) and [AutoPkg](https://github.com/autopkg/autopkg) wikis as git submodules under `vendor-docs/`. These exist as a reference for contributors and for Claude when reasoning about upstream behavior and are **not** surfaced into the user-facing docs.
 
 ```{code-block} bash
+:caption: Initialize vendor docs
+
 $ make init-vendor-docs
 ```
 
-Refresh against latest upstream when needed:
-
 ```{code-block} bash
+:caption: Refresh against latest upstream when needed
+
 $ make update-vendor-docs
 ```
 
-Working without them is fine — every Patcher build, test, and doc target runs without the submodules populated.
+These are completely optional, working without them is totally fine. Every Patcher build, test, and doc target runs without the submodules populated.
 
-### Optional but recommended: pre-commit hooks
+### Optional but Recommended: pre-commit Hooks
 
 ```{code-block} bash
+:caption: Install pre-commit hooks
+
 $ make pre-commit
+```
+
+```{code-block} bash
+:caption: Run pre-commit on all files
+
 $ make pre-commit-run
 ```
 
-The first command installs Patcher's `pre-commit` hooks; the second runs them across the entire repo. Once installed, the hooks run automatically on every `git commit`. This catches ruff formatting drift, trailing whitespace, and other mechanical issues before they reach the PR.
+Once installed, the hooks run automatically on every `git commit`. This catches ruff formatting drift, trailing whitespace, and other mechanical issues before they reach the PR.
 
-## Makefile commands
-
-The complete list of available targets, sourced from `make help`:
+## Makefile Commands
 
 ```{code-block} text
+:caption: The complete list of available targets, sourced from `make help`
+
 help                   Show this help message
 venv                   Create virtual environment if missing
 install                Install base dependencies (Patcher only)
@@ -142,8 +150,6 @@ docs                   Build Sphinx documentation
 init-vendor-docs       One-time after clone - pull submodule content
 update-vendor-docs     Refresh vendor docs to latest upstream (Installomator/Autopkg Wikis)
 ```
-
-Run `make help` from the repo root to see the live list. The Makefile is the source of truth; if this page drifts, the Makefile wins.
 
 ```{tip}
 `make lint` before opening a PR catches the same checks CI runs. `make format` auto-fixes the mechanical ones. Neither is strictly required (pre-commit hooks and the GitHub runner enforce both), but running them locally is faster than waiting for CI to fail.
@@ -175,36 +181,32 @@ flowchart LR
   CI --> Merge
 ```
 
-### Why three suites
+### Why Three Suites
 
 **Unit tests** (`tests/`, excluding `tests/integration/`) mock the HTTP and filesystem boundaries. They run on every PR and finish fast because the boundary is the contract that matters: when Jamf's API contract is stable, the unit suite is enough to catch regressions in our parsing, matching, and report-building code. This is the suite that turns red when you break refactor work.
 
-**API tests** (`api/tests/`) cover the catalog service itself: ingest from upstream sources, stitch logic, FastAPI routes, ETag behavior. They're separate from the package tests because the API can ship independently, but they run alongside the unit suite on every PR (`make test-api` is the second step in the [pytest workflow](https://github.com/liquidz00/Patcher/blob/main/.github/workflows/pytest.yml)).
-
-**Integration tests** (`tests/integration/`) hit Jamf's public [dummy instance](https://developer.jamf.com/jamf-pro/docs/populating-dummy-data) with no mocks at the HTTP boundary. They validate the full chain — credential loading, OAuth token flow, real HTTP, response parsing — against actual Jamf Pro responses. They are **not** in CI because hitting a shared dummy on every PR would be discourteous and slow. Run them locally before pushing anything that touches request shaping or response parsing: `make test-integration`.
-
-The [pytest workflow](https://github.com/liquidz00/Patcher/blob/main/.github/workflows/pytest.yml) badge on the [landing page](../index.md) is the live signal for unit + API. Click it for the latest run.
+**API tests** (`api/tests/`) cover the catalog service itself. Ingest from upstream sources, stitch logic, FastAPI routes, and ETag behavior. They're separate from the package tests because the API can ship independently, but they run alongside the unit suite on every PR.
 
 (integration_tests)=
 
-### Integration: configuration
+**Integration tests** (`tests/integration/`) hit Jamf's public [dummy instance](https://developer.jamf.com/jamf-pro/docs/populating-dummy-data) with no mocks at the HTTP boundary. They validate the full chain — credential loading, token flow, real HTTP, response parsing — against actual Jamf Pro responses. They are **not** in CI because hitting a shared dummy on every PR is just plain rude. Run `make test-integration` locally before pushing anything that touches request shaping or response parsing.
 
-By default, integration tests target the Jamf dummy instance with public credentials, so no setup is needed. To point at your own test tenant:
+The [pytest workflow](https://github.com/liquidz00/Patcher/blob/main/.github/workflows/pytest.yml) badge on the [landing page](../index.md) is the live signal for unit and API tests. Click it for the latest run.
+
+:::{note}
+Treat integration tests to the dummy instance as smoke-test coverage, not exhaustive validation. Configure environment variables if you would like to leverage your own Jamf pro tenant for integration tests.
 
 ```{code-block} bash
+:caption: Pointing integration tests at your own test tenant
+
 $ export PATCHER_INTEGRATION_URL="https://your-tenant.jamfcloud.com"
 $ export PATCHER_INTEGRATION_CLIENT_ID="..."
 $ export PATCHER_INTEGRATION_CLIENT_SECRET="..."
 $ make test-integration
 ```
+:::
 
-Each variable falls back independently. Override just the URL while keeping the dummy credentials if you want.
-
-```{note}
-Jamf documents that the dummy instance data "is not comprehensive nor does it truly mirror a production Jamf Pro environment." Treat it as smoke-test coverage, not exhaustive validation. Tokens issued by the dummy instance are also short-lived, which is why `seconds_remaining > 0` is the integration-suite idiom for verifying token freshness rather than the stricter {attr}`~patcher.core.models.token.AccessToken.is_expired`.
-```
-
-## Next steps
+## Next Steps
 
 If anything in this guide is unclear, reach out on the [#patcher channel](https://macadmins.slack.com/archives/C07EH1R7LB0) in [MacAdmins Slack](https://www.macadmins.org). The maintainers are active there.
 

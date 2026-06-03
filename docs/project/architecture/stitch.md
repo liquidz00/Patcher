@@ -12,28 +12,25 @@ How diverse upstream sources become a single app record.
 
 ---
 
-The Patcher catalog has one row per macOS app, with normalized fields the API serves: `slug`, `name`, `vendor`, `current_version`, `download_url`, `install_method`, and so on. However, each of the upstream sources ship their own format optimized for its own tooling. The stitch pipeline is what reconciles them. This page is the mental model.
+The Patcher catalog has one row per macOS app, with the normalized fields the API serves: `slug`, `name`, `vendor`, `current_version`, `download_url`, `install_method`, and so on. Each upstream source ships its data in its own format, though. The stitch pipeline is what reconciles them into that single row. This page walks through how.
 
-```{seealso}
-For the source-level reference, see {doc}`/reference/api/source/stitch`.
-```
+:::{definition} canonical record
+The single, normalized row Patcher serves for an app, built by merging every source's data. One per app, in the `apps` table, and what every `GET /apps*` response returns.
+:::
 
-## The two-layer storage shape
+## The Two-Layer Storage Shape
 
 Upstream data and canonical data live in the following two tables, separated intentionally:
 
 ::::{steps}
 
 :::{step} `app_source_details`
-
-holds one row per app per source, with the source's *native* payload in a JSON column (so an Installomator label looks exactly like an Installomator label, a Cask entry looks exactly like a Cask entry, etc.). One table can hold an Installomator label, a Cask entry, and an AutoPkg recipe side by side.
+Holds one row per app per source, with the source's *native* payload in a JSON column (so an Installomator label looks exactly like an Installomator label, a Cask entry looks exactly like a Cask entry, etc.). One table can hold an Installomator label, a Cask entry, and an AutoPkg recipe side by side.
 :::
 
 :::{step} `apps`
-
-holds one row per app with the *normalized* fields. This is what `GET /apps*` serves. Every column here is derived from the source details by the stitch pipeline.
+Holds one row per app with the *normalized* fields. This is what `GET /apps*` serves. Every column here is derived from the source details by the stitch pipeline.
 :::
-
 ::::
 
 Keeping the layers separate means the API can differentiate between the source of truth (canonical row) and the upstream source (source-detail rows). Adding new upstream sources can be done by writing an ingest module that fills its own JSON column without touching how existing sources are stored.
@@ -50,7 +47,7 @@ flowchart LR
     APPS --> API[GET /apps*]
 ```
 
-## What stitching actually does
+## What Stitching Actually Does
 
 For every app the ingest pipeline has touched, stitch walks the source-detail rows and projects them into a canonical app record. For each field on the canonical row, the rules are:
 
@@ -58,7 +55,7 @@ For every app the ingest pipeline has touched, stitch walks the source-detail ro
 
 :::{step} Match source rows to a canonical app.
 
-Apps in different sources rarely share a perfect identifier. Stitch matches primarily on bundle ID where available (the most reliable signal), then falls back to normalized name comparison. The bundle-ID-first pass is what we call the *precision overlay*: when a source provides a high-confidence identifier, that wins; otherwise the name-based workhorse takes over.
+Apps in different sources rarely share a perfect identifier. Stitch matches primarily on bundle ID where available, since it's the most reliable signal. When a source doesn't carry one, it falls back to comparing normalized names.
 :::
 
 :::{step} Pick the best available value for each field.
@@ -77,31 +74,29 @@ Some fields can't be sourced from every upstream. Cask-only apps don't have an `
 :::
 ::::
 
-## Why stitch isn't just a SQL JOIN
+## Why Stitch Isn't Just a SQL JOIN
 
 Joining `apps` and `app_source_details` at request time is intentionally avoided for three primary reasons:
 
-::::{steps}
+::::{markers}
+:icon: octicon:database-16
 
-:::{step} The fallback chains involve text normalization, version parsing, and source-priority logic.
-
-Expressing that in SQL would be painful, and it would run on every request.
+:::{marker} The fallback chains involve real logic
+Text normalization, version parsing, and source-priority. Expressing that in SQL would be painful, and it would run on every request.
 :::
 
-:::{step} The catalog needs a stable hash to power ETag caching.
-
+:::{marker} The catalog needs a stable hash for ETag caching
 The hash is the SHA-256 of the SQLite file. If reads computed canonical fields on the fly, the file's bytes would be stable but the served bytes wouldn't reflect that, and ETag invalidation would be subtle.
 :::
 
-:::{step} Drift detection needs both views.
-
+:::{marker} Drift detection needs both views
 It compares the source-detail versions to spot disagreement, but writes its results against the canonical `apps` row. Two-table storage makes both halves trivial.
 :::
 ::::
 
 So stitch runs as part of the catalog-refresh schedule. It reads the source-detail rows, computes canonical fields in Python, and writes them back to `apps`. The API then serves `apps` directly with no per-request projection cost.
 
-## What changes when an upstream source moves
+## What Changes When an Upstream Source Moves
 
 When an upstream source publishes a new version of an app:
 
@@ -124,9 +119,9 @@ The catalog file's bytes change, so its SHA-256 changes, so the ETag changes, so
 
 ::::
 
-End-to-end latency depends on the source: Cask refreshes the same day it merges upstream; AutoPkg recipes follow their own cadence; Installomator's resolved values may need the {doc}`macOS runner pass <resolution>` for dynamic fields. The stitch step itself is fast (it's a Python loop over rows already in memory).
+How long this takes from end to end depends on the source. Cask refreshes the same day it merges upstream. AutoPkg recipes follow their own cadence. Installomator's resolved values may need the {doc}`macOS runner pass <resolution>` for dynamic fields. The stitch step itself is fast (it's a Python loop over rows already in memory).
 
-## Adding a new source
+## Adding a New Source
 
 The pattern, if anyone ever wires up a new upstream:
 
@@ -155,3 +150,7 @@ Add the source to the per-source coverage count in `get_catalog_summary`.
 ::::
 
 That's the extent of the change. The HTTP routes, the API client, the MCP tools all keep working unchanged because the canonical projection is the only thing they see.
+
+```{seealso}
+For the source-level reference, see {doc}`/reference/api/source/stitch`.
+```

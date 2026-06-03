@@ -12,9 +12,9 @@ Run your own copy of the Patcher catalog service. Community-supported.
 
 ---
 
-The Patcher API is a FastAPI service that stitches macOS app patching metadata from Installomator, Homebrew Cask, AutoPkg, and Jamf App Installers into a single queryable catalog. The public deployment at <https://api.patcherctl.dev> is the easiest path; this page is for the cases where that isn't a fit.
+The Patcher API is a FastAPI service that stitches macOS app patching metadata from Installomator, Homebrew Cask, AutoPkg, and Jamf App Installers into a single queryable catalog. The public deployment at <https://api.patcherctl.dev> is the easiest path. This page is for the cases where that isn't a fit.
 
-## Who this is for
+## Who This Is For
 
 ::::{grid} 1 2 2 2
 :gutter: 2
@@ -38,15 +38,15 @@ Fork the ingest pipeline to add internal sources, suppress upstreams, or change 
 :::
 ::::
 
-## Honest framing
+## Honest Framing
 
 ```{important}
 The Dockerfile and the compose snippet on this page were drafted with AI assistance. The Patcher maintainer is not a Docker expert and does not run Patcher in containers in production (the public deployment uses systemd on a Linode VM). Treat this setup as community-supported. Improvements to the image, security posture, build performance, or compose layout are very welcome via pull request.
 ```
 
-For the conceptual model of how the service is structured (FastAPI app, ingest pipeline, stitch layer, MCP sub-app), read {doc}`architecture` first. This page covers operations, not internals.
+For the conceptual model of how the service is structured (FastAPI app, ingest pipeline, stitch layer, MCP sub-app), read {doc}`architecture/index` first. This page covers operations, not internals.
 
-## Build the image
+## Build the Image
 
 The Dockerfile lives at the repo root. It uses [uv](https://docs.astral.sh/uv/) inside a multi-stage build, materializes the `patcher-api` workspace member, and ships a non-root runtime user with a `/health` healthcheck baked in.
 
@@ -58,7 +58,7 @@ $ docker build --tag patcher-api:local .
 
 The default Python is 3.13. Override with `--build-arg PYTHON_VERSION=3.12` if you need a different interpreter.
 
-## Run it
+## Run It
 
 The image exposes port 8000 and stores the catalog at `/data/patcher_api.db` by default. Mount a volume there so the database survives container restarts.
 
@@ -73,7 +73,7 @@ $ docker run --rm \
 
 Visit <http://localhost:8000/health> to confirm the service is up. The first run will start with an empty catalog; see {ref}`populate the catalog <self-hosting-ingest>` below.
 
-### Environment variables
+### Environment Variables
 
 All runtime configuration uses the `PATCHER_API_` prefix. The full list lives in `api/patcher_api/config.py`; the variables that matter most for self-hosting:
 
@@ -88,7 +88,7 @@ All runtime configuration uses the `PATCHER_API_` prefix. The full list lives in
 
 (self-hosting-ingest)=
 
-## Populate the catalog
+## Populate the Catalog
 
 The serving image starts with an empty (or smoke-seeded) catalog. Real data comes from the ingest pipeline at `api/scripts/ingest.py`, which pulls each upstream source, writes per-source rows, and runs the stitch pass that joins them into canonical `apps` records.
 
@@ -114,7 +114,7 @@ A full ingest currently takes 10 to 15 minutes against fresh upstreams. The publ
 The API process caches the catalog SHA at startup and uses it as the ETag for `/apps*` responses. After a fresh ingest the running container will not pick up the new hash until it restarts. The reference compose file does not automate this; on the production VM a systemd `ExecStartPost=` restarts the API after the timer fires. On Docker you can either run the API with `--restart always` and trigger a manual restart after the ingest job, or wrap the ingest in a script that runs `docker compose restart api` on completion.
 ```
 
-## Compose example
+## Compose Example
 
 A reference `docker-compose.yml` lives at the repo root. It defines two services backed by a shared named volume:
 
@@ -170,17 +170,31 @@ Wire that command into your host's cron or scheduler.
 
 A few things to know before this goes anywhere serious.
 
-- **SQLite under multiple workers.** The default `uvicorn` command runs a single worker. SQLite locking gets unhappy under a multi-worker `uvicorn` against the same file; if you need more concurrency, put a reverse proxy in front of multiple containers each with their own DB, or migrate the storage to Postgres (the SQLAlchemy models are Postgres-friendly, but this path is not regularly tested).
-- **The `seed_on_startup` smoke data.** First boot drops a small set of known apps into the catalog so `/apps` returns something before your first ingest finishes. Set `PATCHER_API_SEED_ON_STARTUP=false` if that's not desired.
-- **The MCP sub-app at `/mcp`.** Hosted alongside the REST routes on the same port. If you don't need it, point browser MCP clients elsewhere via `PATCHER_API_MCP_ALLOWED_ORIGINS`; the sub-app itself can't be unmounted without a code change.
-- **Image size and security.** The reference image is a community starting point, not a hardened production base. There's no distroless runtime, no SBOM step, no image-signing flow. If you ship this in a regulated environment, treat the Dockerfile as a draft to harden.
+::::{markers}
+:icon: octicon:alert-16
 
-## Related reading
+:::{marker} SQLite under multiple workers
+The default `uvicorn` command runs a single worker. SQLite locking gets unhappy under a multi-worker `uvicorn` against the same file. If you need more concurrency, put a reverse proxy in front of multiple containers each with their own DB, or migrate the storage to Postgres (the SQLAlchemy models are Postgres-friendly, but this path is not regularly tested).
+:::
 
-- {doc}`architecture` for how the service is laid out.
-- {doc}`pipelines/index` for the stitch and resolution pipelines that produce the catalog.
+:::{marker} The `seed_on_startup` smoke data
+First boot drops a small set of known apps into the catalog so `/apps` returns something before your first ingest finishes. Set `PATCHER_API_SEED_ON_STARTUP=false` if that's not desired.
+:::
+
+:::{marker} The MCP sub-app at `/mcp`
+Hosted alongside the REST routes on the same port. If you don't need it, point browser MCP clients elsewhere via `PATCHER_API_MCP_ALLOWED_ORIGINS`. The sub-app itself can't be unmounted without a code change.
+:::
+
+:::{marker} Image size and security
+The reference image is a community starting point, not a hardened production base. There's no distroless runtime, no SBOM step, no image-signing flow. If you ship this in a regulated environment, treat the Dockerfile as a draft to harden.
+:::
+::::
+
+## Related Reading
+
+- {doc}`architecture/index` for how the service is laid out and the pipelines that produce the catalog.
 - {doc}`/reference/api/endpoints` for the REST surface the running container exposes.
-- {doc}`/guides/usage/agents` if you also want to expose the MCP endpoint to AI clients.
+- {doc}`/guides/agents` if you also want to expose the MCP endpoint to AI clients.
 
 ## Contributing
 

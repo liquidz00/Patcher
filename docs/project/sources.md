@@ -7,12 +7,16 @@ description: "The four upstream sources Patcher stitches into its catalog: Insta
 # Catalog Sources
 
 :::{rst-class} lead
-The four upstream sources that feed the stitched catalog, and what each one is good for.
+Upstream sources that feed the stitched catalog, and what each one is good for.
 :::
 
 ---
 
-The Patcher catalog is not a single dataset. It is a projection stitched from several independent upstream sources, each with its own publishing cadence, data shape, and coverage gaps. A canonical app record on `api.patcherctl.dev` is the merge of whatever those sources happened to know about that app. This page describes each source on its own terms. For *how* the merge happens (per-field fallback chains, conflict resolution, drift detection), see {doc}`/project/pipelines/index` and {doc}`/project/architecture`.
+The Patcher catalog is not a single dataset. It is stitched together from several independent upstream sources, each with its own release schedule, data format, and coverage gaps. A canonical app record on `api.patcherctl.dev` is the merge of whatever those sources happened to know about that app. This page describes each source on its own terms. For *how* the merge happens (per-field fallback chains, conflict resolution, drift detection), see {doc}`/project/architecture/resolution` and {doc}`/project/architecture/stitch`.
+
+:::{definition} stitch
+Merging the same app's records from multiple upstream sources into one canonical record, picking the best value for each field. The pipeline that does this is described in {doc}`/project/architecture/stitch`.
+:::
 
 Four sources contribute to the catalog today: Installomator, Homebrew Cask, AutoPkg, and Jamf App Installers. A fifth, the Mac App Store, is ingested but contributes narrowly and is not covered here.
 
@@ -22,8 +26,12 @@ Four sources contribute to the catalog today: Installomator, Homebrew Cask, Auto
 
 [Installomator](https://github.com/Installomator/Installomator) is the open-source tool many MacAdmins use to automate macOS app installs, usually wired up through Jamf Pro or another MDM. Each app it supports is described by a shell *label* (e.g. `googlechrome`, `slack`, `zoom`) that knows how to locate, download, and install the current version.
 
+:::{definition} slug
+A short, lowercase identifier for an app in the catalog, taken from its Installomator label name (e.g. `googlechrome`, `slack`, `zoom`). Slugs are what you pass to the API and CLI to look an app up.
+:::
+
 What it contributes
-: The label slug set is Patcher's backbone for "is this app automatable." Patcher matches each Jamf patch title against the Installomator slug set, and titles that match get an `install_label` entry surfaced in reports and filters. Beyond the slug, a label can yield a concrete download URL, version string, and install method once its dynamic shell fragments are resolved (a Linux-ingest / macOS-runner step described in {doc}`/project/pipelines/resolution`).
+: The label slug set is Patcher's backbone for "is this app automatable." Patcher matches each Jamf patch title against the Installomator slug set, and titles that match get an `install_label` entry surfaced in reports and filters. Beyond the slug, a label can yield a concrete download URL, version string, and install method once its dynamic shell fragments are resolved (a Linux-ingest / macOS-runner step described in {doc}`/project/architecture/resolution`).
 
 Coverage characteristics
 : Broad coverage of common third-party Mac apps, maintained by an active community. The catch is that many labels compute their version and URL at runtime via shell, so the static label alone does not always carry a version. Apple-managed software (macOS, Safari, Xcode) and license-gated runtimes (Oracle Java, Eclipse Temurin) are intentionally outside Installomator's useful scope for patch tracking.
@@ -62,11 +70,19 @@ What it contributes
 Coverage characteristics
 : A curated, vendor-maintained set, so it is narrower than the community sources but carries Jamf's own maintenance behind each entry. The structured depth is the thinnest of the four: the public catalog is scraped for the title list (a coverage signal), not for bundle IDs, versions, or download URLs. Richer JAI data lives behind the undocumented tenant catalog endpoint, which requires Jamf Pro tenant access Patcher does not assume.
 
-## How the sources combine
+## How the Sources Combine
 
 No single source is authoritative for every field. The catalog's value is the merge: a download URL from Cask, an install label from Installomator, a packaging recipe from AutoPkg, and a Jamf-managed deployment indicator can all describe the same app. When sources disagree on the current version, that disagreement is surfaced as *drift* rather than silently picking a winner.
 
-For the mechanics (per-field fallback order, how a canonical row is projected, and how drift is computed) see:
+:::{definition} drift
+When two or more sources report a different "latest" version for the same app. Patcher surfaces the disagreement rather than picking a winner, which is a strong signal that a label has fallen behind upstream.
+:::
 
-- {doc}`/project/pipelines/index` — the stitching and resolution pipelines.
-- {doc}`/project/architecture` — where the ingest, stitch, and serving layers sit in the API service.
+
+```{seealso}
+{doc}`/project/architecture/index`
+: Where the ingest, stitch, and serving layers sit in the API service.
+
+{doc}`/project/architecture/stitch` & {doc}`/project/architecture/resolution`
+: The stitching and resolution pipelines.
+```

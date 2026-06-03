@@ -1,171 +1,124 @@
 ---
-description: "Diagnose Patcher problems: debug mode, exit code lookup, TLS / corporate-proxy errors, keychain issues, and common Jamf API failures."
+description: "Diagnose Patcher with debug logging and exit codes, and fix the common failures: command-not-found, authentication errors, certificate issues, and stale report data."
 ---
-
-(support)=
 
 # Troubleshooting
 
 :::{rst-class} lead
-Debug mode, exit codes, log interpretation, and the most common fixes for quick troubleshooting.
+When Patcher misbehaves, turn on debug logging, then jump to your symptom.
 :::
 
 ---
 
-## Quick diagnostics
-
-(exit-codes)=
-
-### Exit codes
-
-`patcherctl` uses specific exit codes so failures are easy to triage in scripts and CI:
-
-| Exit code | Meaning |
-|---|---|
-| `0` | Success |
-| `1` | Handled exception (PatcherError or user-facing issue) |
-| `2` | Unhandled exception |
-| `3` | Setup error |
-| `4` | API error (e.g. unauthorized, invalid response) |
-| `130` | KeyboardInterrupt (Ctrl+C) |
+## Debug Logging
 
 (debug)=
 
-### Debug mode
+Every command takes a root-level `--debug` (or `-x`), placed *before* the subcommand. It streams DEBUG-level logs to your terminal and hides the spinner so they stay readable.
 
-Pass `--debug` (or `-x`) at the root level (*before* any subcommand) to show DEBUG-level logs on stdout in addition to the log file:
+```{code-block} bash
+:caption: Run any command with verbose output
 
-```bash
-$ patcherctl --debug export --path /path/to/save
+$ patcherctl --debug export --path ~/reports
 ```
 
-Debug mode also suppresses the animated spinner so log lines don't fight for cursor position.
+Those logs are written to `~/Library/Application Support/Patcher/logs/patcher.log` with or without `--debug`. Attach that file when you report a bug.
 
-### `--help` / `-h`
+## Exit Codes
 
-Every command and subcommand supports both `--help` and `-h`:
+(exit-codes)=
 
-```bash
-$ patcherctl --help
-$ patcherctl export --help
-```
+`patcherctl` returns a distinct code per failure class, so CI and scripts can branch on it.
 
-(logs)=
-
-## Interpreting Patcher logs
-
-Logs land in `~/Library/Application Support/Patcher/logs`. Three files may exist:
-
-| File | When it appears |
+| Code | Meaning |
 |---|---|
-| `patcher.log` | Every `patcherctl` invocation |
-| `patcher-agent.out.log` | stdout from the {ref}`LaunchAgent <launch_agent>` (if scheduled) |
-| `patcher-agent.err.log` | stderr from the LaunchAgent |
+| `0` | Success |
+| `1` | Handled error (a `PatcherError` or user-facing issue) |
+| `2` | Unhandled exception |
+| `3` | Setup error |
+| `4` | API error, such as an unauthorized or invalid response |
+| `130` | Interrupted with Ctrl+C |
 
-Each log entry includes a timestamp, the {ref}`child logger <child-logger>` that wrote the line, and the level:
+## Command Not Found
 
-:::{card} Sample error
-:class-card: sd-card
+If `patcherctl --version` comes back with `command not found`, the package installed fine but landed outside your shell's `PATH`. Adding your Python user-base `bin` directory fixes it, covered on the install page under {ref}`add-path`.
 
-```text
-2026-04-30 21:19:35,423 - Patcher.JamfClient - ERROR - Client error (401): [{'code': 'INVALID_TOKEN', 'description': 'Unauthorized', 'id': '0', 'field': None}]
-```
+## Authentication Failures
 
-The child logger here is {class}`~patcher.clients.jamf.JamfClient`. **Include the child logger in bug reports**; it tells us which component raised the error.
-:::
+A `401` or `403` from Jamf means the stored credentials are missing a privilege, expired, or simply wrong. Re-run the wizard with `patcherctl --fresh` to re-enter them, or do a {ref}`full reset <full-reset>` to clear everything and start over.
 
-:::{card} Debug & info
-:class-card: sd-card
-
-```text
-2026-05-01 16:35:31,697 - Patcher.TitleFilter - DEBUG - Applying filter 'oldest-least-complete'.
-2026-05-01 16:35:31,704 - Patcher.TitleFilter - INFO - Returned 5 PatchTitles after filtering.
-```
-:::
-
-## Common fixes
-
-When something goes wrong, it helps to separate **environment issues** (API credentials, network, TLS) from **configuration issues** (corrupt plist, stale cache, etc.).
-
-### Update Patcher
-
-The cheapest first move. Make sure you're on the latest release:
-
-```bash
-$ python3 -m pip install --upgrade patcherctl
-```
-
-### Full reset
-
-To rule out configuration drift, run a full reset. This wipes credentials, UI config, setup state, and cached data, then re-runs the setup wizard:
-
-```bash
-$ patcherctl reset full
-```
-
-See {doc}`/guides/usage/cli` for the granular alternatives.
-
-:::{admonition} Known issue
+:::{admonition} Known Issue
 :class: danger
 
-If a previous setup attempt failed *after* the Jamf API role / client were created, a Standard re-run will fail with a `401` because those objects already exist on the Jamf side. Either retrieve the credentials from Keychain and switch to {ref}`SSO setup <setup_type>`, or delete the API role / client manually in Jamf and rerun.
+If a Standard setup failed *after* it created the Jamf API role and client, the next Standard run also fails with a `401`, because those objects already exist. Delete the role and client in Jamf and retry, or switch to {ref}`SSO setup <setup_type>` to reuse what Patcher already created.
 :::
 
-### Reinstall Patcher
+(support)=
 
-If a full reset doesn't help, reinstall via `pip`:
+## Certificate Errors
 
-```bash
-$ python3 -m pip uninstall patcherctl
-$ python3 -m pip install patcherctl
-```
+Patcher trusts whatever your Mac trusts. On a network behind a TLS-inspecting proxy (Zscaler, Netskope, Palo Alto GlobalProtect, and the like), it works as long as your company's certificate is in the system keychain, which your MDM usually installs for you. If your browser can reach Jamf without a security warning, Patcher can too. The {ref}`SSL verification <ssl-verify>` section on the install page has the background.
 
-```{note}
-Before reinstalling, wipe the Application Support directory at `~/Library/Application Support/Patcher/` **except** the `logs` subdirectory. The logs help diagnose what caused the original problem.
-```
-
-## TLS / corporate proxies
-
-If your organization runs a TLS-inspecting proxy (Zscaler, Netskope, Cloudflare Gateway, Palo Alto GlobalProtect, etc.), Patcher should "just work" provided your corporate CA is installed in your operating system's native trust store. Most enterprise MDM deployments push this CA automatically.
-
-Patcher uses [`truststore`](https://github.com/sethmlarson/truststore) to bridge Python's TLS stack to your OS's trust store:
-
-| Platform | Trust source |
-|---|---|
-| macOS | Keychain (System + Login) |
-| Windows | Certificate Store |
-| Linux | `/etc/ssl/certs/ca-certificates.crt` |
-
-You do **not** need to concatenate certificates into `certifi`'s `cacert.pem`, edit Python's `ssl` settings, or set `SSL_CERT_FILE`. If your browser can reach your Jamf Pro instance without a TLS warning, Patcher can too.
-
-### Diagnosing TLS errors
-
-If Patcher fails with an `APIResponseError: Network error fetching URL` and the underlying message mentions certificate verification, follow these steps:
+When Patcher fails with a network error that mentions certificate verification, two checks cover almost every case.
 
 ::::{steps}
 
-:::{step} Verify the corporate CA is in Keychain
-
-Keychain Access → System keychain → Certificates. Look for your company's root CA.
+:::{step} Confirm the company certificate is installed
+In Keychain Access, look under the System keychain for your organization's root certificate authority.
 :::
 
-:::{step} Confirm MDM is communicating and profile is applied.
-
-New machines sometimes lack certificates until the next refresh.
-:::
-
-:::{step} Get in touch.
-
-If the CA is installed but the error persists, let us know. [Submit an issue](#submit-an-issue) with the full error output and any details about installed security software.
+:::{step} Confirm the MDM profile has applied
+A newly enrolled Mac sometimes lacks the certificate until its next check-in.
 :::
 ::::
 
-## Still stuck?
+## Empty or Stale Data
 
-### Submit an issue
+When a report is missing data or looks out of date, it's usually one of these.
 
-The fastest path to support is filing an [issue on GitHub](https://github.com/liquidz00/Patcher/issues/new/choose). Include as many details as possible: what you ran, what you expected, the full error output, the child logger from the log entry, and what troubleshooting steps you've already tried.
+::::{markers}
 
-### MacAdmins Slack
+:::{marker} Every title has an empty `install_label`
+:icon: octicon:unlink-16
+Installomator matching is switched off. Turn it back on per {ref}`disabling_installomator_support`.
+:::
 
-We try to stay active in the `#patcher` channel on MacAdmins Slack ([join here](https://macadmins.slack.com/archives/C07EH1R7LB0)). Despite full-time jobs, we'll do our best to respond.
+:::{marker} The numbers look out of date
+:icon: octicon:history-16
+Analysis reads the most recent cached report. Clear the cache with `patcherctl reset cache`, then re-run to pull fresh data from Jamf.
+:::
+::::
+
+(full-reset)=
+
+## Start Over
+
+A full reset wipes credentials, UI configuration, setup state, and cached data, then re-runs the wizard. It's the fastest way to rule out a corrupt local state.
+
+```{code-block} bash
+:caption: Wipe all local state and re-run setup
+
+$ patcherctl reset full
+```
+
+If a reset doesn't help, reinstall the package.
+
+::::{tab-set}
+
+:::{tab-item} {iconify}`material-icon-theme:uv` uv
+```bash
+$ uv pip install --reinstall patcherctl
+```
+:::
+
+:::{tab-item} {iconify}`material-icon-theme:python` pip
+```bash
+$ python3 -m pip install --force-reinstall patcherctl
+```
+:::
+
+::::
+
+## Still Stuck?
+
+File a [GitHub issue](https://github.com/liquidz00/Patcher/issues/new/choose) with the command you ran, the full error output, and your `patcher.log`. For a back-and-forth, the maintainers are in the [`#patcher` channel](https://macadmins.slack.com/archives/C07EH1R7LB0) on MacAdmins Slack.
