@@ -1,3 +1,7 @@
+---
+description: "Reference for PatcherAPIClient: the typed client for the api.patcherctl.dev catalog."
+---
+
 # Patcher API Client
 
 :::{seealso}

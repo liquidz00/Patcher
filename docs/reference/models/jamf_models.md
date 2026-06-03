@@ -1,3 +1,7 @@
+---
+description: "Reference for Patcher's Jamf Pro models, including JamfCredentials."
+---
+
 # Jamf Models
 
 ```{eval-rst}

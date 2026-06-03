@@ -1,3 +1,7 @@
+---
+description: "Reference for Patcher's Rich-backed terminal logger."
+---
+
 # Terminal Logger
 
 ```{eval-rst}

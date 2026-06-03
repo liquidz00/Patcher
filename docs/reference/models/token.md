@@ -1,3 +1,7 @@
+---
+description: "Reference for the AccessToken model: a Jamf OAuth token with expiry helpers."
+---
+
 # Access Token
 
 ```{eval-rst}

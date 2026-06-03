@@ -3,7 +3,7 @@ layout: focused
 description: "Source-level reference for patcher_api: stitch pipeline, drift detection, label builder, ingest modules, Installomator subsystem, FastAPI routes, and Pydantic schemas."
 ---
 
-# API Source Reference
+# Source Reference
 
 :::{rst-class} lead
 Module-level autodoc for the `patcher_api` codebase.

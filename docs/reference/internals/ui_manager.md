@@ -1,3 +1,7 @@
+---
+description: "Reference for UIConfigManager: PDF and HTML report UI configuration (header, footer, font, logo)."
+---
+
 # UI Config Manager
 
 ```{eval-rst}

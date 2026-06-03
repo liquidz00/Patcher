@@ -1,3 +1,7 @@
+---
+description: "Reference for patcher.core.analyze: the TitleFilter and TrendAnalysis classes that filter, rank, and trend patch data."
+---
+
 (analyzer)=
 
 # Analyze

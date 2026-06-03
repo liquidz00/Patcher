@@ -1,3 +1,7 @@
+---
+description: "Reference for the Setup class: the interactive first-run configuration wizard."
+---
+
 # Setup
 
 ## Setup Class

@@ -1,3 +1,7 @@
+---
+description: "Reference for the PatchTitle and PatchDevice models returned by fetch_patches."
+---
+
 # Patch Models
 
 ```{eval-rst}

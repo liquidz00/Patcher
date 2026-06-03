@@ -1,3 +1,7 @@
+---
+description: "Reference for InstallomatorClient: the standalone fetcher for Installomator label scripts."
+---
+
 # Installomator
 
 :::{seealso}
