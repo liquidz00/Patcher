@@ -72,6 +72,35 @@ A newly enrolled Mac sometimes lacks the certificate until its next check-in.
 :::
 ::::
 
+(api-blocked)=
+
+## Catalog API Blocked by Web Filtering
+
+Patcher matches titles against the public catalog API at `api.patcherctl.dev`. On a corporate network, a secure web gateway (Netskope, Zscaler, Palo Alto, and the like) can block or restrict that domain because it is new and not yet categorized, which surfaces as an API error during matching, or a block page if you open the site in a browser. This is not a {ref}`certificate problem <support>`: the connection is refused or rewritten by policy, not by a missing trust anchor.
+
+Confirm it from the affected network:
+
+```{code-block} bash
+:caption: A reachable API returns a small JSON health payload
+$ curl https://api.patcherctl.dev/health
+{"status":"ok"}
+```
+
+Anything other than that JSON, such as a redirect, a block page, or a read-only notice, means a web filter is in the way. Two ways forward:
+
+::::{markers}
+
+:::{marker} Ask IT to allowlist the domain
+:icon: octicon:shield-check-16
+Have your security team allow `*.patcherctl.dev` in the web gateway. The domain has been submitted to the major URL-filtering vendors for categorization as Computer and Internet Info, so access also improves on its own as the domain's reputation builds.
+:::
+
+:::{marker} Point Patcher at your own catalog
+:icon: octicon:server-16
+Set the `PATCHER_API_URL` environment variable to override the API root. {ref}`Self-hosting <self-hosting>` covers running your own instance.
+:::
+::::
+
 ## Empty or Stale Data
 
 When a report is missing data or looks out of date, it's usually one of these.

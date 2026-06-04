@@ -73,6 +73,9 @@ Patcher's API is a community catalog of macOS app patching metadata stitched fro
 
 API is public, no authentication is required. See [project docs](https://docs.patcherctl.dev/en/latest/reference/api/examples.html) for `curl` and `PatcherClient` examples.
 
+> [!NOTE]
+> On a corporate network that filters new or uncategorized domains, the catalog API may be blocked by a web gateway. See [Catalog API Blocked by Web Filtering](https://docs.patcherctl.dev/en/latest/project/troubleshooting.html#api-blocked) to confirm and resolve it.
+
 ## Contributing
 
 [Contributions](https://docs.patcherctl.dev/en/latest/project/contributing.html) to Patcher are welcome! We have set up templates for submitting [issues](https://github.com/liquidz00/Patcher/issues/new?template=bug_report.yml), [feature requests](https://github.com/liquidz00/Patcher/issues/new?template=feature_request.yml), and [feedback](https://github.com/liquidz00/Patcher/issues/new?template=feedback.yml). Please be sure to utilize these templates when contributing to the project.

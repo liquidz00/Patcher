@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="index, follow">
+<meta name="description" content="Patcher API: an open-source REST API and community catalog of macOS application patch metadata (versions, download URLs, install commands) for Mac systems administrators.">
+<title>Patcher API</title>
+<style>
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+main { max-width: 40rem; width: 100%; }
+h1 { font-size: 2rem; margin: 0 0 .5rem; }
+.lead { color: #94a3b8; margin: 0 0 2rem; }
+.links { display: grid; gap: .75rem; grid-template-columns: 1fr 1fr; }
+a.card {
+  display: block;
+  padding: 1rem 1.25rem;
+  border: 1px solid #1e293b;
+  border-radius: .625rem;
+  background: #1e293b;
+  color: #e2e8f0;
+  text-decoration: none;
+  transition: border-color .15s ease, transform .15s ease;
+}
+a.card:hover { border-color: #38bdf8; transform: translateY(-2px); }
+a.card strong { display: block; color: #f8fafc; }
+a.card span { font-size: .875rem; color: #94a3b8; }
+footer { margin-top: 2rem; font-size: .8125rem; color: #64748b; }
+footer a { color: #94a3b8; }
+@media (max-width: 30rem) { .links { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Patcher API</h1>
+<p class="lead">A community catalog of macOS application patch metadata for Mac systems administrators: app versions, download URLs, and install commands. Open source and free to use.</p>
+<div class="links">
+<a class="card" href="/docs"><strong>Interactive API docs</strong><span>Explore and try endpoints (Swagger UI)</span></a>
+<a class="card" href="/redoc"><strong>API reference</strong><span>Browsable spec (ReDoc)</span></a>
+<a class="card" href="https://docs.patcherctl.dev"><strong>Documentation</strong><span>Guides and the full project docs</span></a>
+<a class="card" href="https://github.com/liquidz00/Patcher"><strong>Source code</strong><span>Patcher on GitHub</span></a>
+</div>
+<footer>
+OpenAPI spec: <a href="/openapi.json">/openapi.json</a> &middot; Service health: <a href="/health">/health</a>
+</footer>
+</main>
+</body>
+</html>
