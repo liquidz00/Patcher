@@ -382,6 +382,27 @@
         }
       }
     },
+    "/stats": {
+      "get": {
+        "tags": [
+          "stats"
+        ],
+        "summary": "Get Stats",
+        "operationId": "get_stats_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogStats"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -667,6 +688,49 @@
         ],
         "title": "AutopkgSource",
         "description": "All AutoPkg recipes matched to an app via the recipe index.\n\nAutoPkg coverage is multi-recipe by nature: a single app like Firefox\ntypically has download, munki, pkg, jamf, and intune variants across\nmultiple maintainer repos. Each match is preserved as a separate\n:class:`AutopkgRecipeEntry`."
+      },
+      "CatalogStats": {
+        "properties": {
+          "total_apps": {
+            "type": "integer",
+            "title": "Total Apps"
+          },
+          "sources": {
+            "$ref": "#/components/schemas/SourceCoverage"
+          },
+          "last_refresh": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Refresh"
+          },
+          "catalog_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Sha"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_apps",
+          "sources",
+          "last_refresh",
+          "catalog_sha"
+        ],
+        "title": "CatalogStats",
+        "description": "Top-line catalog statistics returned by ``GET /stats``."
       },
       "DriftEntry": {
         "properties": {
@@ -981,6 +1045,35 @@
           "raw"
         ],
         "title": "MasSource"
+      },
+      "SourceCoverage": {
+        "properties": {
+          "installomator": {
+            "type": "integer",
+            "title": "Installomator"
+          },
+          "homebrew_cask": {
+            "type": "integer",
+            "title": "Homebrew Cask"
+          },
+          "jamf_app_installer": {
+            "type": "integer",
+            "title": "Jamf App Installer"
+          },
+          "autopkg": {
+            "type": "integer",
+            "title": "Autopkg"
+          }
+        },
+        "type": "object",
+        "required": [
+          "installomator",
+          "homebrew_cask",
+          "jamf_app_installer",
+          "autopkg"
+        ],
+        "title": "SourceCoverage",
+        "description": "How many apps carry each upstream source's data."
       },
       "SourceVersion": {
         "properties": {

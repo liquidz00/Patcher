@@ -11,7 +11,7 @@ from patcher_api.catalog import recompute_catalog_sha
 from patcher_api.config import get_settings
 from patcher_api.db import get_engine, get_session_maker, init_db
 from patcher_api.mcp import mcp_app
-from patcher_api.routes import admin, apps
+from patcher_api.routes import admin, apps, stats
 from patcher_api.seed import seed_database
 
 log = logging.getLogger(__name__)
@@ -100,6 +100,7 @@ async def catalog_etag(request: Request, call_next):
 
 app.include_router(apps.router)
 app.include_router(admin.router)
+app.include_router(stats.router)
 
 # MCP over Streamable HTTP; Cloudflare Tunnel maps mcp.patcherctl.dev to this mount.
 app.mount("/mcp", mcp_app)

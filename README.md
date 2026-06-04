@@ -12,6 +12,7 @@
 ![](https://img.shields.io/github/actions/workflow/status/liquidz00/Patcher/pytest.yml?logo=github&logoColor=white&label=Run+Tests)
 ![](https://img.shields.io/pypi/v/patcherctl?logo=pypi&logoColor=white&color=yellow)
 ![](https://img.shields.io/badge/macOS-13%2B-blueviolet?logo=apple&logoColor=white&logoSize=auto)
+![](https://img.shields.io/badge/dynamic/json?url=https://api.patcherctl.dev/stats&query=%24.total_apps&label=catalog&suffix=%20apps&color=2ea043&style=flat&cacheSeconds=3600)
 
 <p align="center">
     <img src="https://cdn.worldvectorlogo.com/logos/slack-new-logo.svg" width="16" style="vertical-align: middle; margin-right: 5px;"/>

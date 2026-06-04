@@ -1,19 +1,20 @@
 """
-Shared catalog query helpers for the MCP server.
+MCP-specific catalog query helpers (row projection + categorical values).
 
-Tools and resources both need to project app rows and compute catalog-level
-aggregates. Centralizing the logic here keeps a tool and its mirror resource
-(for example ``get_catalog_summary`` and ``catalog://summary``) from drifting
-apart over time.
+Catalog-level aggregates shared with the REST API (``catalog_summary``) live in
+:mod:`patcher_api.queries` and are re-exported here so the MCP tools and their
+mirror resources keep importing from one place.
 """
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from patcher_api.models.app import App as AppRow
-from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
+from patcher_api.queries import catalog_summary
 from patcher_api.schemas.app import App as AppSchema
 from patcher_api.schemas.app import InstallMethod
+
+__all__ = ["catalog_categories", "catalog_summary", "serialize_app"]
 
 
 def serialize_app(row: AppRow) -> dict:
@@ -25,26 +26,6 @@ def serialize_app(row: AppRow) -> dict:
     ``InstallMethod`` enum becomes its string value.
     """
     return AppSchema.model_validate(row).model_dump(mode="json")
-
-
-async def catalog_summary(session: AsyncSession) -> dict:
-    """
-    Total app count plus per-source coverage counts.
-
-    Returned dict has ``total_apps`` (int) and ``sources`` (a dict mapping each
-    upstream source name to the count of apps carrying that source's data).
-    """
-    total = (await session.scalar(select(func.count(AppRow.id)))) or 0
-    # JSON null and SQL NULL both deserialize to Python None, so a SQL
-    # COUNT(column) would over-count. Count truthiness in Python instead.
-    details = (await session.scalars(select(AppSourceDetailRow))).all()
-    sources = {
-        "installomator": sum(1 for d in details if d.installomator),
-        "homebrew_cask": sum(1 for d in details if d.homebrew_cask),
-        "jamf_app_installer": sum(1 for d in details if d.jamf_app_installer),
-        "autopkg": sum(1 for d in details if d.autopkg),
-    }
-    return {"total_apps": total, "sources": sources}
 
 
 async def catalog_categories(session: AsyncSession) -> dict:
