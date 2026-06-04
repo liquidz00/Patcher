@@ -7,6 +7,10 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 
+# Healthchecks.io dead-man's switch. HEALTHCHECK_URL lives in the EnvironmentFile
+# (kept out of version control); a missed daily ping is what trips the alert.
+ExecStartPre=-/usr/bin/curl -fsS -m 10 --retry 3 -o /dev/null ${HEALTHCHECK_URL}/start
+
 # Run the ingest as `patcher` (the user that owns the live SQLite DB) so
 # writes succeed. The service unit itself runs as root so it can restart
 # patcher-api.service in ExecStartPost (an `app.state.catalog_sha` cache
@@ -15,6 +19,9 @@ Type=oneshot
 ExecStart=/usr/sbin/runuser -u patcher -- \
     /opt/patcher/.venv/bin/python /opt/patcher/api/scripts/ingest.py all
 ExecStartPost=/bin/systemctl restart patcher-api.service
+# Signal success only after the restart lands; ExecStopPost covers the failure path.
+ExecStartPost=-/usr/bin/curl -fsS -m 10 --retry 3 -o /dev/null ${HEALTHCHECK_URL}
+ExecStopPost=/bin/sh -c '[ "$$SERVICE_RESULT" = success ] || [ -z "$$HEALTHCHECK_URL" ] || curl -fsS -m 10 --retry 3 -o /dev/null "$$HEALTHCHECK_URL/fail"'
 
 # Ingest can take ~10-15 minutes today; 2h gives generous headroom for
 # upstream slowdowns without false-positive failures.
