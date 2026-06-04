@@ -11,7 +11,7 @@ Read the stitched macOS app catalog without standing up your own ingestion pipel
 ---
 
 ```{note}
-The Patcher API catalog is **public** — no authentication required for any `/apps*` endpoint. Admin endpoints used to upload fresh catalog data are gated behind a separate deploy token and not documented publicly.
+The Patcher API catalog is **public** — no authentication required for any `/apps*` or `/stats` endpoint. Admin endpoints used to upload fresh catalog data are gated behind a separate deploy token and not documented publicly.
 ```
 
 ## Two ways in
@@ -64,7 +64,7 @@ The reference below is auto-generated from the live OpenAPI schema. When a route
 
 ```{eval-rst}
 .. openapi:: ../../_generated/openapi.json
-   :paths: /apps /apps/{slug} /apps/{slug}/sources /apps/{slug}/generate-label
+   :paths: /apps /apps/{slug} /apps/{slug}/sources /apps/{slug}/generate-label /stats
    :examples:
 ```
 
