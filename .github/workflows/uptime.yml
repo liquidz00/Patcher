@@ -5,6 +5,10 @@ on:
     - cron: '*/15 * * * *'
   workflow_dispatch:
 
+# Least privilege: checkout only needs to read the repo; the rest is shell + the Slack secret.
+permissions:
+  contents: read
+
 jobs:
   probe:
     runs-on: ubuntu-latest

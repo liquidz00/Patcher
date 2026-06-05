@@ -10,7 +10,7 @@ description: "Simplified patch management reporting for macOS fleets on Jamf Pro
 ![](https://img.shields.io/github/actions/workflow/status/liquidz00/Patcher/pytest.yml?logo=github&logoColor=white&label=Run+Tests)
 ![](https://img.shields.io/pypi/v/patcherctl?logo=pypi&logoColor=white&color=yellow)
 ![](https://img.shields.io/badge/macOS-13%2B-blueviolet?logo=apple&logoColor=white&logoSize=auto)
-![](https://img.shields.io/badge/dynamic/json?url=https://api.patcherctl.dev/stats&query=%24.total_apps&label=catalog&suffix=%20apps&color=2ea043&style=flat&cacheSeconds=3600)
+![](https://img.shields.io/badge/dynamic/json?url=https://api.patcherctl.dev/stats&query=%24.total_apps&label=catalog&suffix=%20apps&color=1abc9c&style=flat&logo=sqlite&logoColor=white&cacheSeconds=3600)
 
 :::{rst-class} lead
 A Python package and CLI for **patch analysis and reporting** on macOS fleets managed by [Jamf Pro](https://jamf.com/products/jamf-pro/).
