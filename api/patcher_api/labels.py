@@ -33,6 +33,14 @@ from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.schemas.labels import GenerateLabelResponse
 
+_URL_SUFFIX_TO_TYPE = (
+    (".dmg", "dmg"),
+    (".pkg", "pkg"),
+    (".zip", "zip"),
+    (".tbz", "tbz"),
+    (".tar.bz2", "tbz"),
+)
+
 
 def _first_scalar(value: Any) -> Any:
     """
@@ -165,15 +173,7 @@ def _infer_type_from_url(url: str | None) -> str | None:
     if not url:
         return None
     lower = url.lower()
-    if lower.endswith(".dmg"):
-        return "dmg"
-    if lower.endswith(".pkg"):
-        return "pkg"
-    if lower.endswith(".zip"):
-        return "zip"
-    if lower.endswith(".tbz") or lower.endswith(".tar.bz2"):
-        return "tbz"
-    return None
+    return next((t for suffix, t in _URL_SUFFIX_TO_TYPE if lower.endswith(suffix)), None)
 
 
 def _resolve_download_url(

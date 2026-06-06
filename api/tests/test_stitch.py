@@ -169,7 +169,7 @@ def _make_jai(
     )
 
 
-# ----- pure-helper unit tests -----
+# Pure-helper unit tests
 
 
 class TestIsShellExpression:
@@ -521,7 +521,7 @@ class TestFindMatchingCask:
         assert match is None
 
 
-# ----- integration-style tests against an in-memory DB -----
+# Integration-style tests against an in-memory DB
 
 
 @pytest_asyncio.fixture
