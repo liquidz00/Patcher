@@ -26,6 +26,7 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher.policy import CURATED_BUNDLE_IDS
 from patcher_api.installomator.resolver import is_shell_expression, looks_like_clean_http_url
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
@@ -773,7 +774,8 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
         display_name = il.display_name or il.name
         normalized = _normalize_name(display_name)
         matching_autopkg = autopkg_by_name.get(normalized, [])
-        matching_jai = _match_jai(il.package_id, normalized, jai_by_bundle_id, jai_by_title)
+        own_bundle = il.package_id or CURATED_BUNDLE_IDS.get(il.name)
+        matching_jai = _match_jai(own_bundle, normalized, jai_by_bundle_id, jai_by_title)
 
         sources = ["installomator"]
         if matching_cask is not None:
@@ -790,7 +792,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                 await _upsert_app_with_sources(
                     session,
                     slug=il.name,
-                    bundle_id=_backfilled_bundle_id(il.package_id, matching_jai),
+                    bundle_id=_backfilled_bundle_id(own_bundle, matching_jai),
                     name=display_name,
                     vendor=_extract_vendor(il),
                     current_version=_resolve_version(il, matching_cask, matching_jai),
@@ -830,8 +832,9 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
         cask_name = cask.name or cask.token
         normalized = _normalize_name(cask_name)
         matching_autopkg = autopkg_by_name.get(normalized, [])
-        # Casks carry no bundle_id, so this is name-only; a JAI hit can backfill one.
-        matching_jai = _match_jai(None, normalized, jai_by_bundle_id, jai_by_title)
+        # Casks carry no native bundle_id; a curated override or JAI hit can supply one.
+        own_bundle = CURATED_BUNDLE_IDS.get(cask.token)
+        matching_jai = _match_jai(own_bundle, normalized, jai_by_bundle_id, jai_by_title)
 
         sources = ["homebrew_cask"]
         if matching_autopkg:
@@ -844,7 +847,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                 await _upsert_app_with_sources(
                     session,
                     slug=cask.token,
-                    bundle_id=_backfilled_bundle_id(None, matching_jai),
+                    bundle_id=_backfilled_bundle_id(own_bundle, matching_jai),
                     name=cask_name,
                     vendor=cask_name.split()[0] if cask_name else None,
                     current_version=cask.version

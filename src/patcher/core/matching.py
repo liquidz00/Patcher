@@ -37,20 +37,12 @@ from rapidfuzz import fuzz, process
 
 from ..clients.jamf import JamfClient
 from ..clients.patcher_api import App, PatcherAPIClient
+from ..policy import IGNORED_TITLES
 from .exceptions import APIResponseError, InstallomatorWarning
 from .logger import LogMe
 from .models.cask import CaskMatch
 from .models.label import Label
 from .models.patch import PatchTitle
-
-_IGNORED_TITLES = [
-    "Apple macOS *",
-    "Oracle Java SE *",
-    "Eclipse Temurin *",
-    "Apple Safari",
-    "Apple Xcode",
-    "Microsoft Visual Studio",  # Support deprecated
-]
 
 DEFAULT_FUZZY_THRESHOLD = 85
 
@@ -231,7 +223,7 @@ async def match_titles(
     populates both fields.
 
     Mutates the input list in place. Titles that pattern-match
-    the module's ``_IGNORED_TITLES`` list are skipped silently.
+    :data:`~patcher.policy.IGNORED_TITLES` are skipped silently.
 
     :param patch_titles: The list of ``PatchTitle`` objects to match.
     :type patch_titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
@@ -279,7 +271,7 @@ async def match_titles(
     unmatched_apps: list[dict[str, Any]] = []
 
     for patch_title in patch_titles:
-        if any(fnmatch.fnmatch(patch_title.title, pattern) for pattern in _IGNORED_TITLES):
+        if any(fnmatch.fnmatch(patch_title.title, pattern) for pattern in IGNORED_TITLES):
             log.info(f"Ignoring {patch_title.title}")
             continue
 

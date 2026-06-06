@@ -206,7 +206,7 @@ async def test_get_label_multi_assignment_first_wins_and_no_truncation(
 
 @pytest.mark.asyncio
 async def test_get_label_returns_none_on_ignored_team_id(iom: InstallomatorClient) -> None:
-    # LL3KBL2M3A is in IGNORED_TEAMS (lcadvancedvpnclient)
+    # LL3KBL2M3A is in INGEST_EXCLUDED_TEAM_IDS (lcadvancedvpnclient)
     iom.api.fetch_text.return_value = _sample_fragment(name="LC AdvancedVPN", team_id="LL3KBL2M3A")
 
     label = await iom.get_label("lcadvancedvpnclient")

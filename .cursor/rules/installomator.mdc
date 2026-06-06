@@ -53,9 +53,9 @@ Optional fields documented in the wiki but **not currently parsed**:
 
 If you need any of these, extend `Label` in `src/patcher/models/label.py` (the model's commented section is a roadmap).
 
-## IGNORED_TEAMS
+## INGEST_EXCLUDED_TEAM_IDS
 
-`utils/installomator.py:IGNORED_TEAMS` filters fragments whose `expectedTeamID` is in the list. Current entries:
+`src/patcher/policy.py:INGEST_EXCLUDED_TEAM_IDS` filters fragments whose `expectedTeamID` is in the set (shared by the library client and the API ingest). Current entries:
 
 - `"Frydendal"` — non-standard team value, skipped to avoid validation errors
 - `"Media"` — same

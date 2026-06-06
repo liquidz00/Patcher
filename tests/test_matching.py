@@ -138,6 +138,21 @@ class TestMatchTitlesPipeline:
         # ignored title (no entry appears in unmatched_apps either).
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("ignored", ["Adobe Photoshop 2024", "Jamf Self Service for macOS"])
+    async def test_policy_vendor_globs_skip_titles(self, tmp_path, ignored):
+        title = _patch_title(ignored)
+        api = AsyncMock()
+        api.list_apps.return_value = [_app("firefox")]
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = []
+        review_file = tmp_path / "review.json"
+
+        await match_titles([title], jamf=jamf, api=api, review_file=review_file)
+
+        assert title.install_label == []
+        assert not review_file.exists() or ignored not in review_file.read_text()
+
+    @pytest.mark.asyncio
     async def test_second_pass_normalizes_patch_title_directly(self, tmp_path):
         """When Jamf provides no app names, second pass uses the patch title text."""
         title = _patch_title("Google Chrome")

@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **`GET /stats` API endpoint.** Returns top-line catalog statistics in one call: total app count, per-source coverage counts, the catalog content hash, and `last_refresh` (the newest ingest timestamp across all sources), so consumers can check catalog size and freshness without paging through `/apps`.
 
+### Changed
+- **Catalog backfills bundle identifiers for two dozen apps.** Titles whose install source carries no bundle ID (Zoom, Docker, OBS Studio, DBeaver, IntelliJ IDEA / PyCharm Community, Nextcloud, and more) now attach their Jamf App Installer coverage and a bundle ID through a curated seed, so cross-source matching and version-drift detection work for them too.
+- **Matching now skips Adobe and Jamf-published titles by default.** These are managed out-of-band (Adobe via the Admin Console, Jamf's own apps such as Self Service via Jamf's updater), so they no longer clutter `analyze` reports with unactionable rows. A future release will make this skip list configurable.
+
 ## [v3.2.0] - 2026-06-03
 ### Added
 - **MCP server for the Patcher catalog.** Point Claude or any Streamable HTTP MCP client at the catalog and ask about it in natural language, with no `curl` or API client required. Eight read-only tools cover catalog summaries, app lookups, search, version drift, categories, Installomator label generation, per-source data, and recent additions, alongside pinnable catalog resources and ready-made prompts. Live at `mcp.patcherctl.dev`, or self-hosted at `/mcp`.

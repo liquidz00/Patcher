@@ -9,7 +9,6 @@ the upstream repo); changes here should track upstream label format changes.
 import httpx
 import pytest
 from patcher_api.installomator.ingest import (
-    IGNORED_TEAMS,
     FetchPlan,
     _fetch_upstream_tree,
     fetch_installomator_labels,
@@ -18,6 +17,8 @@ from patcher_api.installomator.ingest import (
 )
 from patcher_api.models.installomator import InstallomatorLabel
 from sqlalchemy import select
+
+from patcher.policy import INGEST_EXCLUDED_TEAM_IDS
 
 FIREFOX_FRAGMENT = """firefoxpkg)
     name="Firefox"
@@ -334,8 +335,8 @@ async def test_ingest_stores_realistic_label(test_session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_ingest_skips_ignored_team_ids(test_session):
-    """Labels whose expectedTeamID is in IGNORED_TEAMS are filtered out."""
-    assert "LL3KBL2M3A" in IGNORED_TEAMS
+    """Labels whose expectedTeamID is in INGEST_EXCLUDED_TEAM_IDS are filtered out."""
+    assert "LL3KBL2M3A" in INGEST_EXCLUDED_TEAM_IDS
 
     ingested, skipped, failed = await ingest_installomator_labels(
         test_session, {"somelabel": IGNORED_TEAM_FRAGMENT}

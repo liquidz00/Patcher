@@ -9,9 +9,8 @@ from pydantic import ValidationError
 from ..core.exceptions import APIResponseError, PatcherError
 from ..core.logger import LogMe
 from ..core.models.label import Label
+from ..policy import INGEST_EXCLUDED_TEAM_IDS
 from . import HTTPClient
-
-IGNORED_TEAMS = ["Frydendal", "Media", "LL3KBL2M3A"]  # "LL3KBL2M3A" - lcadvancedvpnclient
 
 # Installomator hosts a flat list of every label name in Labels.txt at the
 # repo root. Parsing this file before fetching individual fragments lets us
@@ -302,7 +301,7 @@ class InstallomatorClient:
         Parse a fragment's raw .sh content into a ``Label`` object.
 
         Returns ``None`` if the fragment's expected Team ID is in
-        :data:`IGNORED_TEAMS` or if Pydantic validation fails.
+        :data:`~patcher.policy.INGEST_EXCLUDED_TEAM_IDS` or if Pydantic validation fails.
         """
         fragment_dict = parse_fragment(content)
 
@@ -316,7 +315,7 @@ class InstallomatorClient:
         }
 
         expected_team_id = fragment_dict.get("expectedTeamID")
-        if expected_team_id in IGNORED_TEAMS:
+        if expected_team_id in INGEST_EXCLUDED_TEAM_IDS:
             self.log.warning(f"Skipping label {script_name} (ignored Team ID: {expected_team_id})")
             return None
 
