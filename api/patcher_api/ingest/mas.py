@@ -27,9 +27,9 @@ from typing import Any
 
 import httpx
 from pydantic import ValidationError
-from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher_api.db import upsert_stmt
 from patcher_api.models.mas import MasApp
 from patcher_api.schemas.mas import MasLookupRecord
 
@@ -182,7 +182,9 @@ async def ingest_mas_apps(
             continue
 
         now = datetime.now(UTC)
-        stmt = insert(MasApp).values(
+        stmt = upsert_stmt(
+            MasApp,
+            index_elements=["bundle_id"],
             bundle_id=record.bundleId,
             name=record.trackName,
             version=record.version,
@@ -193,20 +195,6 @@ async def ingest_mas_apps(
             price=record.price,
             raw=raw,
             ingested_at=now,
-        )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["bundle_id"],
-            set_={
-                "name": stmt.excluded.name,
-                "version": stmt.excluded.version,
-                "release_date": stmt.excluded.release_date,
-                "release_notes": stmt.excluded.release_notes,
-                "store_url": stmt.excluded.store_url,
-                "minimum_os_version": stmt.excluded.minimum_os_version,
-                "price": stmt.excluded.price,
-                "raw": stmt.excluded.raw,
-                "ingested_at": stmt.excluded.ingested_at,
-            },
         )
         await session.execute(stmt)
         ingested += 1

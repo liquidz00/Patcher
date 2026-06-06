@@ -48,10 +48,10 @@ from typing import Any
 
 import httpx
 from sqlalchemy import select, update
-from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from patcher.policy import INGEST_EXCLUDED_TEAM_IDS
+from patcher_api.db import upsert_stmt
 from patcher_api.installomator.parser import parse_fragment
 from patcher_api.installomator.resolver import (
     InvalidOutput,
@@ -388,7 +388,9 @@ async def ingest_installomator_labels(
 
             try:
                 now = datetime.now(UTC)
-                stmt = insert(InstallomatorLabel).values(
+                stmt = upsert_stmt(
+                    InstallomatorLabel,
+                    index_elements=["name"],
                     name=name,
                     display_name=_scalar_for_column(parsed.get("name")),
                     install_type=_scalar_for_column(parsed.get("type")),
@@ -404,23 +406,6 @@ async def ingest_installomator_labels(
                     resolution_source=None,
                     resolved_at=None,
                     ingested_at=now,
-                )
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=["name"],
-                    set_={
-                        "display_name": stmt.excluded.display_name,
-                        "install_type": stmt.excluded.install_type,
-                        "package_id": stmt.excluded.package_id,
-                        "download_url": stmt.excluded.download_url,
-                        "expected_team_id": stmt.excluded.expected_team_id,
-                        "app_new_version": stmt.excluded.app_new_version,
-                        "raw": stmt.excluded.raw,
-                        "fragment": stmt.excluded.fragment,
-                        "blob_sha": stmt.excluded.blob_sha,
-                        "resolution_source": stmt.excluded.resolution_source,
-                        "resolved_at": stmt.excluded.resolved_at,
-                        "ingested_at": stmt.excluded.ingested_at,
-                    },
                 )
                 await session.execute(stmt)
                 await session.commit()

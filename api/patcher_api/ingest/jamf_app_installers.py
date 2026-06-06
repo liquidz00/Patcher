@@ -19,9 +19,9 @@ import logging
 from datetime import UTC, datetime
 
 import httpx
-from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher_api.db import upsert_stmt
 from patcher_api.models.jamf_app_installers import JamfAppInstaller
 from patcher_api.schemas.jamf_app_installers import JaiTitle, JaiTitlePage
 
@@ -226,7 +226,9 @@ async def ingest_jai_titles(
         )
 
         now = datetime.now(UTC)
-        stmt = insert(JamfAppInstaller).values(
+        stmt = upsert_stmt(
+            JamfAppInstaller,
+            index_elements=["title"],
             title=title.title_name,
             source=source,
             host=host,
@@ -237,20 +239,6 @@ async def ingest_jai_titles(
             architecture=title.architecture,
             raw=title.model_dump(mode="json", by_alias=True),
             ingested_at=now,
-        )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["title"],
-            set_={
-                "source": stmt.excluded.source,
-                "host": stmt.excluded.host,
-                "bundle_id": stmt.excluded.bundle_id,
-                "version": stmt.excluded.version,
-                "jamf_id": stmt.excluded.jamf_id,
-                "download_url": stmt.excluded.download_url,
-                "architecture": stmt.excluded.architecture,
-                "raw": stmt.excluded.raw,
-                "ingested_at": stmt.excluded.ingested_at,
-            },
         )
         await session.execute(stmt)
         ingested += 1

@@ -16,9 +16,9 @@ from datetime import UTC, datetime
 
 import httpx
 from pydantic import ValidationError
-from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher_api.db import upsert_stmt
 from patcher_api.models.homebrew import HomebrewCask
 from patcher_api.schemas.homebrew import HomebrewCaskRecord
 
@@ -79,7 +79,9 @@ async def ingest_homebrew_casks(
             continue
 
         now = datetime.now(UTC)
-        stmt = insert(HomebrewCask).values(
+        stmt = upsert_stmt(
+            HomebrewCask,
+            index_elements=["token"],
             token=record.token,
             name=record.name[0] if record.name else record.token,
             desc=record.desc,
@@ -90,20 +92,6 @@ async def ingest_homebrew_casks(
             auto_updates=record.auto_updates,
             raw=raw,
             ingested_at=now,
-        )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["token"],
-            set_={
-                "name": stmt.excluded.name,
-                "desc": stmt.excluded.desc,
-                "homepage": stmt.excluded.homepage,
-                "url": stmt.excluded.url,
-                "version": stmt.excluded.version,
-                "sha256": stmt.excluded.sha256,
-                "auto_updates": stmt.excluded.auto_updates,
-                "raw": stmt.excluded.raw,
-                "ingested_at": stmt.excluded.ingested_at,
-            },
         )
         await session.execute(stmt)
         ingested += 1
