@@ -89,14 +89,8 @@ def test_report_add_table_header(mock_pdf_report):
     mock_pdf_report.add_table_header()
 
 
-# ---------------------------------------------------------------------------
-# Document-level rendering. The existing tests above exercise helpers and
-# header-side effects, but never produce an actual PDF file on disk. These
-# write the full document and assert against the bytes/page count so that
-# a regression in the rendering pipeline (font registration, multi-page
-# flow, output writing) fails a test rather than only surfacing when a
-# real user generates a real report.
-# ---------------------------------------------------------------------------
+# Document-level rendering: write the full PDF and assert on bytes/page count so
+# a rendering-pipeline regression (fonts, multi-page, output) fails a test.
 
 
 def _make_pdf(ui_config: dict | None = None) -> PDFReport:

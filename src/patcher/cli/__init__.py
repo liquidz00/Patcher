@@ -689,11 +689,9 @@ async def export(
     selected_formats = set(formats) if formats else {"excel", "html", "pdf", "json"}
     actual_format = DATE_FORMATS[date_format]
 
-    # The PDF report renders header text, footer text, and (optionally) a
-    # logo straight from the UI configuration. Other formats (excel,
-    # html, json) don't read UI config at all. If a PDF is on the menu
-    # but UI config is still at its defaults, the resulting PDF will show
-    # the "Default header text" placeholders, so warn the user up front.
+    # Only the PDF format reads UI config (header/footer/logo); if a PDF is
+    # requested while UI config is still at defaults, it renders placeholder
+    # text, so warn up front.
     if "pdf" in selected_formats:
         defaults = UIDefaults().model_dump()
         ui_at_defaults = all(

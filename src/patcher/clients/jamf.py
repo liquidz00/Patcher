@@ -124,10 +124,7 @@ class JamfClient(HTTPClient):
         """
         headers = await self._headers()
         url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
-        try:
-            response = await self.fetch_json(url=url, headers=headers)
-        except APIResponseError:
-            raise
+        response = await self.fetch_json(url=url, headers=headers)
         return [title.get("id") for title in response]
 
     async def get_summaries(self, policy_ids: list[str]) -> list[PatchTitle]:
@@ -144,10 +141,7 @@ class JamfClient(HTTPClient):
             for policy in policy_ids
         ]
         headers = await self._headers()
-        try:
-            summaries = await self.fetch_batch(urls, headers=headers)
-        except APIResponseError:
-            raise
+        summaries = await self.fetch_batch(urls, headers=headers)
 
         patch_titles = [
             PatchTitle(
@@ -259,10 +253,7 @@ class JamfClient(HTTPClient):
         """
         url = f"{self.jamf_url}/api/v2/mobile-devices"
         headers = await self._headers()
-        try:
-            response = await self.fetch_json(url=url, headers=headers)
-        except APIResponseError:
-            raise
+        response = await self.fetch_json(url=url, headers=headers)
         devices = response.get("results")
         return [device.get("id") for device in devices if device]
 
@@ -280,10 +271,7 @@ class JamfClient(HTTPClient):
         """
         urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
         headers = await self._headers()
-        try:
-            subsets = await self.fetch_batch(urls, headers=headers)
-        except APIResponseError:
-            raise
+        subsets = await self.fetch_batch(urls, headers=headers)
 
         devices = [
             {

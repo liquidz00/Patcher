@@ -65,7 +65,7 @@ async def omit_recent(titles: list[PatchTitle], hours: int = 48) -> list[PatchTi
     _log.debug(f"Omitting reports with patches released since {cutoff}.")
     original_count = len(titles)
     filtered = await asyncio.to_thread(
-        lambda: [t for t in titles if datetime.strptime(t.released, "%b %d %Y") < cutoff]
+        lambda: [t for t in titles if datetime.strptime(t.released, _RELEASED_FMT) < cutoff]
     )
     _log.info(f"Omitted {original_count - len(filtered)} policies with recent patches.")
     return filtered
@@ -406,9 +406,7 @@ class TitleFilter:
         return method(**kwargs)
 
     def _cap(self, result: list[PatchTitle], top_n: int | None) -> list[PatchTitle]:
-        if top_n is not None and len(result) > top_n:
-            return result[:top_n]
-        return result
+        return result[:top_n] if top_n is not None else result
 
 
 class TrendAnalysis:
@@ -715,7 +713,7 @@ class TrendAnalysis:
 
             df.columns = [str(col).lower().replace(" ", "_") for col in df.columns]
             if "released" in df.columns:
-                df["released"] = pd.to_datetime(df["released"], format="%b %d %Y")
+                df["released"] = pd.to_datetime(df["released"], format=_RELEASED_FMT)
             loaded.append((snapshot_date, df))
 
         self._log.info(f"Loaded {len(loaded)} datasets with snapshot dates.")
@@ -1242,5 +1240,5 @@ def _coerce_released(value: Any) -> str:
     if isinstance(value, str):
         return value
     if hasattr(value, "strftime"):
-        return value.strftime("%b %d %Y")
+        return value.strftime(_RELEASED_FMT)
     return str(value)

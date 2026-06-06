@@ -393,11 +393,9 @@ class InstallomatorClient:
                     f"Could not read cached fragment {cache_path}; will refetch. Details: {e}"
                 )
 
-        # HTTP fetch. `fetch_text` raises `patcher.core.exceptions.APIResponseError` on non-2xx
-        # (with `not_found=True` on 404) so we don't silently parse "404:
-        # Not Found" bodies as labels. Treat any fetch failure as
-        # best-effort: log and return None so a single broken label
-        # doesn't kill the batch.
+        # fetch_text raises APIResponseError on non-2xx (not_found=True on 404),
+        # so we never parse error bodies as labels. Best-effort: log and return
+        # None so one broken label doesn't kill the batch.
         url = _FRAGMENT_URL_TEMPLATE.format(name=key)
         self.log.debug(f"Fetching Installomator fragment from {url}")
         try:

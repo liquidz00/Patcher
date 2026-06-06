@@ -48,12 +48,9 @@ class Settings(BaseSettings):
     jai_base_url: str = "https://dummy.jamfcloud.com"
     jai_client_id: str = "2b7ea5e9-cbab-4f60-97e3-32eaefeee768"
     jai_client_secret: str = "o0dwi8E0XMaYtX760LB05csjHeJoGHKldTi4R5x7NKwLMl25gYenpMAlRDerA6G1"
-    # Allowlist of origins permitted to call the MCP endpoint. MCP spec
-    # 2025-06-18 has a security MUST on Origin validation for Streamable HTTP
-    # servers to prevent DNS rebinding. Requests with no Origin header (native
-    # clients like Claude Desktop, CLI tools) bypass the check; only browser-
-    # initiated requests with a Set Origin are validated. Set via env as a
-    # JSON list, e.g. ``PATCHER_API_MCP_ALLOWED_ORIGINS='["https://claude.ai"]'``.
+    # MCP spec (2025-06-18) has a security MUST on Origin validation to prevent
+    # DNS rebinding. No-Origin requests (native clients) bypass; browser requests
+    # with an Origin are validated. Set via env as a JSON list.
     mcp_allowed_origins: list[str] = ["https://claude.ai"]
 
 

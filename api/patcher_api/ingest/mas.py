@@ -45,11 +45,9 @@ _INTER_REQUEST_DELAY_SECONDS = 3.0
 # defensively at the parser boundary.
 _MAS_KIND = "mac-software"
 
-# Curated seed of bundle IDs to look up on a sweep. Mix of Apple
-# first-party MAS-only / MAS-primary apps and popular third-party paid
-# MAS apps. Apps that also have Installomator labels or Cask records
-# (e.g. Slack, Microsoft Office) will join cleanly via bundle_id and gain
-# "mas" as a third source dimension on their stitched ``apps`` row.
+# Curated bundle IDs to sweep: Apple first-party MAS apps plus popular paid
+# third-party ones. Apps also in Installomator/Cask join via bundle_id and gain
+# "mas" as a third source.
 MAS_SEED_BUNDLE_IDS: list[str] = [
     # Apple iWork
     "com.apple.iWork.Pages",

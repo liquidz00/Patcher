@@ -444,11 +444,9 @@ class Setup:
         self._greet()
 
         setup_type_map = {1: SetupType.STANDARD, 2: SetupType.SSO}
-        # Loop until a valid setup type is chosen. Previously this branch
-        # recursively called ``self.start()`` on invalid input, which blew the
-        # Python stack with ~1000 frames if the prompt produced a non-int
-        # (e.g. asyncclick's async-aware ``prompt`` returning a coroutine
-        # because the caller didn't ``await`` it). See issue #58.
+        # Loop rather than recurse into start() on invalid input; the old
+        # recursion blew the stack (~1000 frames) when the prompt returned a
+        # non-int (asyncclick coroutine). See issue #58.
         while True:
             choice = await click.prompt(
                 "Choose setup method (1: Standard setup, 2: SSO setup)",

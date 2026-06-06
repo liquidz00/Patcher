@@ -82,11 +82,9 @@ class JamfCredentials(Model):
         :raises PatcherError: If the value is empty.
         """
         if not value:
-            # Avoid echoing the field value back; some Pydantic error paths
-            # surface this PatcherError message and logging the empty value
-            # itself is fine, but the validator runs before SecretStr wrap
-            # so an attacker who triggers this on a non-empty-but-invalid
-            # value would otherwise see it in the message.
+            # Don't echo the value: the validator runs before the SecretStr
+            # wrap, so a non-empty-but-invalid value would otherwise leak into
+            # the error message.
             raise PatcherError("Field cannot be empty")
         return value
 

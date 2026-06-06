@@ -46,11 +46,9 @@ def test_delete_credential_success(real_config_manager):
 
 
 def test_delete_credential_failure(real_config_manager):
-    # ``delete_credential`` currently swallows ``KeyringError`` and reports
-    # success. Issue #71 will tighten this to differentiate "credential
-    # didn't exist" (legitimate no-op) from genuine keyring failures
-    # (should propagate). Update both this assertion and ``delete_credential``
-    # together when #71 lands.
+    # delete_credential currently swallows KeyringError and reports success.
+    # Issue #71 will split "didn't exist" from real failures; update this
+    # assertion and delete_credential together when it lands.
     with patch("keyring.delete_password", side_effect=KeyringError("Keyring failure")):
         result = real_config_manager.delete_credential("API_KEY")
         assert result is True

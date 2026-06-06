@@ -317,11 +317,9 @@ async def match_titles(
         log.warning(f"{len(unmatched_apps)} PatchTitle objects had no matches.")
         if review_file is not None:
             _save_unmatched(review_file, unmatched_apps)
-        # Surface to library callers via the Python warnings system so they
-        # can catch / escalate independently of log level. The CLI installs
-        # ``warnings.simplefilter("always", InstallomatorWarning)`` so end
-        # users see the message; library callers can suppress with a
-        # ``warnings.filterwarnings("ignore", category=InstallomatorWarning)``.
+        # Surface via the warnings system so callers can catch/escalate
+        # independently of log level. The CLI shows these (simplefilter
+        # "always", InstallomatorWarning); library callers can filter them out.
         warnings.warn(
             f"{len(unmatched_apps)} patch title(s) had no {source_label} match. "
             f"See {review_file} for the list."

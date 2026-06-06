@@ -356,7 +356,7 @@ class DataManager:
         :rtype: str
         """
         sanitized = re.sub(r"[:\\/?*\[\]]", "", name)
-        return sanitized[:31] if len(sanitized) > 31 else sanitized
+        return sanitized[:31]
 
     def _write_multisheet_workbook(
         self,
@@ -511,14 +511,9 @@ class DataManager:
             columns=[col.replace("_", " ").title() for col in DataManager._IGNORED], errors="ignore"
         )
 
-        # TODO: comment runs long — trim?
-        # Surface Homebrew Cask coverage as a readable column. The raw
-        # list-of-dicts ``homebrew_cask`` field is dropped via ``_IGNORED``
-        # (same treatment as ``install_label``); this derived column shows the
-        # matched cask token(s) instead. Positionally aligned with
-        # ``patch_titles`` since ``_create_dataframe`` preserves their order.
-        # Added only when at least one title matched a cask, so default
-        # (Installomator-only) exports are unchanged.
+        # Derived column: the matched cask token(s). The raw homebrew_cask field
+        # is dropped via _IGNORED; this shows coverage instead. Added only when a
+        # title matched a cask, so Installomator-only exports are unchanged.
         if any(title.homebrew_cask for title in patch_titles):
             df["Homebrew"] = [
                 ", ".join(match.token for match in (title.homebrew_cask or []))
@@ -595,7 +590,8 @@ class DataManager:
         :rtype: bool
         """
         try:
-            [file.unlink() for file in self.get_cached_files()]
+            for file in self.get_cached_files():
+                file.unlink()
             return True
         except OSError as e:
             self.log.warning(f"Encountered {type(e).__name__} during cache reset. Details: {e}")
