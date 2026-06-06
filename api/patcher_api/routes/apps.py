@@ -3,7 +3,7 @@ from sqlalchemy import ColumnElement, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from patcher_api.db import get_session
-from patcher_api.drift import detect_drift, extract_versions
+from patcher_api.drift import detect_drift, scan_drift
 from patcher_api.labels import build_installomator_label
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
@@ -108,26 +108,7 @@ async def list_drift(
 
     rows = (await session.scalars(stmt)).all()
 
-    total_scanned = 0
-    all_entries: list[DriftEntry] = []
-    for row in rows:
-        detail = row.source_detail
-        if len(extract_versions(detail)) < 2:
-            continue
-        total_scanned += 1
-        entry = detect_drift(row, detail)
-        if entry is None:
-            continue
-        if source is not None and source not in {sv.source for sv in entry.versions}:
-            continue
-        all_entries.append(entry)
-
-    page = all_entries[offset : offset + limit]
-    return DriftResponse(
-        total_scanned=total_scanned,
-        total_with_drift=len(all_entries),
-        entries=page,
-    )
+    return scan_drift(rows, source=source, limit=limit, offset=offset)
 
 
 @router.get("/{slug}", response_model=App)
