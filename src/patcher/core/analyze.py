@@ -149,6 +149,7 @@ def calculate_ios_on_latest(
             device_os = device.get("OS")
             if not device_os:
                 _log.warning(f"Device missing OS information: {device}")
+                continue
             major_version = device_os.split(".")[0]
             if major_version in version_counts:
                 version_counts[major_version]["total"] += 1
