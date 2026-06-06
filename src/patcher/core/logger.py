@@ -94,7 +94,7 @@ class PatcherLog:
         child_logger = parent_logger.getChild("UnhandledException")
         child_logger.setLevel(parent_logger.level)
 
-        if exc_type.__name__ == "KeyboardInterrupt":
+        if issubclass(exc_type, KeyboardInterrupt):
             child_logger.info("User interrupted the process.")
             sys.exit(130)  # SIGINT
 
