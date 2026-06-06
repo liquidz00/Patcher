@@ -9,7 +9,10 @@ App Installers to install sources that carry none.
 """
 
 # LL3KBL2M3A is lcadvancedvpnclient (broken data); Frydendal/Media are non-standard team values
-INGEST_EXCLUDED_TEAM_IDS: frozenset[str] = frozenset({"Frydendal", "Media", "LL3KBL2M3A"})
+# TDTHCUPYFR is zulujdk* labels which are problematic due to versioning nuances and HTML scraping
+INGEST_EXCLUDED_TEAM_IDS: frozenset[str] = frozenset(
+    {"Frydendal", "Media", "LL3KBL2M3A", "TDTHCUPYFR"}
+)
 
 IGNORED_TITLES: list[str] = [
     "Apple macOS *",
