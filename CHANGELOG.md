@@ -11,10 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 - **`GET /stats` API endpoint.** Returns top-line catalog statistics in one call: total app count, per-source coverage counts, the catalog content hash, and `last_refresh` (the newest ingest timestamp across all sources), so consumers can check catalog size and freshness without paging through `/apps`.
+- **The matching skip list is now configurable.** Add your own Jamf-title patterns (`fnmatch` syntax) to skip via the `ignored_titles` plist key, or `PatcherClient(ignored_titles=[...])` / `PatcherSettings.ignored_titles` at the library level. They merge with the built-in defaults (Adobe, Jamf, etc.), so you can suppress titles you manage out-of-band without editing the package.
 
 ### Changed
 - **Catalog backfills bundle identifiers for two dozen apps.** Titles whose install source carries no bundle ID (Zoom, Docker, OBS Studio, DBeaver, IntelliJ IDEA / PyCharm Community, Nextcloud, and more) now attach their Jamf App Installer coverage and a bundle ID through a curated seed, so cross-source matching and version-drift detection work for them too.
-- **Matching now skips Adobe and Jamf-published titles by default.** These are managed out-of-band (Adobe via the Admin Console, Jamf's own apps such as Self Service via Jamf's updater), so they no longer clutter `analyze` reports with unactionable rows. A future release will make this skip list configurable.
+- **Matching now skips Adobe and Jamf-published titles by default.** These are managed out-of-band (Adobe via the Admin Console, Jamf's own apps such as Self Service via Jamf's updater), so they no longer clutter `analyze` reports with unactionable rows. This skip list is now configurable (see Added).
+- **Configuration now lives in a single `PatcherSettings` model.** Patcher's property list is read and written through one Pydantic model (`PatcherSettings.load()` / `save()`) that owns every on-disk setting — UI branding, the matching toggle, integrations, ignored titles, and the recorded interpreter path. This replaces the separate `PropertyListManager` and `UIConfigManager` helpers, consolidates all plist-format migrations into one place (older formats upgrade automatically on first load, keeping a `.bak` safety copy), and moves font handling into a standalone `patcher.core.fonts` module. No user action required; existing plists migrate on launch.
 
 ## [v3.2.0] - 2026-06-03
 ### Added

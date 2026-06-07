@@ -210,6 +210,20 @@ class TestMatchTitlesPipeline:
         # tmp_path is empty — review file was not written anywhere.
         assert list(tmp_path.iterdir()) == []
 
+    @pytest.mark.asyncio
+    async def test_caller_ignored_titles_skip_matching(self):
+        """A title matching a caller-supplied pattern is skipped despite a catalog hit."""
+        title = _patch_title("Acme Corp Viewer")
+        api = _api_with({"installomator": [_app("acmecorpviewer", name="Acme Corp Viewer")]})
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = [
+            {"Patch": "Acme Corp Viewer", "App Names": ["Acme Corp Viewer"]}
+        ]
+
+        await match_titles([title], jamf=jamf, api=api, review_file=None, ignored_titles=["Acme *"])
+
+        assert title.install_label == []
+
 
 class TestHomebrewMatching:
     @pytest.mark.asyncio

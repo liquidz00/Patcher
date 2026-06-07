@@ -7,15 +7,51 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
+from openpyxl import load_workbook
 from pandas.testing import assert_frame_equal
 from src.patcher.core.data_manager import DataManager, serialize_titles_to_dict
 from src.patcher.core.exceptions import PatcherError
-from src.patcher.core.models.patch import PatchTitle
+from src.patcher.core.models.patch import PatchDevice, PatchTitle
 
 
 @pytest.fixture
 def mock_formats():
     return {"excel"}
+
+
+def test_write_multisheet_workbook_creates_per_title_sheets(tmp_path):
+    """The --device-details Excel writer adds a per-title sheet and skips empty ones."""
+    dm = DataManager()
+    df = pd.DataFrame([{"Title": "Firefox", "Hosts": 10}])
+    titles = [
+        PatchTitle(
+            title="Firefox",
+            title_id="1",
+            released="2026-01-01",
+            hosts_patched=10,
+            missing_patch=2,
+            latest_version="120.0",
+        )
+    ]
+    device = PatchDevice(
+        computer_name="Mac-01",
+        device_id="1",
+        username="jappleseed",
+        operating_system_version="14.5",
+        last_contact_time=datetime(2026, 1, 1, 12, 0, 0),
+        version="119.0",
+    )
+    device_reports = {"1": [device], "2": []}  # title "2" has no devices → no sheet
+
+    out = tmp_path / "report.xlsx"
+    dm._write_multisheet_workbook(out, df, titles, device_reports)
+
+    wb = load_workbook(out)
+    assert wb.sheetnames == ["Patch Report", "Firefox"]  # empty title skipped
+    ws = wb["Firefox"]
+    assert ws["A1"].value == "Computer Name"
+    assert ws["A2"].value == "Mac-01"
+    assert ws["B2"].value == "1"  # device_id rendered as string
 
 
 @pytest.mark.asyncio

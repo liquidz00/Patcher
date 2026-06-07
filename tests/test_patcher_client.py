@@ -65,6 +65,7 @@ class TestFetchPatches:
             jamf=patcher.jamf,
             api=patcher.api,
             include_homebrew=False,
+            ignored_titles=[],
         )
         assert result == patcher.jamf.get_summaries.return_value
 
@@ -524,7 +525,11 @@ class TestReset:
 
 class TestFromState:
     def test_reads_ui_and_installomator_from_state(self, mocker):
-        settings = PatcherSettings(enable_matching=True, integrations=Integrations(homebrew=True))
+        settings = PatcherSettings(
+            enable_matching=True,
+            integrations=Integrations(homebrew=True),
+            ignored_titles=["Adobe *"],
+        )
         settings.user_interface_settings.header_text = "Org Header"
         mocker.patch("src.patcher.core.patcher_client.PatcherSettings.load", return_value=settings)
         mock_config_cls = mocker.patch("src.patcher.core.patcher_client.ConfigManager")
@@ -537,6 +542,7 @@ class TestFromState:
         assert call_kwargs["enable_installomator"] is True
         assert call_kwargs["enable_homebrew"] is True
         assert call_kwargs["ui_config"]["header_text"] == "Org Header"
+        assert call_kwargs["ignored_titles"] == ["Adobe *"]
 
     def test_overrides_take_precedence(self, mocker):
         mocker.patch(

@@ -23,8 +23,21 @@ from unittest.mock import AsyncMock
 
 import pytest
 from src.patcher.clients import HTTPClient
-from src.patcher.clients.installomator import InstallomatorClient
+from src.patcher.clients.installomator import InstallomatorClient, _scan_value
 from src.patcher.core.exceptions import APIResponseError
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        '"a\\"b"',  # escaped double-quote inside double quotes
+        '"$(curl "x")"',  # $(...) re-opens quoting inside dq; the inner " must not close it
+        '"`sw_vers`"',  # backtick command-sub inside double quotes
+    ],
+)
+def test_scan_value_keeps_nested_quoting_whole(value):
+    """The shell tokenizer captures a quoted value intact across nested contexts."""
+    assert _scan_value(f"{value} trailing") == value
 
 
 def _sample_fragment(

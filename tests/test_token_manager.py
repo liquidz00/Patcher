@@ -4,8 +4,31 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock, call, patch
 import pytest
 from src.patcher.clients.token_manager import TokenManager
 from src.patcher.core.config_manager import ConfigManager
-from src.patcher.core.exceptions import TokenError
+from src.patcher.core.exceptions import PatcherError, TokenError
 from src.patcher.core.models.token import AccessToken
+
+
+def test_attach_client_redacts_values_on_validation_error(config_manager):
+    """On a ValidationError, attach_client surfaces only field names, never the offending value.
+
+    Regression guard: Pydantic's default error string echoes input values, which
+    would leak CLIENT_SECRET / CLIENT_ID fragments into logs and exceptions.
+    """
+    tm = TokenManager(config=config_manager)
+    tm.config.get_credential = MagicMock(
+        side_effect=lambda key: {
+            "CLIENT_ID": "valid-id",
+            "CLIENT_SECRET": ["leaky-secret-fragment"],  # wrong type forces a ValidationError
+            "URL": "https://example.jamfcloud.com",
+        }[key]
+    )
+
+    with pytest.raises(PatcherError) as excinfo:
+        tm.attach_client()
+
+    rendered = str(excinfo.value) + repr(excinfo.value)
+    assert "client_secret" in rendered  # field name is safe to surface
+    assert "leaky-secret-fragment" not in rendered  # the value must never leak
 
 
 @patch.object(TokenManager, "token", new_callable=PropertyMock)

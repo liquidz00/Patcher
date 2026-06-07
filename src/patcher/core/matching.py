@@ -210,6 +210,7 @@ async def match_titles(
     threshold: int = DEFAULT_FUZZY_THRESHOLD,
     review_file: Path | None = DEFAULT_REVIEW_FILE,
     include_homebrew: bool = False,
+    ignored_titles: list[str] | None = None,
 ) -> None:
     """
     Match each :class:`~patcher.core.models.patch.PatchTitle` against the API
@@ -227,7 +228,8 @@ async def match_titles(
     code, or whose code isn't indexed, fall back to direct/fuzzy name matching.
 
     Mutates the input list in place. Titles that pattern-match
-    :data:`~patcher.policy.IGNORED_TITLES` are skipped silently.
+    :data:`~patcher.policy.IGNORED_TITLES` (plus any caller-supplied
+    ``ignored_titles``) are skipped silently.
 
     :param patch_titles: The list of ``PatchTitle`` objects to match.
     :type patch_titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
@@ -248,8 +250,13 @@ async def match_titles(
         source and populate ``PatchTitle.homebrew_cask`` for Cask matches.
         Defaults to False (Installomator-only, the historical behavior).
     :type include_homebrew: bool
+    :param ignored_titles: Extra Jamf-title skip patterns (``fnmatch`` syntax)
+        merged with the built-in :data:`~patcher.policy.IGNORED_TITLES`. Lets
+        callers skip titles managed out-of-band without editing policy.
+    :type ignored_titles: list[str] | None
     """
     log = LogMe("matching")
+    ignore_patterns = [*IGNORED_TITLES, *(ignored_titles or [])]
     sources = ["installomator"]
     if include_homebrew:
         sources.append("homebrew_cask")
@@ -281,7 +288,7 @@ async def match_titles(
     unmatched_apps: list[dict[str, Any]] = []
 
     for patch_title in patch_titles:
-        if any(fnmatch.fnmatch(patch_title.title, pattern) for pattern in IGNORED_TITLES):
+        if any(fnmatch.fnmatch(patch_title.title, pattern) for pattern in ignore_patterns):
             log.info(f"Ignoring {patch_title.title}")
             continue
 

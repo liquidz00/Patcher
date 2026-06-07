@@ -2,8 +2,55 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from src.patcher.core import exceptions
-from src.patcher.core.analyze import calculate_ios_on_latest
+from src.patcher.core.analyze import append_ios_status, calculate_ios_on_latest
 from src.patcher.core.models.patch import PatchTitle
+
+
+def _patch_title(title: str, title_id: str) -> PatchTitle:
+    return PatchTitle(
+        title=title,
+        title_id=title_id,
+        released="2026-01-01",
+        hosts_patched=1,
+        missing_patch=0,
+        latest_version="1.0",
+    )
+
+
+@pytest.mark.asyncio
+async def test_append_ios_status_appends_calculated_titles(mocker):
+    """The happy path fetches IDs → versions → SOFA and extends the title list."""
+    api = AsyncMock()
+    api.get_device_ids.return_value = [1, 2]
+    api.get_device_os_versions.return_value = [{"OS": "17.5", "DeviceID": "1"}]
+    api.get_sofa_feed.return_value = [
+        {"OSVersion": "iOS 17", "ProductVersion": "17.5", "ReleaseDate": "2026-01-01"}
+    ]
+    ios_title = _patch_title("iOS 17", "iOS")
+    mocker.patch("src.patcher.core.analyze.calculate_ios_on_latest", return_value=[ios_title])
+
+    result = await append_ios_status([_patch_title("Firefox", "1")], api)
+
+    assert result[-1].title == "iOS 17"
+    api.get_device_ids.assert_awaited_once()
+    api.get_device_os_versions.assert_awaited_once_with(device_ids=[1, 2])
+    api.get_sofa_feed.assert_awaited_once()
+
+
+@pytest.mark.parametrize("failing", ["get_device_ids", "get_device_os_versions", "get_sofa_feed"])
+@pytest.mark.asyncio
+async def test_append_ios_status_wraps_api_errors(failing):
+    """An APIResponseError from any of the three fetches becomes a PatcherError."""
+    api = AsyncMock()
+    api.get_device_ids.return_value = [1]
+    api.get_device_os_versions.return_value = [{"OS": "17.5", "DeviceID": "1"}]
+    api.get_sofa_feed.return_value = [
+        {"OSVersion": "iOS 17", "ProductVersion": "17.5", "ReleaseDate": "2026-01-01"}
+    ]
+    getattr(api, failing).side_effect = exceptions.APIResponseError("boom", status_code=500)
+
+    with pytest.raises(exceptions.PatcherError):
+        await append_ios_status([], api)
 
 
 # Test valid response - iOS device IDs

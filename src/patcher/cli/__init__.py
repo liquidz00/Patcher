@@ -676,6 +676,7 @@ async def export(
         enable_installomator=settings.enable_matching,
         enable_homebrew=homebrew,
         ui_config=settings.user_interface_settings.model_dump(),
+        ignored_titles=settings.ignored_titles,
     )
     ctx.obj["data_manager"] = patcher.data  # Store in context for analyze
 
@@ -1036,6 +1037,7 @@ async def diff(
         debug=ctx.obj.get("debug"),
         enable_installomator=settings.enable_matching,
         ui_config=settings.user_interface_settings.model_dump(),
+        ignored_titles=settings.ignored_titles,
     )
 
     with status("Processing", enabled=not debug) as spinner:
@@ -1137,6 +1139,7 @@ async def drift(
         debug=debug,
         enable_installomator=settings.enable_matching,
         ui_config=settings.user_interface_settings.model_dump(),
+        ignored_titles=settings.ignored_titles,
     )
 
     with status("Processing", enabled=not debug) as spinner:

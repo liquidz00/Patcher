@@ -144,3 +144,21 @@ async def test_get_title_report_csv_error(api_client):
     ):
         with pytest.raises(exceptions.APIResponseError, match="Failed to export patch report"):
             await api_client.get_title_report_csv("123")
+
+
+@pytest.mark.asyncio
+async def test_get_title_reports_maps_titles_and_isolates_failures(api_client):
+    """Each title maps to its device list; a per-title APIResponseError degrades to []."""
+
+    async def fake_csv(title_id):
+        if title_id == "bad":
+            raise exceptions.APIResponseError("boom", status_code=500)
+        return [f"device-for-{title_id}"]
+
+    api_client.get_title_report_csv = AsyncMock(side_effect=fake_csv)
+
+    result = await api_client.get_title_reports(["good", "bad", "good2"])
+
+    assert result["good"] == ["device-for-good"]
+    assert result["good2"] == ["device-for-good2"]
+    assert result["bad"] == []  # failure isolated, not propagated

@@ -52,6 +52,7 @@ class PatcherClient:
         enable_installomator: bool = True,
         enable_homebrew: bool = False,
         ui_config: dict | None = None,
+        ignored_titles: list[str] | None = None,
     ):
         """
         Construct a ``PatcherClient`` with all collaborators wired up.
@@ -121,6 +122,10 @@ class PatcherClient:
             footer, font paths, header color, etc.) for PDF/HTML report
             styling. Defaults to :class:`UIDefaults` values.
         :type ui_config: dict | None
+        :param ignored_titles: Extra Jamf-title skip patterns merged with the
+            built-in :data:`~patcher.policy.IGNORED_TITLES` during matching.
+            Defaults to none.
+        :type ignored_titles: list[str] | None
         :raises PatcherError: If neither credentials nor ``config`` are
             provided.
         """
@@ -145,6 +150,7 @@ class PatcherClient:
         self.jamf = JamfClient(config=config, concurrency=concurrency)
         self.api = PatcherAPIClient(max_concurrency=concurrency) if enable_installomator else None
         self.enable_homebrew = enable_homebrew
+        self.ignored_titles = ignored_titles or []
         # Resolve ui_config before DataManager so the PDF export pipeline gets
         # the user's header/footer/font/logo instead of UIDefaults placeholders.
         # See issue #69.
@@ -180,6 +186,7 @@ class PatcherClient:
             "enable_installomator": settings.enable_matching,
             "enable_homebrew": settings.integrations.homebrew,
             "ui_config": settings.user_interface_settings.model_dump(),
+            "ignored_titles": settings.ignored_titles,
         }
         kwargs.update(overrides)
 
@@ -247,7 +254,11 @@ class PatcherClient:
         if match_installomator and self.api is not None:
             include_homebrew = self.enable_homebrew if match_homebrew is None else match_homebrew
             await match_titles(
-                titles, jamf=self.jamf, api=self.api, include_homebrew=include_homebrew
+                titles,
+                jamf=self.jamf,
+                api=self.api,
+                include_homebrew=include_homebrew,
+                ignored_titles=self.ignored_titles,
             )
 
         if include_ios:
