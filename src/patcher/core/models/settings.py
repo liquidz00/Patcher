@@ -1,8 +1,17 @@
+import plistlib
+import shutil
+import sys
 from enum import Enum
+from pathlib import Path
 
-from pydantic import Field
+from pydantic import ConfigDict, Field, model_validator
 
 from . import Model
+
+SETTINGS_PATH = Path.home() / "Library/Application Support/Patcher/com.liquidzoo.patcher.plist"
+
+# Top-level keys that mark a pre-v2 (nested) plist still needing migration.
+_LEGACY_V1_KEYS = ("Setup", "UI", "InstallomatorClient")
 
 
 class UIConfigKeys(str, Enum):
@@ -16,13 +25,101 @@ class UIConfigKeys(str, Enum):
 
 
 class UIDefaults(Model):
+    model_config = ConfigDict(validate_assignment=True)
+
     header_text: str = Field(default="Default header text", min_length=1)
     footer_text: str = Field(default="Default footer text", min_length=1)
     font_name: str = Field(default="Assistant", min_length=1)
-    reg_font_path: str = Field(default="", min_length=1)
-    bold_font_path: str = Field(default="", min_length=1)
+    reg_font_path: str = ""
+    bold_font_path: str = ""
     header_color: str = Field(default="#6432bdff", min_length=1)
     logo_path: str = ""
 
-    class Config:
-        validate_assignment = True
+
+class Integrations(Model):
+    installomator: bool = True
+    homebrew: bool = False
+    autopkg: bool = False
+    jai: bool = False
+
+
+class PatcherSettings(Model):
+    model_config = ConfigDict(populate_by_name=True)
+
+    setup_completed: bool = False
+    enable_matching: bool = True
+    enable_caching: bool = True
+    interpreter_path: str = Field(default_factory=lambda: sys.executable)
+    user_interface_settings: UIDefaults = Field(
+        default_factory=UIDefaults, alias="UserInterfaceSettings"
+    )
+    integrations: Integrations = Field(default_factory=Integrations)
+    ignored_titles: list[str] = Field(default_factory=list)
+
+    @classmethod
+    def load(cls, path: Path = SETTINGS_PATH) -> "PatcherSettings":
+        """
+        Read settings from ``path``, migrating older plist formats forward.
+
+        A missing file yields a defaults-only instance. When a pre-v2 (nested)
+        plist is detected, a ``.bak`` copy is written before migrating so the
+        original is never lost.
+        """
+        if not path.exists():
+            return cls()
+        with path.open("rb") as f:
+            data = plistlib.load(f)
+        legacy = any(key in data for key in _LEGACY_V1_KEYS)
+        if legacy:
+            shutil.copy(path, path.with_suffix(".bak"))
+        settings = cls.model_validate(data)
+        if legacy:  # persist the upgraded format
+            settings.save(path)
+        return settings
+
+    def save(self, path: Path = SETTINGS_PATH) -> None:
+        """Write the full settings model to ``path`` as a property list."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("wb") as f:
+            plistlib.dump(self.model_dump(mode="python", by_alias=True, exclude_none=True), f)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate(cls, data: dict) -> dict:
+        """
+        Fold any older on-disk shape forward to the current schema.
+
+        One migration home for both the v1 nested format (``Setup`` / ``UI`` /
+        ``InstallomatorClient`` sections) and the v2 flat format
+        (``enable_installomator`` / ``enable_homebrew``).
+        """
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+
+        if any(key in data for key in _LEGACY_V1_KEYS):  # v1 -> current
+            ui = data.get("UI") or {}
+            ui_settings = {
+                UIConfigKeys.HEADER.value: ui.get("HEADER_TEXT"),
+                UIConfigKeys.FOOTER.value: ui.get("FOOTER_TEXT"),
+                UIConfigKeys.FONT_NAME.value: ui.get("FONT_NAME"),
+                UIConfigKeys.REG_FONT_PATH.value: ui.get("FONT_REGULAR_PATH"),
+                UIConfigKeys.BOLD_FONT_PATH.value: ui.get("FONT_BOLD_PATH"),
+                UIConfigKeys.LOGO_PATH.value: ui.get("LOGO_PATH"),
+            }
+            return {
+                "setup_completed": data.get("Setup", {}).get("first_run_done", False),
+                "enable_matching": data.get("InstallomatorClient", {}).get("enabled", True),
+                "enable_caching": True,
+                "UserInterfaceSettings": {k: v for k, v in ui_settings.items() if v is not None},
+            }
+
+        if "enable_installomator" in data:  # v2 -> current
+            data.setdefault("enable_matching", data.pop("enable_installomator"))
+            data.setdefault("integrations", {})
+            data["integrations"].setdefault("installomator", data["enable_matching"])
+        if "enable_homebrew" in data:
+            data.setdefault("integrations", {})
+            data["integrations"].setdefault("homebrew", data.pop("enable_homebrew"))
+
+        return data

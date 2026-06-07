@@ -286,7 +286,7 @@ class DataManager:
     ):
         """Generates an HTML report from a given DataFrame."""
         if not header_color:
-            from .models.ui import UIDefaults
+            from .models.settings import UIDefaults
 
             header_color = UIDefaults().header_color
 
@@ -491,7 +491,7 @@ class DataManager:
         :param formats: A set of formats to export. Defaults to all ({"excel", "html", "pdf"}).
         :type formats: set | None
         :param header_color: Hex color to use for HTML header table background.
-            Falls back to :attr:`~patcher.core.models.ui.UIDefaults.header_color` when ``None``.
+            Falls back to :attr:`~patcher.core.models.settings.UIDefaults.header_color` when ``None``.
         :type header_color: str | None
         :param device_reports: Optional dictionary mapping title IDs to device lists for per-title detail sheets.
         :type device_reports: dict[str, list[:class:`~patcher.core.models.patch.PatchDevice`]] | None

@@ -5,16 +5,15 @@ from pathlib import Path
 import asyncclick as click
 from PIL import Image
 
-from ..cli.ui_manager import UIConfigManager
 from ..clients import HTTPClient
 from ..clients.token_manager import TokenManager
 from ..core.config_manager import ConfigManager
 from ..core.exceptions import APIResponseError, PatcherError, SetupError, TokenError
+from ..core.fonts import copy_asset, ensure_default_fonts, get_font_paths
 from ..core.logger import LogMe
 from ..core.models.jamf import JamfCredentials
+from ..core.models.settings import SETTINGS_PATH, PatcherSettings, UIConfigKeys, UIDefaults
 from ..core.models.token import AccessToken
-from ..core.models.ui import UIConfigKeys, UIDefaults
-from ..core.plist_manager import PropertylistManager
 from ._console import ERROR_STYLE, INFO_STYLE, _NoOpStatus, console
 
 # Welcome messages
@@ -45,8 +44,7 @@ class Setup:
     def __init__(
         self,
         config: ConfigManager,
-        ui_config: UIConfigManager,
-        plist_manager: PropertylistManager,
+        settings: PatcherSettings,
     ):
         """
         Handles the initial setup process for the Patcher CLI tool.
@@ -57,14 +55,11 @@ class Setup:
 
         :param config: Manages application configuration, including credential storage.
         :type config: :class:`~patcher.core.config_manager.ConfigManager`
-        :param ui_config: Handles UI-related configurations for the setup process.
-        :type ui_config: :class:`~patcher.cli.ui_manager.UIConfigManager`
-        :param plist_manager: Handles read/write operations to project property list.
-        :type plist_manager: :class:`~patcher.core.plist_manager.PropertylistManager`
+        :param settings: Patcher's on-disk configuration (UI settings, toggles, interpreter path).
+        :type settings: :class:`~patcher.core.models.settings.PatcherSettings`
         """
         self.config = config
-        self.ui_config = ui_config
-        self.plist_manager = plist_manager
+        self.settings = settings
         self.log = LogMe(self.__class__.__name__)
         # Live Rich status for the duration of a run. Defaults to a no-op so methods
         # can always call self._spinner.update(...) without guarding on setup state.
@@ -81,7 +76,7 @@ class Setup:
         """
         if self._completed is None:
             self.log.debug("Checking setup completion status.")
-            self._completed = self.plist_manager.get("setup_completed") or False
+            self._completed = self.settings.setup_completed
         return self._completed
 
     @staticmethod
@@ -92,8 +87,9 @@ class Setup:
         console.print(DOC, style="bold bright_magenta")
 
     def _mark_completion(self, value: bool = False) -> None:
-        """Update the ``setup_completed`` plist key and the in-memory cache."""
-        self.plist_manager.set("setup_completed", value)
+        """Persist the ``setup_completed`` flag and update the in-memory cache."""
+        self.settings.setup_completed = value
+        self.settings.save()
         self._completed = value
 
     def _get_creds(self, include_token: bool = False) -> dict:
@@ -134,45 +130,44 @@ class Setup:
     async def prompt_ui_settings(self) -> None:
         """
         Drive the interactive UI configuration prompts (header/footer text,
-        font, logo, header color) and persist them via the
-        :class:`~patcher.cli.ui_manager.UIConfigManager`. Triggers font
-        downloads on first run.
+        font, logo, header color) and persist them onto
+        :attr:`~patcher.core.models.settings.PatcherSettings.user_interface_settings`.
+        Triggers font downloads on first run.
 
-        Replaces the legacy ``UIConfigManager.setup_ui`` method, moved to the
-        CLI layer so the core UI config object stays free of ``asyncclick``
-        and ``PIL`` dependencies for library callers.
+        Lives in the CLI layer so the core settings model stays free of
+        ``asyncclick`` and ``PIL`` dependencies for library callers.
         """
         self.log.debug("Prompting user for UI setup.")
-        defaults = UIDefaults()
-        self.ui_config._download_fonts()
+        ensure_default_fonts()
+        ui = self.settings.user_interface_settings
 
         header_text = await click.prompt(
             "Enter Header Text for PDF reports",
-            default=self.ui_config.config.get(UIConfigKeys.HEADER.value, defaults.header_text),
+            default=ui.header_text,
             show_default=True,
         )
         footer_text = await click.prompt(
             "Enter Footer Text for PDF reports",
-            default=self.ui_config.config.get(UIConfigKeys.FOOTER.value, defaults.footer_text),
+            default=ui.footer_text,
             show_default=True,
         )
 
-        settings = {
+        ui_values = {
             UIConfigKeys.HEADER.value: header_text,
             UIConfigKeys.FOOTER.value: footer_text,
             UIConfigKeys.FONT_NAME.value: "Assistant",
-            UIConfigKeys.REG_FONT_PATH.value: str(self.ui_config._get_font_paths()["regular"]),
-            UIConfigKeys.BOLD_FONT_PATH.value: str(self.ui_config._get_font_paths()["bold"]),
+            UIConfigKeys.REG_FONT_PATH.value: str(get_font_paths()["regular"]),
+            UIConfigKeys.BOLD_FONT_PATH.value: str(get_font_paths()["bold"]),
             UIConfigKeys.LOGO_PATH.value: "",
         }
 
         if click.confirm("Would you like to use a custom font?", default=False):
-            settings.update(await self.prompt_font_config())
+            ui_values.update(await self.prompt_font_config())
 
         if click.confirm(
             "Would you like to use a custom logo in your exported PDF reports?", default=False
         ):
-            settings[UIConfigKeys.LOGO_PATH.value] = await self.prompt_logo_config()
+            ui_values[UIConfigKeys.LOGO_PATH.value] = await self.prompt_logo_config()
 
         if click.confirm(
             "Would you like to use a custom header color in your exported HTML reports?",
@@ -181,9 +176,11 @@ class Setup:
             header_color = str(await click.prompt("Enter header color value (Hex format)"))
             if not header_color.startswith("#"):
                 header_color = f"#{header_color}"
-            settings[UIConfigKeys.HEADER_COLOR.value] = header_color
+            ui_values[UIConfigKeys.HEADER_COLOR.value] = header_color
 
-        self.ui_config.config = settings
+        for key, value in ui_values.items():
+            setattr(ui, key, value)
+        self.settings.save()
 
     async def prompt_font_config(self) -> dict[str, str]:
         """
@@ -198,10 +195,10 @@ class Setup:
         regular_src = Path(await click.prompt("Enter the path to the regular font file"))
         bold_src = Path(await click.prompt("Enter the path to the bold font file"))
 
-        font_paths = self.ui_config._get_font_paths()
+        font_paths = get_font_paths()
         regular_dest, bold_dest = font_paths["regular"], font_paths["bold"]
-        self.ui_config._copy_file(regular_src, regular_dest)
-        self.ui_config._copy_file(bold_src, bold_dest)
+        copy_asset(regular_src, regular_dest)
+        copy_asset(bold_src, bold_dest)
 
         return {
             UIConfigKeys.FONT_NAME.value: font_name,
@@ -238,8 +235,8 @@ class Setup:
                 error_msg=str(e),
             )
 
-        logo_dest = self.ui_config.plist_manager.plist_path.parent / "logo.png"
-        self.ui_config._copy_file(logo_src, logo_dest)
+        logo_dest = SETTINGS_PATH.parent / "logo.png"
+        copy_asset(logo_src, logo_dest)
         return str(logo_dest)
 
     def validate_creds(
@@ -278,7 +275,9 @@ class Setup:
         use_installomator = click.confirm(
             "Would you like to enable InstallomatorClient support?", default=True
         )
-        self.plist_manager.set("enable_installomator", use_installomator)
+        self.settings.enable_matching = use_installomator
+        self.settings.integrations.installomator = use_installomator
+        self.settings.save()
 
     async def get_token(
         self, setup_type: SetupType = SetupType.STANDARD, creds: dict | None = None
@@ -497,7 +496,7 @@ class Setup:
         self._spinner.stop()
         await self.prompt_ui_settings()
         # Record interpreter so the CLI preflight can flag mismatches before they fail mid-run (#68).
-        self.plist_manager.set("interpreter_path", sys.executable)
+        self.settings.interpreter_path = sys.executable
         self._mark_completion(value=True)
 
     def reset_setup(self) -> bool:
@@ -516,8 +515,20 @@ class Setup:
         :rtype: bool
         """
         self.log.debug("Attempting to reset setup.")
-        success = self.plist_manager.remove("setup_completed")
-        if success:
-            self._completed = None
-            self.log.info("Successfully reset setup.")
-        return success
+        self.settings.setup_completed = False
+        self.settings.save()
+        self._completed = None
+        self.log.info("Successfully reset setup.")
+        return True
+
+    def reset_ui_config(self) -> bool:
+        """
+        Reset UI settings (header/footer text, fonts, logo, color) back to defaults.
+
+        :return: ``True`` once defaults are persisted.
+        :rtype: bool
+        """
+        self.log.debug("Resetting UI-configuration settings.")
+        self.settings.user_interface_settings = UIDefaults()
+        self.settings.save()
+        return True

@@ -48,7 +48,7 @@ Async `httpx` base every outbound client inherits from. Provides the per-instanc
 :link: pdf_report
 :link-type: doc
 
-`fpdf2`-backed renderer for branded patch reports. Handles font loading, logo placement, and per-page header/footer styling driven by `UIConfig`.
+`fpdf2`-backed renderer for branded patch reports. Handles font loading, logo placement, and per-page header/footer styling driven by the `ui_config` dict.
 :::
 
 :::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `TokenManager`
@@ -56,13 +56,6 @@ Async `httpx` base every outbound client inherits from. Provides the per-instanc
 :link-type: doc
 
 OAuth token lifecycle for the Jamf Pro API. Acquires, caches, and refreshes bearer tokens; `JamfClient` drives it for you in normal use.
-:::
-
-:::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `PropertyListManager`
-:link: plist_manager
-:link-type: doc
-
-Read/write helper for `com.liquidzoo.patcher.plist`. Wraps `PlistBuddy` and `plutil` so nested-dict edits round-trip cleanly through the binary plist format.
 :::
 ::::
 
@@ -75,5 +68,4 @@ data_manager
 http_client
 pdf_report
 token_manager
-plist_manager
 ```

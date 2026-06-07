@@ -1,12 +1,15 @@
 """
-Default font download helper.
+Default font management.
 
-Pulled out of :class:`patcher.cli.ui_manager.UIConfigManager` so library
-callers generating PDF reports can ensure the bundled Assistant fonts
-are present on disk without instantiating the CLI's UIConfigManager
-(which is plist-coupled and lives in the ``patcher.cli`` package).
+.. versionchanged:: 3.3.0
+
+    Single home for font assets so library callers generating PDF reports can
+    ensure the bundled Assistant fonts are present on disk without instantiating
+    CLI machinery. Owns the font directory, the default font paths, the presence
+    check, the download, and asset copying.
 """
 
+import shutil
 import ssl
 from pathlib import Path
 
@@ -16,13 +19,41 @@ import truststore
 from .exceptions import PatcherError
 from .logger import LogMe
 
+FONT_DIR = Path.home() / "Library/Application Support/Patcher/fonts"
+
 _FONT_URLS = {
     "regular": "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Regular.ttf",
     "bold": "https://github.com/hafontia-zz/Assistant/raw/master/Fonts/TTF/Assistant-Bold.ttf",
 }
 
 
-def ensure_default_fonts(target_dir: Path) -> dict[str, Path]:
+def get_font_paths(font_dir: Path = FONT_DIR) -> dict[str, Path]:
+    """On-disk paths for the bundled Assistant fonts within ``font_dir``."""
+    return {
+        "regular": font_dir / "Assistant-Regular.ttf",
+        "bold": font_dir / "Assistant-Bold.ttf",
+    }
+
+
+def fonts_present(font_dir: Path = FONT_DIR) -> bool:
+    """True if both Assistant fonts already exist in ``font_dir``."""
+    return all(p.exists() for p in get_font_paths(font_dir).values())
+
+
+def copy_asset(src: Path, dest: Path) -> None:
+    """Copy a user-provided asset (custom font, branding logo) into place."""
+    try:
+        shutil.copy(src, dest)
+    except (OSError, shutil.SameFileError) as e:
+        raise PatcherError(
+            "Failed to copy file as expected.",
+            source=src,
+            destination=dest,
+            error_msg=str(e),
+        )
+
+
+def ensure_default_fonts(target_dir: Path = FONT_DIR) -> dict[str, Path]:
     """
     Ensure the default Assistant fonts (Regular and Bold) live in ``target_dir``.
 
@@ -41,11 +72,8 @@ def ensure_default_fonts(target_dir: Path) -> dict[str, Path]:
     """
     log = LogMe("ensure_default_fonts")
     target_dir.mkdir(parents=True, exist_ok=True)
-    paths = {
-        "regular": target_dir / "Assistant-Regular.ttf",
-        "bold": target_dir / "Assistant-Bold.ttf",
-    }
-    if all(p.exists() for p in paths.values()):
+    paths = get_font_paths(target_dir)
+    if fonts_present(target_dir):
         return paths
 
     ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)

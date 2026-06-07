@@ -9,7 +9,7 @@ from fpdf.enums import XPos, YPos
 from PIL import Image
 
 from .logger import LogMe
-from .models.ui import UIDefaults
+from .models.settings import UIDefaults
 
 
 class PDFReport(FPDF):
@@ -27,8 +27,8 @@ class PDFReport(FPDF):
         The ``ui_config`` dict drives header/footer text, font selection,
         branding logo, and header color. When omitted, ``UIDefaults`` is
         used (no plist read, no I/O). The CLI passes
-        ``UIConfigManager.config`` (a plist-backed dict); library callers
-        pass a dict they constructed themselves or read from elsewhere.
+        ``PatcherSettings.user_interface_settings`` (dumped to a dict);
+        library callers pass a dict they constructed themselves.
 
         :param orientation: Orientation of the PDF, default is "L" (landscape).
         :type orientation: str

@@ -43,16 +43,15 @@ src/patcher/
 │   ├── data_manager.py     # On-disk patch-data cache + export pipeline
 │   ├── pdf_report.py       # PDF generation
 │   ├── config_manager.py   # Credential resolution (keyring or in-memory)
-│   ├── plist_manager.py    # macOS plist read/write (no UI)
+│   ├── fonts.py            # Bundled-font discovery, download, asset copying
 │   ├── exceptions.py       # PatcherError + subclasses
-│   └── models/             # Pydantic 2 models (PatchTitle, Label, etc.)
+│   └── models/             # Pydantic 2 models (PatchTitle, PatcherSettings, etc.)
 │
 └── cli/  
     ├── __init__.py         # click group, subcommand registrations
     ├── setup.py            # Interactive setup wizard
     ├── report.py           # CLI orchestration around PatcherClient
-    ├── _console.py         # Rich console singletons + status spinner
-    └── ui_manager.py       # PDF UI config (header/footer/font/logo) + interactive prompts
+    └── _console.py         # Rich console singletons + status spinner
 ```
 :::
 
@@ -220,7 +219,7 @@ The wizard prompts use `asyncclick` to stay inside the same event loop as the re
 :::
 
 :::{marker} Synchronous bridges
-A few paths (e.g. the fonts download in `UIConfigManager`) use `httpx.get` directly with a `truststore.SSLContext`, so the same enterprise-CA story applies regardless of code path.
+A few paths (e.g. the fonts download in `patcher.core.fonts`) use `httpx.get` directly with a `truststore.SSLContext`, so the same enterprise-CA story applies regardless of code path.
 :::
 ::::
 
@@ -309,7 +308,7 @@ from patcher import (
 )
 ```
 
-Anything reachable via deeper paths (`patcher.cli.*`, `patcher.clients.HTTPClient`, `patcher.core.matching.match_titles`, etc.) is importable but **not** considered part of the stable surface. Internal refactors may shift it. CLI-only objects (`Setup`, `UIConfigManager`) are intentionally **not** re-exported from `patcher`.
+Anything reachable via deeper paths (`patcher.cli.*`, `patcher.clients.HTTPClient`, `patcher.core.matching.match_titles`, etc.) is importable but **not** considered part of the stable surface. Internal refactors may shift it. CLI-only objects (e.g. `Setup`) are intentionally **not** re-exported from `patcher`.
 
 ## Patcher API Service
 

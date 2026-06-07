@@ -36,13 +36,6 @@ First-run wizard. Drives credential entry, optional API role/client creation on 
 
 Click-backed adapter onto `PatcherLog`. Adds colored, level-prefixed bash lines on top of the always-present file log when the CLI installs its handler.
 :::
-
-:::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `UIConfigManager`
-:link: ui_manager
-:link-type: doc
-
-CLI-side bridge between branding and the property list. Reads and writes `UserInterfaceSettings` (header, footer, fonts, logo, header color) for PDF and HTML rendering.
-:::
 ::::
 
 ```{toctree}
@@ -51,5 +44,4 @@ CLI-side bridge between branding and the property list. Reads and writes `UserIn
 fonts
 setup
 terminal_logger
-ui_manager
 ```

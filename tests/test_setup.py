@@ -3,43 +3,31 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from src.patcher.cli.setup import Setup, SetupType
 from src.patcher.core.exceptions import SetupError
+from src.patcher.core.models.settings import PatcherSettings
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def setup_instance(config_manager, ui_config, mock_plist_manager):
-    instance = Setup(
-        config=config_manager,
-        ui_config=ui_config,
-        plist_manager=mock_plist_manager,
-    )
+def setup_instance(config_manager, mocker):
+    mocker.patch.object(PatcherSettings, "save")  # no disk writes during setup tests
+    instance = Setup(config=config_manager, settings=PatcherSettings())
     instance.config.set_credential = MagicMock()
     instance.config.create_client = MagicMock()
-    instance.plist_manager.remove = MagicMock()
     return instance
 
 
 @pytest.mark.asyncio
-async def test_init(setup_instance, config_manager, ui_config):
+async def test_init(setup_instance, config_manager):
     assert setup_instance.config == config_manager
-    assert setup_instance.ui_config == ui_config
+    assert isinstance(setup_instance.settings, PatcherSettings)
     assert setup_instance._completed is None
 
 
-def test_is_complete(setup_instance, mock_plist_manager):
-    mock_plist_manager.get.return_value = True
+def test_is_complete(setup_instance):
+    setup_instance.settings.setup_completed = True
     assert setup_instance.completed is True
-    mock_plist_manager.get.assert_called_once_with("setup_completed")
-
-
-def test_is_complete_error(setup_instance, mock_plist_manager):
-    mock_plist_manager.get.side_effect = Exception("plist read error")
-
-    with pytest.raises(Exception, match="plist read error"):
-        # noinspection PyStatementEffect
-        setup_instance.completed
 
 
 def test_setup_type_enum():
@@ -132,15 +120,16 @@ def test_save_creds(setup_instance):
     setup_instance.config.set_credential.assert_any_call("PASSWORD", "pass")
 
 
-def test_mark_completion(setup_instance, mock_plist_manager):
+def test_mark_completion(setup_instance):
     setup_instance._mark_completion(value=True)
-    mock_plist_manager.set.assert_called_once_with("setup_completed", True)
+    assert setup_instance.settings.setup_completed is True
+    PatcherSettings.save.assert_called()
 
 
-def test_reset_setup(setup_instance, mock_plist_manager):
-    mock_plist_manager.remove.return_value = True
+def test_reset_setup(setup_instance):
+    setup_instance.settings.setup_completed = True
     assert setup_instance.reset_setup() is True
-    mock_plist_manager.remove.assert_called_once_with("setup_completed")
+    assert setup_instance.settings.setup_completed is False
 
 
 @pytest.mark.asyncio
@@ -200,7 +189,7 @@ async def test_run_setup_sso(setup_instance):
 
 
 @pytest.mark.asyncio
-async def test_start_persists_credentials_via_jamf_credentials(setup_instance, mock_plist_manager):
+async def test_start_persists_credentials_via_jamf_credentials(setup_instance):
     """End-to-end exercise of ``Setup.start()`` running the *real* method body.
 
     The earlier ``test_run_setup_standard`` and ``test_run_setup_sso`` mock
@@ -220,9 +209,6 @@ async def test_start_persists_credentials_via_jamf_credentials(setup_instance, m
     """
     from src.patcher.core.models.jamf import JamfCredentials
     from src.patcher.core.models.token import AccessToken
-
-    # setup_completed gate: not completed, so start() runs the body
-    mock_plist_manager.get.return_value = False
 
     # No-op spinner (sync; its .update is called without await).
     spinner = MagicMock()
@@ -305,11 +291,9 @@ async def test_bootstrap_noninteractive_success(setup_instance):
     # Token was fetched
     mock_tm.fetch_token.assert_called_once()
 
-    # In-memory completion marked, no plist write
+    # In-memory completion marked, no disk write
     assert setup_instance._completed is True
-    setup_instance.plist_manager.set.assert_not_called() if hasattr(
-        setup_instance.plist_manager.set, "assert_not_called"
-    ) else None
+    PatcherSettings.save.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -337,9 +321,7 @@ async def test_bootstrap_noninteractive_token_failure_raises_setuperror(setup_in
 
 
 @pytest.mark.asyncio
-async def test_start_records_interpreter_path_before_marking_complete(
-    setup_instance, mock_plist_manager
-):
+async def test_start_records_interpreter_path_before_marking_complete(setup_instance):
     """
     Regression for #68: successful setup must persist ``sys.executable`` to the
     plist under ``interpreter_path`` so the CLI preflight on later runs can
@@ -347,8 +329,6 @@ async def test_start_records_interpreter_path_before_marking_complete(
     recovery message before the Keychain ACL failure happens mid-run.
     """
     import sys as _sys
-
-    mock_plist_manager.get.return_value = False  # setup not completed
 
     spinner = MagicMock()
     sso_creds = {
@@ -374,4 +354,4 @@ async def test_start_records_interpreter_path_before_marking_complete(
 
         await setup_instance.start(fresh=True, spinner=spinner)
 
-    mock_plist_manager.set.assert_any_call("interpreter_path", _sys.executable)
+    assert setup_instance.settings.interpreter_path == _sys.executable

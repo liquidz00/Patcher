@@ -14,7 +14,6 @@ from src.patcher.core.models.jamf import JamfCredentials
 from src.patcher.core.models.patch import PatchTitle
 from src.patcher.core.models.token import AccessToken
 from src.patcher.core.pdf_report import PDFReport
-from src.patcher.core.plist_manager import PropertylistManager
 
 
 @pytest.fixture
@@ -360,21 +359,6 @@ def mock_data_manager():
     data_manager._validate_data = lambda: mock_df
 
     return data_manager
-
-
-@pytest.fixture
-def mock_plist_manager(mocker, tmp_path):
-    mock_plist = mocker.create_autospec(PropertylistManager, instance=True)
-
-    mocker.patch.object(PropertylistManager, "_ensure_directory", return_value=None)
-
-    mock_plist.get.return_value = None
-    mock_plist.set.return_value = None
-    mock_plist.remove.return_value = None
-    mock_plist.reset.return_value = True
-    mock_plist.plist_path = tmp_path / "mock_plist.plist"
-
-    return mock_plist
 
 
 @pytest.fixture

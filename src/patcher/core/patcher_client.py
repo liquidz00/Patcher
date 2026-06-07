@@ -35,8 +35,7 @@ from .exceptions import PatcherError
 from .logger import LogMe
 from .matching import match_titles
 from .models.patch import PatchTitle
-from .models.ui import UIConfigKeys, UIDefaults
-from .plist_manager import PropertylistManager
+from .models.settings import PatcherSettings, UIConfigKeys, UIDefaults
 
 
 class PatcherClient:
@@ -174,18 +173,14 @@ class PatcherClient:
         :raises PatcherError: If keychain credentials are missing (i.e.
             ``patcherctl`` setup hasn't completed on this machine).
         """
-        plist = PropertylistManager()
-        ui_settings = plist.get("UserInterfaceSettings")
-        enable_installomator = bool(plist.get("enable_installomator"))
-        enable_homebrew = bool(plist.get("enable_homebrew"))
+        settings = PatcherSettings.load()
 
         kwargs: dict[str, Any] = {
             "config": ConfigManager(),
-            "enable_installomator": enable_installomator,
-            "enable_homebrew": enable_homebrew,
+            "enable_installomator": settings.enable_matching,
+            "enable_homebrew": settings.integrations.homebrew,
+            "ui_config": settings.user_interface_settings.model_dump(),
         }
-        if ui_settings:
-            kwargs["ui_config"] = ui_settings
         kwargs.update(overrides)
 
         return cls(**kwargs)
@@ -530,7 +525,7 @@ class PatcherClient:
             Defaults to ``"%B %d %Y"``.
         :type date_format: str
         :param header_color: Hex color for the HTML report header background.
-            Falls back to :attr:`~patcher.core.models.ui.UIDefaults.header_color` when ``None``.
+            Falls back to :attr:`~patcher.core.models.settings.UIDefaults.header_color` when ``None``.
         :type header_color: str | None
         :param analysis: If True, treats this as an analysis report (affects
             HTML output path naming).
@@ -599,8 +594,6 @@ class PatcherClient:
                 "this client was constructed with in-memory credentials.",
             )
 
-        plist = PropertylistManager()
-
         if kind == "creds":
             if credential is None:
                 self._config.reset_config()
@@ -615,13 +608,17 @@ class PatcherClient:
             return
 
         if kind == "UI":
-            plist.remove("UserInterfaceSettings")
+            settings = PatcherSettings.load()
+            settings.user_interface_settings = UIDefaults()
+            settings.save()
             return
 
         if kind == "full":
             self._config.reset_config()
-            plist.remove("UserInterfaceSettings")
-            plist.remove("setup_completed")
+            settings = PatcherSettings.load()
+            settings.user_interface_settings = UIDefaults()
+            settings.setup_completed = False
+            settings.save()
             self.data.reset_cache()
             return
 

@@ -21,9 +21,8 @@ from ..core.config_manager import ConfigManager
 from ..core.data_manager import DataManager
 from ..core.exceptions import APIResponseError, InstallomatorWarning, PatcherError, SetupError
 from ..core.logger import LogMe, PatcherLog
-from ..core.models.ui import UIDefaults
+from ..core.models.settings import PatcherSettings, UIDefaults
 from ..core.patcher_client import PatcherClient
-from ..core.plist_manager import PropertylistManager
 from ._console import (
     DIM_STYLE,
     ERROR_STYLE,
@@ -36,7 +35,6 @@ from ._console import (
 from .report import process_reports
 from .setup import Setup
 from .terminal_logger import install_terminal_excepthook, install_terminal_handler
-from .ui_manager import UIConfigManager
 
 # show_locals=False keeps tracebacks safe to paste publicly (no leaked tokens).
 # Suppressing asyncclick collapses the framework's own frames so only Patcher
@@ -387,24 +385,20 @@ async def cli(
         "disable_cache": disable_cache,
         "noninteractive": noninteractive,
         "log": LogMe(__name__),
-        "plist_manager": PropertylistManager(),
+        "settings": PatcherSettings.load(),
         "config": config_manager,
-        "ui_config": UIConfigManager(),
     }
 
-    setup = Setup(ctx.obj.get("config"), ctx.obj.get("ui_config"), ctx.obj.get("plist_manager"))
+    setup = Setup(ctx.obj.get("config"), ctx.obj.get("settings"))
     ctx.obj["setup"] = setup
 
     # Check Setup completion
     with status("Processing", enabled=not debug) as spinner:
-        if not noninteractive and ctx.obj.get("plist_manager").needs_migration():
-            ctx.obj.get("plist_manager").migrate_plist()
-
         # Warn on Python interpreter mismatch. Keychain writes (e.g. token refresh)
         # may fail with errSecInvalidOwnerEdit, but reads work fine so don't block:
         # the run may succeed entirely if no write is needed. See #68.
         if not noninteractive and setup.completed and not fresh:
-            recorded_interpreter = ctx.obj.get("plist_manager").get("interpreter_path")
+            recorded_interpreter = ctx.obj.get("settings").interpreter_path
             if recorded_interpreter and recorded_interpreter != sys.executable:
                 err_console.print(
                     f"Warning: Patcher was set up under a different Python interpreter:\n"
@@ -472,14 +466,13 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
     """
     log = ctx.obj.get("log")
     config = ctx.obj.get("config")
-    ui_config = ctx.obj.get("ui_config")
     setup = ctx.obj.get("setup")
     debug = ctx.obj.get("debug")
     disable_cache = ctx.obj.get("disable_cache")
 
     reset_steps: list[tuple[str, Callable[[], bool]]] = [
         ("Resetting credentials...", config.reset_config),
-        ("Resetting UI configuration...", ui_config.reset_config),
+        ("Resetting UI configuration...", setup.reset_ui_config),
         ("Resetting setup state...", setup.reset_setup),
     ]
 
@@ -510,7 +503,7 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
         elif kind.lower() == "ui":
             log.info("Resetting UI elements...")
             spinner.update("Resetting UI configuration...")
-            if ui_config.reset_config():
+            if setup.reset_ui_config():
                 spinner.update("Prompting for new UI settings...")
                 await setup.prompt_ui_settings()
         elif kind.lower() == "creds":
@@ -673,16 +666,16 @@ async def export(
     :param homebrew: If True, also match titles against the Homebrew Cask catalog and add a Homebrew coverage column to reports.
     :type homebrew: bool
     """
-    ui_config, plist_manager = ctx.obj.get("ui_config"), ctx.obj.get("plist_manager")
+    settings = ctx.obj.get("settings")
 
     patcher = PatcherClient(
         config=ctx.obj.get("config"),
         concurrency=concurrency,
         disable_cache=ctx.obj.get("disable_cache"),
         debug=ctx.obj.get("debug"),
-        enable_installomator=bool(plist_manager.get("enable_installomator")),
+        enable_installomator=settings.enable_matching,
         enable_homebrew=homebrew,
-        ui_config=ui_config.config,
+        ui_config=settings.user_interface_settings.model_dump(),
     )
     ctx.obj["data_manager"] = patcher.data  # Store in context for analyze
 
@@ -695,7 +688,8 @@ async def export(
     if "pdf" in selected_formats:
         defaults = UIDefaults().model_dump()
         ui_at_defaults = all(
-            ui_config.config.get(key) == defaults.get(key) for key in ("header_text", "footer_text")
+            getattr(settings.user_interface_settings, key) == defaults.get(key)
+            for key in ("header_text", "footer_text")
         )
         if ui_at_defaults:
             log = ctx.obj.get("log")
@@ -839,7 +833,7 @@ async def analyze(
         return
 
     debug = ctx.obj.get("debug")
-    ui_config = ctx.obj.get("ui_config")
+    settings = ctx.obj.get("settings")
     data_manager = get_data_manager(ctx)
 
     with status("Processing", enabled=not debug) as spinner:
@@ -939,7 +933,7 @@ async def analyze(
                 exported = await data_manager.export(
                     filtered_titles,
                     output_dir,
-                    report_title=ui_config.config.get("header_text"),
+                    report_title=settings.user_interface_settings.header_text,
                     analysis=True,
                     formats={"html"},
                 )
@@ -1016,8 +1010,7 @@ async def diff(
     :param output_format: ``text`` or ``json``.
     """
     debug = ctx.obj.get("debug")
-    plist_manager = ctx.obj.get("plist_manager")
-    ui_config = ctx.obj.get("ui_config")
+    settings = ctx.obj.get("settings")
     data_manager = get_data_manager(ctx)
 
     if list_snapshots:
@@ -1041,8 +1034,8 @@ async def diff(
         config=ctx.obj.get("config"),
         disable_cache=ctx.obj.get("disable_cache"),
         debug=ctx.obj.get("debug"),
-        enable_installomator=bool(plist_manager.get("enable_installomator")),
-        ui_config=ui_config.config,
+        enable_installomator=settings.enable_matching,
+        ui_config=settings.user_interface_settings.model_dump(),
     )
 
     with status("Processing", enabled=not debug) as spinner:
@@ -1136,15 +1129,14 @@ async def drift(
     :param output_format: ``text`` or ``json``.
     """
     debug = ctx.obj.get("debug")
-    plist_manager = ctx.obj.get("plist_manager")
-    ui_config = ctx.obj.get("ui_config")
+    settings = ctx.obj.get("settings")
 
     patcher = PatcherClient(
         config=ctx.obj.get("config"),
         disable_cache=ctx.obj.get("disable_cache"),
         debug=debug,
-        enable_installomator=bool(plist_manager.get("enable_installomator")),
-        ui_config=ui_config.config,
+        enable_installomator=settings.enable_matching,
+        ui_config=settings.user_interface_settings.model_dump(),
     )
 
     with status("Processing", enabled=not debug) as spinner:
