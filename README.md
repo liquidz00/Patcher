@@ -15,6 +15,10 @@
 ![](https://img.shields.io/badge/dynamic/json?url=https://api.patcherctl.dev/stats&query=%24.total_apps&label=catalog&suffix=%20apps&color=1abc9c&style=flat&logo=sqlite&logoColor=white&cacheSeconds=3600)
 
 <p align="center">
+    A python library and CLI for Jamf patch reporting and analysis, backed by a community app catalog API.
+</p>
+
+<p align="center">
     <img src="https://cdn.worldvectorlogo.com/logos/slack-new-logo.svg" width="16" height="16"/>
     <a href="https://www.macadmins.org">MacAdmins Slack</a> (<code>#patcher</code>) →
     &nbsp;&nbsp;|&nbsp;&nbsp;
@@ -23,8 +27,6 @@
 </div>
 
 ----
-
-A python library and CLI for patch reporting and analysis, backed by a community app catalog API.
 
 <p align="center">
     <img src="docs/_static/example_pdf.png" width="750" alt="Sample Patcher PDF report"/>
