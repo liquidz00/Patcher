@@ -240,8 +240,14 @@ class PatcherClient:
         :raises PatcherError: If the Jamf API calls fail or sort_by names
             an attribute that doesn't exist on ``PatchTitle``.
         """
-        policies = await self.jamf.get_policies()
-        titles = await self.jamf.get_summaries(policies)
+        configs = await self.jamf.get_title_configs()
+        titles = await self.jamf.get_summaries([config.get("id") for config in configs])
+
+        name_id_by_title = {
+            config.get("softwareTitleId"): config.get("softwareTitleNameId") for config in configs
+        }
+        for title in titles:
+            title.name_id = name_id_by_title.get(title.title_id)
 
         if match_installomator and self.api is not None:
             include_homebrew = self.enable_homebrew if match_homebrew is None else match_homebrew

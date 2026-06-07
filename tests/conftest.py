@@ -307,6 +307,7 @@ def patcher_instance(
     """
     jamf = AsyncMock()
     jamf.get_policies.return_value = mock_policy_response
+    jamf.get_title_configs.return_value = mock_policy_response
     jamf.get_summaries.return_value = mock_patch_title_response
 
     patcher = MagicMock()

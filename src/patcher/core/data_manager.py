@@ -50,7 +50,7 @@ def serialize_titles_to_dict(
 
 
 class DataManager:
-    _IGNORED = ["install_label", "homebrew_cask", "title_id"]
+    _IGNORED = ["install_label", "homebrew_cask", "title_id", "name_id"]
 
     def __init__(self, disable_cache: bool = False, ui_config: dict | None = None):
         """

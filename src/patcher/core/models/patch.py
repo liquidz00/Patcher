@@ -40,6 +40,9 @@ class PatchTitle(Model):
     latest_version: str
     completion_percent: float = 0.0
     total_hosts: int = 0
+    name_id: str | None = (
+        None  # Jamf softwareTitleNameId; internal match key, stripped from PDF/Excel
+    )
     install_label: list[Label] | None = []  # account for variants (e.g., zulujdk8, zulujdk9)
     homebrew_cask: list[CaskMatch] | None = []  # second matching dimension, opt-in
 

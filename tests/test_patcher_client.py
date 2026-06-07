@@ -34,6 +34,7 @@ def patcher(mock_policy_response, mock_patch_title_response):
     )
     p.jamf = AsyncMock()
     p.jamf.get_policies.return_value = mock_policy_response
+    p.jamf.get_title_configs.return_value = mock_policy_response
     p.jamf.get_summaries.return_value = mock_patch_title_response
     p.data = AsyncMock()
     p.api = AsyncMock()
@@ -42,7 +43,9 @@ def patcher(mock_policy_response, mock_patch_title_response):
 
 class TestFetchPatches:
     @pytest.mark.asyncio
-    async def test_default_flow_runs_policies_summaries_and_match(self, patcher, mocker):
+    async def test_default_flow_runs_policies_summaries_and_match(
+        self, patcher, mocker, mock_policy_response
+    ):
         mock_match = mocker.patch(
             "src.patcher.core.patcher_client.match_titles",
             new_callable=AsyncMock,
@@ -50,8 +53,10 @@ class TestFetchPatches:
 
         result = await patcher.fetch_patches()
 
-        patcher.jamf.get_policies.assert_awaited_once()
-        patcher.jamf.get_summaries.assert_awaited_once_with(patcher.jamf.get_policies.return_value)
+        patcher.jamf.get_title_configs.assert_awaited_once()
+        patcher.jamf.get_summaries.assert_awaited_once_with(
+            [config.get("id") for config in mock_policy_response]
+        )
         mock_match.assert_awaited_once_with(
             patcher.jamf.get_summaries.return_value,
             jamf=patcher.jamf,
@@ -59,6 +64,17 @@ class TestFetchPatches:
             include_homebrew=False,
         )
         assert result == patcher.jamf.get_summaries.return_value
+
+    @pytest.mark.asyncio
+    async def test_stamps_name_id_from_configs(self, patcher, mocker):
+        """name_id is joined onto each title from its config's softwareTitleNameId."""
+        mocker.patch("src.patcher.core.patcher_client.match_titles", new_callable=AsyncMock)
+
+        titles = await patcher.fetch_patches()
+
+        # Chrome's config (softwareTitleId "3") carries softwareTitleNameId "0BC".
+        chrome = next(title for title in titles if title.title_id == "3")
+        assert chrome.name_id == "0BC"
 
     @pytest.mark.asyncio
     async def test_match_homebrew_override_widens_match(self, patcher, mocker):
