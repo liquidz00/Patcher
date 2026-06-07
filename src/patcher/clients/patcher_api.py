@@ -313,6 +313,20 @@ class PatcherAPIClient(HTTPClient):
         payload = await self._get("/apps/drift", params=params)
         return DriftResponse.model_validate(payload)
 
+    async def get_jamf_index(self) -> dict[str, list[str]]:
+        """
+        ``GET /apps/jamf-index`` — the Jamf softwareTitleNameId → slug index.
+
+        Maps each Jamf App Installer title code (e.g. ``"0B3"``) to the
+        catalog slugs that carry it. Used for deterministic, exact-code
+        matching of a customer's patch titles before any fuzzy fallback.
+
+        :return: Mapping of title code to the list of catalog slugs.
+        :raises APIResponseError: Network failure, non-2xx response, or
+            unparseable body.
+        """
+        return await self._get("/apps/jamf-index")
+
     async def get_app_drift(self, slug: str) -> DriftEntry | None:
         """
         ``GET /apps/{slug}/drift`` — drift detection for a single app.

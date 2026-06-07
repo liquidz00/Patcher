@@ -38,6 +38,8 @@ def patcher(mock_policy_response, mock_patch_title_response):
     p.jamf.get_summaries.return_value = mock_patch_title_response
     p.data = AsyncMock()
     p.api = AsyncMock()
+    p.api.list_apps.return_value = []
+    p.api.get_jamf_index.return_value = {}
     return p
 
 

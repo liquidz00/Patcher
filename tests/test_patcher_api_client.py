@@ -380,3 +380,20 @@ async def test_base_url_trailing_slash_is_normalized():
 
     # No double slash from the trailing-slash base + path concatenation.
     assert seen_urls[0].startswith("https://test.patcherctl.dev/apps?")
+
+
+@pytest.mark.asyncio
+async def test_get_jamf_index_returns_code_to_slug_map():
+    payload = {"0B3": ["firefox", "firefoxpkg"], "0F9": ["zoom"]}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/apps/jamf-index"
+        return httpx.Response(200, json=payload)
+
+    client = _build_client(handler)
+    try:
+        result = await client.get_jamf_index()
+    finally:
+        await client.aclose()
+
+    assert result == {"0B3": ["firefox", "firefoxpkg"], "0F9": ["zoom"]}

@@ -25,7 +25,7 @@ from src.patcher.core.matching import (
 from src.patcher.core.models.patch import PatchTitle
 
 
-def _patch_title(title: str) -> PatchTitle:
+def _patch_title(title: str, name_id: str | None = None) -> PatchTitle:
     return PatchTitle(
         title=title,
         title_id="42",
@@ -33,6 +33,7 @@ def _patch_title(title: str) -> PatchTitle:
         hosts_patched=1,
         missing_patch=1,
         latest_version="1.0",
+        name_id=name_id,
     )
 
 
@@ -311,3 +312,59 @@ class TestHomebrewMatching:
         # Two list_apps calls: offset 0 (full page) then offset 2 (short page → stop).
         assert api.list_apps.await_count == 2
         assert [stub.installomator_label for stub in title.install_label] == ["c"]
+
+
+class TestDeterministicMatch:
+    @pytest.mark.asyncio
+    async def test_name_id_exact_match_attaches_index_slugs(self):
+        """A title whose name_id is in the index attaches those slugs, no fuzzing."""
+        title = _patch_title("Mozilla Firefox", name_id="0B3")
+        api = AsyncMock()
+        api.list_apps.return_value = [_app("firefox", name="Firefox")]
+        api.get_jamf_index.return_value = {"0B3": ["firefox"]}
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = []  # no app-name data — proves we didn't fuzzy-match
+
+        await match_titles([title], jamf=jamf, api=api, review_file=None)
+
+        assert [stub.installomator_label for stub in title.install_label] == ["firefox"]
+
+    @pytest.mark.asyncio
+    async def test_name_id_not_indexed_falls_back_to_fuzzy(self):
+        title = _patch_title("Mozilla Firefox", name_id="ZZZ")  # code not in the index
+        api = AsyncMock()
+        api.list_apps.return_value = [_app("firefox", name="Firefox")]
+        api.get_jamf_index.return_value = {"0B3": ["firefox"]}
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = [{"Patch": "Mozilla Firefox", "App Names": ["Firefox"]}]
+
+        await match_titles([title], jamf=jamf, api=api, review_file=None)
+
+        assert [stub.installomator_label for stub in title.install_label] == ["firefox"]
+
+    @pytest.mark.asyncio
+    async def test_index_slug_absent_from_catalog_falls_back_to_fuzzy(self):
+        """A code resolving only to a slug outside the fetched set falls through."""
+        title = _patch_title("Mozilla Firefox", name_id="0B3")
+        api = AsyncMock()
+        api.list_apps.return_value = [_app("firefox", name="Firefox")]  # available = {firefox}
+        api.get_jamf_index.return_value = {"0B3": ["firefox-cask-only"]}  # not in available
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = [{"Patch": "Mozilla Firefox", "App Names": ["Firefox"]}]
+
+        await match_titles([title], jamf=jamf, api=api, review_file=None)
+
+        assert [stub.installomator_label for stub in title.install_label] == ["firefox"]
+
+    @pytest.mark.asyncio
+    async def test_index_unavailable_degrades_to_fuzzy(self):
+        title = _patch_title("Firefox", name_id="0B3")
+        api = AsyncMock()
+        api.list_apps.return_value = [_app("firefox", name="Firefox")]
+        api.get_jamf_index.side_effect = APIResponseError("index endpoint missing")
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = [{"Patch": "Firefox", "App Names": ["Firefox"]}]
+
+        await match_titles([title], jamf=jamf, api=api, review_file=None)
+
+        assert title.install_label[0].installomator_label == "firefox"

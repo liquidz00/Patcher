@@ -222,6 +222,10 @@ async def match_titles(
     :class:`~patcher.core.models.cask.CaskMatch` stubs; a dual-source slug
     populates both fields.
 
+    Each title is matched deterministically first by its ``name_id`` (Jamf
+    softwareTitleNameId) against the catalog's jamf-index; titles without a
+    code, or whose code isn't indexed, fall back to direct/fuzzy name matching.
+
     Mutates the input list in place. Titles that pattern-match
     :data:`~patcher.policy.IGNORED_TITLES` are skipped silently.
 
@@ -261,6 +265,12 @@ async def match_titles(
     log.info(f"Loaded {len(available)} catalog slugs from Patcher API ({', '.join(sources)}).")
 
     try:
+        jamf_index = await api.get_jamf_index()
+    except APIResponseError as exc:
+        log.warning(f"Jamf index unavailable; using fuzzy matching only: {exc}")
+        jamf_index = {}
+
+    try:
         software_titles = await jamf.get_app_names(patch_titles=patch_titles)
     except APIResponseError as exc:
         if getattr(exc, "not_found", False):
@@ -274,6 +284,15 @@ async def match_titles(
         if any(fnmatch.fnmatch(patch_title.title, pattern) for pattern in IGNORED_TITLES):
             log.info(f"Ignoring {patch_title.title}")
             continue
+
+        # Deterministic match first: name_id (Jamf softwareTitleNameId) maps to
+        # catalog slugs exactly. Restrict to the fetched set so a code resolving
+        # only to filtered-out sources still falls through to fuzzy.
+        if patch_title.name_id:
+            index_slugs = [s for s in jamf_index.get(patch_title.name_id, []) if s in available]
+            if index_slugs:
+                per_title_matches[patch_title.title] = index_slugs
+                continue
 
         app_name_entry = next(
             (entry for entry in software_titles if entry["Patch"] == patch_title.title), None
