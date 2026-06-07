@@ -77,6 +77,27 @@ async def list_apps(
     return list(rows)
 
 
+@router.get("/jamf-index", response_model=dict[str, list[str]])
+async def jamf_index(session: AsyncSession = Depends(get_session)) -> dict[str, list[str]]:
+    """
+    Map each Jamf App Installer ``softwareTitleNameId`` to its catalog slug.
+
+    Acts as the first-class matching technique. Clients fetch this index
+    once and resolve patch-title codes to catalog slugs locally.
+    """
+    stmt = (
+        select(AppRow.slug, AppSourceDetailRow.jamf_app_installer)
+        .join(AppSourceDetailRow, AppSourceDetailRow.app_id == AppRow.id)
+        .where(func.json_extract(AppSourceDetailRow.jamf_app_installer, "$.jamf_id").isnot(None))
+        .order_by(AppRow.slug)
+    )
+    rows = (await session.execute(stmt)).all()
+    index: dict[str, list[str]] = {}
+    for slug, jai in rows:
+        index.setdefault(jai["jamf_id"], []).append(slug)
+    return index
+
+
 @router.get("/drift", response_model=DriftResponse)
 async def list_drift(
     vendor: str | None = None,

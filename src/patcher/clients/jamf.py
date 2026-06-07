@@ -115,6 +115,18 @@ class JamfClient(HTTPClient):
         self.log.debug(f"Using token ending in {plaintext[-4:]}")
         return {"accept": "application/json", "Authorization": f"Bearer {plaintext}"}
 
+    async def get_title_configs(self) -> list[dict]:
+        """
+        Fetch the full patch software title configurations.
+
+        .. important::
+            Each config carries ``id`` and ``softwareTitleNameId`` which are easy to conflate.
+            ``softwareTitleNameId`` is the global catalog code used for deterministic matching.
+        """
+        headers = await self._headers()
+        url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
+        return await self.fetch_json(url=url, headers=headers)
+
     async def get_policies(self) -> list[str]:
         """
         Retrieves a list of patch software title IDs from the Jamf API.
@@ -122,10 +134,7 @@ class JamfClient(HTTPClient):
         :return: A list of software title IDs.
         :rtype: list[str]
         """
-        headers = await self._headers()
-        url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
-        response = await self.fetch_json(url=url, headers=headers)
-        return [title.get("id") for title in response]
+        return [config.get("id") for config in await self.get_title_configs()]
 
     async def get_summaries(self, policy_ids: list[str]) -> list[PatchTitle]:
         """
