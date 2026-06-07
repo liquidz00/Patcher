@@ -26,7 +26,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from asyncclick.testing import CliRunner
-from src.patcher.cli import cli, export, reset
+from src.patcher.cli import analyze, cli, diff, drift, export, reset
+from src.patcher.core.models.patch import PatchTitle
 from src.patcher.core.models.settings import PatcherSettings
 
 
@@ -62,6 +63,17 @@ def _ctx(**overrides):
     ctx = MagicMock()
     ctx.obj = obj
     return ctx
+
+
+def _patch_title(title="Firefox"):
+    return PatchTitle(
+        title=title,
+        title_id="1",
+        released="2026-01-01",
+        hosts_patched=10,
+        missing_patch=2,
+        latest_version="120.0",
+    )
 
 
 # --------------------------------------------------------------------------
@@ -207,6 +219,199 @@ async def test_export_threads_settings_into_client_and_runs(mocker):
     assert kwargs["concurrency"] == 7
     assert kwargs["enable_homebrew"] is False
     mock_proc.assert_awaited_once()
+
+
+# --------------------------------------------------------------------------
+# analyze command body (direct callback)
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_analyze_summary_requires_output_dir():
+    """--summary without --output-dir warns and returns early, before any data access."""
+    ctx = _ctx()
+    result = await analyze.callback.__wrapped__(
+        ctx,
+        excel_file=None,
+        criteria="most-installed",
+        threshold=70.0,
+        top_n=None,
+        min_compliance=None,
+        min_hosts=None,
+        released_after=None,
+        summary=True,
+        output_dir=None,
+        all_time=False,
+    )
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_analyze_filter_prints_results(mocker):
+    mock_filter = mocker.patch(
+        "src.patcher.cli.TitleFilter.apply", return_value=[_patch_title("Firefox")]
+    )
+    ctx = _ctx()
+    await analyze.callback.__wrapped__(
+        ctx,
+        excel_file=None,
+        criteria="most-installed",
+        threshold=70.0,
+        top_n=None,
+        min_compliance=None,
+        min_hosts=None,
+        released_after=None,
+        summary=False,
+        output_dir=None,
+        all_time=False,
+    )
+    mock_filter.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_analyze_no_matches_exits(mocker):
+    mocker.patch("src.patcher.cli.TitleFilter.apply", return_value=[])
+    ctx = _ctx()
+    with pytest.raises(SystemExit) as excinfo:
+        await analyze.callback.__wrapped__(
+            ctx,
+            excel_file=None,
+            criteria="below-threshold",
+            threshold=70.0,
+            top_n=None,
+            min_compliance=None,
+            min_hosts=None,
+            released_after=None,
+            summary=False,
+            output_dir=None,
+            all_time=False,
+        )
+    assert excinfo.value.code == 0
+
+
+@pytest.mark.asyncio
+async def test_analyze_all_time_trend(mocker):
+    import pandas as pd
+
+    mock_trend = mocker.patch(
+        "src.patcher.cli.TrendAnalysis.apply",
+        return_value=pd.DataFrame([{"Title": "Firefox", "Trend": 1}]),
+    )
+    ctx = _ctx()
+    await analyze.callback.__wrapped__(
+        ctx,
+        excel_file=None,
+        criteria="most-installed",
+        threshold=70.0,
+        top_n=None,
+        min_compliance=None,
+        min_hosts=None,
+        released_after=None,
+        summary=False,
+        output_dir=None,
+        all_time=True,
+    )
+    mock_trend.assert_called_once()
+
+
+# --------------------------------------------------------------------------
+# diff command body (direct callback)
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_diff_builds_client_and_renders(mocker):
+    mock_client_cls = mocker.patch("src.patcher.cli.PatcherClient")
+    mock_client_cls.return_value.diff = AsyncMock(return_value=MagicMock())
+    mocker.patch("src.patcher.cli.render_diff", return_value="table")
+    settings = PatcherSettings(ignored_titles=["Jamf *"])
+    ctx = _ctx(settings=settings)
+
+    await diff.callback.__wrapped__(
+        ctx,
+        since=None,
+        all_time=False,
+        between=None,
+        no_fetch=True,
+        list_snapshots=False,
+        output_format="text",
+    )
+
+    assert mock_client_cls.call_args.kwargs["ignored_titles"] == ["Jamf *"]
+    mock_client_cls.return_value.diff.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_diff_json_output(mocker):
+    mock_client = mocker.patch("src.patcher.cli.PatcherClient").return_value
+    result = MagicMock()
+    result.model_dump_json.return_value = '{"changed": []}'
+    mock_client.diff = AsyncMock(return_value=result)
+    ctx = _ctx()
+
+    await diff.callback.__wrapped__(
+        ctx,
+        since=None,
+        all_time=False,
+        between=None,
+        no_fetch=True,
+        list_snapshots=False,
+        output_format="json",
+    )
+
+    result.model_dump_json.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_diff_list_snapshots_empty_exits(mocker):
+    mocker.patch("src.patcher.cli.get_data_manager").return_value.get_cached_files.return_value = []
+    ctx = _ctx()
+
+    with pytest.raises(SystemExit) as excinfo:
+        await diff.callback.__wrapped__(
+            ctx,
+            since=None,
+            all_time=False,
+            between=None,
+            no_fetch=False,
+            list_snapshots=True,
+            output_format="text",
+        )
+    assert excinfo.value.code == 0
+
+
+# --------------------------------------------------------------------------
+# drift command body (direct callback)
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_drift_builds_client_and_renders(mocker):
+    mock_client_cls = mocker.patch("src.patcher.cli.PatcherClient")
+    mock_client_cls.return_value.detect_drift = AsyncMock(return_value=MagicMock())
+    mocker.patch("src.patcher.cli.render_drift", return_value="table")
+    settings = PatcherSettings(ignored_titles=["Adobe *"])
+    ctx = _ctx(settings=settings)
+
+    await drift.callback.__wrapped__(
+        ctx, slug=None, vendor=None, source=None, limit=100, offset=0, output_format="text"
+    )
+
+    assert mock_client_cls.call_args.kwargs["ignored_titles"] == ["Adobe *"]
+    mock_client_cls.return_value.detect_drift.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_drift_none_reports_no_drift(mocker):
+    mock_client = mocker.patch("src.patcher.cli.PatcherClient").return_value
+    mock_client.detect_drift = AsyncMock(return_value=None)
+    ctx = _ctx()
+
+    await drift.callback.__wrapped__(
+        ctx, slug="firefox", vendor=None, source=None, limit=100, offset=0, output_format="text"
+    )
+
+    mock_client.detect_drift.assert_awaited_once()
 
 
 # --------------------------------------------------------------------------
