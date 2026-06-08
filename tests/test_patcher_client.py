@@ -131,6 +131,7 @@ class TestFetchPatches:
         assert result == patcher.jamf.get_summaries.return_value
 
     @pytest.mark.asyncio
+    @pytest.mark.filterwarnings("ignore::src.patcher.core.exceptions.InstallomatorWarning")
     async def test_include_ios_calls_append_ios_status(self, patcher, mocker):
         mock_append = mocker.patch(
             "src.patcher.core.patcher_client.append_ios_status",
@@ -144,6 +145,7 @@ class TestFetchPatches:
         assert result == ["enriched"]
 
     @pytest.mark.asyncio
+    @pytest.mark.filterwarnings("ignore::src.patcher.core.exceptions.InstallomatorWarning")
     async def test_omit_recent_hours_calls_omit_recent(self, patcher, mocker):
         mock_omit = mocker.patch(
             "src.patcher.core.patcher_client.omit_recent",
@@ -157,6 +159,7 @@ class TestFetchPatches:
         assert result == ["filtered"]
 
     @pytest.mark.asyncio
+    @pytest.mark.filterwarnings("ignore::src.patcher.core.exceptions.InstallomatorWarning")
     async def test_sort_by_calls_sort_titles(self, patcher, mocker):
         mock_sort = mocker.patch(
             "src.patcher.core.patcher_client.sort_titles",

@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock
 import pytest
 from src.patcher.clients.patcher_api import App
 from src.patcher.core import matching
-from src.patcher.core.exceptions import APIResponseError
+from src.patcher.core.exceptions import APIResponseError, InstallomatorWarning
 from src.patcher.core.matching import (
     match_directly,
     match_fuzzy,
@@ -117,7 +117,8 @@ class TestMatchTitlesPipeline:
         jamf.get_app_names.return_value = [{"Patch": "Acme Reader", "App Names": ["Acme Reader"]}]
         review_file = tmp_path / "review.json"
 
-        await match_titles([title], jamf=jamf, api=api, review_file=review_file)
+        with pytest.warns(InstallomatorWarning):
+            await match_titles([title], jamf=jamf, api=api, review_file=review_file)
 
         assert title.install_label == []
         assert review_file.exists()
@@ -205,7 +206,8 @@ class TestMatchTitlesPipeline:
         jamf = AsyncMock()
         jamf.get_app_names.return_value = [{"Patch": "Acme Reader", "App Names": ["Acme Reader"]}]
 
-        await match_titles([title], jamf=jamf, api=api, review_file=None)
+        with pytest.warns(InstallomatorWarning):
+            await match_titles([title], jamf=jamf, api=api, review_file=None)
 
         # tmp_path is empty — review file was not written anywhere.
         assert list(tmp_path.iterdir()) == []
@@ -227,6 +229,7 @@ class TestMatchTitlesPipeline:
 
 class TestHomebrewMatching:
     @pytest.mark.asyncio
+    @pytest.mark.filterwarnings("ignore::src.patcher.core.exceptions.InstallomatorWarning")
     async def test_off_by_default_ignores_cask_only_slug(self, tmp_path):
         """With include_homebrew unset, only the installomator source is fetched."""
         title = _patch_title("Rectangle")
