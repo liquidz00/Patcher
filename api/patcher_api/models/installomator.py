@@ -1,3 +1,5 @@
+"""ORM model for the Installomator label catalog source."""
+
 from datetime import UTC, datetime
 
 from sqlalchemy import JSON, DateTime, String

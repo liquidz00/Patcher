@@ -1,3 +1,5 @@
+"""Installomator label fetching and shell-fragment parsing."""
+
 import asyncio
 import re
 from collections.abc import Iterable
@@ -266,6 +268,8 @@ def parse_fragment(fragment: str) -> dict[str, Any]:
 
 
 class InstallomatorClient:
+    """Discovers, fetches, and matches Installomator labels to ``PatchTitle`` objects."""
+
     def __init__(self, concurrency: int = 5, api: HTTPClient | None = None):
         """
         Wrapper around the `Installomator <https://github.com/Installomator/Installomator>`_ project (the macOS automated-installer script set).

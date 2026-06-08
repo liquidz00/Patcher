@@ -18,6 +18,8 @@ from patcher_api.config import get_settings
 
 
 class Base(DeclarativeBase):
+    """Declarative base all ORM models inherit from."""
+
     pass
 
 

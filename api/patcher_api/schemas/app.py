@@ -1,3 +1,5 @@
+"""Response schemas for the canonical app record."""
+
 from datetime import date
 from enum import StrEnum
 
@@ -22,6 +24,8 @@ class InstallMethod(StrEnum):
 
 
 class App(BaseModel):
+    """Public app record returned by ``/apps`` and ``/apps/{slug}``."""
+
     model_config = ConfigDict(from_attributes=True)
 
     slug: str

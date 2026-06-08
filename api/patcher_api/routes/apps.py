@@ -1,3 +1,5 @@
+"""Public ``/apps`` routes: catalog lookups, per-source detail, drift, label generation, the jamf-index."""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import ColumnElement, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession

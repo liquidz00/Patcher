@@ -40,6 +40,15 @@ from .models.settings import PatcherSettings, UIConfigKeys, UIDefaults
 
 
 class PatcherClient:
+    """
+    Patcher's top-level library entry point.
+
+    Composes the Jamf client, the catalog API client, and the data layer into
+    one object library callers instantiate directly (or build from on-disk
+    state via :meth:`from_state`). The CLI constructs the same object after its
+    ``Setup`` flow. Construction parameters are documented on :meth:`__init__`.
+    """
+
     def __init__(
         self,
         client_id: str | None = None,

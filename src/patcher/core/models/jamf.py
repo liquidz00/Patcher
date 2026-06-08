@@ -1,3 +1,5 @@
+"""Models for Jamf Pro authentication: credentials, API roles, and API clients."""
+
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import Field, SecretStr, field_validator

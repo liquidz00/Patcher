@@ -1,3 +1,13 @@
+"""
+Pydantic models for Patcher's on-disk configuration.
+
+:class:`PatcherSettings` is the single source of truth for everything stored in
+the property list — UI branding, the matching toggle, integration flags,
+ignored titles, and the recorded interpreter path. It owns reading and writing
+the plist (:meth:`~PatcherSettings.load` / :meth:`~PatcherSettings.save`) and
+migrating older on-disk formats forward.
+"""
+
 import plistlib
 import shutil
 import sys
@@ -15,6 +25,8 @@ _LEGACY_V1_KEYS = ("Setup", "UI", "InstallomatorClient")
 
 
 class UIConfigKeys(str, Enum):
+    """Plist keys for the user-interface settings block."""
+
     HEADER = "header_text"
     FOOTER = "footer_text"
     FONT_NAME = "font_name"
@@ -25,6 +37,8 @@ class UIConfigKeys(str, Enum):
 
 
 class UIDefaults(Model):
+    """Default branding values for PDF and HTML reports (header/footer text, fonts, logo, color)."""
+
     model_config = ConfigDict(validate_assignment=True)
 
     header_text: str = Field(default="Default header text", min_length=1)
@@ -37,6 +51,8 @@ class UIDefaults(Model):
 
 
 class Integrations(Model):
+    """Per-source matching toggles. Only ``installomator`` and ``homebrew`` are wired today."""
+
     installomator: bool = True
     homebrew: bool = False
     autopkg: bool = False
@@ -44,6 +60,21 @@ class Integrations(Model):
 
 
 class PatcherSettings(Model):
+    """
+    Patcher's complete on-disk configuration, backed by the property list.
+
+    The single home for everything persisted between runs: setup completion,
+    the matching and caching toggles, the interpreter path recorded for the #68
+    preflight, UI branding, integration flags, and the user's ignored-title
+    patterns. :meth:`load` reads and migrates the plist; :meth:`save` writes the
+    whole model back; the ``_migrate`` validator folds every older format
+    forward in one place.
+
+    .. versionadded:: 3.3.0
+        Replaces the former ``PropertyListManager`` and ``UIConfigManager``,
+        consolidating plist I/O and format migration into one model.
+    """
+
     model_config = ConfigDict(populate_by_name=True)
 
     setup_completed: bool = False

@@ -1,3 +1,5 @@
+"""ORM models for the canonical app record and its per-source detail payloads."""
+
 from datetime import date
 
 from sqlalchemy import JSON, Date, ForeignKey, String

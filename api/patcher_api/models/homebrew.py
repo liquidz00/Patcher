@@ -1,3 +1,5 @@
+"""ORM model for the Homebrew Cask catalog source."""
+
 from datetime import UTC, datetime
 
 from sqlalchemy import JSON, Boolean, DateTime, String

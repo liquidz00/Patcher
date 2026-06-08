@@ -1,3 +1,5 @@
+"""The ``/stats`` route: top-line catalog statistics in one call."""
+
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 

@@ -74,17 +74,23 @@ class App(BaseModel):
 
 
 class InstallomatorSource(BaseModel):
+    """Client-side shape of an Installomator source payload."""
+
     label_name: str
     label_url: HttpUrl
     raw: dict[str, Any]
 
 
 class HomebrewCaskSource(BaseModel):
+    """Client-side shape of a Homebrew Cask source payload."""
+
     token: str
     cask_json: dict[str, Any]
 
 
 class AutopkgRecipeEntry(BaseModel):
+    """A single AutoPkg recipe entry within an AutoPkg source."""
+
     identifier: str
     name: str
     shortname: str
@@ -96,16 +102,22 @@ class AutopkgRecipeEntry(BaseModel):
 
 
 class AutopkgSource(BaseModel):
+    """Client-side shape of an AutoPkg source payload (a list of recipes)."""
+
     recipes: list[AutopkgRecipeEntry]
 
 
 class MasSource(BaseModel):
+    """Client-side shape of a Mac App Store source payload."""
+
     bundle_id: str
     store_url: HttpUrl | None = None
     raw: dict[str, Any]
 
 
 class JamfAppInstallerSource(BaseModel):
+    """Client-side shape of a Jamf App Installer source payload."""
+
     title: str
     source: str
     host: str | None = None
@@ -180,6 +192,8 @@ class DriftResponse(BaseModel):
 
 
 class PatcherAPIClient(HTTPClient):
+    """Read client for the Patcher catalog API (app lookups, sources, drift, the jamf-index)."""
+
     def __init__(
         self,
         base_url: str = DEFAULT_BASE_URL,

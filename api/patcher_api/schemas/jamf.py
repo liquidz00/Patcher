@@ -1,11 +1,12 @@
 """
-Pydantic schemas for the Jamf App Installers titles API.
+Pydantic schemas for Jamf title catalogs.
 
 :class:`JaiTitle` / :class:`JaiTitlePage` mirror Jamf Pro's *App Installers
 titles* API (``GET /api/v1/app-installers/titles``): ``bundle_id`` (the exact
 stitch key), ``version``, per-arch download sources, and the Jamf title ``id``.
-The title endpoints are catalog-global, so they return the same data on any
-instance.
+:class:`JamfTitle` mirrors the broader Classic API ``patchavailabletitles``
+feed — every Patch Management title, keyed by ``name_id``. The title endpoints
+are catalog-global, so they return the same data on any instance.
 """
 
 from datetime import datetime
@@ -73,6 +74,13 @@ class JaiTitlePage(UpstreamModel):
 
 
 class JamfTitle(BaseModel):
+    """
+    One parsed ``patchavailabletitles`` entry (``name_id``, publisher, current
+    version, last-modified, app name).
+
+    .. versionadded:: 3.3.0
+    """
+
     name_id: str
     publisher: str
     current_version: str

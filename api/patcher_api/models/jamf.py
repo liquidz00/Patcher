@@ -1,3 +1,5 @@
+"""ORM models for Jamf sources: App Installers and the full patch-title catalog."""
+
 from datetime import UTC, datetime
 
 from sqlalchemy import JSON, DateTime, String
@@ -55,9 +57,13 @@ class JamfAppInstaller(Base):
 
 class JamfCatalogTitle(Base):
     """
-    Represent an available Patch Management Software Title entry from Jamf's App Catalog.
+    A single available Patch Management title from Jamf's Classic API
+    ``patchavailabletitles`` feed, keyed by ``name_id`` (the
+    ``softwareTitleNameId`` code). Ingested catalog-wide — not just the App
+    Installers subset — so the jamf-index can map far more codes to catalog
+    slugs by name.
 
-    # TODO
+    .. versionadded:: 3.3.0
     """
 
     __tablename__ = "jamf_titles"

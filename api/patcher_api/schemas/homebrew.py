@@ -12,6 +12,8 @@ from pydantic import BaseModel, ConfigDict
 
 
 class HomebrewCaskRecord(BaseModel):
+    """The subset of Homebrew Cask API fields the catalog ingests."""
+
     model_config = ConfigDict(extra="ignore")
 
     token: str

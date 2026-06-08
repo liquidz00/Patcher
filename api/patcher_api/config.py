@@ -27,6 +27,8 @@ _ENV_FILE_PATH = os.environ.get("PATCHER_API_ENV_FILE", "/etc/patcher-api/env")
 
 
 class Settings(BaseSettings):
+    """API runtime settings, read from ``PATCHER_API_``-prefixed env vars and env files."""
+
     model_config = SettingsConfigDict(
         env_prefix="PATCHER_API_",
         # Missing files are silently skipped; the resolved settings still honor

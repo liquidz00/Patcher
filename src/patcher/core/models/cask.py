@@ -1,3 +1,5 @@
+"""Model for Homebrew Cask coverage matches."""
+
 from . import Model
 
 

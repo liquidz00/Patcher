@@ -1,3 +1,5 @@
+"""Platform shims applied at import time (e.g. a no-op keyring backend off macOS)."""
+
 import os
 import platform
 

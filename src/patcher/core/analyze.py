@@ -1,3 +1,5 @@
+"""Patch-data analysis: title filtering, trend analysis across snapshots, and iOS enrichment."""
+
 import asyncio
 import inspect
 import pickle

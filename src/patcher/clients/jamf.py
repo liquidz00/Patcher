@@ -1,3 +1,5 @@
+"""Client for the Jamf Pro API."""
+
 import csv
 import io
 from datetime import datetime
@@ -14,6 +16,8 @@ from .token_manager import TokenManager
 
 
 class JamfClient(HTTPClient):
+    """Fetches patch-management data, device inventory, and OS versions from Jamf Pro."""
+
     def __init__(self, config: ConfigManager, concurrency: int):
         """
         Provides methods for interacting with the Jamf API, specifically fetching patch data, device information, and OS versions.

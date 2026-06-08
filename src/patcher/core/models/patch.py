@@ -1,3 +1,5 @@
+"""Models for Jamf patch-management data: patch titles and per-device patch state."""
+
 from datetime import datetime
 
 from pydantic import ConfigDict, Field, field_validator, model_validator

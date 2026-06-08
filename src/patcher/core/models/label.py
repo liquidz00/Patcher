@@ -1,3 +1,5 @@
+"""Model for an Installomator label (the matched install recipe)."""
+
 from typing import Any
 
 from pydantic import Field, field_validator

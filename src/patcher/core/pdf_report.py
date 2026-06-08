@@ -1,3 +1,5 @@
+"""Branded PDF report rendering (fpdf2)."""
+
 import os
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +15,8 @@ from .models.settings import UIDefaults
 
 
 class PDFReport(FPDF):
+    """``fpdf2`` subclass that renders a branded patch report (header/footer, logo, styled table)."""
+
     def __init__(
         self,
         orientation="L",

@@ -20,6 +20,8 @@ from pydantic import BaseModel, ConfigDict
 
 
 class GenerateLabelResponse(BaseModel):
+    """Response for the label-generation endpoint: structured label fields + any warnings."""
+
     model_config = ConfigDict(extra="forbid")
 
     label_name: str

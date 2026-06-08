@@ -1,3 +1,5 @@
+"""On-disk patch-data cache and the multi-format export pipeline (PDF, Excel, HTML, JSON)."""
+
 import asyncio
 import json
 import pickle
@@ -50,6 +52,8 @@ def serialize_titles_to_dict(
 
 
 class DataManager:
+    """Caches patch data on disk and exports it to PDF, Excel, HTML, and JSON."""
+
     _IGNORED = ["install_label", "homebrew_cask", "title_id", "name_id"]
 
     def __init__(self, disable_cache: bool = False, ui_config: dict | None = None):

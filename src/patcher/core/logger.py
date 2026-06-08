@@ -1,3 +1,5 @@
+"""Patcher's logging: rotating file logs for all callers; the CLI adds console output separately."""
+
 import logging
 import os
 import sys
@@ -8,6 +10,8 @@ from typing import Type
 
 
 class PatcherLog:
+    """Configures Patcher's stdlib rotating file logger (under Application Support)."""
+
     LOGGER_NAME = "Patcher"
     LOG_DIR = os.path.expanduser("~/Library/Application Support/Patcher/logs")
     LOG_FILE = os.path.join(LOG_DIR, "patcher.log")
@@ -107,6 +111,8 @@ class PatcherLog:
 
 
 class LogMe:
+    """Per-class logger wrapper (``self.log = LogMe(self.__class__.__name__)``)."""
+
     def __init__(self, class_name: str):
         """
         Thin wrapper around a stdlib :class:`logging.Logger` scoped to a class
