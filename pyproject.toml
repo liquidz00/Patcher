@@ -139,12 +139,14 @@ addopts = [
   "--cov=src",
   "--cov-report=html:coverage/htmlcov",
   "--cov-report=term-missing",
+  # Integration tests hit the live network; opt in with `-m integration` (see `make test-integration`).
+  "-m",
+  "not integration",
 ]
 testpaths = ["./tests"]
-filterwarnings = [
-  "ignore::DeprecationWarning",
-  "ignore::RuntimeWarning",
-]
+# Any warning fails the suite, so a new one can't slip in silently. Expected
+# warnings are asserted per-test with pytest.warns / scoped filterwarnings marks.
+filterwarnings = ["error"]
 markers = [
   "unit: Fast unit tests that test individual components in isolation",
   "integration: Tests that involve multiple components or external dependencies",
