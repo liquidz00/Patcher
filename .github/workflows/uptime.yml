@@ -1,8 +1,8 @@
-name: uptime
+name: API Health Checks (Uptime)
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '0 */2 * * *'
   workflow_dispatch:
 
 # Least privilege: checkout only needs to read the repo; the rest is shell + the Slack secret.
