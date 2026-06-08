@@ -40,6 +40,11 @@ class JamfClient(HTTPClient):
 
         super().__init__(max_concurrency=concurrency)
 
+    async def aclose(self) -> None:
+        """Release this client's connection pool and the token manager's."""
+        await self.token_manager.aclose()
+        await super().aclose()
+
     @classmethod
     def from_credentials(
         cls,

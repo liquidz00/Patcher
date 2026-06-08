@@ -34,6 +34,10 @@ class TokenManager:
         self._token = None
         self.lock = asyncio.Lock()
 
+    async def aclose(self) -> None:
+        """Release the HTTP connection pool used for token requests."""
+        await self.api_client.aclose()
+
     @property
     def client(self):
         if not self._client:
