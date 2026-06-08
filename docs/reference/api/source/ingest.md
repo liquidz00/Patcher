@@ -25,11 +25,11 @@ One module per upstream source. Each pulls data from the upstream (HTTP, git clo
 ## Jamf App Installers
 
 ```{eval-rst}
-.. autofunction:: patcher_api.ingest.jamf_app_installers.fetch_jai_titles
+.. autofunction:: patcher_api.ingest.jamf.fetch_jai_titles
 
-.. autofunction:: patcher_api.ingest.jamf_app_installers.fetch_jai_catalog
+.. autofunction:: patcher_api.ingest.jamf.fetch_jai_catalog
 
-.. autofunction:: patcher_api.ingest.jamf_app_installers.ingest_jai_titles
+.. autofunction:: patcher_api.ingest.jamf.ingest_jai_titles
 ```
 
 ## Mac App Store

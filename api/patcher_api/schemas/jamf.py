@@ -13,7 +13,7 @@ from typing import Any
 
 from pydantic import Field
 
-from patcher_api.schemas.base import UpstreamModel
+from patcher_api.schemas.base import BaseModel, UpstreamModel
 
 
 class JaiMediaSource(UpstreamModel):
@@ -70,3 +70,11 @@ class JaiTitlePage(UpstreamModel):
 
     total_count: int
     results: list[JaiTitle]
+
+
+class JamfTitle(BaseModel):
+    name_id: str
+    publisher: str
+    current_version: str
+    last_modified: datetime
+    app_name: str

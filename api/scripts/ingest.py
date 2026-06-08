@@ -69,7 +69,12 @@ from patcher_api.config import get_settings
 from patcher_api.db import get_session_maker, init_db
 from patcher_api.ingest.autopkg import fetch_autopkg_index, ingest_autopkg_index
 from patcher_api.ingest.homebrew import fetch_homebrew_casks, ingest_homebrew_casks
-from patcher_api.ingest.jamf_app_installers import fetch_jai_catalog, ingest_jai_titles
+from patcher_api.ingest.jamf import (
+    fetch_catalog,
+    fetch_jai_catalog,
+    ingest_jai_titles,
+    ingest_jamf_catalog,
+)
 from patcher_api.installomator.ingest import (
     fetch_installomator_labels,
     ingest_installomator_labels,
@@ -195,6 +200,20 @@ async def cmd_jai() -> None:
     log.info("JAI summary: ingested=%d, skipped=%d", ingested, skipped)
 
 
+async def cmd_jamf_titles() -> None:
+    await init_db()
+    log.info("=== Jamf patch-title catalog ingest ===")
+    settings = get_settings()
+    log.info("Fetching Jamf patch-title catalog from %s...", settings.jai_base_url)
+    titles = await fetch_catalog(
+        settings.jai_base_url, settings.jai_client_id, settings.jai_client_secret
+    )
+    log.info("Fetched %d titles. Ingesting...", len(titles))
+    async with get_session_maker()() as session:
+        ingested, skipped = await ingest_jamf_catalog(session, titles)
+    log.info("Jamf titles summary: ingested=%d, skipped=%d", ingested, skipped)
+
+
 async def cmd_stitch() -> None:
     await init_db()
     log.info("=== Stitch catalog ===")
@@ -233,6 +252,7 @@ async def cmd_all(*, force: bool = False) -> None:
     await cmd_homebrew()
     await cmd_autopkg()
     await cmd_jai()
+    await cmd_jamf_titles()
     await cmd_stitch()
     log.info("=== Full pipeline complete ===")
 
@@ -242,6 +262,7 @@ COMMANDS: dict[str, Callable[..., Awaitable[None]]] = {
     "homebrew": cmd_homebrew,
     "autopkg": cmd_autopkg,
     "jai": cmd_jai,
+    "jamf-titles": cmd_jamf_titles,
     "stitch": cmd_stitch,
     "all": cmd_all,
 }

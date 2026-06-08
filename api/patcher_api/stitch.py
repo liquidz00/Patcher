@@ -33,7 +33,7 @@ from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.autopkg import AutopkgRecipe
 from patcher_api.models.homebrew import HomebrewCask
 from patcher_api.models.installomator import InstallomatorLabel
-from patcher_api.models.jamf_app_installers import JamfAppInstaller
+from patcher_api.models.jamf import JamfAppInstaller
 from patcher_api.models.mas import MasApp
 
 log = logging.getLogger(__name__)

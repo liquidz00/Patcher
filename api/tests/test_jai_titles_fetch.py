@@ -2,13 +2,13 @@
 
 import httpx
 import pytest
-from patcher_api.ingest.jamf_app_installers import (
+from patcher_api.ingest.jamf import (
     fetch_jai_catalog,
     fetch_jai_titles,
     ingest_jai_titles,
 )
-from patcher_api.models.jamf_app_installers import JamfAppInstaller
-from patcher_api.schemas.jamf_app_installers import JaiTitle
+from patcher_api.models.jamf import JamfAppInstaller
+from patcher_api.schemas.jamf import JaiTitle
 from sqlalchemy import select
 
 _BASE = "https://dummy.jamfcloud.com"

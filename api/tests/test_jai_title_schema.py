@@ -1,6 +1,6 @@
 """Schema tests for the Jamf App Installers titles API models (real probe payloads)."""
 
-from patcher_api.schemas.jamf_app_installers import JaiTitle, JaiTitlePage
+from patcher_api.schemas.jamf import JaiTitle, JaiTitlePage
 
 # Verbatim detail payload from GET /api/v1/app-installers/titles/001 (dummy instance).
 _DETAIL = {
