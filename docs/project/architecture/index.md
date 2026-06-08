@@ -48,10 +48,10 @@ src/patcher/
 │   └── models/             # Pydantic 2 models (PatchTitle, PatcherSettings, etc.)
 │
 └── cli/  
-    ├── __init__.py         # click group, subcommand registrations
+    ├── __init__.py         # click group + command definitions (the entry point)
     ├── setup.py            # Interactive setup wizard
-    ├── report.py           # CLI orchestration around PatcherClient
-    └── _console.py         # Rich console singletons + status spinner
+    ├── _console.py         # Terminal output layer: console, status, renderers, log handler
+    └── _helpers.py         # CLI orchestration: arg parsing, cache, export workflow
 ```
 :::
 
@@ -183,7 +183,7 @@ spinner via the `status()` helper in `cli/_console.py`, Rich-styled output, file
 
 ::::
 
-For example, `patcherctl export` resolves config, builds a `PatcherClient`, then delegates the actual fetch+export work to `process_reports()` in `cli/report.py`. The orchestration in `cli/report.py` is small. It threads CLI args into `PatcherClient` method calls and wraps the whole thing in a status spinner.
+For example, `patcherctl export` resolves config, builds a `PatcherClient`, then delegates the actual fetch+export work to `process_reports()` in `cli/_helpers.py`. That orchestration is small. It threads CLI args into `PatcherClient` method calls and wraps the whole thing in a status spinner.
 
 **What this means in practice:** if a feature can be expressed as "call this method on `PatcherClient`," it works the same from `patcherctl` and from a Python script. There's no private CLI-only menu the library is locked out of.
 

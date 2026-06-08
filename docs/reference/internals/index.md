@@ -30,11 +30,11 @@ Bundled-font discovery and download. Resolves the Assistant Regular/Bold pair Pa
 First-run wizard. Drives credential entry, optional API role/client creation on the Jamf side, and writes setup state into the property list.
 :::
 
-:::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `TerminalLogger`
-:link: terminal_logger
+:::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `Console / Output`
+:link: console
 :link-type: doc
 
-Click-backed adapter onto `PatcherLog`. Adds colored, level-prefixed bash lines on top of the always-present file log when the CLI installs its handler.
+The CLI's terminal-output layer: Rich console singletons, the status spinner, table/diff/drift renderers, the error panel, and the click-backed log handler that adds colored, level-prefixed lines on top of the file log.
 :::
 ::::
 
@@ -43,5 +43,5 @@ Click-backed adapter onto `PatcherLog`. Adds colored, level-prefixed bash lines 
 
 fonts
 setup
-terminal_logger
+console
 ```

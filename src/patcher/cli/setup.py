@@ -1,3 +1,5 @@
+"""The interactive first-run setup wizard."""
+
 import sys
 from enum import Enum
 from pathlib import Path
@@ -29,18 +31,15 @@ DOC = "For more information, visit the project documentation: https://docs.patch
 
 
 class SetupType(str, Enum):
-    """
-    Defines the method of setup used for configuring Patcher.
-
-    - ``STANDARD``: Prompts for Jamf Pro username/password and creates an API client.
-    - ``SSO``: Prompts for an existing API client ID and secret.
-    """
+    """Defines the method of setup used for configuring Patcher."""
 
     STANDARD = "standard"
     SSO = "sso"
 
 
 class Setup:
+    """First-run wizard: credential entry, optional Jamf API role/client creation, and UI configuration."""
+
     def __init__(
         self,
         config: ConfigManager,

@@ -1,40 +1,52 @@
+"""
+The ``patcherctl`` command-line interface.
+
+Defines the asyncclick command group and every subcommand (``export``,
+``analyze``, ``diff``, ``drift``, ``reset``). Terminal output and logging live
+in :mod:`patcher.cli._console`; orchestration helpers (arg parsing, cache, the
+export workflow) live in :mod:`patcher.cli._helpers`. This module is the entry
+point that wires them into commands.
+"""
+
 import asyncio
-import inspect
-import re
 import sys
-import warnings
 from collections.abc import Callable
-from datetime import date, datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import asyncclick as click
 import rich.traceback
-from rich.console import Group
-from rich.panel import Panel
-from rich.rule import Rule
-from rich.text import Text
 
 from ..__about__ import __version__
-from ..clients.patcher_api import DriftEntry, DriftResponse
-from ..core.analyze import DiffResult, TitleFilter, TrendAnalysis
+from ..clients.patcher_api import DriftEntry
+from ..core.analyze import TitleFilter, TrendAnalysis
 from ..core.config_manager import ConfigManager
-from ..core.data_manager import DataManager
-from ..core.exceptions import APIResponseError, InstallomatorWarning, PatcherError, SetupError
-from ..core.logger import LogMe, PatcherLog
+from ..core.exceptions import APIResponseError, PatcherError, SetupError
+from ..core.logger import LogMe
 from ..core.models.settings import PatcherSettings, UIDefaults
 from ..core.patcher_client import PatcherClient
 from ._console import (
-    DIM_STYLE,
-    ERROR_STYLE,
     SUCCESS_STYLE,
     WARNING_STYLE,
     console,
     err_console,
+    format_err,
+    format_table,
+    render_diff,
+    render_drift,
+    render_drift_entry,
+    setup_logging,
     status,
 )
-from .report import process_reports
+from ._helpers import (
+    _install_cli_process_hooks,
+    get_data_manager,
+    initialize_cache,
+    parse_iso_date,
+    parse_since,
+    process_reports,
+)
 from .setup import Setup
-from .terminal_logger import install_terminal_excepthook, install_terminal_handler
 
 # show_locals=False keeps tracebacks safe to paste publicly (no leaked tokens).
 # Suppressing asyncclick collapses the framework's own frames so only Patcher
@@ -52,239 +64,6 @@ DATE_FORMATS = {
 
 # Context settings to enable both ``-h`` and ``--help`` for help output
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
-_SINCE_PATTERN = re.compile(r"^(\d+)([dhw])$")  # short window: 30d / 24h / 1w
-
-
-def format_table(data: list[list], headers: list[str] | None = None) -> str:
-    """Render ``data`` as a fixed-width pipe-separated table for terminal output."""
-    if headers:
-        data = [headers] + data
-
-    column_widths = [max(len(str(item)) for item in column) for column in zip(*data)]
-    format_string = " | ".join(f"{{:<{width}}}" for width in column_widths)
-    rows = [format_string.format(*row) for row in data]
-
-    if headers:
-        separator = "-+-".join("-" * width for width in column_widths)
-        rows.insert(1, separator)
-
-    return "\n".join(rows)
-
-
-def parse_since(value: str) -> timedelta:
-    """Parse a short window like ``'30d'``, ``'24h'``, ``'1w'`` into a timedelta."""
-    match = _SINCE_PATTERN.match(value.strip().lower())
-    if not match:
-        raise PatcherError(
-            "Invalid --since format. Use a number followed by 'd', 'h', or 'w' (e.g. '30d', '24h', '1w').",
-            received=value,
-        )
-    quantity, unit = int(match.group(1)), match.group(2)
-    units = {"d": "days", "h": "hours", "w": "weeks"}
-    return timedelta(**{units[unit]: quantity})
-
-
-def parse_iso_date(value: str) -> date:
-    """Parse ``'2026-05-17'``-style ISO date strings."""
-    try:
-        return datetime.strptime(value.strip(), "%Y-%m-%d").date()
-    except ValueError as exc:
-        raise PatcherError(
-            "Invalid date format. Use ISO YYYY-MM-DD (e.g. '2026-05-17').",
-            received=value,
-            error_msg=str(exc),
-        )
-
-
-def render_diff(result: DiffResult) -> str:
-    """Render a :class:`DiffResult` as a human-readable multi-section table."""
-    sections: list[str] = [
-        f"Diff: {result.from_label} → {result.to_label}",
-        "─" * 60,
-        "",
-    ]
-
-    if result.added:
-        sections.append(f"ADDED ({len(result.added)})")
-        rows = [
-            [t.title, t.released, t.hosts_patched, f"{t.completion_percent:.1f}%"]
-            for t in result.added
-        ]
-        sections.append(format_table(rows, headers=["Title", "Released", "Hosts", "Complete"]))
-        sections.append("")
-
-    if result.changed:
-        sections.append(f"CHANGED ({len(result.changed)})")
-        rows = []
-        for c in result.changed:
-            delta_str = f"{c.from_completion_percent:.1f}% → {c.to_completion_percent:.1f}%"
-            hosts_str = f"{c.from_hosts_patched} → {c.to_hosts_patched}"
-            if c.version_changed:
-                version_str = (
-                    f"{c.from_latest_version or '?'} → {c.to_latest_version or '?'} (bump)"
-                )
-            else:
-                version_str = c.to_latest_version or "—"
-            rows.append([c.title, delta_str, hosts_str, version_str])
-        sections.append(format_table(rows, headers=["Title", "Complete %", "Hosts", "Version"]))
-        sections.append("")
-
-    if result.removed:
-        sections.append(f"REMOVED ({len(result.removed)})")
-        rows = [[t.title, t.released, t.hosts_patched] for t in result.removed]
-        sections.append(format_table(rows, headers=["Title", "Last released", "Hosts"]))
-        sections.append("")
-
-    summary_rows = [
-        ["Titles", f"{result.from_count} → {result.to_count}"],
-        ["Unchanged", str(result.unchanged_count)],
-        ["Version bumps", str(len(result.version_bumps))],
-    ]
-    if result.avg_completion_delta is not None:
-        summary_rows.append(["Avg completion Δ", f"{result.avg_completion_delta:+.2f}pp"])
-    sections.append("SUMMARY")
-    sections.append(format_table(summary_rows))
-
-    return "\n".join(sections)
-
-
-def render_drift(result: DriftResponse) -> str:
-    """Render a :class:`DriftResponse` as a multi-row table summary."""
-    if not result.entries:
-        return f"No drift detected. Scanned {result.total_scanned} eligible apps."
-
-    lines = [
-        f"Drift across {result.total_with_drift} apps ({result.total_scanned} scanned). Showing {len(result.entries)}.",
-        "─" * 60,
-        "",
-    ]
-    rows = []
-    for entry in result.entries:
-        version_str = ", ".join(f"{v.source}={v.version}" for v in entry.versions)
-        leader_str = entry.leader or "—"
-        rows.append([entry.slug, entry.name, version_str, leader_str])
-    lines.append(format_table(rows, headers=["Slug", "Name", "Versions", "Leader"]))
-    return "\n".join(lines)
-
-
-def render_drift_entry(entry: DriftEntry) -> str:
-    """Render a single :class:`DriftEntry` with per-source version detail."""
-    lines = [
-        f"Drift: {entry.name} ({entry.slug})",
-        "─" * 60,
-        "",
-    ]
-    rows = [[v.source, v.version, "yes" if v.parsed_ok else "no"] for v in entry.versions]
-    lines.append(format_table(rows, headers=["Source", "Version", "Parseable"]))
-    if entry.leader is not None:
-        lines.append("")
-        lines.append(f"Leader: {entry.leader}    Laggard: {entry.laggard}")
-    return "\n".join(lines)
-
-
-def setup_logging(debug: bool) -> None:
-    """
-    Configures Patcher logging for the CLI process.
-
-    Installs the always-on rotating file handler, then attaches the
-    click-backed terminal handler when ``debug`` is true so debug runs
-    surface colored, level-prefixed output to stdout.
-
-    :param debug: Whether to enable debug-level console output.
-    :type debug: bool
-    """
-    PatcherLog.setup_logger()
-    install_terminal_handler(debug)
-
-
-def format_err(exc: PatcherError) -> None:
-    """
-    Render a :class:`PatcherError` in a red-bordered Rich panel on stderr.
-
-    The panel body carries the exception message in red. If the exception
-    exposes a ``recovery`` or ``remediation`` attribute (PatcherError lifts
-    keyword context onto the instance), it is rendered as a dim paragraph
-    below the main message. A dim rule separates the log-file pointer from
-    the error content.
-
-    :param exc: The PatcherError exception to format.
-    :type exc: PatcherError
-    """
-    message = Text(str(exc), style=ERROR_STYLE)
-
-    hint = getattr(exc, "recovery", None) or getattr(exc, "remediation", None)
-    if hint:
-        message.append("\n\n")
-        message.append(Text.from_markup(f"[dim]Recovery:[/] {hint}"))
-
-    log_hint = Text.from_markup(
-        f"[dim]For more details, see the log file at:[/]\n[dim]{PatcherLog.LOG_FILE}[/]"
-    )
-
-    err_console.print(
-        Panel(
-            Group(message, Rule(style=DIM_STYLE), log_hint),
-            title="[bold red]Error[/]",
-            border_style=ERROR_STYLE,
-            expand=False,
-        )
-    )
-
-
-def get_data_manager(ctx: click.Context) -> DataManager:
-    """
-    Lazily initializes and returns the shared ``DataManager`` instance.
-
-    This ensures consistent handling of ``DataManager`` objects. Inconsistent handling of said objects could lead to inaccurate patch reports or false errors getting raised.
-
-    :param ctx: Click context object.
-    :type ctx: `click.Context <https://click.palletsprojects.com/en/stable/api/#click.Context>`_
-    :return: The initialized ``DataManager`` instance.
-    :rtype: :class:`~patcher.core.data_manager.DataManager`
-    """
-    if "data_manager" not in ctx.obj or ctx.obj.get("data_manager") is None:
-        ctx.obj["data_manager"] = DataManager(disable_cache=ctx.obj.get("disable_cache", False))
-    return ctx.obj["data_manager"]
-
-
-def initialize_cache(cache_dir: Path) -> None:
-    """
-    Ensures the cache directory exists while avoiding creating system-managed directories.
-
-    :param cache_dir: The full path to the cache directory (e.g., ~/Library/Caches/Patcher).
-    :type cache_dir: ~pathlib.Path
-    """
-    log = LogMe(inspect.currentframe().f_code.co_name)
-
-    parent_dir = cache_dir.parent
-    if not parent_dir.exists():
-        log.warning(f"Parent directory {parent_dir} does not exist. Skipping cache setup.")
-        return
-
-    try:
-        cache_dir.mkdir(parents=False, exist_ok=True)
-        log.debug(f"Cache directory initialized at {cache_dir}")
-    except OSError as err:
-        log.warning(f"Failed to initialize cache directory. Details: {err}")
-        return
-
-
-def warning_format(message, category, filename, lineno, file=None, line=None):
-    return f"{category.__name__}: {message}\n"
-
-
-def _install_cli_process_hooks() -> None:
-    """
-    Apply process-wide side effects scoped to a CLI invocation.
-
-    Kept inside the ``cli()`` callback rather than at module import time so
-    importing ``patcher.cli.setup`` (or anything else under ``patcher.cli``)
-    from library code does not mutate ``sys.excepthook`` or the global
-    warnings filter as a side effect.
-    """
-    install_terminal_excepthook()
-    warnings.simplefilter("always", InstallomatorWarning)
-    warnings.formatwarning = warning_format
 
 
 # Entry
@@ -373,8 +152,8 @@ async def cli(
         initialize_cache(cache_dir)
 
     # Non-interactive mode is engaged when all three credentials are present
-    # (via flags or PATCHER_* env vars). In that mode we bypass the keychain
-    # and skip every interactive prompt.
+    # (via flags or PATCHER_* env vars). Bypass the keychain and skip every
+    # interactive prompt.
     noninteractive = bool(client_id and client_secret and url)
 
     config_manager = ConfigManager(in_memory_credentials={}) if noninteractive else ConfigManager()
@@ -641,7 +420,7 @@ async def export(
 
     .. seealso::
 
-        - :meth:`~patcher.cli.report.process_reports`
+        - :meth:`~patcher.cli._helpers.process_reports`
         - :attr:`~patcher.clients.HTTPClient.max_concurrency`
         - :ref:`export`
 
