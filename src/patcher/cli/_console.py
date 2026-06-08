@@ -20,21 +20,35 @@ from typing import Type
 
 from rich.console import Console, Group
 from rich.panel import Panel
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.rule import Rule
+from rich.table import Table
 from rich.text import Text
+from rich.theme import Theme
 
 from ..clients.patcher_api import DriftEntry, DriftResponse
 from ..core.analyze import DiffResult
 from ..core.exceptions import PatcherError
 from ..core.logger import PatcherLog
 
-console = Console()
-err_console = Console(stderr=True)
+# Semantic palette. Callsites reference the names (``style="warning"``); the
+# theme owns the colors, so the whole palette changes in one place.
+_THEME = Theme(
+    {
+        "info": "cyan",
+        "warning": "yellow",
+        "error": "red",
+        "success": "green",
+        "banner": "bold cyan",  # welcome/setup heading — a theme alias can't combine with `bold` inline
+    }
+)
+console = Console(theme=_THEME)
+err_console = Console(stderr=True, theme=_THEME)
 
-INFO_STYLE = "cyan"
-WARNING_STYLE = "yellow"
-ERROR_STYLE = "red"
-SUCCESS_STYLE = "green"
+INFO_STYLE = "info"
+WARNING_STYLE = "warning"
+ERROR_STYLE = "error"
+SUCCESS_STYLE = "success"
 DIM_STYLE = "dim"
 SPINNER_NAME = "dots"
 
@@ -106,41 +120,71 @@ def status(message: str = "Processing", *, enabled: bool = True, spinner: str = 
         yield live
 
 
-def format_table(data: list[list], headers: list[str] | None = None) -> str:
-    """Render ``data`` as a fixed-width pipe-separated table for terminal output."""
+def progress_bar(*, disable: bool = False) -> Progress:
+    """
+    A consistently-styled Rich progress display (spinner + description + bar).
+
+    Determinate when a task's ``total`` is set (the bar fills); pulsing while
+    ``total`` is ``None``. Pass ``disable=debug`` so ``--debug`` runs skip the
+    live display and let log lines flow uninterrupted.
+
+    :param disable: When True the display renders nothing (debug runs).
+    :type disable: bool
+    """
+    return Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        console=console,
+        transient=True,
+        disable=disable,
+    )
+
+
+def build_table(
+    rows: list[list], headers: list[str] | None = None, *, title: str | None = None
+) -> Table:
+    """
+    Build a Rich :class:`~rich.table.Table` from row data.
+
+    :param rows: Row data; each cell is stringified.
+    :type rows: list[list]
+    :param headers: Optional column headers. When omitted the table renders
+        headerless (used for key/value summaries).
+    :type headers: list[str] | None
+    :param title: Optional bold title rendered above the table.
+    :type title: str | None
+    """
+    table = Table(title=title, title_style="bold", header_style="bold", title_justify="left")
     if headers:
-        data = [headers] + data
-
-    column_widths = [max(len(str(item)) for item in column) for column in zip(*data)]
-    format_string = " | ".join(f"{{:<{width}}}" for width in column_widths)
-    rows = [format_string.format(*row) for row in data]
-
-    if headers:
-        separator = "-+-".join("-" * width for width in column_widths)
-        rows.insert(1, separator)
-
-    return "\n".join(rows)
+        for head in headers:
+            table.add_column(str(head))
+    else:
+        table.show_header = False
+        for _ in range(max((len(row) for row in rows), default=1)):
+            table.add_column()
+    for row in rows:
+        table.add_row(*(str(cell) for cell in row))
+    return table
 
 
-def render_diff(result: DiffResult) -> str:
-    """Render a :class:`DiffResult` as a human-readable multi-section table."""
-    sections: list[str] = [
-        f"Diff: {result.from_label} → {result.to_label}",
-        "─" * 60,
-        "",
-    ]
+def render_diff(result: DiffResult) -> Group:
+    """Render a :class:`DiffResult` as Rich tables grouped by section."""
+    parts: list = [Text(f"Diff: {result.from_label} → {result.to_label}", style="bold")]
 
     if result.added:
-        sections.append(f"ADDED ({len(result.added)})")
-        rows = [
-            [t.title, t.released, t.hosts_patched, f"{t.completion_percent:.1f}%"]
-            for t in result.added
-        ]
-        sections.append(format_table(rows, headers=["Title", "Released", "Hosts", "Complete"]))
-        sections.append("")
+        parts.append(
+            build_table(
+                [
+                    [t.title, t.released, t.hosts_patched, f"{t.completion_percent:.1f}%"]
+                    for t in result.added
+                ],
+                headers=["Title", "Released", "Hosts", "Complete"],
+                title=f"Added ({len(result.added)})",
+            )
+        )
 
     if result.changed:
-        sections.append(f"CHANGED ({len(result.changed)})")
         rows = []
         for c in result.changed:
             delta_str = f"{c.from_completion_percent:.1f}% → {c.to_completion_percent:.1f}%"
@@ -152,14 +196,22 @@ def render_diff(result: DiffResult) -> str:
             else:
                 version_str = c.to_latest_version or "—"
             rows.append([c.title, delta_str, hosts_str, version_str])
-        sections.append(format_table(rows, headers=["Title", "Complete %", "Hosts", "Version"]))
-        sections.append("")
+        parts.append(
+            build_table(
+                rows,
+                headers=["Title", "Complete %", "Hosts", "Version"],
+                title=f"Changed ({len(result.changed)})",
+            )
+        )
 
     if result.removed:
-        sections.append(f"REMOVED ({len(result.removed)})")
-        rows = [[t.title, t.released, t.hosts_patched] for t in result.removed]
-        sections.append(format_table(rows, headers=["Title", "Last released", "Hosts"]))
-        sections.append("")
+        parts.append(
+            build_table(
+                [[t.title, t.released, t.hosts_patched] for t in result.removed],
+                headers=["Title", "Last released", "Hosts"],
+                title=f"Removed ({len(result.removed)})",
+            )
+        )
 
     summary_rows = [
         ["Titles", f"{result.from_count} → {result.to_count}"],
@@ -168,44 +220,47 @@ def render_diff(result: DiffResult) -> str:
     ]
     if result.avg_completion_delta is not None:
         summary_rows.append(["Avg completion Δ", f"{result.avg_completion_delta:+.2f}pp"])
-    sections.append("SUMMARY")
-    sections.append(format_table(summary_rows))
+    parts.append(build_table(summary_rows, title="Summary"))
 
-    return "\n".join(sections)
+    return Group(*parts)
 
 
-def render_drift(result: DriftResponse) -> str:
-    """Render a :class:`DriftResponse` as a multi-row table summary."""
+def render_drift(result: DriftResponse) -> Table | Text:
+    """Render a :class:`DriftResponse` as a Rich table summary."""
     if not result.entries:
-        return f"No drift detected. Scanned {result.total_scanned} eligible apps."
+        return Text(f"No drift detected. Scanned {result.total_scanned} eligible apps.")
 
-    lines = [
-        f"Drift across {result.total_with_drift} apps ({result.total_scanned} scanned). Showing {len(result.entries)}.",
-        "─" * 60,
-        "",
+    rows = [
+        [
+            entry.slug,
+            entry.name,
+            ", ".join(f"{v.source}={v.version}" for v in entry.versions),
+            entry.leader or "—",
+        ]
+        for entry in result.entries
     ]
-    rows = []
-    for entry in result.entries:
-        version_str = ", ".join(f"{v.source}={v.version}" for v in entry.versions)
-        leader_str = entry.leader or "—"
-        rows.append([entry.slug, entry.name, version_str, leader_str])
-    lines.append(format_table(rows, headers=["Slug", "Name", "Versions", "Leader"]))
-    return "\n".join(lines)
+    return build_table(
+        rows,
+        headers=["Slug", "Name", "Versions", "Leader"],
+        title=(
+            f"Drift across {result.total_with_drift} apps "
+            f"({result.total_scanned} scanned, showing {len(result.entries)})"
+        ),
+    )
 
 
-def render_drift_entry(entry: DriftEntry) -> str:
+def render_drift_entry(entry: DriftEntry) -> Group:
     """Render a single :class:`DriftEntry` with per-source version detail."""
-    lines = [
-        f"Drift: {entry.name} ({entry.slug})",
-        "─" * 60,
-        "",
+    parts: list = [
+        build_table(
+            [[v.source, v.version, "yes" if v.parsed_ok else "no"] for v in entry.versions],
+            headers=["Source", "Version", "Parseable"],
+            title=f"Drift: {entry.name} ({entry.slug})",
+        )
     ]
-    rows = [[v.source, v.version, "yes" if v.parsed_ok else "no"] for v in entry.versions]
-    lines.append(format_table(rows, headers=["Source", "Version", "Parseable"]))
     if entry.leader is not None:
-        lines.append("")
-        lines.append(f"Leader: {entry.leader}    Laggard: {entry.laggard}")
-    return "\n".join(lines)
+        parts.append(Text(f"Leader: {entry.leader}    Laggard: {entry.laggard}", style="dim"))
+    return Group(*parts)
 
 
 def format_err(exc: PatcherError) -> None:

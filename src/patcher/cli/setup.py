@@ -16,7 +16,7 @@ from ..core.logger import LogMe
 from ..core.models.jamf import JamfCredentials
 from ..core.models.settings import SETTINGS_PATH, PatcherSettings, UIConfigKeys, UIDefaults
 from ..core.models.token import AccessToken
-from ._console import ERROR_STYLE, INFO_STYLE, _NoOpStatus, console
+from ._console import ERROR_STYLE, _NoOpStatus, console
 
 # Welcome messages
 GREET = "Thanks for downloading Patcher!\n"
@@ -81,7 +81,7 @@ class Setup:
     @staticmethod
     def _greet() -> None:
         """Displays the greeting and welcome messages."""
-        console.print(GREET, style=f"bold {INFO_STYLE}")
+        console.print(GREET, style="banner")
         console.print(WELCOME, end="")
         console.print(DOC, style="bold bright_magenta")
 

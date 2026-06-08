@@ -28,10 +28,10 @@ from ..core.patcher_client import PatcherClient
 from ._console import (
     SUCCESS_STYLE,
     WARNING_STYLE,
+    build_table,
     console,
     err_console,
     format_err,
-    format_table,
     render_diff,
     render_drift,
     render_drift_entry,
@@ -635,11 +635,7 @@ async def analyze(
                 sys.exit(0)
 
             spinner.update("Formatting trend results...")
-            formatted_table = format_table(
-                trend_df.values.tolist(), headers=trend_df.columns.tolist()
-            )
-            # markup=False: rendered tables contain literal brackets we must not parse as markup.
-            console.print(formatted_table, markup=False)
+            console.print(build_table(trend_df.values.tolist(), headers=trend_df.columns.tolist()))
 
             if summary:
                 try:
@@ -704,8 +700,7 @@ async def analyze(
                 "Total Hosts",
                 "Label Available (Y/N)",
             ]
-            formatted_table = format_table(table_data, headers)
-            console.print(formatted_table, markup=False)
+            console.print(build_table(table_data, headers))
 
         if summary and not all_time:
             try:
@@ -837,8 +832,7 @@ async def diff(
         console.print_json(result.model_dump_json(indent=2))
         return
 
-    # markup=False: rendered diff tables contain literal brackets.
-    console.print(render_diff(result), markup=False)
+    console.print(render_diff(result))
 
 
 @cli.command(
@@ -947,12 +941,11 @@ async def drift(
         console.print(f"No drift detected for '{slug}'.")
         return
 
-    # markup=False: rendered drift tables contain literal brackets.
     if isinstance(result, DriftEntry):
-        console.print(render_drift_entry(result), markup=False)
+        console.print(render_drift_entry(result))
         return
 
-    console.print(render_drift(result), markup=False)
+    console.print(render_drift(result))
 
 
 if __name__ == "__main__":

@@ -22,12 +22,18 @@ class TestConsoleModule:
         assert _console.err_console.stderr is True
         assert _console.console.stderr is False
 
-    def test_palette_constants_present(self):
-        assert _console.INFO_STYLE == "cyan"
-        assert _console.WARNING_STYLE == "yellow"
-        assert _console.ERROR_STYLE == "red"
-        assert _console.SUCCESS_STYLE == "green"
+    def test_palette_constants_are_semantic_names(self):
+        assert _console.INFO_STYLE == "info"
+        assert _console.WARNING_STYLE == "warning"
+        assert _console.ERROR_STYLE == "error"
+        assert _console.SUCCESS_STYLE == "success"
         assert _console.DIM_STYLE == "dim"
+
+    def test_theme_resolves_semantic_names_to_colors(self):
+        # The console's theme owns the actual colors the names map to.
+        styles = _console.console.get_style("warning"), _console.console.get_style("success")
+        assert styles[0].color.name == "yellow"
+        assert styles[1].color.name == "green"
 
     def test_spinner_name_constant(self):
         assert _console.SPINNER_NAME == "dots"

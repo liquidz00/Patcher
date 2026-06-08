@@ -23,7 +23,7 @@ from ..core.exceptions import APIResponseError, InstallomatorWarning, PatcherErr
 from ..core.logger import LogMe
 from ..core.matching import match_titles
 from ..core.patcher_client import PatcherClient
-from ._console import SUCCESS_STYLE, console, install_terminal_excepthook, status
+from ._console import SUCCESS_STYLE, console, install_terminal_excepthook, progress_bar
 
 _SINCE_PATTERN = re.compile(r"^(\d+)([dhw])$")  # short window: 30d / 24h / 1w
 
@@ -181,10 +181,11 @@ async def process_reports(
     :param device_details: If True, include per-title device sheets in Excel export.
     :type device_details: bool
     """
-    with status("Initializing...", enabled=not patcher.debug) as spinner:
+    with progress_bar(disable=patcher.debug) as progress:
+        task = progress.add_task("Initializing...", total=None)
         output_path = _validate_output_dir(path)
 
-        spinner.update("Retrieving policy IDs from Jamf...")
+        progress.update(task, description="Retrieving policy IDs from Jamf...")
         try:
             patch_ids = await patcher.jamf.get_policies()
         except APIResponseError as e:
@@ -192,7 +193,7 @@ async def process_reports(
                 "Failed to retrieve policy IDs from Jamf instance.", error_msg=str(e)
             )
 
-        spinner.update("Retrieving patch summaries from Jamf...")
+        progress.update(task, description="Retrieving patch summaries from Jamf...")
         try:
             patch_reports = await patcher.jamf.get_summaries(patch_ids)
         except APIResponseError as e:
@@ -201,15 +202,15 @@ async def process_reports(
             )
 
         if sort:
-            spinner.update("Sorting reports...")
+            progress.update(task, description="Sorting reports...")
             patch_reports = await sort_titles(patch_reports, sort)
 
         if omit:
-            spinner.update("Omitting recent releases...")
+            progress.update(task, description="Omitting recent releases...")
             patch_reports = await omit_recent(patch_reports)
 
         if ios:
-            spinner.update("Including iOS info...")
+            progress.update(task, description="Including iOS info...")
             patch_reports = await append_ios_status(patch_reports, patcher.jamf)
 
         if enable_iom and patcher.api is not None:
@@ -218,25 +219,31 @@ async def process_reports(
                 if enable_homebrew
                 else "Identifying Installomator support for titles..."
             )
-            spinner.update(msg)
+            progress.update(task, description=msg, total=len(patch_reports), completed=0)
+
+            def on_match(done: int, total: int) -> None:
+                progress.update(task, completed=done, total=total)
+
             try:
                 await match_titles(
                     patch_reports,
                     jamf=patcher.jamf,
                     api=patcher.api,
                     include_homebrew=enable_homebrew,
+                    progress_callback=on_match,
                 )
             except APIResponseError as e:
                 if not getattr(e, "not_found", False):
                     raise
+            progress.update(task, total=None)  # back to indeterminate for the remaining steps
 
         device_reports = None
         if device_details:
-            spinner.update("Fetching per-title patch reports...")
+            progress.update(task, description="Fetching per-title patch reports...")
             title_ids = [patch.title_id for patch in patch_reports]
             device_reports = await patcher.jamf.get_title_reports(title_ids)
 
-        spinner.update("Generating reports...")
+        progress.update(task, description="Generating reports...")
         await patcher.export(
             patch_reports,
             output_dir=output_path,

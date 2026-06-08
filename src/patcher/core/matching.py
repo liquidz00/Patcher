@@ -30,6 +30,7 @@ from __future__ import annotations
 import fnmatch
 import json
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -211,6 +212,7 @@ async def match_titles(
     review_file: Path | None = DEFAULT_REVIEW_FILE,
     include_homebrew: bool = False,
     ignored_titles: list[str] | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> None:
     """
     Match each :class:`~patcher.core.models.patch.PatchTitle` against the API
@@ -254,6 +256,10 @@ async def match_titles(
         merged with the built-in :data:`~patcher.policy.IGNORED_TITLES`. Lets
         callers skip titles managed out-of-band without editing policy.
     :type ignored_titles: list[str] | None
+    :param progress_callback: Optional ``(processed, total)`` callback invoked
+        once per title, letting a caller drive a progress display without this
+        module depending on any UI. The CLI passes a Rich-backed callback.
+    :type progress_callback: Callable[[int, int], None] | None
     """
     log = LogMe("matching")
     ignore_patterns = [*IGNORED_TITLES, *(ignored_titles or [])]
@@ -287,7 +293,10 @@ async def match_titles(
     per_title_matches: dict[str, list[str]] = {}
     unmatched_apps: list[dict[str, Any]] = []
 
-    for patch_title in patch_titles:
+    total = len(patch_titles)
+    for index, patch_title in enumerate(patch_titles, start=1):
+        if progress_callback is not None:
+            progress_callback(index, total)
         if any(fnmatch.fnmatch(patch_title.title, pattern) for pattern in ignore_patterns):
             log.info(f"Ignoring {patch_title.title}")
             continue
