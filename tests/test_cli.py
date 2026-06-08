@@ -214,7 +214,7 @@ async def test_export_threads_settings_into_client_and_runs(mocker):
     )
 
     kwargs = mock_client_cls.call_args.kwargs
-    assert kwargs["enable_installomator"] is True
+    assert kwargs["enable_matching"] is True
     assert kwargs["ignored_titles"] == ["Adobe *"]
     assert kwargs["concurrency"] == 7
     assert kwargs["enable_homebrew"] is False

@@ -673,7 +673,7 @@ async def export(
         concurrency=concurrency,
         disable_cache=ctx.obj.get("disable_cache"),
         debug=ctx.obj.get("debug"),
-        enable_installomator=settings.enable_matching,
+        enable_matching=settings.enable_matching,
         enable_homebrew=homebrew,
         ui_config=settings.user_interface_settings.model_dump(),
         ignored_titles=settings.ignored_titles,
@@ -1035,7 +1035,7 @@ async def diff(
         config=ctx.obj.get("config"),
         disable_cache=ctx.obj.get("disable_cache"),
         debug=ctx.obj.get("debug"),
-        enable_installomator=settings.enable_matching,
+        enable_matching=settings.enable_matching,
         ui_config=settings.user_interface_settings.model_dump(),
         ignored_titles=settings.ignored_titles,
     )
@@ -1137,7 +1137,7 @@ async def drift(
         config=ctx.obj.get("config"),
         disable_cache=ctx.obj.get("disable_cache"),
         debug=debug,
-        enable_installomator=settings.enable_matching,
+        enable_matching=settings.enable_matching,
         ui_config=settings.user_interface_settings.model_dump(),
         ignored_titles=settings.ignored_titles,
     )

@@ -118,7 +118,7 @@ class TestFetchPatches:
 
     @pytest.mark.asyncio
     async def test_skips_match_when_no_api_client(self, patcher, mocker):
-        """When PatcherClient was constructed with enable_installomator=False, .api is None."""
+        """When PatcherClient was constructed with enable_matching=False, .api is None."""
         mock_match = mocker.patch(
             "src.patcher.core.patcher_client.match_titles",
             new_callable=AsyncMock,
@@ -424,13 +424,13 @@ class TestDetectDrift:
         )
 
     @pytest.mark.asyncio
-    async def test_constructs_own_api_when_installomator_disabled(self, mocker):
-        """When ``enable_installomator=False`` the standing self.api is None."""
+    async def test_constructs_own_api_when_matching_disabled(self, mocker):
+        """When ``enable_matching=False`` the standing self.api is None."""
         local = PatcherClient(
             client_id="x",
             client_secret="x",
             server="https://x.example.com",
-            enable_installomator=False,
+            enable_matching=False,
         )
         assert local.api is None
 
@@ -448,6 +448,17 @@ class TestDetectDrift:
         fake_api.list_drift.assert_awaited_once()
         fake_api.aclose.assert_awaited_once()
         assert result is fake_response
+
+    def test_deprecated_enable_installomator_still_works(self):
+        """The legacy ``enable_installomator`` kwarg maps to enable_matching with a warning."""
+        with pytest.warns(DeprecationWarning, match="enable_installomator"):
+            local = PatcherClient(
+                client_id="x",
+                client_secret="x",
+                server="https://x.example.com",
+                enable_installomator=False,
+            )
+        assert local.api is None
 
 
 class TestReset:
@@ -539,7 +550,7 @@ class TestFromState:
 
         call_kwargs = mock_client_cls.call_args.kwargs
         assert call_kwargs["config"] is mock_config_cls.return_value
-        assert call_kwargs["enable_installomator"] is True
+        assert call_kwargs["enable_matching"] is True
         assert call_kwargs["enable_homebrew"] is True
         assert call_kwargs["ui_config"]["header_text"] == "Org Header"
         assert call_kwargs["ignored_titles"] == ["Adobe *"]
@@ -557,7 +568,7 @@ class TestFromState:
         call_kwargs = mock_client_cls.call_args.kwargs
         assert call_kwargs["concurrency"] == 10
         assert call_kwargs["debug"] is True
-        assert call_kwargs["enable_installomator"] is False  # enable_matching was False
+        assert call_kwargs["enable_matching"] is False
 
     def test_ui_config_defaults_passed_when_unset(self, mocker):
         """With no saved UI settings, model defaults flow through as ui_config."""

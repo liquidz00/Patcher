@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Matching now skips Adobe and Jamf-published titles by default.** These are managed out-of-band (Adobe via the Admin Console, Jamf's own apps such as Self Service via Jamf's updater), so they no longer clutter `analyze` reports with unactionable rows. This skip list is now configurable (see Added).
 - **Configuration now lives in a single `PatcherSettings` model.** Patcher's property list is read and written through one Pydantic model (`PatcherSettings.load()` / `save()`) that owns every on-disk setting — UI branding, the matching toggle, integrations, ignored titles, and the recorded interpreter path. This replaces the separate `PropertyListManager` and `UIConfigManager` helpers, consolidates all plist-format migrations into one place (older formats upgrade automatically on first load, keeping a `.bak` safety copy), and moves font handling into a standalone `patcher.core.fonts` module. No user action required; existing plists migrate on launch.
 
+### Deprecated
+- **`PatcherClient(enable_installomator=...)` is renamed to `enable_matching`.** The toggle always meant "do catalog matching at all," not "Installomator specifically" — the new name says what it does. The old keyword still works but emits a `DeprecationWarning`; update library calls to `enable_matching=`.
+
 ## [v3.2.0] - 2026-06-03
 ### Added
 - **MCP server for the Patcher catalog.** Point Claude or any Streamable HTTP MCP client at the catalog and ask about it in natural language, with no `curl` or API client required. Eight read-only tools cover catalog summaries, app lookups, search, version drift, categories, Installomator label generation, per-source data, and recent additions, alongside pinnable catalog resources and ready-made prompts. Live at `mcp.patcherctl.dev`, or self-hosted at `/mcp`.

@@ -14,6 +14,7 @@ For raw, lower-level access without ``PatcherClient``, see
 and :class:`patcher.clients.HTTPClient` (generic httpx with truststore).
 """
 
+import warnings
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Literal
@@ -49,10 +50,11 @@ class PatcherClient:
         concurrency: int = 5,
         disable_cache: bool = False,
         debug: bool = False,
-        enable_installomator: bool = True,
+        enable_matching: bool = True,
         enable_homebrew: bool = False,
         ui_config: dict | None = None,
         ignored_titles: list[str] | None = None,
+        enable_installomator: bool | None = None,  # deprecated alias for enable_matching
     ):
         """
         Construct a ``PatcherClient`` with all collaborators wired up.
@@ -105,17 +107,16 @@ class PatcherClient:
         :param debug: Enables debug-mode handling in collaborators (notably
             disables the spinner animation when set in the CLI path).
         :type debug: bool
-        :param enable_installomator: If False, :attr:`api` is ``None`` and
-            Installomator-label matching (now sourced from the Patcher
-            API catalog) is skipped. Kept under the legacy name for
-            backward compatibility with existing CLI flags.
-        :type enable_installomator: bool
+        :param enable_matching: If False, :attr:`api` is ``None`` and all
+            catalog matching (Installomator labels and Homebrew Cask) is
+            skipped. Defaults to True.
+        :type enable_matching: bool
         :param enable_homebrew: Default for whether :meth:`fetch_patches`
             also matches titles against the Homebrew Cask source (a second
             matching dimension), populating
             :attr:`~patcher.core.models.patch.PatchTitle.homebrew_cask`. Has
             no effect when :attr:`api` is ``None`` (i.e.
-            ``enable_installomator=False``), since matching rides on the same
+            ``enable_matching=False``), since matching rides on the same
             catalog client. Defaults to False.
         :type enable_homebrew: bool
         :param ui_config: Optional dict of UI settings (header text,
@@ -126,6 +127,10 @@ class PatcherClient:
             built-in :data:`~patcher.policy.IGNORED_TITLES` during matching.
             Defaults to none.
         :type ignored_titles: list[str] | None
+        :param enable_installomator: Deprecated alias for ``enable_matching``,
+            kept for backward compatibility. Emits a ``DeprecationWarning``
+            when passed; remove in favor of ``enable_matching``.
+        :type enable_installomator: bool | None
         :raises PatcherError: If neither credentials nor ``config`` are
             provided.
         """
@@ -145,10 +150,18 @@ class PatcherClient:
                 }
             )
 
+        if enable_installomator is not None:
+            warnings.warn(
+                "`enable_installomator` is deprecated; use `enable_matching` instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            enable_matching = enable_installomator
+
         self._config = config
         self.debug = debug
         self.jamf = JamfClient(config=config, concurrency=concurrency)
-        self.api = PatcherAPIClient(max_concurrency=concurrency) if enable_installomator else None
+        self.api = PatcherAPIClient(max_concurrency=concurrency) if enable_matching else None
         self.enable_homebrew = enable_homebrew
         self.ignored_titles = ignored_titles or []
         # Resolve ui_config before DataManager so the PDF export pipeline gets
@@ -163,7 +176,7 @@ class PatcherClient:
         Construct a ``PatcherClient`` using state already persisted on this Mac.
 
         Reads Jamf credentials from the macOS keychain, UI customization
-        from the property list, and the ``enable_installomator`` /
+        from the property list, and the ``enable_matching`` /
         ``enable_homebrew`` toggles.
         Equivalent to what the ``patcherctl`` CLI does on startup; useful
         for library callers running on a workstation that has already been
@@ -183,7 +196,7 @@ class PatcherClient:
 
         kwargs: dict[str, Any] = {
             "config": ConfigManager(),
-            "enable_installomator": settings.enable_matching,
+            "enable_matching": settings.enable_matching,
             "enable_homebrew": settings.integrations.homebrew,
             "ui_config": settings.user_interface_settings.model_dump(),
             "ignored_titles": settings.ignored_titles,
@@ -217,7 +230,7 @@ class PatcherClient:
         :param match_installomator: If True (default), match each title to
             its Installomator label via the Patcher API catalog
             (:func:`~patcher.core.matching.match_titles`). No-op when
-            ``enable_installomator=False`` was passed at construction time.
+            ``enable_matching=False`` was passed at construction time.
         :type match_installomator: bool
         :param match_homebrew: Whether to also match titles against the
             Homebrew Cask source, populating
@@ -467,7 +480,7 @@ class PatcherClient:
         for that single app, or ``None`` if the app doesn't exist or has
         no drift.
 
-        Works without ``enable_installomator``; the catalog API is
+        Works without ``enable_matching``; the catalog API is
         constructed on demand when needed.
 
         .. versionadded:: 3.1
