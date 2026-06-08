@@ -27,6 +27,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from asyncclick.testing import CliRunner
 from src.patcher.cli import analyze, cli, diff, drift, export, reset
+from src.patcher.core.exceptions import PatcherError
 from src.patcher.core.models.patch import PatchTitle
 from src.patcher.core.models.settings import PatcherSettings
 
@@ -76,11 +77,6 @@ def _patch_title(title="Firefox"):
     )
 
 
-# --------------------------------------------------------------------------
-# Group + per-command smoke tests (CliRunner — arg parsing, exit codes)
-# --------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_group_help():
     result = await CliRunner().invoke(cli, ["--help"])
@@ -126,11 +122,6 @@ async def test_reset_creds_url_end_to_end():
     ConfigManager.return_value.set_credential.assert_called_once_with(
         "URL", "https://test.jamfcloud.com"
     )
-
-
-# --------------------------------------------------------------------------
-# reset command bodies (direct callback)
-# --------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -188,11 +179,6 @@ async def test_reset_cache_when_disabled_exits_cleanly():
     assert excinfo.value.code == 0
 
 
-# --------------------------------------------------------------------------
-# export command body (direct callback, PatcherClient mocked)
-# --------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_export_threads_settings_into_client_and_runs(mocker):
     mock_client_cls = mocker.patch("src.patcher.cli.PatcherClient")
@@ -219,11 +205,6 @@ async def test_export_threads_settings_into_client_and_runs(mocker):
     assert kwargs["concurrency"] == 7
     assert kwargs["enable_homebrew"] is False
     mock_proc.assert_awaited_once()
-
-
-# --------------------------------------------------------------------------
-# analyze command body (direct callback)
-# --------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -314,11 +295,6 @@ async def test_analyze_all_time_trend(mocker):
     mock_trend.assert_called_once()
 
 
-# --------------------------------------------------------------------------
-# diff command body (direct callback)
-# --------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_diff_builds_client_and_renders(mocker):
     mock_client_cls = mocker.patch("src.patcher.cli.PatcherClient")
@@ -380,11 +356,6 @@ async def test_diff_list_snapshots_empty_exits(mocker):
     assert excinfo.value.code == 0
 
 
-# --------------------------------------------------------------------------
-# drift command body (direct callback)
-# --------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_drift_builds_client_and_renders(mocker):
     mock_client_cls = mocker.patch("src.patcher.cli.PatcherClient")
@@ -414,9 +385,209 @@ async def test_drift_none_reports_no_drift(mocker):
     mock_client.detect_drift.assert_awaited_once()
 
 
-# --------------------------------------------------------------------------
-# Proof of file safety
-# --------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_drift_json_output(mocker):
+    mock_client = mocker.patch("src.patcher.cli.PatcherClient").return_value
+    result = MagicMock()
+    result.model_dump_json.return_value = '{"slug": "x"}'
+    mock_client.detect_drift = AsyncMock(return_value=result)
+    ctx = _ctx()
+
+    await drift.callback.__wrapped__(
+        ctx, slug=None, vendor=None, source=None, limit=100, offset=0, output_format="json"
+    )
+
+    result.model_dump_json.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_drift_json_null_when_no_result(mocker):
+    mock_client = mocker.patch("src.patcher.cli.PatcherClient").return_value
+    mock_client.detect_drift = AsyncMock(return_value=None)
+    ctx = _ctx()
+
+    await drift.callback.__wrapped__(
+        ctx, slug="x", vendor=None, source=None, limit=100, offset=0, output_format="json"
+    )
+
+    mock_client.detect_drift.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_drift_single_entry_renders_detail(mocker):
+    from src.patcher.clients.patcher_api import DriftEntry, SourceVersion
+
+    entry = DriftEntry(
+        slug="firefox",
+        name="Firefox",
+        versions=[SourceVersion(source="installomator", version="1.0", parsed_ok=True)],
+        leader="installomator",
+    )
+    mock_client = mocker.patch("src.patcher.cli.PatcherClient").return_value
+    mock_client.detect_drift = AsyncMock(return_value=entry)
+    mocker.patch("src.patcher.cli.render_drift_entry", return_value="entry")
+    ctx = _ctx()
+
+    await drift.callback.__wrapped__(
+        ctx, slug="firefox", vendor=None, source=None, limit=100, offset=0, output_format="text"
+    )
+
+    mock_client.detect_drift.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_diff_between_two_dates(mocker):
+    mock_client = mocker.patch("src.patcher.cli.PatcherClient").return_value
+    mock_client.diff = AsyncMock(return_value=MagicMock())
+    mocker.patch("src.patcher.cli.render_diff", return_value="rendered")
+    ctx = _ctx()
+
+    await diff.callback.__wrapped__(
+        ctx,
+        since=None,
+        all_time=False,
+        between=("2026-01-01", "2026-02-01"),
+        no_fetch=False,
+        list_snapshots=False,
+        output_format="text",
+    )
+
+    assert mock_client.diff.await_args.kwargs["between"] is not None
+
+
+@pytest.mark.asyncio
+async def test_analyze_filter_summary_exports_html(mocker):
+    mocker.patch("src.patcher.cli.TitleFilter.apply", return_value=[_patch_title("Firefox")])
+    dm = mocker.patch("src.patcher.cli.get_data_manager").return_value
+    dm.export = AsyncMock(return_value={"html": "/out/summary.html"})
+    ctx = _ctx()
+
+    await analyze.callback.__wrapped__(
+        ctx,
+        excel_file=None,
+        criteria="most-installed",
+        threshold=70.0,
+        top_n=None,
+        min_compliance=None,
+        min_hosts=None,
+        released_after=None,
+        summary=True,
+        output_dir="/out",
+        all_time=False,
+    )
+
+    dm.export.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_analyze_all_time_trend_summary_saves_html(mocker, tmp_path):
+    import pandas as pd
+
+    mocker.patch(
+        "src.patcher.cli.TrendAnalysis.apply",
+        return_value=pd.DataFrame([{"Title": "Firefox", "Trend": 1}]),
+    )
+    ctx = _ctx()
+
+    await analyze.callback.__wrapped__(
+        ctx,
+        excel_file=None,
+        criteria="most-installed",
+        threshold=70.0,
+        top_n=None,
+        min_compliance=None,
+        min_hosts=None,
+        released_after=None,
+        summary=True,
+        output_dir=tmp_path,
+        all_time=True,
+    )
+
+    assert (tmp_path / "trend-analysis-most-installed.html").exists()
+
+
+@pytest.mark.asyncio
+async def test_reset_full_failure_raises(mocker):
+    config = MagicMock()
+    config.reset_config = MagicMock(return_value=False, __name__="reset_config")
+    setup = MagicMock()
+    setup.reset_ui_config.return_value = True
+    setup.reset_setup.return_value = True
+    ctx = _ctx(config=config, setup=setup)
+
+    with pytest.raises(PatcherError, match="Reset could not be completed"):
+        await reset.callback.__wrapped__(ctx, kind="full", credential=None)
+
+
+@pytest.mark.parametrize(
+    "credential,key", [("client_id", "CLIENT_ID"), ("client_secret", "CLIENT_SECRET")]
+)
+@pytest.mark.asyncio
+async def test_reset_specific_credential(mocker, credential, key):
+    mocker.patch("src.patcher.cli.click.prompt", new=AsyncMock(return_value="value"))
+    config = MagicMock()
+    ctx = _ctx(config=config)
+
+    await reset.callback.__wrapped__(ctx, kind="creds", credential=credential)
+
+    config.set_credential.assert_called_once_with(key, "value")
+
+
+@pytest.mark.asyncio
+async def test_reset_all_credentials(mocker):
+    mocker.patch("src.patcher.cli.click.prompt", new=AsyncMock(return_value="value"))
+    config = MagicMock()
+    ctx = _ctx(config=config)
+
+    await reset.callback.__wrapped__(ctx, kind="creds", credential=None)
+
+    assert config.set_credential.call_count == 3  # URL + CLIENT_ID + CLIENT_SECRET
+
+
+@pytest.mark.asyncio
+async def test_reset_cache_clears_when_enabled():
+    dm = MagicMock()
+    dm.reset_cache.return_value = True
+    ctx = _ctx(disable_cache=False)
+    ctx.obj["data_manager"] = dm
+
+    await reset.callback.__wrapped__(ctx, kind="cache", credential=None)
+
+    dm.reset_cache.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_cli_warns_on_interpreter_mismatch(mocker):
+    settings = PatcherSettings(setup_completed=True, interpreter_path="/some/other/python")
+    mocker.patch("src.patcher.cli.PatcherSettings.load", return_value=settings)
+
+    result = await CliRunner().invoke(cli, ["-x", "reset", "--help"])
+
+    assert result.exit_code == 0  # warning branch runs, command still parses
+
+
+@pytest.mark.asyncio
+async def test_cli_runs_setup_when_not_completed(mocker):
+    settings = PatcherSettings(setup_completed=False)
+    mocker.patch("src.patcher.cli.PatcherSettings.load", return_value=settings)
+
+    result = await CliRunner().invoke(cli, ["-x"])  # Setup.start is mocked by _no_disk
+
+    assert result.exit_code == 0
+
+
+@pytest.mark.asyncio
+async def test_cli_noninteractive_bootstrap(mocker):
+    settings = PatcherSettings(setup_completed=True)
+    mocker.patch("src.patcher.cli.PatcherSettings.load", return_value=settings)
+    boot = mocker.patch("src.patcher.cli.Setup.bootstrap_noninteractive", new_callable=AsyncMock)
+
+    result = await CliRunner().invoke(
+        cli, ["--client-id", "x", "--client-secret", "y", "--url", "https://z.example.com"]
+    )
+
+    assert result.exit_code == 0
+    boot.assert_awaited_once()
 
 
 def _snapshot(directory: Path):
