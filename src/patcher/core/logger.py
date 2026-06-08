@@ -28,7 +28,7 @@ class PatcherLog:
         Configures and returns the Patcher logger with a rotating file handler.
 
         Pure stdlib, no terminal output. Console / colored output is installed
-        separately by the CLI via :func:`patcher.cli.terminal_logger.install_terminal_handler`;
+        separately by the CLI via :func:`patcher.cli._console.install_terminal_handler`;
         library callers get file logging only.
 
         :param name: Name of the logger, defaults to ``"Patcher"``.
@@ -82,7 +82,7 @@ class PatcherLog:
         Logs unhandled exceptions to Patcher's log file. Pure file logging, no
         terminal output. The CLI installs a chained excepthook that adds
         user-facing stderr messages on top of this one (see
-        :func:`patcher.cli.terminal_logger.install_terminal_excepthook`).
+        :func:`patcher.cli._console.install_terminal_excepthook`).
 
         ``KeyboardInterrupt`` is treated as a graceful exit (logged at INFO,
         process exits 130). All other uncaught exceptions are logged at ERROR.
