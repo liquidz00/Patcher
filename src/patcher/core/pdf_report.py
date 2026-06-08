@@ -202,7 +202,7 @@ class PDFReport(FPDF):
         self.set_font(self.ui_config.get("font_name"), "", 6)
         self.set_text_color(175, 175, 175)
         footer_text = f"{self.ui_config.get('footer_text')} | Page " + str(self.page_no())
-        self.cell(0, 10, footer_text, 0, 0, "R")
+        self.cell(0, 10, footer_text, border=0, align="R", new_x=XPos.RIGHT, new_y=YPos.TOP)
 
     def calculate_column_widths(self, data: pd.DataFrame) -> list[float]:
         """
