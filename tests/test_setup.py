@@ -125,7 +125,7 @@ class TestStart:
         # credential-persistence block intact; that's the code under test.
         with patch("src.patcher.cli.setup.click.prompt", new=AsyncMock(return_value=2)):
             setup_instance.prompt_credentials = AsyncMock(return_value=sso_creds)
-            setup_instance.prompt_installomator = MagicMock()
+            setup_instance.prompt_matching = MagicMock()
             setup_instance.validate_creds = MagicMock()
             setup_instance._save_creds = MagicMock()
             setup_instance.get_token = AsyncMock(return_value="dummy-basic-token")
@@ -181,7 +181,7 @@ class TestStart:
 
         with patch("src.patcher.cli.setup.click.prompt", new=AsyncMock(return_value=2)):
             setup_instance.prompt_credentials = AsyncMock(return_value=sso_creds)
-            setup_instance.prompt_installomator = MagicMock()
+            setup_instance.prompt_matching = MagicMock()
             setup_instance.validate_creds = MagicMock()
             setup_instance._save_creds = MagicMock()
             setup_instance.get_token = AsyncMock(return_value="dummy-basic-token")
