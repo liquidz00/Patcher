@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+
 ## [v3.3.1] - 2026-06-09
 ### Fixed
 - **Cached snapshots survive pandas upgrades.** Patch-data snapshots are cached in [Parquet](https://parquet.apache.org/) format to prevent `TypeError`'s after pandas version changes. Existing pickle ccaches are still read where the installed pandas can load them ([#81](https://github.com/liquidz00/Patcher/issues/81)).
