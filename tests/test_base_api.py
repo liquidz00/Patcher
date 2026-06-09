@@ -94,54 +94,6 @@ class TestFetchJson:
 
 
 # Test setup calls
-class TestTokenAndClient:
-    @pytest.mark.asyncio
-    async def test_fetch_basic_token(self, http_client):
-        """fetch_basic_token POSTs with Basic auth and extracts the token from the response."""
-        mock_response = Mock(status_code=200, is_success=True)
-        mock_response.json.return_value = {"token": "abc123"}
-        mock_http = AsyncMock()
-        mock_http.post = AsyncMock(return_value=mock_response)
-        http_client._http_client = mock_http
-
-        result = await http_client.fetch_basic_token("user", "pass", "https://example.com")
-
-        assert result == "abc123"
-        mock_http.post.assert_called_once()
-        # Verify Basic auth was sent via httpx's auth= kwarg (not in URL/body)
-        call_kwargs = mock_http.post.call_args.kwargs
-        assert call_kwargs["auth"] == ("user", "pass")
-
-    @pytest.mark.asyncio
-    async def test_create_roles(self, http_client):
-        """create_roles orchestrates fetch_json; mock at that layer post-httpx-migration."""
-        with patch.object(
-            http_client,
-            "fetch_json",
-            AsyncMock(return_value={"displayName": "Patcher-Role"}),
-        ) as mock_fetch:
-            result = await http_client.create_roles("token", "https://example.com")
-            assert result is True
-            mock_fetch.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_create_client(self, http_client):
-        """create_client makes two fetch_json calls — one for integration, one for secret."""
-        with patch.object(
-            http_client,
-            "fetch_json",
-            AsyncMock(
-                side_effect=[
-                    {"clientId": "123", "id": "456"},
-                    {"clientSecret": "secret"},
-                ]
-            ),
-        ) as mock_fetch:
-            result = await http_client.create_client("token", "https://example.com")
-            assert result == ("123", "secret")
-            assert mock_fetch.call_count == 2
-
-
 class TestHttpProperty:
     @pytest.mark.asyncio
     async def test_http_property_lazy_init(self, http_client):

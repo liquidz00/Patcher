@@ -1,7 +1,7 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from src.patcher.clients.jamf import JamfClient
+from src.patcher.clients.jamf import JamfClient, JamfSetupClient
 from src.patcher.core import exceptions
 
 
@@ -166,3 +166,46 @@ class TestGetTitleReports:
         assert result["good"] == ["device-for-good"]
         assert result["good2"] == ["device-for-good2"]
         assert result["bad"] == []  # failure isolated, not propagated
+
+
+class TestJamfSetupClient:
+    """The credential-free first-run provisioning client (basic token + API role/client)."""
+
+    @pytest.mark.asyncio
+    async def test_fetch_basic_token(self):
+        """fetch_basic_token POSTs with Basic auth and extracts the token from the response."""
+        client = JamfSetupClient(jamf_url="https://example.com")
+        mock_response = Mock(status_code=200, is_success=True)
+        mock_response.json.return_value = {"token": "abc123"}
+        mock_http = AsyncMock()
+        mock_http.post = AsyncMock(return_value=mock_response)
+        client._http_client = mock_http
+
+        result = await client.fetch_basic_token("user", "pass")
+
+        assert result == "abc123"
+        # Basic auth via httpx's auth= kwarg (not in URL/body), against the instance URL.
+        assert mock_http.post.call_args.kwargs["auth"] == ("user", "pass")
+        assert mock_http.post.call_args.args[0].startswith("https://example.com")
+
+    @pytest.mark.asyncio
+    async def test_create_roles(self):
+        """create_roles orchestrates a single fetch_json POST; mock at that layer."""
+        client = JamfSetupClient(jamf_url="https://example.com")
+        with patch.object(
+            client, "fetch_json", AsyncMock(return_value={"displayName": "Patcher-Role"})
+        ) as mock_fetch:
+            assert await client.create_roles("token") is True
+            mock_fetch.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_create_client(self):
+        """create_client makes two fetch_json calls — one for the integration, one for the secret."""
+        client = JamfSetupClient(jamf_url="https://example.com")
+        with patch.object(
+            client,
+            "fetch_json",
+            AsyncMock(side_effect=[{"clientId": "123", "id": "456"}, {"clientSecret": "secret"}]),
+        ) as mock_fetch:
+            assert await client.create_client("token") == ("123", "secret")
+            assert mock_fetch.call_count == 2

@@ -283,6 +283,26 @@ class TestCache:
             DataManager.load(bad)
         assert "reset cache" in excinfo.value.recovery  # presentation-only attr, not in str()
 
+    def test_select_baseline_picks_by_window(self, tmp_path):
+        """select_baseline: all_time → earliest, since → earliest-in-window, else → default."""
+        cached = []
+        for i, days_ago in enumerate((30, 10, 1)):  # oldest → newest
+            p = tmp_path / f"snap{i}.parquet"
+            p.write_bytes(b"")
+            ts = (datetime.now() - timedelta(days=days_ago)).timestamp()
+            os.utime(p, (ts, ts))
+            cached.append(p)
+
+        assert DataManager.select_baseline(cached, all_time=True, default=cached[-1]) == cached[0]
+        # 20-day window includes only the 10-day and 1-day snapshots → earliest of those
+        assert (
+            DataManager.select_baseline(cached, since=timedelta(days=20), default=cached[-1])
+            == cached[1]
+        )
+        assert DataManager.select_baseline(cached, default=cached[-2]) == cached[-2]
+        with pytest.raises(PatcherError, match="requested window"):
+            DataManager.select_baseline(cached, since=timedelta(hours=1), default=cached[-1])
+
 
 class TestTitlesProperty:
     def test_titles_property_uninitialized(self):
