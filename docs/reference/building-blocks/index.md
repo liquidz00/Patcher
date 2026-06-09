@@ -34,7 +34,7 @@ Owns Jamf credentials. Keychain-backed by default; pass `in_memory_credentials` 
 :link: data_manager
 :link-type: doc
 
-Patch report persistence. Reads and writes the pickle cache under `~/Library/Caches/Patcher/` that powers analyze and trend comparisons across snapshots.
+Patch report persistence. Reads and writes the Parquet cache under `~/Library/Caches/Patcher/` that powers analyze and trend comparisons across snapshots.
 :::
 
 :::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `HttpClient`

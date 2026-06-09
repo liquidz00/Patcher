@@ -356,7 +356,7 @@ Compare patch state across two points in time. Find what shifted, what regressed
 
 `patcherctl analyze --all-time` answers "how have things trended"; `patcherctl diff` answers "what changed between these two specific moments." Pair it with a scheduled export ([`automation`](/guides/automation)) and you have a paper trail of every patch-coverage change without standing up a separate observability stack.
 
-Diff reuses the same `~/Library/Caches/Patcher/patch_data_*.pkl` snapshots that drive [Analyze](#analyze), so it works against history Patcher has already been collecting; no extra opt-in.
+Diff reuses the same `~/Library/Caches/Patcher/patch_data_*.parquet` snapshots that drive [Analyze](#analyze), so it works against history Patcher has already been collecting; no extra opt-in.
 
 ### How Snapshots Are Selected
 
@@ -437,9 +437,9 @@ $ patcherctl diff --since 30d --format json | jq '.version_bumps'
 
 $ patcherctl diff --list-snapshots
 Available cached snapshots (oldest → newest):
-  2026-04-01T09:14:02  patch_data_04-01-26_09-14-02.pkl
-  2026-04-15T09:13:55  patch_data_04-15-26_09-13-55.pkl
-  2026-05-01T09:14:11  patch_data_05-01-26_09-14-11.pkl
+  2026-04-01T09:14:02  patch_data_202604010914.parquet
+  2026-04-15T09:13:55  patch_data_202604150913.parquet
+  2026-05-01T09:14:11  patch_data_202605010914.parquet
 ```
 
 ### What Gets Compared
