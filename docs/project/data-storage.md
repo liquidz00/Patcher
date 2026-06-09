@@ -155,6 +155,8 @@ The `enable_matching` boolean is the master switch for catalog matching: when fa
 
 Patch report data fetched from Jamf is cached at `~/Library/Caches/Patcher/`. This lets Patcher's analysis reuse the latest report without re-fetching it, and it's what trend analysis reads across when comparing multiple snapshots over time.
 
+Snapshots are stored as Parquet (`patch_data_<timestamp>.parquet`), a format that survives pandas upgrades. Caches written by older versions (`.pkl`) are still read where the installed pandas can load them; if a legacy snapshot can't be read, run `patcherctl reset cache` to clear it and re-export.
+
 :::{note}
 
 To skip caching entirely on a per-invocation basis, construct {class}`~patcher.core.patcher_client.PatcherClient` with `disable_cache=True`.

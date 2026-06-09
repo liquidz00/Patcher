@@ -360,20 +360,22 @@ def render_drift_entry(entry: DriftEntry) -> Group:
     return Group(*parts)
 
 
-def format_err(exc: PatcherError) -> None:
+def format_err(exc: BaseException) -> None:
     """
-    Render a :class:`~patcher.core.exceptions.PatcherError` in a red-bordered Rich panel on stderr.
+    Render any exception in a red-bordered Rich panel on stderr.
 
-    The panel body carries the exception message in red. If the exception
-    exposes a ``recovery`` or ``remediation`` attribute (PatcherError lifts
-    keyword context onto the instance), it is rendered as a dim paragraph
-    below the main message. A dim rule separates the log-file pointer from
-    the error content.
+    The panel body carries the message in red, prefixed with the exception type
+    for non-:class:`~patcher.core.exceptions.PatcherError` exceptions so a bare
+    ``TypeError`` reads clearly. If the exception exposes a ``recovery`` or
+    ``remediation`` attribute (PatcherError lifts keyword context onto the
+    instance), it renders as a dim paragraph below the message. A dim rule
+    separates the log-file pointer from the error content.
 
-    :param exc: The PatcherError exception to format.
-    :type exc: :class:`~patcher.core.exceptions.PatcherError`
+    :param exc: The exception to format.
+    :type exc: BaseException
     """
-    message = Text(str(exc), style=ERROR_STYLE)
+    body = str(exc) if isinstance(exc, PatcherError) else f"{type(exc).__name__}: {exc}"
+    message = Text(body, style=ERROR_STYLE)
 
     hint = getattr(exc, "recovery", None) or getattr(exc, "remediation", None)
     if hint:
@@ -422,10 +424,10 @@ def install_terminal_excepthook() -> None:
     Chain a terminal-styled excepthook onto :meth:`~patcher.core.logger.PatcherLog.custom_excepthook`.
 
     The core hook logs unhandled exceptions to file. This wrapper additionally
-    emits a one-line red error message and a hint about the log file to
-    stderr, matching the legacy in-module behavior. Library callers who never
-    import ``patcher.cli`` are unaffected; their ``sys.excepthook`` is not
-    touched.
+    renders the exception in the styled error panel on stderr, consistently for
+    every exception type (the panel surfaces a ``recovery`` hint when one is
+    present). Library callers who never import ``patcher.cli`` are unaffected;
+    their ``sys.excepthook`` is not touched.
     """
     base_hook = PatcherLog.custom_excepthook
 
@@ -438,16 +440,7 @@ def install_terminal_excepthook() -> None:
         if exc_type.__name__ == "KeyboardInterrupt":
             return  # base_hook already exits 130
 
-        # PatcherErrors carry recovery context — render them in the styled panel.
-        if isinstance(exc_value, PatcherError):
-            format_err(exc_value)
-            return
-
-        err_console.print(f"❌ {exc_type.__name__}: {exc_value}", style="bold red", markup=False)
-        err_console.print(
-            f"💡 For more details, please check the log file at: '{PatcherLog.LOG_FILE}'",
-            markup=False,
-        )
+        format_err(exc_value)
 
     sys.excepthook = hook
 

@@ -246,7 +246,7 @@ class TestCache:
     def test_get_latest_dataset_no_files(self):
         """Ensure get_latest_dataset returns None when no datasets are available."""
         data_manager = DataManager(disable_cache=True)
-        with patch("pathlib.Path.glob", return_value=[]):
+        with patch.object(data_manager, "get_cached_files", return_value=[]):
             assert data_manager.get_latest_dataset() is None
 
     @pytest.mark.asyncio
@@ -262,6 +262,26 @@ class TestCache:
 
         # Assert that no valid data was loaded
         assert len(loaded_data) == 0
+
+    def test_cache_data_writes_parquet_and_load_round_trips(self, tmp_path):
+        """New caches are written as Parquet (version-stable) and load() reads them back."""
+        dm = DataManager()
+        dm.cache_dir = tmp_path
+        df = pd.DataFrame([{"title": "Firefox", "completion_percent": 80.0, "total_hosts": 10}])
+
+        dm._cache_data(df)
+
+        parquet_files = list(tmp_path.glob("*.parquet"))
+        assert len(parquet_files) == 1  # Parquet, not pickle
+        assert_frame_equal(DataManager.load(parquet_files[0]), df)
+
+    def test_load_wraps_unreadable_pickle_with_recovery_hint(self, tmp_path):
+        """A legacy .pkl that can't be unpickled surfaces an actionable PatcherError."""
+        bad = tmp_path / "patch_data_bad.pkl"
+        bad.write_bytes(b"not a valid pickle stream")
+        with pytest.raises(PatcherError, match="different version of pandas") as excinfo:
+            DataManager.load(bad)
+        assert "reset cache" in excinfo.value.recovery  # presentation-only attr, not in str()
 
 
 class TestTitlesProperty:

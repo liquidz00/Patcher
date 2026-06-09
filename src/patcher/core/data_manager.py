@@ -4,7 +4,7 @@ import asyncio
 import json
 import pickle
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from string import Template
 
@@ -137,31 +137,22 @@ class DataManager:
         dataset = self.get_latest_dataset()
         if not dataset:
             raise PatcherError("No dataset available, unable to proceed with validation.")
-        try:
-            if dataset.suffix == ".pkl":
-                with open(dataset, "rb") as f:
-                    return pickle.load(f)
-            elif dataset.suffix in [".xlsx", ".xls"]:
-                return pd.read_excel(dataset)
-            else:
-                raise PatcherError("Unsupported data format for dataset.", received=dataset.suffix)
-        except (FileNotFoundError, pd.errors.EmptyDataError, pickle.UnpicklingError) as e:
-            raise PatcherError("Error encountered validating dataset.", error_msg=str(e))
+        return self.load(dataset)
 
     def _cache_data(self, df: pd.DataFrame):
         """Cache exported data for later use."""
         if self.cache_off:
             return  # Only cache if enabled
 
-        timestamp = datetime.now().strftime("%Y%m%d%I%M")
-        cache_file = self.cache_dir / f"patch_data_{timestamp}.pkl"
+        timestamp = datetime.now().strftime("%Y%m%d%H%M")
+        cache_file = self.cache_dir / f"patch_data_{timestamp}.parquet"
         self.log.debug(f"Attempting to cache data to {cache_file}.")
         try:
-            with open(cache_file, "wb") as file:
-                pickle.dump(df, file)  # type: ignore
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            df.to_parquet(cache_file)
             self.log.info(f"Cached data successfully to {cache_file}")
             self._clean_cache()
-        except (FileNotFoundError, pickle.PicklingError, PermissionError, OSError) as e:
+        except (OSError, PermissionError, ValueError) as e:
             exception_name = type(e).__name__
             self.log.warning(
                 f"Unable to cache data to {cache_file} as expected due to {exception_name}. Details: {e}"
@@ -173,7 +164,7 @@ class DataManager:
         expiration_time = datetime.now() - timedelta(days=self.cache_expiration_days)
         self.log.debug(f"Attempting to remove cache files older than {expiration_time}.")
         for file in self.cache_dir.iterdir():
-            if file.is_file() and file.suffix == ".pkl":
+            if file.is_file() and file.suffix in (".parquet", ".pkl"):
                 file_time = datetime.fromtimestamp(file.stat().st_mtime)
                 if file_time < expiration_time:
                     try:
@@ -586,6 +577,59 @@ class DataManager:
         self.log.info(f"Exported {len(exported_files)} reports as expected: {output_paths}")
         return exported_files
 
+    @staticmethod
+    def load(path: Path) -> pd.DataFrame:
+        suffix = path.suffix.lower()
+        if not path.exists() or not path.is_file():
+            raise PatcherError("Dataset path is not a readable file.", path=str(path))
+
+        match suffix:
+            case ".parquet":
+                return pd.read_parquet(path)
+            case ".pkl":
+                try:
+                    with open(path, "rb") as f:
+                        return pickle.load(f)
+                except Exception as e:  # Intentional -- multiple errors can be raised here
+                    raise PatcherError(
+                        "Couldn't read a cached snapshot - it may have been written by a different version of pandas.",
+                        path=str(path),
+                        error_msg=str(e),
+                        recovery="Run `patcherctl reset cache` to clear stale snapshots, then re-export.",
+                    )
+            case ".xlsx" | ".xls":
+                try:
+                    return pd.read_excel(path)
+                except (pd.errors.EmptyDataError, pd.errors.ParserError) as e:
+                    raise PatcherError(
+                        "Could not read the Excel dataset.", path=str(path), error_msg=str(e)
+                    )
+            case _:
+                raise PatcherError(
+                    "Unsupported dataset file type.",
+                    path=str(path),
+                    supported=".pkl, .xlsx, .xls, .parquet",
+                )
+
+    @staticmethod
+    def snapshot_label(path: Path) -> str:
+        """Human-readable label for a cached snapshot file (mtime-derived)."""
+        mtime = datetime.fromtimestamp(path.stat().st_mtime)
+        return f"snapshot-{mtime.isoformat(timespec='seconds')}"
+
+    @staticmethod
+    def closest_snapshot(snapshots: list[Path], target: date) -> Path:
+        """Pick the snapshot whose mtime is closest to ``target``."""
+        target_dt = datetime.combine(target, datetime.min.time())
+        return min(
+            snapshots,
+            key=lambda p: abs(datetime.fromtimestamp(p.stat().st_mtime) - target_dt),
+        )
+
+    def sorted_cached_files(self) -> list[Path]:
+        """Return cached snapshot files sorted oldest → newest by mtime."""
+        return sorted(self.get_cached_files(), key=lambda p: p.stat().st_mtime)
+
     def reset_cache(self) -> bool:
         """
         Removes all cached files from Cache directory. See :ref:`reset <resetting_patcher>`.
@@ -609,13 +653,11 @@ class DataManager:
         :rtype: list[~pandas.DataFrame]
         """
         dataframes = []
-        cached_files = self.get_cached_files()
-        for file in cached_files:
+        for file in self.get_cached_files():
             try:
-                with open(file, "rb") as f:
-                    dataframes.append(pickle.load(f))
+                dataframes.append(self.load(file))
                 self.log.info(f"Loaded cache data from {file}")
-            except (pickle.UnpicklingError, FileNotFoundError) as e:
+            except PatcherError as e:
                 self.log.warning(f"Failed to load cached file {file}. Details: {e}")
         return dataframes
 
@@ -626,7 +668,7 @@ class DataManager:
         :return: A list of ``Path`` objects pointing to cached files.
         :rtype: list[~pathlib.Path]
         """
-        return [file for file in self.cache_dir.iterdir() if file.suffix == ".pkl"]
+        return [file for file in self.cache_dir.iterdir() if file.suffix in (".parquet", ".pkl")]
 
     def get_latest_dataset(self) -> Path | None:
         """
@@ -641,12 +683,10 @@ class DataManager:
             self.log.info(f"Using latest tracked Excel file: {self.latest_excel_file}")
             return self.latest_excel_file
 
-        pickle_files = sorted(
-            self.cache_dir.glob("*.pkl"), key=lambda f: f.stat().st_mtime, reverse=True
-        )
-        if pickle_files:
-            self.log.info(f"Using latest cached pickle file: {pickle_files[0]}")
-            return pickle_files[0]
+        snapshots = sorted(self.get_cached_files(), key=lambda f: f.stat().st_mtime, reverse=True)
+        if snapshots:
+            self.log.info(f"Using latest cached snapshot: {snapshots[0]}")
+            return snapshots[0]
 
-        self.log.warning("No datasets found (Excel or pickle).")
+        self.log.warning("No datasets found (Excel or cached snapshot).")
         return None
