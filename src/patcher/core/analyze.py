@@ -2,7 +2,6 @@
 
 import asyncio
 import inspect
-import pickle
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -705,7 +704,7 @@ class TrendAnalysis:
             elif isinstance(dataset, (Path, str)):
                 self._log.debug(f"Loading dataset from: {dataset}")
                 path = Path(dataset)
-                df = self._read_file(path)
+                df = DataManager.load(path)
                 snapshot_date = datetime.fromtimestamp(path.stat().st_mtime)
             else:
                 raise PatcherError(
@@ -746,39 +745,6 @@ class TrendAnalysis:
                 except ValueError:
                     return None
         return None
-
-    def _read_file(self, file_path: Path) -> pd.DataFrame:
-        if not file_path.exists() or not file_path.is_file():
-            raise PatcherError(
-                "Dataset path is not a readable file.",
-                path=str(file_path),
-            )
-
-        suffix = file_path.suffix.lower()
-        if suffix == ".pkl":
-            with open(file_path, "rb") as f:
-                return pickle.load(f)
-        if suffix in (".xlsx", ".xls"):
-            try:
-                return pd.read_excel(file_path)
-            except pd.errors.EmptyDataError as e:
-                raise PatcherError(
-                    "The Excel file provided is empty.",
-                    path=str(file_path),
-                    error_msg=str(e),
-                )
-            except pd.errors.ParserError as e:
-                raise PatcherError(
-                    "Unable to parse the Excel file properly.",
-                    path=str(file_path),
-                    error_msg=str(e),
-                )
-
-        raise PatcherError(
-            "Unsupported dataset file type.",
-            path=str(file_path),
-            supported=".pkl, .xlsx, .xls",
-        )
 
     def _maybe_sort(self, df: pd.DataFrame, sort_by: str | None, ascending: bool) -> pd.DataFrame:
         if sort_by is None:
@@ -994,20 +960,20 @@ class Diff:
         :raises PatcherError: If no cached snapshots exist, or fewer than 2
             snapshots are available for the no-fetch case.
         """
-        cached = _sorted_cached_files(data_manager)
+        cached = data_manager.sorted_cached_files()
         if not cached:
             raise PatcherError(
                 "No cached snapshots available; run `patcherctl export` first to seed the cache.",
             )
 
         if between is not None:
-            from_path = _closest_snapshot(cached, between[0])
-            to_path = _closest_snapshot(cached, between[1])
+            from_path = data_manager.closest_snapshot(cached, between[0])
+            to_path = data_manager.closest_snapshot(cached, between[1])
             return cls(
                 from_path,
                 to_path,
-                from_label=_snapshot_label(from_path),
-                to_label=_snapshot_label(to_path),
+                from_label=data_manager.snapshot_label(from_path),
+                to_label=data_manager.snapshot_label(to_path),
             )
 
         if len(cached) < 2:
@@ -1036,8 +1002,8 @@ class Diff:
         return cls(
             from_path,
             to_path,
-            from_label=_snapshot_label(from_path),
-            to_label=_snapshot_label(to_path),
+            from_label=data_manager.snapshot_label(from_path),
+            to_label=data_manager.snapshot_label(to_path),
         )
 
     @classmethod
@@ -1062,7 +1028,7 @@ class Diff:
         :raises PatcherError: If no cached snapshots are available, or no
             snapshots fall within the requested window.
         """
-        cached = _sorted_cached_files(data_manager)
+        cached = data_manager.sorted_cached_files()
         if not cached:
             raise PatcherError(
                 "No cached snapshots available; run `patcherctl export` first to seed the cache.",
@@ -1087,36 +1053,16 @@ class Diff:
         return cls(
             from_path,
             live_titles,
-            from_label=_snapshot_label(from_path),
+            from_label=data_manager.snapshot_label(from_path),
             to_label="live",
         )
-
-
-def _sorted_cached_files(data_manager: DataManager) -> list[Path]:
-    """Return cached snapshot files sorted oldest → newest by mtime."""
-    return sorted(data_manager.get_cached_files(), key=lambda p: p.stat().st_mtime)
-
-
-def _closest_snapshot(snapshots: list[Path], target: date) -> Path:
-    """Pick the snapshot whose mtime is closest to ``target``."""
-    target_dt = datetime.combine(target, datetime.min.time())
-    return min(
-        snapshots,
-        key=lambda p: abs(datetime.fromtimestamp(p.stat().st_mtime) - target_dt),
-    )
-
-
-def _snapshot_label(path: Path) -> str:
-    """Human-readable label for a cached snapshot file (mtime-derived)."""
-    mtime = datetime.fromtimestamp(path.stat().st_mtime)
-    return f"snapshot-{mtime.isoformat(timespec='seconds')}"
 
 
 def _describe_snapshot(snapshot: pd.DataFrame | list[PatchTitle] | Path | str) -> str:
     """Default label for inputs passed directly to ``Diff()``."""
     if isinstance(snapshot, (Path, str)):
         try:
-            return _snapshot_label(Path(snapshot))
+            return DataManager.snapshot_label(Path(snapshot))
         except OSError:
             return str(snapshot)
     if isinstance(snapshot, list):
@@ -1128,55 +1074,23 @@ def _to_normalized_df(
     snapshot: pd.DataFrame | list[PatchTitle] | Path | str,
 ) -> pd.DataFrame:
     """Load any supported snapshot input and normalize column names + dates."""
-    if isinstance(snapshot, list):
-        df = pd.DataFrame([t.model_dump() for t in snapshot])
-    elif isinstance(snapshot, pd.DataFrame):
-        df = snapshot.copy()
-    elif isinstance(snapshot, (Path, str)):
-        df = _read_snapshot_file(Path(snapshot))
-    else:
-        raise PatcherError(
-            "Unsupported snapshot type for Diff.",
-            received=type(snapshot).__name__,
-        )
+    match snapshot:
+        case list():
+            df = pd.DataFrame([t.model_dump() for t in snapshot])
+        case pd.DataFrame():
+            df = snapshot.copy()
+        case Path() | str():
+            df = DataManager.load(Path(snapshot))
+        case _:
+            raise PatcherError(
+                "Unsupported snapshot type for Diff.",
+                received=type(snapshot).__name__,
+            )
 
     df.columns = [str(col).lower().replace(" ", "_") for col in df.columns]
     if "released" in df.columns:
         df["released"] = pd.to_datetime(df["released"], errors="coerce")
     return df
-
-
-def _read_snapshot_file(file_path: Path) -> pd.DataFrame:
-    """Load a snapshot from a pickle or Excel file."""
-    if not file_path.exists() or not file_path.is_file():
-        raise PatcherError(
-            "Snapshot path is not a readable file.",
-            path=str(file_path),
-        )
-    suffix = file_path.suffix.lower()
-    if suffix == ".pkl":
-        with open(file_path, "rb") as f:
-            return pickle.load(f)
-    if suffix in (".xlsx", ".xls"):
-        try:
-            return pd.read_excel(file_path)
-        except pd.errors.EmptyDataError as e:
-            raise PatcherError(
-                "The Excel file provided is empty.",
-                path=str(file_path),
-                error_msg=str(e),
-            )
-        except pd.errors.ParserError as e:
-            raise PatcherError(
-                "Unable to parse the Excel file properly.",
-                path=str(file_path),
-                error_msg=str(e),
-            )
-    raise PatcherError(
-        "Unsupported snapshot file type.",
-        path=str(file_path),
-        supported=".pkl, .xlsx, .xls",
-    )
 
 
 def _has_changes(from_row: pd.Series, to_row: pd.Series) -> bool:
