@@ -28,7 +28,9 @@ from ..core.patcher_client import PatcherClient
 from ._console import (
     SUCCESS_STYLE,
     WARNING_STYLE,
+    build_fleet_summary,
     build_table,
+    completion_text,
     console,
     err_console,
     format_err,
@@ -694,6 +696,9 @@ async def analyze(
         if len(filtered_titles) == 0:
             console.print(f"⚠️ No PatchTitle objects meet criteria {criteria}", style=WARNING_STYLE)
             sys.exit(0)
+
+        console.print(build_fleet_summary(data_manager.titles, threshold))
+
         table_data = [
             [
                 t.title,
@@ -701,7 +706,7 @@ async def analyze(
                 t.hosts_patched,
                 t.missing_patch,
                 t.latest_version,
-                t.completion_percent,
+                completion_text(t.completion_percent, threshold),
                 t.total_hosts,
                 "Y" if t.install_label else "N",
             ]
@@ -710,14 +715,21 @@ async def analyze(
         headers = [
             "Title",
             "Released",
-            "Hosts Patched",
-            "Missing Patch",
-            "Latest Version",
+            "Patched",
+            "Missing",
+            "Version",
             "Completion %",
-            "Total Hosts",
-            "Label Available (Y/N)",
+            "Total",
+            "Label",
         ]
-        console.print(build_table(table_data, headers))
+        justify = ["left", "left", "right", "right", "left", "right", "right", "center"]
+        caption = (
+            f"criteria={criteria}  ·  "
+            f"showing {len(filtered_titles)} of {len(data_manager.titles)} titles"
+        )
+        console.print(
+            build_table(table_data, headers, caption=caption, justify=justify, lines=True)
+        )
         if summary_path is not None:
             console.print(f"✅ HTML summary saved to {summary_path}", style=SUCCESS_STYLE)
 

@@ -20,7 +20,14 @@ from typing import Type
 
 from rich.console import Console, Group
 from rich.panel import Panel
-from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeRemainingColumn,
+)
 from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
@@ -30,6 +37,7 @@ from ..clients.patcher_api import DriftEntry, DriftResponse
 from ..core.analyze import DiffResult
 from ..core.exceptions import PatcherError
 from ..core.logger import PatcherLog
+from ..core.models.patch import PatchTitle
 
 # Semantic palette. Callsites reference the names (``style="warning"``); the
 # theme owns the colors, so the whole palette changes in one place.
@@ -40,6 +48,7 @@ _THEME = Theme(
         "error": "red",
         "success": "green",
         "banner": "bold cyan",  # welcome/setup heading — a theme alias can't combine with `bold` inline
+        "markdown.code": "bold cyan",
     }
 )
 console = Console(theme=_THEME)
@@ -135,6 +144,8 @@ def progress_bar(*, disable: bool = False) -> Progress:
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
+        MofNCompleteColumn(),
+        TimeRemainingColumn(),
         console=console,
         transient=True,
         disable=disable,
@@ -142,30 +153,116 @@ def progress_bar(*, disable: bool = False) -> Progress:
 
 
 def build_table(
-    rows: list[list], headers: list[str] | None = None, *, title: str | None = None
+    rows: list[list],
+    headers: list[str] | None = None,
+    *,
+    title: str | None = None,
+    caption: str | None = None,
+    justify: list[str] | None = None,
+    no_wrap: list[bool] | None = None,
+    footer: list | None = None,
+    lines: bool = False,
 ) -> Table:
     """
     Build a Rich :class:`~rich.table.Table` from row data.
 
-    :param rows: Row data; each cell is stringified.
+    Cells that are already Rich renderables (e.g. a styled :class:`~rich.text.Text`)
+    pass through untouched, so callers can color individual cells; everything else
+    is stringified.
+
+    :param rows: Row data; each cell is a string, a value, or a Rich renderable.
     :type rows: list[list]
     :param headers: Optional column headers. When omitted the table renders
         headerless (used for key/value summaries).
     :type headers: list[str] | None
     :param title: Optional bold title rendered above the table.
     :type title: str | None
+    :param caption: Optional dim line rendered below the table (run provenance).
+    :type caption: str | None
+    :param justify: Optional per-column justification (e.g. ``"right"`` for numbers).
+    :type justify: list[str] | None
+    :param no_wrap: Optional per-column wrap suppression (truncate with an ellipsis).
+    :type no_wrap: list[bool] | None
+    :param footer: Optional per-column footer cells; presence enables the footer row.
+    :type footer: list | None
+    :param lines: Draw a horizontal divider between every row (for scannable data tables).
+    :type lines: bool
     """
-    table = Table(title=title, title_style="bold", header_style="bold", title_justify="left")
+    table = Table(
+        title=title,
+        caption=caption,
+        title_style="bold",
+        header_style="bold",
+        title_justify="left",
+        caption_justify="left",
+        show_footer=footer is not None,
+        show_lines=lines,
+    )
     if headers:
-        for head in headers:
-            table.add_column(str(head))
+        for index, head in enumerate(headers):
+            table.add_column(
+                str(head),
+                justify=justify[index] if justify else "left",
+                no_wrap=no_wrap[index] if no_wrap else False,
+                overflow="ellipsis",
+                footer=footer[index] if footer else "",
+            )
     else:
         table.show_header = False
         for _ in range(max((len(row) for row in rows), default=1)):
             table.add_column()
     for row in rows:
-        table.add_row(*(str(cell) for cell in row))
+        table.add_row(*(cell if isinstance(cell, Text) else str(cell) for cell in row))
     return table
+
+
+def completion_text(percent: float, threshold: float) -> Text:
+    """
+    Render a completion percentage as a health-colored cell.
+
+    Red below ``threshold``, yellow up to 90%, green at 90% or above, so a fleet's
+    laggards jump out of the table at a glance.
+
+    :param percent: Completion percentage (0-100).
+    :type percent: float
+    :param threshold: The cutoff below which a title reads as out of compliance.
+    :type threshold: float
+    """
+    if percent < threshold:
+        style = ERROR_STYLE
+    elif percent < 90:
+        style = WARNING_STYLE
+    else:
+        style = SUCCESS_STYLE
+    return Text(f"{percent:.1f}%", style=style)
+
+
+def build_fleet_summary(titles: list[PatchTitle], threshold: float) -> Panel:
+    """
+    Summarize fleet-wide patch compliance as a single at-a-glance panel.
+
+    :param titles: The full set of cached patch titles (not the filtered view).
+    :type titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
+    :param threshold: Completion cutoff used to count titles out of compliance.
+    :type threshold: float
+    """
+    total = len(titles)
+    avg = sum(t.completion_percent for t in titles) / total if total else 0.0
+    below = sum(1 for t in titles if t.completion_percent < threshold)
+    total_hosts = sum(t.total_hosts for t in titles)
+    total_patched = sum(t.hosts_patched for t in titles)
+
+    body = Text.assemble(
+        ("Titles ", DIM_STYLE),
+        (f"{total}", "bold"),
+        ("    Avg completion ", DIM_STYLE),
+        completion_text(avg, threshold),
+        (f"    Below {threshold:g}% ", DIM_STYLE),
+        (f"{below}", ERROR_STYLE if below else SUCCESS_STYLE),
+        ("    Hosts patched ", DIM_STYLE),
+        (f"{total_patched}/{total_hosts}", "bold"),
+    )
+    return Panel(body, title="Fleet Compliance", border_style=INFO_STYLE, expand=False)
 
 
 def render_diff(result: DiffResult) -> Group:

@@ -434,6 +434,35 @@ class TestAnalyze:
 
         assert (tmp_path / "trend-analysis-most-installed.html").exists()
 
+    @pytest.mark.asyncio
+    async def test_analyze_filter_renders_fleet_panel_and_caption(self, mocker):
+        from src.patcher.cli import _console
+
+        titles = [_patch_title("Firefox"), _patch_title("Slack")]
+        mocker.patch("src.patcher.cli.get_data_manager").return_value.titles = titles
+        mocker.patch("src.patcher.cli.TitleFilter.apply", return_value=titles)
+        ctx = _ctx()
+
+        with _console.console.capture() as cap:
+            await analyze.callback.__wrapped__(
+                ctx,
+                excel_file=None,
+                criteria="most-installed",
+                threshold=70.0,
+                top_n=None,
+                min_compliance=None,
+                min_hosts=None,
+                released_after=None,
+                summary=False,
+                output_dir=None,
+                all_time=False,
+            )
+
+        out = cap.get()
+        assert "Fleet Compliance" in out  # summary panel
+        assert "showing 2 of 2 titles" in out  # caption provenance
+        assert "Firefox" in out and "Slack" in out  # both titles render
+
 
 class TestDiff:
     @pytest.mark.asyncio

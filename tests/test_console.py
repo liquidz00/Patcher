@@ -316,3 +316,66 @@ class TestTerminalLogging:
             assert cap.get() == ""  # early return — no extra stderr message
         finally:
             sys.excepthook = original
+
+
+class TestBuildTableExtras:
+    def test_caption_and_footer_render(self):
+        table = _console.build_table(
+            [["Firefox", 8]],
+            headers=["Title", "Hosts"],
+            caption="showing 1 of 5",
+            footer=["TOTAL", "8"],
+        )
+        assert table.show_footer is True
+        text = _render(table)
+        assert "showing 1 of 5" in text
+        assert "TOTAL" in text
+
+    def test_no_footer_keeps_show_footer_false(self):
+        table = _console.build_table([["a", "b"]], headers=["X", "Y"])
+        assert table.show_footer is False
+
+    def test_per_column_justify(self):
+        table = _console.build_table([["x", 1]], headers=["A", "B"], justify=["left", "right"])
+        assert table.columns[0].justify == "left"
+        assert table.columns[1].justify == "right"
+
+    def test_text_cell_passes_through(self):
+        cell = Text("95.0%", style="success")
+        text = _render(_console.build_table([[cell]], headers=["Complete"]))
+        assert "95.0%" in text
+
+
+class TestCompletionText:
+    def test_red_below_threshold(self):
+        cell = _console.completion_text(50.0, threshold=70)
+        assert cell.style == _console.ERROR_STYLE
+        assert "50.0%" in cell.plain
+
+    def test_yellow_between_threshold_and_ninety(self):
+        assert _console.completion_text(80.0, threshold=70).style == _console.WARNING_STYLE
+
+    def test_green_at_ninety_or_above(self):
+        assert _console.completion_text(95.0, threshold=70).style == _console.SUCCESS_STYLE
+
+
+def _render_themed(renderable) -> str:
+    """Render through the real themed console (resolves semantic style aliases)."""
+    with _console.console.capture() as capture:
+        _console.console.print(renderable)
+    return capture.get()
+
+
+class TestFleetSummary:
+    def test_renders_metrics(self):
+        from rich.panel import Panel
+
+        titles = [_pt("Firefox", pct=95.0), _pt("Slack", pct=40.0)]
+        panel = _console.build_fleet_summary(titles, threshold=70)
+        assert isinstance(panel, Panel)
+        text = _render_themed(panel)
+        assert "Fleet Compliance" in text
+        assert "Below 70%" in text
+
+    def test_empty_fleet_does_not_divide_by_zero(self):
+        assert "Fleet Compliance" in _render_themed(_console.build_fleet_summary([], threshold=70))

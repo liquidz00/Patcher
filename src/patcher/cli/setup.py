@@ -6,6 +6,9 @@ from pathlib import Path
 
 import asyncclick as click
 from PIL import Image
+from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.text import Text
 
 from ..clients import HTTPClient
 from ..clients.token_manager import TokenManager
@@ -22,12 +25,19 @@ from ._console import ERROR_STYLE, _NoOpStatus, console
 GREET = "Thanks for downloading Patcher!\n"
 WELCOME = """It looks like this is your first time using the tool. We will guide you through the initial setup to get you started.
 
-The setup assistant will prompt you to choose your setup method--Standard is the automated setup which will prompt for your Jamf URL, your Jamf Pro username and your Jamf Pro password. Patcher ONLY uses this information to create the necessary API role and client on your behalf, your credentials are not stored whatsoever. Once generated, these client credentials (and generated bearer token) can be found in your keychain. The SSO setup will prompt for a client ID and client secret of an API Client that has already been created.
+The setup assistant will prompt you to choose your setup method:
 
-You will be prompted to enter in the header and footer text for PDF reports, along with optional custom fonts and branding logo. These can be configured later by modifying the corresponding keys in the com.liquidzoo.patcher.plist file in Patcher's Application Support directory stored in the user library.
+- Standard is the automated setup which will prompt for your *Jamf URL, your Jamf Pro username and your Jamf Pro password*. Patcher **ONLY** uses this information to create the necessary API role and client on your behalf, your credentials are not stored whatsoever. Once generated, client credentials and generated bearer token can be found in your keychain.
+- The SSO setup will prompt for a *client ID and client secret* of an API Client that has already been created.
+
+You will be prompted to enter in the header and footer text for PDF reports, along with optional custom fonts and branding logo. These can be configured later by modifying the corresponding keys in the `com.liquidzoo.patcher.plist` file in Patcher's Application Support directory stored in the user library.
 
 """
 DOC = "For more information, visit the project documentation: https://docs.patcherctl.dev\n"
+
+# Greeting panel palette (tweak freely). Title stays teal via the "banner" theme style.
+GREET_BORDER = "medium_purple"
+GREET_LINK = "medium_purple1"  # a shade lighter than the border
 
 
 class SetupType(str, Enum):
@@ -80,10 +90,25 @@ class Setup:
 
     @staticmethod
     def _greet() -> None:
-        """Displays the greeting and welcome messages."""
-        console.print(GREET, style="banner")
-        console.print(WELCOME, end="")
-        console.print(DOC, style="bold bright_magenta")
+        """Render the first-run welcome inside a bordered panel."""
+        title = Text(f"👋 {GREET.strip()}", style="banner")  # teal, overrides border color
+
+        # Keep DOC's wording but turn the trailing URL into a real clickable link.
+        *prefix, url = DOC.strip().split()
+        subtitle = Text(" ".join(prefix) + " ", style=GREET_LINK)
+        subtitle.append(url, style=f"{GREET_LINK} underline link {url}")
+        md = Markdown(WELCOME.strip())
+
+        console.print(
+            Panel.fit(
+                md,
+                title=title,
+                subtitle=subtitle,
+                border_style=GREET_BORDER,
+                padding=(1, 2),
+            )
+        )
+        console.print()  # breathing room before the first prompt
 
     def _mark_completion(self, value: bool = False) -> None:
         """Persist the ``setup_completed`` flag and update the in-memory cache."""
