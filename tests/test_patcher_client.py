@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from src.patcher.core.exceptions import PatcherError
+from src.patcher.core.models.settings import Integrations, PatcherSettings
 from src.patcher.core.patcher_client import PatcherClient
 
 
@@ -34,15 +35,20 @@ def patcher(mock_policy_response, mock_patch_title_response):
     )
     p.jamf = AsyncMock()
     p.jamf.get_policies.return_value = mock_policy_response
+    p.jamf.get_title_configs.return_value = mock_policy_response
     p.jamf.get_summaries.return_value = mock_patch_title_response
     p.data = AsyncMock()
     p.api = AsyncMock()
+    p.api.list_apps.return_value = []
+    p.api.get_jamf_index.return_value = {}
     return p
 
 
 class TestFetchPatches:
     @pytest.mark.asyncio
-    async def test_default_flow_runs_policies_summaries_and_match(self, patcher, mocker):
+    async def test_default_flow_runs_policies_summaries_and_match(
+        self, patcher, mocker, mock_policy_response
+    ):
         mock_match = mocker.patch(
             "src.patcher.core.patcher_client.match_titles",
             new_callable=AsyncMock,
@@ -50,15 +56,29 @@ class TestFetchPatches:
 
         result = await patcher.fetch_patches()
 
-        patcher.jamf.get_policies.assert_awaited_once()
-        patcher.jamf.get_summaries.assert_awaited_once_with(patcher.jamf.get_policies.return_value)
+        patcher.jamf.get_title_configs.assert_awaited_once()
+        patcher.jamf.get_summaries.assert_awaited_once_with(
+            [config.get("id") for config in mock_policy_response]
+        )
         mock_match.assert_awaited_once_with(
             patcher.jamf.get_summaries.return_value,
             jamf=patcher.jamf,
             api=patcher.api,
             include_homebrew=False,
+            ignored_titles=[],
         )
         assert result == patcher.jamf.get_summaries.return_value
+
+    @pytest.mark.asyncio
+    async def test_stamps_name_id_from_configs(self, patcher, mocker):
+        """name_id is joined onto each title from its config's softwareTitleNameId."""
+        mocker.patch("src.patcher.core.patcher_client.match_titles", new_callable=AsyncMock)
+
+        titles = await patcher.fetch_patches()
+
+        # Chrome's config (softwareTitleId "3") carries softwareTitleNameId "0BC".
+        chrome = next(title for title in titles if title.title_id == "3")
+        assert chrome.name_id == "0BC"
 
     @pytest.mark.asyncio
     async def test_match_homebrew_override_widens_match(self, patcher, mocker):
@@ -98,7 +118,7 @@ class TestFetchPatches:
 
     @pytest.mark.asyncio
     async def test_skips_match_when_no_api_client(self, patcher, mocker):
-        """When PatcherClient was constructed with enable_installomator=False, .api is None."""
+        """When PatcherClient was constructed with enable_matching=False, .api is None."""
         mock_match = mocker.patch(
             "src.patcher.core.patcher_client.match_titles",
             new_callable=AsyncMock,
@@ -111,6 +131,7 @@ class TestFetchPatches:
         assert result == patcher.jamf.get_summaries.return_value
 
     @pytest.mark.asyncio
+    @pytest.mark.filterwarnings("ignore::src.patcher.core.exceptions.InstallomatorWarning")
     async def test_include_ios_calls_append_ios_status(self, patcher, mocker):
         mock_append = mocker.patch(
             "src.patcher.core.patcher_client.append_ios_status",
@@ -124,6 +145,7 @@ class TestFetchPatches:
         assert result == ["enriched"]
 
     @pytest.mark.asyncio
+    @pytest.mark.filterwarnings("ignore::src.patcher.core.exceptions.InstallomatorWarning")
     async def test_omit_recent_hours_calls_omit_recent(self, patcher, mocker):
         mock_omit = mocker.patch(
             "src.patcher.core.patcher_client.omit_recent",
@@ -137,6 +159,7 @@ class TestFetchPatches:
         assert result == ["filtered"]
 
     @pytest.mark.asyncio
+    @pytest.mark.filterwarnings("ignore::src.patcher.core.exceptions.InstallomatorWarning")
     async def test_sort_by_calls_sort_titles(self, patcher, mocker):
         mock_sort = mocker.patch(
             "src.patcher.core.patcher_client.sort_titles",
@@ -404,13 +427,13 @@ class TestDetectDrift:
         )
 
     @pytest.mark.asyncio
-    async def test_constructs_own_api_when_installomator_disabled(self, mocker):
-        """When ``enable_installomator=False`` the standing self.api is None."""
+    async def test_constructs_own_api_when_matching_disabled(self, mocker):
+        """When ``enable_matching=False`` the standing self.api is None."""
         local = PatcherClient(
             client_id="x",
             client_secret="x",
             server="https://x.example.com",
-            enable_installomator=False,
+            enable_matching=False,
         )
         assert local.api is None
 
@@ -428,6 +451,17 @@ class TestDetectDrift:
         fake_api.list_drift.assert_awaited_once()
         fake_api.aclose.assert_awaited_once()
         assert result is fake_response
+
+    def test_deprecated_enable_installomator_still_works(self):
+        """The legacy ``enable_installomator`` kwarg maps to enable_matching with a warning."""
+        with pytest.warns(DeprecationWarning, match="enable_installomator"):
+            local = PatcherClient(
+                client_id="x",
+                client_secret="x",
+                server="https://x.example.com",
+                enable_installomator=False,
+            )
+        assert local.api is None
 
 
 class TestReset:
@@ -456,10 +490,9 @@ class TestReset:
             await patcher.reset("full")
 
     @pytest.mark.asyncio
-    async def test_creds_all_calls_reset_config(self, patcher, mocker):
+    async def test_creds_all_calls_reset_config(self, patcher):
         patcher._config = MagicMock()
         patcher._config.in_memory_mode = False
-        mocker.patch("src.patcher.core.patcher_client.PropertylistManager")
 
         await patcher.reset("creds")
 
@@ -467,10 +500,9 @@ class TestReset:
         patcher._config.set_credential.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_creds_with_credential_arg_clears_one_key(self, patcher, mocker):
+    async def test_creds_with_credential_arg_clears_one_key(self, patcher):
         patcher._config = MagicMock()
         patcher._config.in_memory_mode = False
-        mocker.patch("src.patcher.core.patcher_client.PropertylistManager")
 
         await patcher.reset("creds", credential="url")
 
@@ -478,59 +510,59 @@ class TestReset:
         patcher._config.reset_config.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_ui_removes_plist_key(self, patcher, mocker):
+    async def test_ui_resets_user_interface_settings(self, patcher, mocker):
         patcher._config = MagicMock()
         patcher._config.in_memory_mode = False
-        mock_plist_cls = mocker.patch("src.patcher.core.patcher_client.PropertylistManager")
+        mock_settings_cls = mocker.patch("src.patcher.core.patcher_client.PatcherSettings")
+        mock_settings = mock_settings_cls.load.return_value
 
         await patcher.reset("UI")
 
-        mock_plist_cls.return_value.remove.assert_called_once_with("UserInterfaceSettings")
+        mock_settings_cls.load.assert_called_once()
+        mock_settings.save.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_full_runs_every_reset(self, patcher, mocker):
         patcher._config = MagicMock()
         patcher._config.in_memory_mode = False
         patcher.data.reset_cache = MagicMock(return_value=True)
-        mock_plist_cls = mocker.patch("src.patcher.core.patcher_client.PropertylistManager")
+        mock_settings_cls = mocker.patch("src.patcher.core.patcher_client.PatcherSettings")
+        mock_settings = mock_settings_cls.load.return_value
 
         await patcher.reset("full")
 
         patcher._config.reset_config.assert_called_once()
-        plist = mock_plist_cls.return_value
-        assert plist.remove.call_count == 2
-        plist.remove.assert_any_call("UserInterfaceSettings")
-        plist.remove.assert_any_call("setup_completed")
+        mock_settings.save.assert_called_once()
+        assert mock_settings.setup_completed is False
         patcher.data.reset_cache.assert_called_once()
 
 
 class TestFromState:
-    def test_reads_ui_and_installomator_from_plist(self, mocker):
-        mock_plist = mocker.patch(
-            "src.patcher.core.patcher_client.PropertylistManager"
-        ).return_value
-        mock_plist.get.side_effect = lambda key: {
-            "UserInterfaceSettings": {"header_text": "Org Header"},
-            "enable_installomator": True,
-            "enable_homebrew": True,
-        }.get(key)
+    def test_reads_ui_and_installomator_from_state(self, mocker):
+        settings = PatcherSettings(
+            enable_matching=True,
+            integrations=Integrations(homebrew=True),
+            ignored_titles=["Adobe *"],
+        )
+        settings.user_interface_settings.header_text = "Org Header"
+        mocker.patch("src.patcher.core.patcher_client.PatcherSettings.load", return_value=settings)
         mock_config_cls = mocker.patch("src.patcher.core.patcher_client.ConfigManager")
         mock_client_cls = mocker.patch.object(PatcherClient, "__init__", return_value=None)
 
         PatcherClient.from_state()
 
-        mock_client_cls.assert_called_once_with(
-            config=mock_config_cls.return_value,
-            enable_installomator=True,
-            enable_homebrew=True,
-            ui_config={"header_text": "Org Header"},
-        )
+        call_kwargs = mock_client_cls.call_args.kwargs
+        assert call_kwargs["config"] is mock_config_cls.return_value
+        assert call_kwargs["enable_matching"] is True
+        assert call_kwargs["enable_homebrew"] is True
+        assert call_kwargs["ui_config"]["header_text"] == "Org Header"
+        assert call_kwargs["ignored_titles"] == ["Adobe *"]
 
     def test_overrides_take_precedence(self, mocker):
-        mock_plist = mocker.patch(
-            "src.patcher.core.patcher_client.PropertylistManager"
-        ).return_value
-        mock_plist.get.return_value = None  # no UI settings, no toggle
+        mocker.patch(
+            "src.patcher.core.patcher_client.PatcherSettings.load",
+            return_value=PatcherSettings(enable_matching=False),
+        )
         mocker.patch("src.patcher.core.patcher_client.ConfigManager")
         mock_client_cls = mocker.patch.object(PatcherClient, "__init__", return_value=None)
 
@@ -539,21 +571,21 @@ class TestFromState:
         call_kwargs = mock_client_cls.call_args.kwargs
         assert call_kwargs["concurrency"] == 10
         assert call_kwargs["debug"] is True
-        assert call_kwargs["enable_installomator"] is False  # plist had nothing
+        assert call_kwargs["enable_matching"] is False
 
-    def test_omits_ui_config_when_plist_has_none(self, mocker):
-        """Empty UI settings should fall through to PatcherClient's defaults."""
-        mock_plist = mocker.patch(
-            "src.patcher.core.patcher_client.PropertylistManager"
-        ).return_value
-        mock_plist.get.return_value = None
+    def test_ui_config_defaults_passed_when_unset(self, mocker):
+        """With no saved UI settings, model defaults flow through as ui_config."""
+        mocker.patch(
+            "src.patcher.core.patcher_client.PatcherSettings.load",
+            return_value=PatcherSettings(),
+        )
         mocker.patch("src.patcher.core.patcher_client.ConfigManager")
         mock_client_cls = mocker.patch.object(PatcherClient, "__init__", return_value=None)
 
         PatcherClient.from_state()
 
         call_kwargs = mock_client_cls.call_args.kwargs
-        assert "ui_config" not in call_kwargs  # falls through to UIDefaults
+        assert call_kwargs["ui_config"]["header_text"] == "Default header text"
 
 
 class TestExport:

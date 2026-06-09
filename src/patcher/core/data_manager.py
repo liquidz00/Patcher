@@ -1,3 +1,5 @@
+"""On-disk patch-data cache and the multi-format export pipeline (PDF, Excel, HTML, JSON)."""
+
 import asyncio
 import json
 import pickle
@@ -50,7 +52,9 @@ def serialize_titles_to_dict(
 
 
 class DataManager:
-    _IGNORED = ["install_label", "homebrew_cask", "title_id"]
+    """Caches patch data on disk and exports it to PDF, Excel, HTML, and JSON."""
+
+    _IGNORED = ["install_label", "homebrew_cask", "title_id", "name_id"]
 
     def __init__(self, disable_cache: bool = False, ui_config: dict | None = None):
         """
@@ -286,7 +290,7 @@ class DataManager:
     ):
         """Generates an HTML report from a given DataFrame."""
         if not header_color:
-            from .models.ui import UIDefaults
+            from .models.settings import UIDefaults
 
             header_color = UIDefaults().header_color
 
@@ -356,7 +360,7 @@ class DataManager:
         :rtype: str
         """
         sanitized = re.sub(r"[:\\/?*\[\]]", "", name)
-        return sanitized[:31] if len(sanitized) > 31 else sanitized
+        return sanitized[:31]
 
     def _write_multisheet_workbook(
         self,
@@ -491,7 +495,7 @@ class DataManager:
         :param formats: A set of formats to export. Defaults to all ({"excel", "html", "pdf"}).
         :type formats: set | None
         :param header_color: Hex color to use for HTML header table background.
-            Falls back to :attr:`~patcher.core.models.ui.UIDefaults.header_color` when ``None``.
+            Falls back to :attr:`~patcher.core.models.settings.UIDefaults.header_color` when ``None``.
         :type header_color: str | None
         :param device_reports: Optional dictionary mapping title IDs to device lists for per-title detail sheets.
         :type device_reports: dict[str, list[:class:`~patcher.core.models.patch.PatchDevice`]] | None
@@ -511,14 +515,9 @@ class DataManager:
             columns=[col.replace("_", " ").title() for col in DataManager._IGNORED], errors="ignore"
         )
 
-        # TODO: comment runs long — trim?
-        # Surface Homebrew Cask coverage as a readable column. The raw
-        # list-of-dicts ``homebrew_cask`` field is dropped via ``_IGNORED``
-        # (same treatment as ``install_label``); this derived column shows the
-        # matched cask token(s) instead. Positionally aligned with
-        # ``patch_titles`` since ``_create_dataframe`` preserves their order.
-        # Added only when at least one title matched a cask, so default
-        # (Installomator-only) exports are unchanged.
+        # Derived column: the matched cask token(s). The raw homebrew_cask field
+        # is dropped via _IGNORED; this shows coverage instead. Added only when a
+        # title matched a cask, so Installomator-only exports are unchanged.
         if any(title.homebrew_cask for title in patch_titles):
             df["Homebrew"] = [
                 ", ".join(match.token for match in (title.homebrew_cask or []))
@@ -595,7 +594,8 @@ class DataManager:
         :rtype: bool
         """
         try:
-            [file.unlink() for file in self.get_cached_files()]
+            for file in self.get_cached_files():
+                file.unlink()
             return True
         except OSError as e:
             self.log.warning(f"Encountered {type(e).__name__} during cache reset. Details: {e}")

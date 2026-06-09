@@ -1,3 +1,5 @@
+"""Credential resolution: keychain-backed or in-memory."""
+
 import re
 
 import keyring
@@ -19,6 +21,8 @@ def _is_owner_edit_error(exc: Exception) -> bool:
 
 
 class ConfigManager:
+    """Resolves Jamf credentials from the macOS keychain, or holds them in memory for library use."""
+
     def __init__(
         self,
         service_name: str = "Patcher",

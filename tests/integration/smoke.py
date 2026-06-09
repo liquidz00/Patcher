@@ -39,12 +39,9 @@ from pathlib import Path
 
 import click
 
-# Patcher's logger has no handlers in library contexts (the CLI is what
-# installs file/terminal handlers). Without one, Python falls back to its
-# ``lastResort`` StreamHandler at WARNING, which prints library-internal
-# messages over our own status output. Attach a NullHandler so library
-# logs are swallowed; failures still surface via raised exceptions, which
-# our check_* helpers catch and report.
+# Patcher's logger has no handlers in library contexts, so Python's lastResort
+# handler would print internal WARNINGs over our status output. A NullHandler
+# swallows them; real failures still surface as raised exceptions.
 logging.getLogger("Patcher").addHandler(logging.NullHandler())
 logging.getLogger("Patcher").propagate = False
 
@@ -272,11 +269,9 @@ async def check_synthetic_pipeline(patcher: PatcherClient, count: Counter) -> No
     except Exception as exc:
         count.fail("analyze(below-threshold) raised", exc)
 
-    # Export to non-PDF formats. PDF needs UI config (font paths, header
-    # text) which library callers can supply via ``ui_config=`` on
-    # PatcherClient, but exercising that here would require fonts on disk.
-    # Excel/HTML/JSON validate the full DataFrame + serialization pipeline
-    # without that prerequisite.
+    # Export to non-PDF formats. PDF needs UI config (fonts, header text), which
+    # would require fonts on disk to exercise here; Excel/HTML/JSON validate the
+    # DataFrame + serialization pipeline without that.
     with tempfile.TemporaryDirectory(prefix="patcher-smoke-") as tmp:
         out_dir = Path(tmp)
         try:

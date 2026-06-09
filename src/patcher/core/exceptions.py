@@ -1,3 +1,6 @@
+"""Patcher's exception hierarchy."""
+
+
 class PatcherError(Exception):
     """
     Base exception class for Patcher exceptions.

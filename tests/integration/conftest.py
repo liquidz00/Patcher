@@ -71,10 +71,17 @@ def integration_config(
     )
 
 
-@pytest.fixture
-def integration_token_manager(integration_config: ConfigManager) -> TokenManager:
-    """A real TokenManager configured against the integration instance."""
-    return TokenManager(integration_config)
+@pytest_asyncio.fixture
+async def integration_token_manager(integration_config: ConfigManager):
+    """A real TokenManager configured against the integration instance, with cleanup.
+
+    Yields the manager and closes its HTTP connection pool when the test exits.
+    """
+    manager = TokenManager(integration_config)
+    try:
+        yield manager
+    finally:
+        await manager.aclose()
 
 
 @pytest_asyncio.fixture

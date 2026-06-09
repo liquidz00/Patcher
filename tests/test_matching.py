@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock
 import pytest
 from src.patcher.clients.patcher_api import App
 from src.patcher.core import matching
-from src.patcher.core.exceptions import APIResponseError
+from src.patcher.core.exceptions import APIResponseError, InstallomatorWarning
 from src.patcher.core.matching import (
     match_directly,
     match_fuzzy,
@@ -25,7 +25,7 @@ from src.patcher.core.matching import (
 from src.patcher.core.models.patch import PatchTitle
 
 
-def _patch_title(title: str) -> PatchTitle:
+def _patch_title(title: str, name_id: str | None = None) -> PatchTitle:
     return PatchTitle(
         title=title,
         title_id="42",
@@ -33,6 +33,7 @@ def _patch_title(title: str) -> PatchTitle:
         hosts_patched=1,
         missing_patch=1,
         latest_version="1.0",
+        name_id=name_id,
     )
 
 
@@ -116,7 +117,8 @@ class TestMatchTitlesPipeline:
         jamf.get_app_names.return_value = [{"Patch": "Acme Reader", "App Names": ["Acme Reader"]}]
         review_file = tmp_path / "review.json"
 
-        await match_titles([title], jamf=jamf, api=api, review_file=review_file)
+        with pytest.warns(InstallomatorWarning):
+            await match_titles([title], jamf=jamf, api=api, review_file=review_file)
 
         assert title.install_label == []
         assert review_file.exists()
@@ -136,6 +138,21 @@ class TestMatchTitlesPipeline:
         assert title.install_label == []
         # Jamf side still gets queried, but no match attempt is made for the
         # ignored title (no entry appears in unmatched_apps either).
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("ignored", ["Adobe Photoshop 2024", "Jamf Self Service for macOS"])
+    async def test_policy_vendor_globs_skip_titles(self, tmp_path, ignored):
+        title = _patch_title(ignored)
+        api = AsyncMock()
+        api.list_apps.return_value = [_app("firefox")]
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = []
+        review_file = tmp_path / "review.json"
+
+        await match_titles([title], jamf=jamf, api=api, review_file=review_file)
+
+        assert title.install_label == []
+        assert not review_file.exists() or ignored not in review_file.read_text()
 
     @pytest.mark.asyncio
     async def test_second_pass_normalizes_patch_title_directly(self, tmp_path):
@@ -189,14 +206,30 @@ class TestMatchTitlesPipeline:
         jamf = AsyncMock()
         jamf.get_app_names.return_value = [{"Patch": "Acme Reader", "App Names": ["Acme Reader"]}]
 
-        await match_titles([title], jamf=jamf, api=api, review_file=None)
+        with pytest.warns(InstallomatorWarning):
+            await match_titles([title], jamf=jamf, api=api, review_file=None)
 
         # tmp_path is empty — review file was not written anywhere.
         assert list(tmp_path.iterdir()) == []
 
+    @pytest.mark.asyncio
+    async def test_caller_ignored_titles_skip_matching(self):
+        """A title matching a caller-supplied pattern is skipped despite a catalog hit."""
+        title = _patch_title("Acme Corp Viewer")
+        api = _api_with({"installomator": [_app("acmecorpviewer", name="Acme Corp Viewer")]})
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = [
+            {"Patch": "Acme Corp Viewer", "App Names": ["Acme Corp Viewer"]}
+        ]
+
+        await match_titles([title], jamf=jamf, api=api, review_file=None, ignored_titles=["Acme *"])
+
+        assert title.install_label == []
+
 
 class TestHomebrewMatching:
     @pytest.mark.asyncio
+    @pytest.mark.filterwarnings("ignore::src.patcher.core.exceptions.InstallomatorWarning")
     async def test_off_by_default_ignores_cask_only_slug(self, tmp_path):
         """With include_homebrew unset, only the installomator source is fetched."""
         title = _patch_title("Rectangle")
@@ -296,3 +329,59 @@ class TestHomebrewMatching:
         # Two list_apps calls: offset 0 (full page) then offset 2 (short page → stop).
         assert api.list_apps.await_count == 2
         assert [stub.installomator_label for stub in title.install_label] == ["c"]
+
+
+class TestDeterministicMatch:
+    @pytest.mark.asyncio
+    async def test_name_id_exact_match_attaches_index_slugs(self):
+        """A title whose name_id is in the index attaches those slugs, no fuzzing."""
+        title = _patch_title("Mozilla Firefox", name_id="0B3")
+        api = AsyncMock()
+        api.list_apps.return_value = [_app("firefox", name="Firefox")]
+        api.get_jamf_index.return_value = {"0B3": ["firefox"]}
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = []  # no app-name data — proves we didn't fuzzy-match
+
+        await match_titles([title], jamf=jamf, api=api, review_file=None)
+
+        assert [stub.installomator_label for stub in title.install_label] == ["firefox"]
+
+    @pytest.mark.asyncio
+    async def test_name_id_not_indexed_falls_back_to_fuzzy(self):
+        title = _patch_title("Mozilla Firefox", name_id="ZZZ")  # code not in the index
+        api = AsyncMock()
+        api.list_apps.return_value = [_app("firefox", name="Firefox")]
+        api.get_jamf_index.return_value = {"0B3": ["firefox"]}
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = [{"Patch": "Mozilla Firefox", "App Names": ["Firefox"]}]
+
+        await match_titles([title], jamf=jamf, api=api, review_file=None)
+
+        assert [stub.installomator_label for stub in title.install_label] == ["firefox"]
+
+    @pytest.mark.asyncio
+    async def test_index_slug_absent_from_catalog_falls_back_to_fuzzy(self):
+        """A code resolving only to a slug outside the fetched set falls through."""
+        title = _patch_title("Mozilla Firefox", name_id="0B3")
+        api = AsyncMock()
+        api.list_apps.return_value = [_app("firefox", name="Firefox")]  # available = {firefox}
+        api.get_jamf_index.return_value = {"0B3": ["firefox-cask-only"]}  # not in available
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = [{"Patch": "Mozilla Firefox", "App Names": ["Firefox"]}]
+
+        await match_titles([title], jamf=jamf, api=api, review_file=None)
+
+        assert [stub.installomator_label for stub in title.install_label] == ["firefox"]
+
+    @pytest.mark.asyncio
+    async def test_index_unavailable_degrades_to_fuzzy(self):
+        title = _patch_title("Firefox", name_id="0B3")
+        api = AsyncMock()
+        api.list_apps.return_value = [_app("firefox", name="Firefox")]
+        api.get_jamf_index.side_effect = APIResponseError("index endpoint missing")
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = [{"Patch": "Firefox", "App Names": ["Firefox"]}]
+
+        await match_titles([title], jamf=jamf, api=api, review_file=None)
+
+        assert title.install_label[0].installomator_label == "firefox"

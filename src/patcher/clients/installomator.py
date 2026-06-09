@@ -1,3 +1,5 @@
+"""Installomator label fetching and shell-fragment parsing."""
+
 import asyncio
 import re
 from collections.abc import Iterable
@@ -9,9 +11,8 @@ from pydantic import ValidationError
 from ..core.exceptions import APIResponseError, PatcherError
 from ..core.logger import LogMe
 from ..core.models.label import Label
+from ..policy import INGEST_EXCLUDED_TEAM_IDS
 from . import HTTPClient
-
-IGNORED_TEAMS = ["Frydendal", "Media", "LL3KBL2M3A"]  # "LL3KBL2M3A" - lcadvancedvpnclient
 
 # Installomator hosts a flat list of every label name in Labels.txt at the
 # repo root. Parsing this file before fetching individual fragments lets us
@@ -267,6 +268,8 @@ def parse_fragment(fragment: str) -> dict[str, Any]:
 
 
 class InstallomatorClient:
+    """Discovers, fetches, and matches Installomator labels to ``PatchTitle`` objects."""
+
     def __init__(self, concurrency: int = 5, api: HTTPClient | None = None):
         """
         Wrapper around the `Installomator <https://github.com/Installomator/Installomator>`_ project (the macOS automated-installer script set).
@@ -302,7 +305,7 @@ class InstallomatorClient:
         Parse a fragment's raw .sh content into a ``Label`` object.
 
         Returns ``None`` if the fragment's expected Team ID is in
-        :data:`IGNORED_TEAMS` or if Pydantic validation fails.
+        :data:`~patcher.policy.INGEST_EXCLUDED_TEAM_IDS` or if Pydantic validation fails.
         """
         fragment_dict = parse_fragment(content)
 
@@ -316,7 +319,7 @@ class InstallomatorClient:
         }
 
         expected_team_id = fragment_dict.get("expectedTeamID")
-        if expected_team_id in IGNORED_TEAMS:
+        if expected_team_id in INGEST_EXCLUDED_TEAM_IDS:
             self.log.warning(f"Skipping label {script_name} (ignored Team ID: {expected_team_id})")
             return None
 
@@ -394,11 +397,9 @@ class InstallomatorClient:
                     f"Could not read cached fragment {cache_path}; will refetch. Details: {e}"
                 )
 
-        # HTTP fetch. `fetch_text` raises `patcher.core.exceptions.APIResponseError` on non-2xx
-        # (with `not_found=True` on 404) so we don't silently parse "404:
-        # Not Found" bodies as labels. Treat any fetch failure as
-        # best-effort: log and return None so a single broken label
-        # doesn't kill the batch.
+        # fetch_text raises APIResponseError on non-2xx (not_found=True on 404),
+        # so we never parse error bodies as labels. Best-effort: log and return
+        # None so one broken label doesn't kill the batch.
         url = _FRAGMENT_URL_TEMPLATE.format(name=key)
         self.log.debug(f"Fetching Installomator fragment from {url}")
         try:

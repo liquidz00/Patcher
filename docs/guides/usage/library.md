@@ -54,7 +54,7 @@ asyncio.run(main())
 `concurrency`
 : Max concurrent Jamf API requests *(Default: 5)*
 
-`enable_installomator`
+`enable_matching`
 : Set to `False` to skip the catalog client entirely. *(Default: True)*
 
 `disable_cache`
@@ -68,7 +68,7 @@ async with PatcherClient(
     client_secret="...",
     server="https://yourorg.jamfcloud.com",
     concurrency=10,
-    enable_installomator=False,
+    enable_matching=False,
     disable_cache=True,
 ) as patcher:
     ...
@@ -163,13 +163,13 @@ Explicit keyword arguments take precedence over property list values.
 ```
 
 ```{code-block} python
-:caption: Construct `PatcherClient` with `enable_installomator=False` to turn the catalog client off entirely.
+:caption: Construct `PatcherClient` with `enable_matching=False` to turn the catalog client off entirely.
 
 patcher = PatcherClient(
     client_id=...,
     client_secret=...,
     server=...,
-    enable_installomator=False,
+    enable_matching=False,
 )
 ```
 
@@ -340,7 +340,7 @@ The flag arguments (`since`, `all_time`, `between`, `no_fetch`) select which two
 
 ## Drift
 
-{meth}`~patcher.core.patcher_client.PatcherClient.detect_drift` reports where upstream catalog sources disagree on the current version. It works even when `enable_installomator=False`; it constructs the catalog client on demand. The catalog endpoints are public, so no credentials are required.
+{meth}`~patcher.core.patcher_client.PatcherClient.detect_drift` reports where upstream catalog sources disagree on the current version. It works even when `enable_matching=False`; it constructs the catalog client on demand. The catalog endpoints are public, so no credentials are required.
 
 ```python
 from patcher import PatcherClient

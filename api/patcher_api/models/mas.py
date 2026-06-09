@@ -1,3 +1,5 @@
+"""ORM model for the Mac App Store catalog source."""
+
 from datetime import UTC, date, datetime
 
 from sqlalchemy import JSON, Date, DateTime, Float, String

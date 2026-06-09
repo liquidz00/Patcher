@@ -9,7 +9,6 @@ the upstream repo); changes here should track upstream label format changes.
 import httpx
 import pytest
 from patcher_api.installomator.ingest import (
-    IGNORED_TEAMS,
     FetchPlan,
     _fetch_upstream_tree,
     fetch_installomator_labels,
@@ -18,6 +17,8 @@ from patcher_api.installomator.ingest import (
 )
 from patcher_api.models.installomator import InstallomatorLabel
 from sqlalchemy import select
+
+from patcher.policy import INGEST_EXCLUDED_TEAM_IDS
 
 FIREFOX_FRAGMENT = """firefoxpkg)
     name="Firefox"
@@ -63,11 +64,9 @@ ARRAY_VERSION_FRAGMENT = """toonboomthing)
     ;;
 """
 
-# Regression fixture for resolver-output-validation. The label has a
-# shell-expression downloadURL so resolve() gets called on it; per-test
-# monkeypatching of resolve() then injects the various garbage classes the
-# real Installomator pipelines produce when an unsupported filter drops
-# off the chain (HTML bodies, multi-line concats, ftp:// schemes).
+# Regression fixture for resolver-output validation: the shell-expression
+# downloadURL makes resolve() run, and per-test monkeypatching injects the
+# garbage classes real Installomator pipelines produce (HTML, multi-line, ftp).
 SHELL_DOWNLOAD_FRAGMENT = """garbagelabel)
     name="GarbageLabel"
     type="dmg"
@@ -121,7 +120,7 @@ def test_parse_fragment_returns_empty_dict_for_empty_input():
     assert parse_fragment(EMPTY_FRAGMENT) == {}
 
 
-# --- issue #65 regression fixtures (derived from real upstream labels) ---
+# issue #65 regression fixtures (derived from real upstream labels)
 
 # beyondcomparepro: nested ')' inside $( ) and a space inside ${ } — the old
 # non-greedy regex truncated rawVersion at "latestversion)" and appNewVersion
@@ -282,11 +281,9 @@ def test_parse_fragment_single_assignment_stays_scalar():
 
 @pytest.mark.asyncio
 async def test_ingest_stores_realistic_label(test_session, monkeypatch):
-    # Enable the opt-in resolver path for this test, AND mock the underlying
-    # resolve() so it stays offline + deterministic. The Firefox label's
-    # appNewVersion is a curl pipeline; we don't want the test suite hitting
-    # download.mozilla.org. Stub returns a fixed version for the curl
-    # expression, passes literals through unchanged.
+    # Enable the opt-in resolver path but mock resolve() so the test stays
+    # offline and deterministic (Firefox's appNewVersion is a curl pipeline;
+    # we don't want the suite hitting download.mozilla.org).
     from patcher_api.installomator.resolver import Resolved, Unresolvable
 
     monkeypatch.setattr("patcher_api.installomator.ingest._RESOLVE_ON_INGEST", True)
@@ -334,8 +331,8 @@ async def test_ingest_stores_realistic_label(test_session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_ingest_skips_ignored_team_ids(test_session):
-    """Labels whose expectedTeamID is in IGNORED_TEAMS are filtered out."""
-    assert "LL3KBL2M3A" in IGNORED_TEAMS
+    """Labels whose expectedTeamID is in INGEST_EXCLUDED_TEAM_IDS are filtered out."""
+    assert "LL3KBL2M3A" in INGEST_EXCLUDED_TEAM_IDS
 
     ingested, skipped, failed = await ingest_installomator_labels(
         test_session, {"somelabel": IGNORED_TEAM_FRAGMENT}

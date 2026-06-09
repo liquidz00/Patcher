@@ -1,42 +1,54 @@
+"""
+The ``patcherctl`` command-line interface.
+
+Defines the asyncclick command group and every subcommand (``export``,
+``analyze``, ``diff``, ``drift``, ``reset``). Terminal output and logging live
+in :mod:`patcher.cli._console`; orchestration helpers (arg parsing, cache, the
+export workflow) live in :mod:`patcher.cli._helpers`. This module is the entry
+point that wires them into commands.
+"""
+
 import asyncio
-import inspect
-import re
 import sys
-import warnings
 from collections.abc import Callable
-from datetime import date, datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import asyncclick as click
 import rich.traceback
-from rich.console import Group
-from rich.panel import Panel
-from rich.rule import Rule
-from rich.text import Text
 
 from ..__about__ import __version__
-from ..clients.patcher_api import DriftEntry, DriftResponse
-from ..core.analyze import DiffResult, TitleFilter, TrendAnalysis
+from ..clients.patcher_api import DriftEntry
+from ..core.analyze import TitleFilter, TrendAnalysis
 from ..core.config_manager import ConfigManager
-from ..core.data_manager import DataManager
-from ..core.exceptions import APIResponseError, InstallomatorWarning, PatcherError, SetupError
-from ..core.logger import LogMe, PatcherLog
-from ..core.models.ui import UIDefaults
+from ..core.exceptions import APIResponseError, PatcherError, SetupError
+from ..core.logger import LogMe
+from ..core.models.settings import PatcherSettings, UIDefaults
 from ..core.patcher_client import PatcherClient
-from ..core.plist_manager import PropertylistManager
 from ._console import (
-    DIM_STYLE,
-    ERROR_STYLE,
     SUCCESS_STYLE,
     WARNING_STYLE,
+    build_fleet_summary,
+    build_table,
+    completion_text,
     console,
     err_console,
+    format_err,
+    render_diff,
+    render_drift,
+    render_drift_entry,
+    setup_logging,
     status,
 )
-from .report import process_reports
+from ._helpers import (
+    _install_cli_process_hooks,
+    get_data_manager,
+    initialize_cache,
+    parse_iso_date,
+    parse_since,
+    process_reports,
+)
 from .setup import Setup
-from .terminal_logger import install_terminal_excepthook, install_terminal_handler
-from .ui_manager import UIConfigManager
 
 # show_locals=False keeps tracebacks safe to paste publicly (no leaked tokens).
 # Suppressing asyncclick collapses the framework's own frames so only Patcher
@@ -54,239 +66,6 @@ DATE_FORMATS = {
 
 # Context settings to enable both ``-h`` and ``--help`` for help output
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
-_SINCE_PATTERN = re.compile(r"^(\d+)([dhw])$")  # short window: 30d / 24h / 1w
-
-
-def format_table(data: list[list], headers: list[str] | None = None) -> str:
-    """Render ``data`` as a fixed-width pipe-separated table for terminal output."""
-    if headers:
-        data = [headers] + data
-
-    column_widths = [max(len(str(item)) for item in column) for column in zip(*data)]
-    format_string = " | ".join(f"{{:<{width}}}" for width in column_widths)
-    rows = [format_string.format(*row) for row in data]
-
-    if headers:
-        separator = "-+-".join("-" * width for width in column_widths)
-        rows.insert(1, separator)
-
-    return "\n".join(rows)
-
-
-def parse_since(value: str) -> timedelta:
-    """Parse a short window like ``'30d'``, ``'24h'``, ``'1w'`` into a timedelta."""
-    match = _SINCE_PATTERN.match(value.strip().lower())
-    if not match:
-        raise PatcherError(
-            "Invalid --since format. Use a number followed by 'd', 'h', or 'w' (e.g. '30d', '24h', '1w').",
-            received=value,
-        )
-    quantity, unit = int(match.group(1)), match.group(2)
-    units = {"d": "days", "h": "hours", "w": "weeks"}
-    return timedelta(**{units[unit]: quantity})
-
-
-def parse_iso_date(value: str) -> date:
-    """Parse ``'2026-05-17'``-style ISO date strings."""
-    try:
-        return datetime.strptime(value.strip(), "%Y-%m-%d").date()
-    except ValueError as exc:
-        raise PatcherError(
-            "Invalid date format. Use ISO YYYY-MM-DD (e.g. '2026-05-17').",
-            received=value,
-            error_msg=str(exc),
-        )
-
-
-def render_diff(result: DiffResult) -> str:
-    """Render a :class:`DiffResult` as a human-readable multi-section table."""
-    sections: list[str] = [
-        f"Diff: {result.from_label} → {result.to_label}",
-        "─" * 60,
-        "",
-    ]
-
-    if result.added:
-        sections.append(f"ADDED ({len(result.added)})")
-        rows = [
-            [t.title, t.released, t.hosts_patched, f"{t.completion_percent:.1f}%"]
-            for t in result.added
-        ]
-        sections.append(format_table(rows, headers=["Title", "Released", "Hosts", "Complete"]))
-        sections.append("")
-
-    if result.changed:
-        sections.append(f"CHANGED ({len(result.changed)})")
-        rows = []
-        for c in result.changed:
-            delta_str = f"{c.from_completion_percent:.1f}% → {c.to_completion_percent:.1f}%"
-            hosts_str = f"{c.from_hosts_patched} → {c.to_hosts_patched}"
-            if c.version_changed:
-                version_str = (
-                    f"{c.from_latest_version or '?'} → {c.to_latest_version or '?'} (bump)"
-                )
-            else:
-                version_str = c.to_latest_version or "—"
-            rows.append([c.title, delta_str, hosts_str, version_str])
-        sections.append(format_table(rows, headers=["Title", "Complete %", "Hosts", "Version"]))
-        sections.append("")
-
-    if result.removed:
-        sections.append(f"REMOVED ({len(result.removed)})")
-        rows = [[t.title, t.released, t.hosts_patched] for t in result.removed]
-        sections.append(format_table(rows, headers=["Title", "Last released", "Hosts"]))
-        sections.append("")
-
-    summary_rows = [
-        ["Titles", f"{result.from_count} → {result.to_count}"],
-        ["Unchanged", str(result.unchanged_count)],
-        ["Version bumps", str(len(result.version_bumps))],
-    ]
-    if result.avg_completion_delta is not None:
-        summary_rows.append(["Avg completion Δ", f"{result.avg_completion_delta:+.2f}pp"])
-    sections.append("SUMMARY")
-    sections.append(format_table(summary_rows))
-
-    return "\n".join(sections)
-
-
-def render_drift(result: DriftResponse) -> str:
-    """Render a :class:`DriftResponse` as a multi-row table summary."""
-    if not result.entries:
-        return f"No drift detected. Scanned {result.total_scanned} eligible apps."
-
-    lines = [
-        f"Drift across {result.total_with_drift} apps ({result.total_scanned} scanned). Showing {len(result.entries)}.",
-        "─" * 60,
-        "",
-    ]
-    rows = []
-    for entry in result.entries:
-        version_str = ", ".join(f"{v.source}={v.version}" for v in entry.versions)
-        leader_str = entry.leader or "—"
-        rows.append([entry.slug, entry.name, version_str, leader_str])
-    lines.append(format_table(rows, headers=["Slug", "Name", "Versions", "Leader"]))
-    return "\n".join(lines)
-
-
-def render_drift_entry(entry: DriftEntry) -> str:
-    """Render a single :class:`DriftEntry` with per-source version detail."""
-    lines = [
-        f"Drift: {entry.name} ({entry.slug})",
-        "─" * 60,
-        "",
-    ]
-    rows = [[v.source, v.version, "yes" if v.parsed_ok else "no"] for v in entry.versions]
-    lines.append(format_table(rows, headers=["Source", "Version", "Parseable"]))
-    if entry.leader is not None:
-        lines.append("")
-        lines.append(f"Leader: {entry.leader}    Laggard: {entry.laggard}")
-    return "\n".join(lines)
-
-
-def setup_logging(debug: bool) -> None:
-    """
-    Configures Patcher logging for the CLI process.
-
-    Installs the always-on rotating file handler, then attaches the
-    click-backed terminal handler when ``debug`` is true so debug runs
-    surface colored, level-prefixed output to stdout.
-
-    :param debug: Whether to enable debug-level console output.
-    :type debug: bool
-    """
-    PatcherLog.setup_logger()
-    install_terminal_handler(debug)
-
-
-def format_err(exc: PatcherError) -> None:
-    """
-    Render a :class:`PatcherError` in a red-bordered Rich panel on stderr.
-
-    The panel body carries the exception message in red. If the exception
-    exposes a ``recovery`` or ``remediation`` attribute (PatcherError lifts
-    keyword context onto the instance), it is rendered as a dim paragraph
-    below the main message. A dim rule separates the log-file pointer from
-    the error content.
-
-    :param exc: The PatcherError exception to format.
-    :type exc: PatcherError
-    """
-    message = Text(str(exc), style=ERROR_STYLE)
-
-    hint = getattr(exc, "recovery", None) or getattr(exc, "remediation", None)
-    if hint:
-        message.append("\n\n")
-        message.append(Text.from_markup(f"[dim]Recovery:[/] {hint}"))
-
-    log_hint = Text.from_markup(
-        f"[dim]For more details, see the log file at:[/]\n[dim]{PatcherLog.LOG_FILE}[/]"
-    )
-
-    err_console.print(
-        Panel(
-            Group(message, Rule(style=DIM_STYLE), log_hint),
-            title="[bold red]Error[/]",
-            border_style=ERROR_STYLE,
-            expand=False,
-        )
-    )
-
-
-def get_data_manager(ctx: click.Context) -> DataManager:
-    """
-    Lazily initializes and returns the shared ``DataManager`` instance.
-
-    This ensures consistent handling of ``DataManager`` objects. Inconsistent handling of said objects could lead to inaccurate patch reports or false errors getting raised.
-
-    :param ctx: Click context object.
-    :type ctx: `click.Context <https://click.palletsprojects.com/en/stable/api/#click.Context>`_
-    :return: The initialized ``DataManager`` instance.
-    :rtype: :class:`~patcher.core.data_manager.DataManager`
-    """
-    if "data_manager" not in ctx.obj or ctx.obj.get("data_manager") is None:
-        ctx.obj["data_manager"] = DataManager(disable_cache=ctx.obj.get("disable_cache", False))
-    return ctx.obj["data_manager"]
-
-
-def initialize_cache(cache_dir: Path) -> None:
-    """
-    Ensures the cache directory exists while avoiding creating system-managed directories.
-
-    :param cache_dir: The full path to the cache directory (e.g., ~/Library/Caches/Patcher).
-    :type cache_dir: ~pathlib.Path
-    """
-    log = LogMe(inspect.currentframe().f_code.co_name)
-
-    parent_dir = cache_dir.parent
-    if not parent_dir.exists():
-        log.warning(f"Parent directory {parent_dir} does not exist. Skipping cache setup.")
-        return
-
-    try:
-        cache_dir.mkdir(parents=False, exist_ok=True)
-        log.debug(f"Cache directory initialized at {cache_dir}")
-    except OSError as err:
-        log.warning(f"Failed to initialize cache directory. Details: {err}")
-        return
-
-
-def warning_format(message, category, filename, lineno, file=None, line=None):
-    return f"{category.__name__}: {message}\n"
-
-
-def _install_cli_process_hooks() -> None:
-    """
-    Apply process-wide side effects scoped to a CLI invocation.
-
-    Kept inside the ``cli()`` callback rather than at module import time so
-    importing ``patcher.cli.setup`` (or anything else under ``patcher.cli``)
-    from library code does not mutate ``sys.excepthook`` or the global
-    warnings filter as a side effect.
-    """
-    install_terminal_excepthook()
-    warnings.simplefilter("always", InstallomatorWarning)
-    warnings.formatwarning = warning_format
 
 
 # Entry
@@ -375,8 +154,8 @@ async def cli(
         initialize_cache(cache_dir)
 
     # Non-interactive mode is engaged when all three credentials are present
-    # (via flags or PATCHER_* env vars). In that mode we bypass the keychain
-    # and skip every interactive prompt.
+    # (via flags or PATCHER_* env vars). Bypass the keychain and skip every
+    # interactive prompt.
     noninteractive = bool(client_id and client_secret and url)
 
     config_manager = ConfigManager(in_memory_credentials={}) if noninteractive else ConfigManager()
@@ -387,24 +166,20 @@ async def cli(
         "disable_cache": disable_cache,
         "noninteractive": noninteractive,
         "log": LogMe(__name__),
-        "plist_manager": PropertylistManager(),
+        "settings": PatcherSettings.load(),
         "config": config_manager,
-        "ui_config": UIConfigManager(),
     }
 
-    setup = Setup(ctx.obj.get("config"), ctx.obj.get("ui_config"), ctx.obj.get("plist_manager"))
+    setup = Setup(ctx.obj.get("config"), ctx.obj.get("settings"))
     ctx.obj["setup"] = setup
 
     # Check Setup completion
     with status("Processing", enabled=not debug) as spinner:
-        if not noninteractive and ctx.obj.get("plist_manager").needs_migration():
-            ctx.obj.get("plist_manager").migrate_plist()
-
         # Warn on Python interpreter mismatch. Keychain writes (e.g. token refresh)
         # may fail with errSecInvalidOwnerEdit, but reads work fine so don't block:
         # the run may succeed entirely if no write is needed. See #68.
         if not noninteractive and setup.completed and not fresh:
-            recorded_interpreter = ctx.obj.get("plist_manager").get("interpreter_path")
+            recorded_interpreter = ctx.obj.get("settings").interpreter_path
             if recorded_interpreter and recorded_interpreter != sys.executable:
                 err_console.print(
                     f"Warning: Patcher was set up under a different Python interpreter:\n"
@@ -472,14 +247,13 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
     """
     log = ctx.obj.get("log")
     config = ctx.obj.get("config")
-    ui_config = ctx.obj.get("ui_config")
     setup = ctx.obj.get("setup")
     debug = ctx.obj.get("debug")
     disable_cache = ctx.obj.get("disable_cache")
 
     reset_steps: list[tuple[str, Callable[[], bool]]] = [
         ("Resetting credentials...", config.reset_config),
-        ("Resetting UI configuration...", ui_config.reset_config),
+        ("Resetting UI configuration...", setup.reset_ui_config),
         ("Resetting setup state...", setup.reset_setup),
     ]
 
@@ -510,12 +284,13 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
         elif kind.lower() == "ui":
             log.info("Resetting UI elements...")
             spinner.update("Resetting UI configuration...")
-            if ui_config.reset_config():
-                spinner.update("Prompting for new UI settings...")
+            if setup.reset_ui_config():
+                spinner.stop()  # prompt_ui_settings prompts; a live spinner swallows input
                 await setup.prompt_ui_settings()
         elif kind.lower() == "creds":
             log.info(f"Resetting credentials... (specific: {credential if credential else 'all'})")
             spinner.update(f"Resetting credentials ({credential if credential else 'all'})...")
+            spinner.stop()  # prompts below can't run under a live spinner (input hangs)
 
             # Keyring automatically overwrites existing passwords if key and service_name are the same.
             # This allows us to just call the set_credential method instead of having to delete existing
@@ -530,7 +305,9 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
                     spinner.update("Saving Client ID to keychain...")
                     config.set_credential("CLIENT_ID", new_client_id)
                 case "client_secret":
-                    new_client_secret = await click.prompt("Enter your API Client Secret")
+                    new_client_secret = await click.prompt(
+                        "Enter your API Client Secret", hide_input=True
+                    )
                     spinner.update("Saving Client Secret to keychain...")
                     config.set_credential("CLIENT_SECRET", new_client_secret)
                 case None:
@@ -538,7 +315,9 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
                     cred_map = {
                         "URL": await click.prompt("Enter your Jamf Pro URL"),
                         "CLIENT_ID": await click.prompt("Enter your API Client ID"),
-                        "CLIENT_SECRET": await click.prompt("Enter your API Client Secret"),
+                        "CLIENT_SECRET": await click.prompt(
+                            "Enter your API Client Secret", hide_input=True
+                        ),
                     }
                     for k, v in cred_map.items():
                         spinner.update(f"Saving {k} to keychain...")
@@ -648,7 +427,7 @@ async def export(
 
     .. seealso::
 
-        - :meth:`~patcher.cli.report.process_reports`
+        - :meth:`~patcher.cli._helpers.process_reports`
         - :attr:`~patcher.clients.HTTPClient.max_concurrency`
         - :ref:`export`
 
@@ -673,31 +452,31 @@ async def export(
     :param homebrew: If True, also match titles against the Homebrew Cask catalog and add a Homebrew coverage column to reports.
     :type homebrew: bool
     """
-    ui_config, plist_manager = ctx.obj.get("ui_config"), ctx.obj.get("plist_manager")
+    settings = ctx.obj.get("settings")
 
     patcher = PatcherClient(
         config=ctx.obj.get("config"),
         concurrency=concurrency,
         disable_cache=ctx.obj.get("disable_cache"),
         debug=ctx.obj.get("debug"),
-        enable_installomator=bool(plist_manager.get("enable_installomator")),
+        enable_matching=settings.enable_matching,
         enable_homebrew=homebrew,
-        ui_config=ui_config.config,
+        ui_config=settings.user_interface_settings.model_dump(),
+        ignored_titles=settings.ignored_titles,
     )
     ctx.obj["data_manager"] = patcher.data  # Store in context for analyze
 
     selected_formats = set(formats) if formats else {"excel", "html", "pdf", "json"}
     actual_format = DATE_FORMATS[date_format]
 
-    # The PDF report renders header text, footer text, and (optionally) a
-    # logo straight from the UI configuration. Other formats (excel,
-    # html, json) don't read UI config at all. If a PDF is on the menu
-    # but UI config is still at its defaults, the resulting PDF will show
-    # the "Default header text" placeholders, so warn the user up front.
+    # Only the PDF format reads UI config (header/footer/logo); if a PDF is
+    # requested while UI config is still at defaults, it renders placeholder
+    # text, so warn up front.
     if "pdf" in selected_formats:
         defaults = UIDefaults().model_dump()
         ui_at_defaults = all(
-            ui_config.config.get(key) == defaults.get(key) for key in ("header_text", "footer_text")
+            getattr(settings.user_interface_settings, key) == defaults.get(key)
+            for key in ("header_text", "footer_text")
         )
         if ui_at_defaults:
             log = ctx.obj.get("log")
@@ -841,7 +620,7 @@ async def analyze(
         return
 
     debug = ctx.obj.get("debug")
-    ui_config = ctx.obj.get("ui_config")
+    settings = ctx.obj.get("settings")
     data_manager = get_data_manager(ctx)
 
     with status("Processing", enabled=not debug) as spinner:
@@ -850,33 +629,17 @@ async def analyze(
         # hydration is parked for v3.0.1.
         _ = excel_file
 
+        # Spinner wraps the work only (compute + file writes); results render below.
+        summary_path = None
         if all_time:  # Analyze trends
             spinner.update(f"Calculating '{criteria}' trend across cached datasets...")
             trend_df = TrendAnalysis.apply(data_manager.get_cached_files(), criteria)
 
-            if trend_df.empty:
-                spinner.stop()
-                console.print(
-                    f"⚠️ No trend data available for criteria '{criteria}'.",
-                    style=WARNING_STYLE,
-                )
-                sys.exit(0)
-
-            spinner.update("Formatting trend results...")
-            formatted_table = format_table(
-                trend_df.values.tolist(), headers=trend_df.columns.tolist()
-            )
-            # markup=False: rendered tables contain literal brackets we must not parse as markup.
-            console.print(formatted_table, markup=False)
-
-            if summary:
+            if summary and not trend_df.empty:
+                spinner.update("Saving trend analysis report...")
+                summary_path = output_dir / f"trend-analysis-{criteria}.html"
                 try:
-                    spinner.update("Saving trend analysis report...")
-                    output_file = output_dir / f"trend-analysis-{criteria}.html"
-                    trend_df.to_html(output_file, index=False)
-                    console.print(
-                        f"✅ Trend analysis HTML saved to {output_file}.", style=SUCCESS_STYLE
-                    )
+                    trend_df.to_html(summary_path, index=False)
                 except (OSError, PermissionError, FileNotFoundError) as exc:
                     raise PatcherError(
                         "Unable to save trend analysis report as expected.",
@@ -901,56 +664,74 @@ async def analyze(
                 top_n=top_n,
                 where=where_kwargs or None,
             )
-            if len(filtered_titles) == 0:
-                spinner.stop()
-                console.print(
-                    f"⚠️ No PatchTitle objects meet criteria {criteria}", style=WARNING_STYLE
-                )
-                sys.exit(0)
 
-            spinner.update("Formatting filtered results...")
-            table_data = [
-                [
-                    t.title,
-                    t.released,
-                    t.hosts_patched,
-                    t.missing_patch,
-                    t.latest_version,
-                    t.completion_percent,
-                    t.total_hosts,
-                    "Y" if t.install_label else "N",
-                ]
-                for t in filtered_titles
-            ]
-            headers = [
-                "Title",
-                "Released",
-                "Hosts Patched",
-                "Missing Patch",
-                "Latest Version",
-                "Completion %",
-                "Total Hosts",
-                "Label Available (Y/N)",
-            ]
-            formatted_table = format_table(table_data, headers)
-            console.print(formatted_table, markup=False)
-
-        if summary and not all_time:
-            try:
+            if summary and len(filtered_titles) > 0:
                 spinner.update("Writing HTML summary report...")
-                exported = await data_manager.export(
-                    filtered_titles,
-                    output_dir,
-                    report_title=ui_config.config.get("header_text"),
-                    analysis=True,
-                    formats={"html"},
-                )
-            except (OSError, PermissionError, FileNotFoundError) as exc:
-                raise PatcherError(
-                    "Unable to save summary report as expected.", path=exported, error_msg=str(exc)
-                )
-            output_paths = "\n".join(list(exported.values()))
-            console.print(f"✅ HTML summary saved to {output_paths}", style=SUCCESS_STYLE)
+                try:
+                    exported = await data_manager.export(
+                        filtered_titles,
+                        output_dir,
+                        report_title=settings.user_interface_settings.header_text,
+                        analysis=True,
+                        formats={"html"},
+                    )
+                except (OSError, PermissionError, FileNotFoundError) as exc:
+                    raise PatcherError(
+                        "Unable to save summary report as expected.",
+                        path=output_dir,
+                        error_msg=str(exc),
+                    )
+                summary_path = "\n".join(list(exported.values()))
+
+    if all_time:
+        if trend_df.empty:
+            console.print(
+                f"⚠️ No trend data available for criteria '{criteria}'.", style=WARNING_STYLE
+            )
+            sys.exit(0)
+        console.print(build_table(trend_df.values.tolist(), headers=trend_df.columns.tolist()))
+        if summary_path is not None:
+            console.print(f"✅ Trend analysis HTML saved to {summary_path}.", style=SUCCESS_STYLE)
+    else:
+        if len(filtered_titles) == 0:
+            console.print(f"⚠️ No PatchTitle objects meet criteria {criteria}", style=WARNING_STYLE)
+            sys.exit(0)
+
+        console.print(build_fleet_summary(data_manager.titles, threshold))
+
+        table_data = [
+            [
+                t.title,
+                t.released,
+                t.hosts_patched,
+                t.missing_patch,
+                t.latest_version,
+                completion_text(t.completion_percent, threshold),
+                t.total_hosts,
+                "Y" if t.install_label else "N",
+            ]
+            for t in filtered_titles
+        ]
+        headers = [
+            "Title",
+            "Released",
+            "Patched",
+            "Missing",
+            "Version",
+            "Completion %",
+            "Total",
+            "Label",
+        ]
+        justify = ["left", "left", "right", "right", "left", "right", "right", "center"]
+        caption = (
+            f"criteria={criteria}  ·  "
+            f"showing {len(filtered_titles)} of {len(data_manager.titles)} titles"
+        )
+        console.print(
+            build_table(table_data, headers, caption=caption, justify=justify, lines=True)
+        )
+        if summary_path is not None:
+            console.print(f"✅ HTML summary saved to {summary_path}", style=SUCCESS_STYLE)
 
 
 @cli.command(
@@ -1018,8 +799,7 @@ async def diff(
     :param output_format: ``text`` or ``json``.
     """
     debug = ctx.obj.get("debug")
-    plist_manager = ctx.obj.get("plist_manager")
-    ui_config = ctx.obj.get("ui_config")
+    settings = ctx.obj.get("settings")
     data_manager = get_data_manager(ctx)
 
     if list_snapshots:
@@ -1043,8 +823,9 @@ async def diff(
         config=ctx.obj.get("config"),
         disable_cache=ctx.obj.get("disable_cache"),
         debug=ctx.obj.get("debug"),
-        enable_installomator=bool(plist_manager.get("enable_installomator")),
-        ui_config=ui_config.config,
+        enable_matching=settings.enable_matching,
+        ui_config=settings.user_interface_settings.model_dump(),
+        ignored_titles=settings.ignored_titles,
     )
 
     with status("Processing", enabled=not debug) as spinner:
@@ -1065,8 +846,7 @@ async def diff(
         console.print_json(result.model_dump_json(indent=2))
         return
 
-    # markup=False: rendered diff tables contain literal brackets.
-    console.print(render_diff(result), markup=False)
+    console.print(render_diff(result))
 
 
 @cli.command(
@@ -1138,15 +918,15 @@ async def drift(
     :param output_format: ``text`` or ``json``.
     """
     debug = ctx.obj.get("debug")
-    plist_manager = ctx.obj.get("plist_manager")
-    ui_config = ctx.obj.get("ui_config")
+    settings = ctx.obj.get("settings")
 
     patcher = PatcherClient(
         config=ctx.obj.get("config"),
         disable_cache=ctx.obj.get("disable_cache"),
         debug=debug,
-        enable_installomator=bool(plist_manager.get("enable_installomator")),
-        ui_config=ui_config.config,
+        enable_matching=settings.enable_matching,
+        ui_config=settings.user_interface_settings.model_dump(),
+        ignored_titles=settings.ignored_titles,
     )
 
     with status("Processing", enabled=not debug) as spinner:
@@ -1175,12 +955,11 @@ async def drift(
         console.print(f"No drift detected for '{slug}'.")
         return
 
-    # markup=False: rendered drift tables contain literal brackets.
     if isinstance(result, DriftEntry):
-        console.print(render_drift_entry(result), markup=False)
+        console.print(render_drift_entry(result))
         return
 
-    console.print(render_drift(result), markup=False)
+    console.print(render_drift(result))
 
 
 if __name__ == "__main__":

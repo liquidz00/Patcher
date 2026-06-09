@@ -24,6 +24,8 @@ from ..core.models.jamf import ApiClientModel, ApiRoleModel
 
 
 class HTTPClient:
+    """Async HTTP client with OS-trust-store TLS and bounded concurrency for all API calls."""
+
     def __init__(self, max_concurrency: int = 5):
         """
         The HTTPClient class controls concurrency settings and secure connections for *all* API calls.

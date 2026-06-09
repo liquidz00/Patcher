@@ -14,6 +14,7 @@ For raw, lower-level access without ``PatcherClient``, see
 and :class:`patcher.clients.HTTPClient` (generic httpx with truststore).
 """
 
+import warnings
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Literal
@@ -35,11 +36,19 @@ from .exceptions import PatcherError
 from .logger import LogMe
 from .matching import match_titles
 from .models.patch import PatchTitle
-from .models.ui import UIConfigKeys, UIDefaults
-from .plist_manager import PropertylistManager
+from .models.settings import PatcherSettings, UIConfigKeys, UIDefaults
 
 
 class PatcherClient:
+    """
+    Patcher's top-level library entry point.
+
+    Composes the Jamf client, the catalog API client, and the data layer into
+    one object library callers instantiate directly (or build from on-disk
+    state via :meth:`from_state`). The CLI constructs the same object after its
+    ``Setup`` flow. Construction parameters are documented on :meth:`__init__`.
+    """
+
     def __init__(
         self,
         client_id: str | None = None,
@@ -50,9 +59,11 @@ class PatcherClient:
         concurrency: int = 5,
         disable_cache: bool = False,
         debug: bool = False,
-        enable_installomator: bool = True,
+        enable_matching: bool = True,
         enable_homebrew: bool = False,
         ui_config: dict | None = None,
+        ignored_titles: list[str] | None = None,
+        enable_installomator: bool | None = None,  # deprecated alias for enable_matching
     ):
         """
         Construct a ``PatcherClient`` with all collaborators wired up.
@@ -105,23 +116,30 @@ class PatcherClient:
         :param debug: Enables debug-mode handling in collaborators (notably
             disables the spinner animation when set in the CLI path).
         :type debug: bool
-        :param enable_installomator: If False, :attr:`api` is ``None`` and
-            Installomator-label matching (now sourced from the Patcher
-            API catalog) is skipped. Kept under the legacy name for
-            backward compatibility with existing CLI flags.
-        :type enable_installomator: bool
+        :param enable_matching: If False, :attr:`api` is ``None`` and all
+            catalog matching (Installomator labels and Homebrew Cask) is
+            skipped. Defaults to True.
+        :type enable_matching: bool
         :param enable_homebrew: Default for whether :meth:`fetch_patches`
             also matches titles against the Homebrew Cask source (a second
             matching dimension), populating
             :attr:`~patcher.core.models.patch.PatchTitle.homebrew_cask`. Has
             no effect when :attr:`api` is ``None`` (i.e.
-            ``enable_installomator=False``), since matching rides on the same
+            ``enable_matching=False``), since matching rides on the same
             catalog client. Defaults to False.
         :type enable_homebrew: bool
         :param ui_config: Optional dict of UI settings (header text,
             footer, font paths, header color, etc.) for PDF/HTML report
             styling. Defaults to :class:`UIDefaults` values.
         :type ui_config: dict | None
+        :param ignored_titles: Extra Jamf-title skip patterns merged with the
+            built-in :data:`~patcher.policy.IGNORED_TITLES` during matching.
+            Defaults to none.
+        :type ignored_titles: list[str] | None
+        :param enable_installomator: Deprecated alias for ``enable_matching``,
+            kept for backward compatibility. Emits a ``DeprecationWarning``
+            when passed; remove in favor of ``enable_matching``.
+        :type enable_installomator: bool | None
         :raises PatcherError: If neither credentials nor ``config`` are
             provided.
         """
@@ -141,15 +159,22 @@ class PatcherClient:
                 }
             )
 
+        if enable_installomator is not None:
+            warnings.warn(
+                "`enable_installomator` is deprecated; use `enable_matching` instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            enable_matching = enable_installomator
+
         self._config = config
         self.debug = debug
         self.jamf = JamfClient(config=config, concurrency=concurrency)
-        self.api = PatcherAPIClient(max_concurrency=concurrency) if enable_installomator else None
+        self.api = PatcherAPIClient(max_concurrency=concurrency) if enable_matching else None
         self.enable_homebrew = enable_homebrew
-        # Resolve ``ui_config`` before constructing ``DataManager`` so the
-        # PDF export pipeline (``DataManager._export_pdf`` → ``PDFReport``)
-        # has access to the user's configured header / footer / font / logo
-        # values rather than falling through to ``UIDefaults`` placeholders.
+        self.ignored_titles = ignored_titles or []
+        # Resolve ui_config before DataManager so the PDF export pipeline gets
+        # the user's header/footer/font/logo instead of UIDefaults placeholders.
         # See issue #69.
         self.ui_config = ui_config if ui_config is not None else UIDefaults().model_dump()
         self.data = DataManager(disable_cache=disable_cache, ui_config=self.ui_config)
@@ -160,7 +185,7 @@ class PatcherClient:
         Construct a ``PatcherClient`` using state already persisted on this Mac.
 
         Reads Jamf credentials from the macOS keychain, UI customization
-        from the property list, and the ``enable_installomator`` /
+        from the property list, and the ``enable_matching`` /
         ``enable_homebrew`` toggles.
         Equivalent to what the ``patcherctl`` CLI does on startup; useful
         for library callers running on a workstation that has already been
@@ -176,18 +201,15 @@ class PatcherClient:
         :raises PatcherError: If keychain credentials are missing (i.e.
             ``patcherctl`` setup hasn't completed on this machine).
         """
-        plist = PropertylistManager()
-        ui_settings = plist.get("UserInterfaceSettings")
-        enable_installomator = bool(plist.get("enable_installomator"))
-        enable_homebrew = bool(plist.get("enable_homebrew"))
+        settings = PatcherSettings.load()
 
         kwargs: dict[str, Any] = {
             "config": ConfigManager(),
-            "enable_installomator": enable_installomator,
-            "enable_homebrew": enable_homebrew,
+            "enable_matching": settings.enable_matching,
+            "enable_homebrew": settings.integrations.homebrew,
+            "ui_config": settings.user_interface_settings.model_dump(),
+            "ignored_titles": settings.ignored_titles,
         }
-        if ui_settings:
-            kwargs["ui_config"] = ui_settings
         kwargs.update(overrides)
 
         return cls(**kwargs)
@@ -217,7 +239,7 @@ class PatcherClient:
         :param match_installomator: If True (default), match each title to
             its Installomator label via the Patcher API catalog
             (:func:`~patcher.core.matching.match_titles`). No-op when
-            ``enable_installomator=False`` was passed at construction time.
+            ``enable_matching=False`` was passed at construction time.
         :type match_installomator: bool
         :param match_homebrew: Whether to also match titles against the
             Homebrew Cask source, populating
@@ -242,13 +264,23 @@ class PatcherClient:
         :raises PatcherError: If the Jamf API calls fail or sort_by names
             an attribute that doesn't exist on ``PatchTitle``.
         """
-        policies = await self.jamf.get_policies()
-        titles = await self.jamf.get_summaries(policies)
+        configs = await self.jamf.get_title_configs()
+        titles = await self.jamf.get_summaries([config.get("id") for config in configs])
+
+        name_id_by_title = {
+            config.get("softwareTitleId"): config.get("softwareTitleNameId") for config in configs
+        }
+        for title in titles:
+            title.name_id = name_id_by_title.get(title.title_id)
 
         if match_installomator and self.api is not None:
             include_homebrew = self.enable_homebrew if match_homebrew is None else match_homebrew
             await match_titles(
-                titles, jamf=self.jamf, api=self.api, include_homebrew=include_homebrew
+                titles,
+                jamf=self.jamf,
+                api=self.api,
+                include_homebrew=include_homebrew,
+                ignored_titles=self.ignored_titles,
             )
 
         if include_ios:
@@ -457,7 +489,7 @@ class PatcherClient:
         for that single app, or ``None`` if the app doesn't exist or has
         no drift.
 
-        Works without ``enable_installomator``; the catalog API is
+        Works without ``enable_matching``; the catalog API is
         constructed on demand when needed.
 
         .. versionadded:: 3.1
@@ -526,7 +558,7 @@ class PatcherClient:
             Defaults to ``"%B %d %Y"``.
         :type date_format: str
         :param header_color: Hex color for the HTML report header background.
-            Falls back to :attr:`~patcher.core.models.ui.UIDefaults.header_color` when ``None``.
+            Falls back to :attr:`~patcher.core.models.settings.UIDefaults.header_color` when ``None``.
         :type header_color: str | None
         :param analysis: If True, treats this as an analysis report (affects
             HTML output path naming).
@@ -595,8 +627,6 @@ class PatcherClient:
                 "this client was constructed with in-memory credentials.",
             )
 
-        plist = PropertylistManager()
-
         if kind == "creds":
             if credential is None:
                 self._config.reset_config()
@@ -611,13 +641,17 @@ class PatcherClient:
             return
 
         if kind == "UI":
-            plist.remove("UserInterfaceSettings")
+            settings = PatcherSettings.load()
+            settings.user_interface_settings = UIDefaults()
+            settings.save()
             return
 
         if kind == "full":
             self._config.reset_config()
-            plist.remove("UserInterfaceSettings")
-            plist.remove("setup_completed")
+            settings = PatcherSettings.load()
+            settings.user_interface_settings = UIDefaults()
+            settings.setup_completed = False
+            settings.save()
             self.data.reset_cache()
             return
 

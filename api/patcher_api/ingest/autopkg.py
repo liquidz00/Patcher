@@ -24,9 +24,9 @@ from typing import Any
 
 import httpx
 from pydantic import ValidationError
-from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher_api.db import upsert_stmt
 from patcher_api.models.autopkg import AutopkgRecipe
 from patcher_api.schemas.autopkg import AutopkgIndexEntry
 
@@ -123,7 +123,9 @@ async def ingest_autopkg_index(
             continue
 
         now = datetime.now(UTC)
-        stmt = insert(AutopkgRecipe).values(
+        stmt = upsert_stmt(
+            AutopkgRecipe,
+            index_elements=["identifier"],
             identifier=identifier,
             name=record.name,
             shortname=record.shortname,
@@ -134,20 +136,6 @@ async def ingest_autopkg_index(
             description=record.description,
             raw=entry,
             ingested_at=now,
-        )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["identifier"],
-            set_={
-                "name": stmt.excluded.name,
-                "shortname": stmt.excluded.shortname,
-                "repo": stmt.excluded.repo,
-                "path": stmt.excluded.path,
-                "parent_identifier": stmt.excluded.parent_identifier,
-                "inferred_type": stmt.excluded.inferred_type,
-                "description": stmt.excluded.description,
-                "raw": stmt.excluded.raw,
-                "ingested_at": stmt.excluded.ingested_at,
-            },
         )
         await session.execute(stmt)
         ingested += 1

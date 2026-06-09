@@ -1,3 +1,5 @@
+"""Model for an Installomator label (the matched install recipe)."""
+
 from typing import Any
 
 from pydantic import Field, field_validator
@@ -90,7 +92,7 @@ class Label(UpstreamModel):
     def validate_team_id(cls, v):
         if v is None:
             return None
-        if v in "Software Update":
+        if v == "Software Update":
             return v  # Apple software/tools
         if len(v) != 10:
             raise PatcherError("expected_team_id must be a 10-character string", team_id=v)

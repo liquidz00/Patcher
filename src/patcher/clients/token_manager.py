@@ -1,3 +1,5 @@
+"""OAuth bearer-token lifecycle for the Jamf Pro API."""
+
 import asyncio
 from datetime import datetime, timedelta, timezone
 
@@ -12,6 +14,8 @@ from . import HTTPClient
 
 
 class TokenManager:
+    """Acquires, caches, validates, and refreshes the Jamf Pro bearer token."""
+
     def __init__(self, config: ConfigManager):
         """
         The ``TokenManager`` class handles all operations related to the token lifecycle, including fetching,
@@ -29,6 +33,10 @@ class TokenManager:
         self._client = None  # lazy load creds
         self._token = None
         self.lock = asyncio.Lock()
+
+    async def aclose(self) -> None:
+        """Release the HTTP connection pool used for token requests."""
+        await self.api_client.aclose()
 
     @property
     def client(self):

@@ -17,7 +17,7 @@ from packaging.version import InvalidVersion, Version
 
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
-from patcher_api.schemas.drift import DriftEntry, SourceVersion
+from patcher_api.schemas.drift import DriftEntry, DriftResponse, SourceVersion
 
 VERSIONED_SOURCES: tuple[str, ...] = ("installomator", "homebrew_cask")
 
@@ -180,3 +180,30 @@ def _all_equivalent(
         else:
             return False
     return True
+
+
+def scan_drift(rows: list[AppRow], *, source: str | None, limit: int, offset: int) -> DriftResponse:
+    """
+    Scan already-fetched app rows for cross-source version drift.
+
+    Shared by the REST ``/apps/drift`` route and the MCP ``list_drift`` tool.
+    """
+    total_scanned = 0
+    all_entries: list[DriftEntry] = []
+    for row in rows:
+        detail = row.source_detail
+        if len(extract_versions(detail)) < 2:
+            continue
+        total_scanned += 1
+        entry = detect_drift(row, detail)
+        if entry is None:
+            continue
+        if source is not None and source not in {sv.source for sv in entry.versions}:
+            continue
+        all_entries.append(entry)
+    page = all_entries[offset : offset + limit]
+    return DriftResponse(
+        total_scanned=total_scanned,
+        total_with_drift=len(all_entries),
+        entries=page,
+    )

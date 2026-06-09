@@ -67,8 +67,17 @@ The property list at `~/Library/Application Support/Patcher/com.liquidzoo.patche
 `setup_completed`
 : Setup completion
 
-`enable_installomator`
-: Installomator toggle
+`enable_matching`
+: Master matching toggle (renamed from `enable_installomator` in v3.3.0)
+
+`enable_caching`
+: Patch-data cache toggle
+
+`integrations`
+: Per-source matching dict (`installomator`, `homebrew`, `autopkg`, `jai`)
+
+`ignored_titles`
+: Jamf-title patterns (`fnmatch` syntax) to skip during matching
 
 `interpreter_path`
 : Python interpreter path initially used to store credentials in Keychain
@@ -83,9 +92,9 @@ For customization commands, see {doc}`customizing reports </getting-started/cust
 
 (installomator_support)=
 
-#### Installomator Toggle
+#### Matching Toggle
 
-The `enable_installomator` boolean controls whether Patcher matches Jamf titles against Installomator labels. When false, the package skips Installomator-sourced matching entirely on every invocation. See {ref}`disabling_installomator_support` for the full behavior breakdown and the command to flip it.
+The `enable_matching` boolean is the master switch for catalog matching: when false, Patcher skips all source matching on every invocation and the `install_label` field on every {class}`~patcher.core.models.patch.PatchTitle` stays empty. The `integrations` dict toggles individual sources (`installomator`, `homebrew`) when matching is on. See {ref}`disabling_installomator_support` for the full behavior breakdown and the command to flip it.
 
 #### Full Example
 
@@ -117,8 +126,23 @@ The `enable_installomator` boolean controls whether Patcher matches Jamf titles 
     </dict>
     <key>setup_completed</key>
     <true/>
-    <key>enable_installomator</key>
+    <key>enable_matching</key>
     <true/>
+    <key>enable_caching</key>
+    <true/>
+    <key>integrations</key>
+    <dict>
+        <key>installomator</key>
+        <true/>
+        <key>homebrew</key>
+        <false/>
+        <key>autopkg</key>
+        <false/>
+        <key>jai</key>
+        <false/>
+    </dict>
+    <key>ignored_titles</key>
+    <array/>
     <key>interpreter_path</key>
     <string>/usr/local/bin/managed_python3</string>
 </dict>

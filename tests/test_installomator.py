@@ -23,7 +23,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from src.patcher.clients import HTTPClient
-from src.patcher.clients.installomator import InstallomatorClient
+from src.patcher.clients.installomator import InstallomatorClient, _scan_value
 from src.patcher.core.exceptions import APIResponseError
 
 
@@ -62,216 +62,228 @@ def iom(tmp_path: Path) -> InstallomatorClient:
     return instance
 
 
-def test_bare_construction_does_not_require_jamf_creds() -> None:
-    """
-    ``InstallomatorClient()`` with no args must construct cleanly even when no
-    Jamf credentials exist anywhere (keyring, in-memory, env). Library callers
-    using the client purely for label discovery / fetch shouldn't have to
-    stand up Jamf auth they don't need.
-    """
-    from src.patcher.clients import HTTPClient
-
-    iom = InstallomatorClient()
-    assert isinstance(iom.api, HTTPClient)
-
-
-@pytest.mark.asyncio
-async def test_list_available_labels_parses_labels_txt(iom: InstallomatorClient) -> None:
-    iom.api.fetch_text.return_value = "googlechrome\n1password8\nzulujdk8\n"
-
-    result = await iom.list_available_labels()
-
-    assert result == {"googlechrome", "1password8", "zulujdk8"}
-    iom.api.fetch_text.assert_called_once()
-    # Verify the URL we hit is the explicit refs/heads/main form
-    called_url = iom.api.fetch_text.call_args[0][0]
-    assert "Labels.txt" in called_url
-    assert "refs/heads/main" in called_url
-
-
-@pytest.mark.asyncio
-async def test_list_available_labels_ignores_blank_and_comment_lines(
-    iom: InstallomatorClient,
-) -> None:
-    iom.api.fetch_text.return_value = "# comment\ngooglechrome\n\n1password8\n   \n"
-
-    result = await iom.list_available_labels()
-
-    assert result == {"googlechrome", "1password8"}
-
-
-@pytest.mark.asyncio
-async def test_list_available_labels_caches_result(iom: InstallomatorClient) -> None:
-    iom.api.fetch_text.return_value = "googlechrome\n"
-
-    first = await iom.list_available_labels()
-    second = await iom.list_available_labels()
-
-    assert first == second
-    assert iom.api.fetch_text.call_count == 1  # cached on the instance
-
-
-@pytest.mark.asyncio
-async def test_list_available_labels_raises_on_fetch_failure(iom: InstallomatorClient) -> None:
-    from src.patcher.core.exceptions import PatcherError
-
-    iom.api.fetch_text.side_effect = APIResponseError(
-        "Server error", url="https://example.com/Labels.txt", status_code=500
+class TestInstallomatorClient:
+    @pytest.mark.parametrize(
+        "value",
+        [
+            '"a\\"b"',  # escaped double-quote inside double quotes
+            '"$(curl "x")"',  # $(...) re-opens quoting inside dq; the inner " must not close it
+            '"`sw_vers`"',  # backtick command-sub inside double quotes
+        ],
     )
+    def test_scan_value_keeps_nested_quoting_whole(self, value):
+        """The shell tokenizer captures a quoted value intact across nested contexts."""
+        assert _scan_value(f"{value} trailing") == value
 
-    with pytest.raises(PatcherError, match="Labels.txt"):
-        await iom.list_available_labels()
+    def test_bare_construction_does_not_require_jamf_creds(self) -> None:
+        """
+        ``InstallomatorClient()`` with no args must construct cleanly even when no
+        Jamf credentials exist anywhere (keyring, in-memory, env). Library callers
+        using the client purely for label discovery / fetch shouldn't have to
+        stand up Jamf auth they don't need.
+        """
+        from src.patcher.clients import HTTPClient
 
-
-@pytest.mark.asyncio
-async def test_get_label_fetches_and_caches(iom: InstallomatorClient) -> None:
-    iom.api.fetch_text.return_value = _sample_fragment()
-
-    label = await iom.get_label("googlechrome")
-
-    assert label is not None
-    assert label.name == "Google Chrome"
-    assert label.installomator_label == "googlechrome"
-    # Cached on instance: subsequent call doesn't refetch
-    label_again = await iom.get_label("googlechrome")
-    assert label_again is label
-    assert iom.api.fetch_text.call_count == 1
+        iom = InstallomatorClient()
+        assert isinstance(iom.api, HTTPClient)
 
 
-@pytest.mark.asyncio
-async def test_get_label_writes_to_disk_cache(iom: InstallomatorClient) -> None:
-    iom.api.fetch_text.return_value = _sample_fragment()
+class TestListAvailableLabels:
+    @pytest.mark.asyncio
+    async def test_list_available_labels_parses_labels_txt(self, iom: InstallomatorClient) -> None:
+        iom.api.fetch_text.return_value = "googlechrome\n1password8\nzulujdk8\n"
 
-    await iom.get_label("googlechrome")
+        result = await iom.list_available_labels()
 
-    cached_path = iom.label_path / "googlechrome.sh"
-    assert cached_path.exists()
-    assert "Google Chrome" in cached_path.read_text()
+        assert result == {"googlechrome", "1password8", "zulujdk8"}
+        iom.api.fetch_text.assert_called_once()
+        # Verify the URL we hit is the explicit refs/heads/main form
+        called_url = iom.api.fetch_text.call_args[0][0]
+        assert "Labels.txt" in called_url
+        assert "refs/heads/main" in called_url
 
+    @pytest.mark.asyncio
+    async def test_list_available_labels_ignores_blank_and_comment_lines(
+        self,
+        iom: InstallomatorClient,
+    ) -> None:
+        iom.api.fetch_text.return_value = "# comment\ngooglechrome\n\n1password8\n   \n"
 
-@pytest.mark.asyncio
-async def test_get_label_reads_from_disk_cache_first(iom: InstallomatorClient) -> None:
-    iom.label_path.mkdir(parents=True, exist_ok=True)
-    (iom.label_path / "googlechrome.sh").write_text(_sample_fragment())
+        result = await iom.list_available_labels()
 
-    label = await iom.get_label("googlechrome")
+        assert result == {"googlechrome", "1password8"}
 
-    assert label is not None
-    assert label.name == "Google Chrome"
-    iom.api.fetch_text.assert_not_called()
+    @pytest.mark.asyncio
+    async def test_list_available_labels_caches_result(self, iom: InstallomatorClient) -> None:
+        iom.api.fetch_text.return_value = "googlechrome\n"
 
+        first = await iom.list_available_labels()
+        second = await iom.list_available_labels()
 
-@pytest.mark.asyncio
-async def test_get_label_returns_none_on_404(iom: InstallomatorClient) -> None:
-    iom.api.fetch_text.side_effect = APIResponseError(
-        "Not found", url="https://example.com/x.sh", status_code=404, not_found=True
-    )
+        assert first == second
+        assert iom.api.fetch_text.call_count == 1  # cached on the instance
 
-    label = await iom.get_label("nonexistent-app")
+    @pytest.mark.asyncio
+    async def test_list_available_labels_raises_on_fetch_failure(
+        self, iom: InstallomatorClient
+    ) -> None:
+        from src.patcher.core.exceptions import PatcherError
 
-    assert label is None
+        iom.api.fetch_text.side_effect = APIResponseError(
+            "Server error", url="https://example.com/Labels.txt", status_code=500
+        )
 
-
-@pytest.mark.asyncio
-async def test_get_label_multi_assignment_first_wins_and_no_truncation(
-    iom: InstallomatorClient,
-) -> None:
-    """Issue #65: a key assigned twice + a nested ``)`` inside ``$( )``.
-
-    The label must still build (not be dropped by Pydantic for a list-valued
-    ``name``), use the first assignment, and keep the full downloadURL.
-    """
-    fragment = (
-        "adobereaderdc)\n"
-        '    name="Adobe Acrobat Reader"\n'
-        '    type="pkgInDmg"\n'
-        '    if [[ -d "/Applications/Adobe Acrobat Reader DC.app" ]]; then\n'
-        '      name="Adobe Acrobat Reader DC"\n'
-        "    fi\n"
-        "    downloadURL=$(curl -fs \"https://example.com/feed\" | sed -E 's/v([0-9.]+)/x/')\n"
-        '    expectedTeamID="JQ525L2MZD"\n'
-        "    ;;"
-    )
-    iom.api.fetch_text.return_value = fragment
-
-    label = await iom.get_label("adobereaderdc")
-
-    assert label is not None  # not silently dropped by validation
-    assert label.name == "Adobe Acrobat Reader"  # first assignment wins
-    assert label.download_url is not None
-    # nested ) inside ([0-9.]+) no longer truncates: brackets balance
-    assert label.download_url.count("(") == label.download_url.count(")")
-    assert label.download_url.rstrip().endswith(")")
+        with pytest.raises(PatcherError, match="Labels.txt"):
+            await iom.list_available_labels()
 
 
-@pytest.mark.asyncio
-async def test_get_label_returns_none_on_ignored_team_id(iom: InstallomatorClient) -> None:
-    # LL3KBL2M3A is in IGNORED_TEAMS (lcadvancedvpnclient)
-    iom.api.fetch_text.return_value = _sample_fragment(name="LC AdvancedVPN", team_id="LL3KBL2M3A")
+class TestGetLabel:
+    @pytest.mark.asyncio
+    async def test_get_label_fetches_and_caches(self, iom: InstallomatorClient) -> None:
+        iom.api.fetch_text.return_value = _sample_fragment()
 
-    label = await iom.get_label("lcadvancedvpnclient")
+        label = await iom.get_label("googlechrome")
 
-    assert label is None
+        assert label is not None
+        assert label.name == "Google Chrome"
+        assert label.installomator_label == "googlechrome"
+        # Cached on instance: subsequent call doesn't refetch
+        label_again = await iom.get_label("googlechrome")
+        assert label_again is label
+        assert iom.api.fetch_text.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_get_label_writes_to_disk_cache(self, iom: InstallomatorClient) -> None:
+        iom.api.fetch_text.return_value = _sample_fragment()
+
+        await iom.get_label("googlechrome")
+
+        cached_path = iom.label_path / "googlechrome.sh"
+        assert cached_path.exists()
+        assert "Google Chrome" in cached_path.read_text()
+
+    @pytest.mark.asyncio
+    async def test_get_label_reads_from_disk_cache_first(self, iom: InstallomatorClient) -> None:
+        iom.label_path.mkdir(parents=True, exist_ok=True)
+        (iom.label_path / "googlechrome.sh").write_text(_sample_fragment())
+
+        label = await iom.get_label("googlechrome")
+
+        assert label is not None
+        assert label.name == "Google Chrome"
+        iom.api.fetch_text.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_label_returns_none_on_404(self, iom: InstallomatorClient) -> None:
+        iom.api.fetch_text.side_effect = APIResponseError(
+            "Not found", url="https://example.com/x.sh", status_code=404, not_found=True
+        )
+
+        label = await iom.get_label("nonexistent-app")
+
+        assert label is None
+
+    @pytest.mark.asyncio
+    async def test_get_label_multi_assignment_first_wins_and_no_truncation(
+        self,
+        iom: InstallomatorClient,
+    ) -> None:
+        """Issue #65: a key assigned twice + a nested ``)`` inside ``$( )``.
+
+        The label must still build (not be dropped by Pydantic for a list-valued
+        ``name``), use the first assignment, and keep the full downloadURL.
+        """
+        fragment = (
+            "adobereaderdc)\n"
+            '    name="Adobe Acrobat Reader"\n'
+            '    type="pkgInDmg"\n'
+            '    if [[ -d "/Applications/Adobe Acrobat Reader DC.app" ]]; then\n'
+            '      name="Adobe Acrobat Reader DC"\n'
+            "    fi\n"
+            "    downloadURL=$(curl -fs \"https://example.com/feed\" | sed -E 's/v([0-9.]+)/x/')\n"
+            '    expectedTeamID="JQ525L2MZD"\n'
+            "    ;;"
+        )
+        iom.api.fetch_text.return_value = fragment
+
+        label = await iom.get_label("adobereaderdc")
+
+        assert label is not None  # not silently dropped by validation
+        assert label.name == "Adobe Acrobat Reader"  # first assignment wins
+        assert label.download_url is not None
+        # nested ) inside ([0-9.]+) no longer truncates: brackets balance
+        assert label.download_url.count("(") == label.download_url.count(")")
+        assert label.download_url.rstrip().endswith(")")
+
+    @pytest.mark.asyncio
+    async def test_get_label_returns_none_on_ignored_team_id(
+        self, iom: InstallomatorClient
+    ) -> None:
+        # LL3KBL2M3A is in INGEST_EXCLUDED_TEAM_IDS (lcadvancedvpnclient)
+        iom.api.fetch_text.return_value = _sample_fragment(
+            name="LC AdvancedVPN", team_id="LL3KBL2M3A"
+        )
+
+        label = await iom.get_label("lcadvancedvpnclient")
+
+        assert label is None
+
+    @pytest.mark.asyncio
+    async def test_get_label_is_case_insensitive(self, iom: InstallomatorClient) -> None:
+        iom.api.fetch_text.return_value = _sample_fragment()
+
+        label_lower = await iom.get_label("googlechrome")
+        label_upper = await iom.get_label("GOOGLECHROME")
+
+        assert label_lower is label_upper  # same cached instance
 
 
-@pytest.mark.asyncio
-async def test_get_label_is_case_insensitive(iom: InstallomatorClient) -> None:
-    iom.api.fetch_text.return_value = _sample_fragment()
+class TestGetLabels:
+    @pytest.mark.asyncio
+    async def test_get_labels_with_explicit_names(self, iom: InstallomatorClient) -> None:
+        iom.api.fetch_text.return_value = _sample_fragment()
 
-    label_lower = await iom.get_label("googlechrome")
-    label_upper = await iom.get_label("GOOGLECHROME")
+        labels = await iom.get_labels({"googlechrome", "firefox"})
 
-    assert label_lower is label_upper  # same cached instance
+        assert len(labels) == 2
+        assert iom.api.fetch_text.call_count == 2  # one per name
 
+    @pytest.mark.asyncio
+    async def test_get_labels_with_none_fetches_all(self, iom: InstallomatorClient) -> None:
+        """When `names=None`, fetches every label listed in Labels.txt."""
 
-@pytest.mark.asyncio
-async def test_get_labels_with_explicit_names(iom: InstallomatorClient) -> None:
-    iom.api.fetch_text.return_value = _sample_fragment()
-
-    labels = await iom.get_labels({"googlechrome", "firefox"})
-
-    assert len(labels) == 2
-    assert iom.api.fetch_text.call_count == 2  # one per name
-
-
-@pytest.mark.asyncio
-async def test_get_labels_with_none_fetches_all(iom: InstallomatorClient) -> None:
-    """When `names=None`, fetches every label listed in Labels.txt."""
-
-    async def fetch_text_side_effect(url: str, **kwargs) -> str:
-        if url.endswith("/Labels.txt"):
-            return "googlechrome\nfirefox\n"
-        return _sample_fragment()
-
-    iom.api.fetch_text.side_effect = fetch_text_side_effect
-
-    labels = await iom.get_labels()
-
-    assert len(labels) == 2
-    # 1 call for Labels.txt + 2 fragment fetches
-    assert iom.api.fetch_text.call_count == 3
-
-
-@pytest.mark.asyncio
-async def test_get_labels_with_empty_iterable(iom: InstallomatorClient) -> None:
-    labels = await iom.get_labels([])
-
-    assert labels == []
-    iom.api.fetch_text.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_get_labels_skips_failed_fetches(iom: InstallomatorClient) -> None:
-    """A failed fetch for one label doesn't break the batch."""
-
-    async def fetch_text_side_effect(url: str, **kwargs) -> str:
-        if "googlechrome.sh" in url:
+        async def fetch_text_side_effect(url: str, **kwargs) -> str:
+            if url.endswith("/Labels.txt"):
+                return "googlechrome\nfirefox\n"
             return _sample_fragment()
-        raise APIResponseError("Not found", url=url, status_code=404, not_found=True)
 
-    iom.api.fetch_text.side_effect = fetch_text_side_effect
+        iom.api.fetch_text.side_effect = fetch_text_side_effect
 
-    labels = await iom.get_labels(["googlechrome", "nonexistent"])
+        labels = await iom.get_labels()
 
-    assert len(labels) == 1
-    assert labels[0].name == "Google Chrome"
+        assert len(labels) == 2
+        # 1 call for Labels.txt + 2 fragment fetches
+        assert iom.api.fetch_text.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_get_labels_with_empty_iterable(self, iom: InstallomatorClient) -> None:
+        labels = await iom.get_labels([])
+
+        assert labels == []
+        iom.api.fetch_text.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_labels_skips_failed_fetches(self, iom: InstallomatorClient) -> None:
+        """A failed fetch for one label doesn't break the batch."""
+
+        async def fetch_text_side_effect(url: str, **kwargs) -> str:
+            if "googlechrome.sh" in url:
+                return _sample_fragment()
+            raise APIResponseError("Not found", url=url, status_code=404, not_found=True)
+
+        iom.api.fetch_text.side_effect = fetch_text_side_effect
+
+        labels = await iom.get_labels(["googlechrome", "nonexistent"])
+
+        assert len(labels) == 1
+        assert labels[0].name == "Google Chrome"

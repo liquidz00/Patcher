@@ -74,17 +74,23 @@ class App(BaseModel):
 
 
 class InstallomatorSource(BaseModel):
+    """Client-side shape of an Installomator source payload."""
+
     label_name: str
     label_url: HttpUrl
     raw: dict[str, Any]
 
 
 class HomebrewCaskSource(BaseModel):
+    """Client-side shape of a Homebrew Cask source payload."""
+
     token: str
     cask_json: dict[str, Any]
 
 
 class AutopkgRecipeEntry(BaseModel):
+    """A single AutoPkg recipe entry within an AutoPkg source."""
+
     identifier: str
     name: str
     shortname: str
@@ -96,16 +102,22 @@ class AutopkgRecipeEntry(BaseModel):
 
 
 class AutopkgSource(BaseModel):
+    """Client-side shape of an AutoPkg source payload (a list of recipes)."""
+
     recipes: list[AutopkgRecipeEntry]
 
 
 class MasSource(BaseModel):
+    """Client-side shape of a Mac App Store source payload."""
+
     bundle_id: str
     store_url: HttpUrl | None = None
     raw: dict[str, Any]
 
 
 class JamfAppInstallerSource(BaseModel):
+    """Client-side shape of a Jamf App Installer source payload."""
+
     title: str
     source: str
     host: str | None = None
@@ -180,6 +192,8 @@ class DriftResponse(BaseModel):
 
 
 class PatcherAPIClient(HTTPClient):
+    """Read client for the Patcher catalog API (app lookups, sources, drift, the jamf-index)."""
+
     def __init__(
         self,
         base_url: str = DEFAULT_BASE_URL,
@@ -312,6 +326,20 @@ class PatcherAPIClient(HTTPClient):
 
         payload = await self._get("/apps/drift", params=params)
         return DriftResponse.model_validate(payload)
+
+    async def get_jamf_index(self) -> dict[str, list[str]]:
+        """
+        ``GET /apps/jamf-index`` — the Jamf softwareTitleNameId → slug index.
+
+        Maps each Jamf App Installer title code (e.g. ``"0B3"``) to the
+        catalog slugs that carry it. Used for deterministic, exact-code
+        matching of a customer's patch titles before any fuzzy fallback.
+
+        :return: Mapping of title code to the list of catalog slugs.
+        :raises APIResponseError: Network failure, non-2xx response, or
+            unparseable body.
+        """
+        return await self._get("/apps/jamf-index")
 
     async def get_app_drift(self, slug: str) -> DriftEntry | None:
         """

@@ -115,6 +115,35 @@
         }
       }
     },
+    "/apps/jamf-index": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Jamf Index",
+        "description": "Map each Jamf ``softwareTitleNameId`` to the catalog slug(s) it covers.\n\nTwo contributing passes, unioned:\n\n- **Jamf App Installer codes** \u2014 precise, bundle/name-stitched at ingest\n  time, read from ``app_source_detail.jamf_app_installer.jamf_id``.\n- **The full Jamf patch-title catalog** (``jamf_titles``) \u2014 every available\n  Patch Management title, matched to catalog apps by normalized name. This\n  extends coverage well beyond the App Installer subset.\n\nClients fetch this index once and resolve patch-title codes to catalog\nslugs locally.",
+        "operationId": "jamf_index_apps_jamf_index_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "type": "object",
+                  "title": "Response Jamf Index Apps Jamf Index Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/apps/drift": {
       "get": {
         "tags": [
@@ -532,7 +561,8 @@
           "name",
           "sources"
         ],
-        "title": "App"
+        "title": "App",
+        "description": "Public app record returned by ``/apps`` and ``/apps/{slug}``."
       },
       "AppSources": {
         "properties": {
@@ -588,7 +618,8 @@
           }
         },
         "type": "object",
-        "title": "AppSources"
+        "title": "AppSources",
+        "description": "Per-source detail payloads for one app slug; each is ``None`` when that source didn't contribute."
       },
       "AutopkgRecipeEntry": {
         "properties": {
@@ -853,7 +884,8 @@
           "sources_used",
           "warnings"
         ],
-        "title": "GenerateLabelResponse"
+        "title": "GenerateLabelResponse",
+        "description": "Response for the label-generation endpoint: structured label fields + any warnings."
       },
       "HTTPValidationError": {
         "properties": {
@@ -885,7 +917,8 @@
           "token",
           "cask_json"
         ],
-        "title": "HomebrewCaskSource"
+        "title": "HomebrewCaskSource",
+        "description": "Homebrew Cask source detail: the cask token and its raw JSON."
       },
       "InstallMethod": {
         "type": "string",
@@ -926,7 +959,8 @@
           "label_url",
           "raw"
         ],
-        "title": "InstallomatorSource"
+        "title": "InstallomatorSource",
+        "description": "Installomator source detail: label name, fragment URL, and the raw parsed fields."
       },
       "JamfAppInstallerSource": {
         "properties": {
@@ -1044,7 +1078,8 @@
           "bundle_id",
           "raw"
         ],
-        "title": "MasSource"
+        "title": "MasSource",
+        "description": "Mac App Store source detail: bundle id, store URL, and raw metadata."
       },
       "SourceCoverage": {
         "properties": {

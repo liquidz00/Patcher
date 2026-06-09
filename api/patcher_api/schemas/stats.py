@@ -1,3 +1,5 @@
+"""Response schemas for the ``/stats`` catalog-statistics endpoint."""
+
 from datetime import datetime
 
 from pydantic import BaseModel

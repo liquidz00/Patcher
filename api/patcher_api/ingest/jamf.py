@@ -17,19 +17,22 @@ Jamf's public dummy instance — so no specific tenant is required.
 import asyncio
 import logging
 from datetime import UTC, datetime
+from xml.etree import ElementTree as ET
 
 import httpx
-from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from patcher_api.models.jamf_app_installers import JamfAppInstaller
-from patcher_api.schemas.jamf_app_installers import JaiTitle, JaiTitlePage
+from patcher_api.db import upsert_stmt
+from patcher_api.models.jamf import JamfAppInstaller, JamfCatalogTitle
+from patcher_api.schemas.jamf import JaiTitle, JaiTitlePage, JamfTitle
 
 # Jamf Pro App Installers titles API. OAuth client-credentials token, then a
 # paginated sweep of the global title catalog.
 _JAI_OAUTH_PATH = "/api/oauth/token"
 _JAI_TITLES_PATH = "/api/v1/app-installers/titles"
 _JAI_PAGE_SIZE = 200
+_TITLES_PATH = "/JSSResource/patchavailabletitles/sourceid/1"
+
 # Bounded fan-out for per-title detail calls — enough to finish the ~few-hundred
 # titles inside the short token life, gentle enough not to trip rate limits.
 _JAI_DETAIL_CONCURRENCY = 10
@@ -37,7 +40,7 @@ _JAI_DETAIL_CONCURRENCY = 10
 log = logging.getLogger(__name__)
 
 
-async def _fetch_jai_token(
+async def _fetch_token(
     client: httpx.AsyncClient, base_url: str, client_id: str, client_secret: str
 ) -> str:
     """Exchange OAuth client credentials for a Jamf Pro bearer token (short-lived)."""
@@ -55,11 +58,18 @@ async def _fetch_jai_token(
 
 
 async def _auth_headers(
-    client: httpx.AsyncClient, base_url: str, client_id: str, client_secret: str
+    client: httpx.AsyncClient,
+    base_url: str,
+    client_id: str,
+    client_secret: str,
+    xml: bool = False,
 ) -> dict[str, str]:
     """Bearer auth headers for the titles API (one token covers a full sweep)."""
-    token = await _fetch_jai_token(client, base_url, client_id, client_secret)
-    return {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    token = await _fetch_token(client, base_url, client_id, client_secret)
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    if xml:
+        headers["Accept"] = "application/xml"
+    return headers
 
 
 async def _paginate_titles(
@@ -226,7 +236,9 @@ async def ingest_jai_titles(
         )
 
         now = datetime.now(UTC)
-        stmt = insert(JamfAppInstaller).values(
+        stmt = upsert_stmt(
+            JamfAppInstaller,
+            index_elements=["title"],
             title=title.title_name,
             source=source,
             host=host,
@@ -238,19 +250,52 @@ async def ingest_jai_titles(
             raw=title.model_dump(mode="json", by_alias=True),
             ingested_at=now,
         )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["title"],
-            set_={
-                "source": stmt.excluded.source,
-                "host": stmt.excluded.host,
-                "bundle_id": stmt.excluded.bundle_id,
-                "version": stmt.excluded.version,
-                "jamf_id": stmt.excluded.jamf_id,
-                "download_url": stmt.excluded.download_url,
-                "architecture": stmt.excluded.architecture,
-                "raw": stmt.excluded.raw,
-                "ingested_at": stmt.excluded.ingested_at,
-            },
+        await session.execute(stmt)
+        ingested += 1
+
+    await session.commit()
+    return ingested, 0
+
+
+async def fetch_catalog(
+    base_url: str,
+    client_id: str,
+    client_secret: str,
+    client: httpx.AsyncClient | None = None,
+) -> list[JamfTitle]:
+    base_url = base_url.rstrip("/")
+    owns_client = client is None
+    client = client or httpx.AsyncClient(timeout=30.0)
+
+    try:
+        headers = await _auth_headers(client, base_url, client_id, client_secret, xml=True)
+        response = await client.get(f"{base_url}{_TITLES_PATH}", headers=headers)
+        response.raise_for_status()
+        root = ET.fromstring(response.content)
+        titles = [{c.tag: c.text for c in t} for t in root.iter("available_title")]
+        return [JamfTitle.model_validate(i) for i in titles]
+    finally:
+        if owns_client:
+            await client.aclose()
+
+
+async def ingest_jamf_catalog(
+    session: AsyncSession,
+    titles: list[JamfTitle],
+) -> tuple[int, int]:
+    ingested = 0
+    for title in titles:
+        now = datetime.now(UTC)
+        stmt = upsert_stmt(
+            JamfCatalogTitle,
+            index_elements=["name_id"],
+            name_id=title.name_id,
+            app_name=title.app_name,
+            publisher=title.publisher,
+            current_version=title.current_version,
+            last_modified=title.last_modified,
+            raw=title.model_dump(mode="json"),
+            ingested_at=now,
         )
         await session.execute(stmt)
         ingested += 1

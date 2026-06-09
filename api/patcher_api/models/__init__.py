@@ -11,6 +11,6 @@ from patcher_api.models import (  # noqa: F401
     autopkg,
     homebrew,
     installomator,
-    jamf_app_installers,
+    jamf,
     mas,
 )

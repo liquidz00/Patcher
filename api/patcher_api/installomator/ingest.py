@@ -48,9 +48,10 @@ from typing import Any
 
 import httpx
 from sqlalchemy import select, update
-from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher.policy import INGEST_EXCLUDED_TEAM_IDS
+from patcher_api.db import upsert_stmt
 from patcher_api.installomator.parser import parse_fragment
 from patcher_api.installomator.resolver import (
     InvalidOutput,
@@ -63,7 +64,6 @@ from patcher_api.installomator.resolver import (
 from patcher_api.models.installomator import InstallomatorLabel
 
 __all__ = [
-    "IGNORED_TEAMS",
     "USER_CONTEXT_LABELS",
     "FetchPlan",
     "fetch_installomator_labels",
@@ -72,9 +72,6 @@ __all__ = [
     "refresh_dynamic_resolutions",
     "set_resolve_on_ingest",
 ]
-
-# Mirror existing IGNORED_TEAMS list
-IGNORED_TEAMS: set[str] = {"Frydendal", "Media", "LL3KBL2M3A"}
 
 # Labels whose downloadURL/appNewVersion resolve from the logged-in user's
 # context (language via runAsUser/launchctl) — unresolvable on a headless host,
@@ -312,7 +309,7 @@ async def ingest_installomator_labels(
     roll back the whole batch. Failures are logged + counted toward
     ``failed``; the run always reaches the end.
 
-    Labels whose ``expectedTeamID`` is in :data:`IGNORED_TEAMS` are skipped
+    Labels whose ``expectedTeamID`` is in :data:`~patcher.policy.INGEST_EXCLUDED_TEAM_IDS` are skipped
     (counted toward ``skipped``). Empty parse results (fragments that yielded
     no recognizable variable assignments) are also skipped.
 
@@ -357,7 +354,7 @@ async def ingest_installomator_labels(
         nonlocal resolve_completed
         async with resolve_semaphore:
             parsed = parse_fragment(content)
-            if not parsed or parsed.get("expectedTeamID") in IGNORED_TEAMS:
+            if not parsed or parsed.get("expectedTeamID") in INGEST_EXCLUDED_TEAM_IDS:
                 outcome = (name, None, None, None)
             else:
                 (
@@ -391,7 +388,9 @@ async def ingest_installomator_labels(
 
             try:
                 now = datetime.now(UTC)
-                stmt = insert(InstallomatorLabel).values(
+                stmt = upsert_stmt(
+                    InstallomatorLabel,
+                    index_elements=["name"],
                     name=name,
                     display_name=_scalar_for_column(parsed.get("name")),
                     install_type=_scalar_for_column(parsed.get("type")),
@@ -407,23 +406,6 @@ async def ingest_installomator_labels(
                     resolution_source=None,
                     resolved_at=None,
                     ingested_at=now,
-                )
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=["name"],
-                    set_={
-                        "display_name": stmt.excluded.display_name,
-                        "install_type": stmt.excluded.install_type,
-                        "package_id": stmt.excluded.package_id,
-                        "download_url": stmt.excluded.download_url,
-                        "expected_team_id": stmt.excluded.expected_team_id,
-                        "app_new_version": stmt.excluded.app_new_version,
-                        "raw": stmt.excluded.raw,
-                        "fragment": stmt.excluded.fragment,
-                        "blob_sha": stmt.excluded.blob_sha,
-                        "resolution_source": stmt.excluded.resolution_source,
-                        "resolved_at": stmt.excluded.resolved_at,
-                        "ingested_at": stmt.excluded.ingested_at,
-                    },
                 )
                 await session.execute(stmt)
                 await session.commit()

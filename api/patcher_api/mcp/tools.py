@@ -16,13 +16,12 @@ shape an MCP client sees is identical to ``GET /apps/{slug}``.
 from sqlalchemy import or_, select
 
 from patcher_api.db import get_session_maker
-from patcher_api.drift import detect_drift, extract_versions
+from patcher_api.drift import scan_drift
 from patcher_api.labels import build_installomator_label
 from patcher_api.mcp._queries import catalog_categories, catalog_summary, serialize_app
 from patcher_api.mcp.server import mcp
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
-from patcher_api.schemas.drift import DriftEntry, DriftResponse
 from patcher_api.schemas.sources import AppSources
 
 
@@ -146,26 +145,7 @@ async def list_drift(
             stmt = stmt.where(AppRow.vendor.ilike(vendor))
         rows = (await session.scalars(stmt)).all()
 
-    total_scanned = 0
-    all_entries: list[DriftEntry] = []
-    for row in rows:
-        detail = row.source_detail
-        if len(extract_versions(detail)) < 2:
-            continue
-        total_scanned += 1
-        entry = detect_drift(row, detail)
-        if entry is None:
-            continue
-        if source is not None and source not in {sv.source for sv in entry.versions}:
-            continue
-        all_entries.append(entry)
-
-    page = all_entries[offset : offset + limit]
-    return DriftResponse(
-        total_scanned=total_scanned,
-        total_with_drift=len(all_entries),
-        entries=page,
-    ).model_dump(mode="json")
+    return scan_drift(rows, source=source, limit=limit, offset=offset).model_dump(mode="json")
 
 
 @mcp.tool

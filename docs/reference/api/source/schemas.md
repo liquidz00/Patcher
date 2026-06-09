@@ -102,15 +102,15 @@ Pydantic models the API uses for response serialization (and a few request bodie
 ## Jamf App Installers
 
 ```{eval-rst}
-.. autoclass:: patcher_api.schemas.jamf_app_installers.JaiMediaSource
+.. autoclass:: patcher_api.schemas.jamf.JaiMediaSource
    :members:
    :exclude-members: model_computed_fields, model_config, model_fields
 
-.. autoclass:: patcher_api.schemas.jamf_app_installers.JaiTitle
+.. autoclass:: patcher_api.schemas.jamf.JaiTitle
    :members:
    :exclude-members: model_computed_fields, model_config, model_fields
 
-.. autoclass:: patcher_api.schemas.jamf_app_installers.JaiTitlePage
+.. autoclass:: patcher_api.schemas.jamf.JaiTitlePage
    :members:
    :exclude-members: model_computed_fields, model_config, model_fields
 ```

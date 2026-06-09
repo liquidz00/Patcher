@@ -17,7 +17,7 @@ from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.autopkg import AutopkgRecipe
 from patcher_api.models.homebrew import HomebrewCask
 from patcher_api.models.installomator import InstallomatorLabel
-from patcher_api.models.jamf_app_installers import JamfAppInstaller
+from patcher_api.models.jamf import JamfAppInstaller
 from patcher_api.models.mas import MasApp
 from patcher_api.stitch import (
     _clean_cask_url,
@@ -36,6 +36,8 @@ from patcher_api.stitch import (
     stitch_catalog,
 )
 from sqlalchemy import select
+
+from patcher.policy import CURATED_BUNDLE_IDS
 
 
 def _make_label(
@@ -167,7 +169,7 @@ def _make_jai(
     )
 
 
-# ----- pure-helper unit tests -----
+# Pure-helper unit tests
 
 
 class TestIsShellExpression:
@@ -519,7 +521,7 @@ class TestFindMatchingCask:
         assert match is None
 
 
-# ----- integration-style tests against an in-memory DB -----
+# Integration-style tests against an in-memory DB
 
 
 @pytest_asyncio.fixture
@@ -1237,3 +1239,42 @@ async def test_stitch_is_idempotent(populated_session):
     second_count = len((await populated_session.scalars(select(AppRow))).all())
 
     assert first_count == second_count
+
+
+@pytest.mark.asyncio
+async def test_stitch_curated_bundle_id_attaches_jai_to_label(test_session):
+    """
+    A label whose slug is in CURATED_BUNDLE_IDS but carries no package_id
+    attaches JAI via the seeded bundle_id, which the decorated-name path misses.
+    """
+    test_session.add_all(
+        [
+            _make_label(name="zoom", display_name="zoom.us", install_type="pkg"),
+            _make_jai(title="Zoom Client for Meetings", bundle_id=CURATED_BUNDLE_IDS["zoom"]),
+        ]
+    )
+    await test_session.commit()
+
+    await stitch_catalog(test_session)
+
+    zoom = await test_session.scalar(select(AppRow).where(AppRow.slug == "zoom"))
+    assert "jamf_app_installer" in zoom.sources
+    assert zoom.bundle_id == CURATED_BUNDLE_IDS["zoom"]
+
+
+@pytest.mark.asyncio
+async def test_stitch_curated_bundle_id_attaches_jai_to_cask(test_session):
+    """Same as above for a cask-only slug (the phase-2 injection point)."""
+    test_session.add_all(
+        [
+            _make_cask(token="obs", name="OBS"),
+            _make_jai(title="OBS Studio", bundle_id=CURATED_BUNDLE_IDS["obs"]),
+        ]
+    )
+    await test_session.commit()
+
+    await stitch_catalog(test_session)
+
+    obs = await test_session.scalar(select(AppRow).where(AppRow.slug == "obs"))
+    assert "jamf_app_installer" in obs.sources
+    assert obs.bundle_id == CURATED_BUNDLE_IDS["obs"]

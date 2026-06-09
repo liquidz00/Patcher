@@ -43,16 +43,15 @@ src/patcher/
 │   ├── data_manager.py     # On-disk patch-data cache + export pipeline
 │   ├── pdf_report.py       # PDF generation
 │   ├── config_manager.py   # Credential resolution (keyring or in-memory)
-│   ├── plist_manager.py    # macOS plist read/write (no UI)
+│   ├── fonts.py            # Bundled-font discovery, download, asset copying
 │   ├── exceptions.py       # PatcherError + subclasses
-│   └── models/             # Pydantic 2 models (PatchTitle, Label, etc.)
+│   └── models/             # Pydantic 2 models (PatchTitle, PatcherSettings, etc.)
 │
 └── cli/  
-    ├── __init__.py         # click group, subcommand registrations
+    ├── __init__.py         # click group + command definitions (the entry point)
     ├── setup.py            # Interactive setup wizard
-    ├── report.py           # CLI orchestration around PatcherClient
-    ├── _console.py         # Rich console singletons + status spinner
-    └── ui_manager.py       # PDF UI config (header/footer/font/logo) + interactive prompts
+    ├── _console.py         # Terminal output layer: console, status, renderers, log handler
+    └── _helpers.py         # CLI orchestration: arg parsing, cache, export workflow
 ```
 :::
 
@@ -69,7 +68,7 @@ Imports only flow in one direction. `core/` never reaches into `cli/`, and `clie
 | Attribute | Type | Responsibility |
 |---|---|---|
 | `patcher.jamf` | {class}`~patcher.clients.jamf.JamfClient` | All Jamf Pro API traffic |
-| `patcher.api` | {class}`~patcher.clients.patcher_api.PatcherAPIClient` | Patcher catalog reads (matching, label enrichment); `None` when `enable_installomator=False` |
+| `patcher.api` | {class}`~patcher.clients.patcher_api.PatcherAPIClient` | Patcher catalog reads (matching, label enrichment); `None` when `enable_matching=False` |
 | `patcher.data` | {class}`~patcher.core.data_manager.DataManager` | On-disk patch-data cache + export pipeline |
 
 ```{mermaid}
@@ -184,7 +183,7 @@ spinner via the `status()` helper in `cli/_console.py`, Rich-styled output, file
 
 ::::
 
-For example, `patcherctl export` resolves config, builds a `PatcherClient`, then delegates the actual fetch+export work to `process_reports()` in `cli/report.py`. The orchestration in `cli/report.py` is small. It threads CLI args into `PatcherClient` method calls and wraps the whole thing in a status spinner.
+For example, `patcherctl export` resolves config, builds a `PatcherClient`, then delegates the actual fetch+export work to `process_reports()` in `cli/_helpers.py`. That orchestration is small. It threads CLI args into `PatcherClient` method calls and wraps the whole thing in a status spinner.
 
 **What this means in practice:** if a feature can be expressed as "call this method on `PatcherClient`," it works the same from `patcherctl` and from a Python script. There's no private CLI-only menu the library is locked out of.
 
@@ -220,7 +219,7 @@ The wizard prompts use `asyncclick` to stay inside the same event loop as the re
 :::
 
 :::{marker} Synchronous bridges
-A few paths (e.g. the fonts download in `UIConfigManager`) use `httpx.get` directly with a `truststore.SSLContext`, so the same enterprise-CA story applies regardless of code path.
+A few paths (e.g. the fonts download in `patcher.core.fonts`) use `httpx.get` directly with a `truststore.SSLContext`, so the same enterprise-CA story applies regardless of code path.
 :::
 ::::
 
@@ -309,7 +308,7 @@ from patcher import (
 )
 ```
 
-Anything reachable via deeper paths (`patcher.cli.*`, `patcher.clients.HTTPClient`, `patcher.core.matching.match_titles`, etc.) is importable but **not** considered part of the stable surface. Internal refactors may shift it. CLI-only objects (`Setup`, `UIConfigManager`) are intentionally **not** re-exported from `patcher`.
+Anything reachable via deeper paths (`patcher.cli.*`, `patcher.clients.HTTPClient`, `patcher.core.matching.match_titles`, etc.) is importable but **not** considered part of the stable surface. Internal refactors may shift it. CLI-only objects (e.g. `Setup`) are intentionally **not** re-exported from `patcher`.
 
 ## Patcher API Service
 

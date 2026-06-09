@@ -104,10 +104,10 @@ def test_package_exposes_exceptions():
 
 
 def test_package_hides_cli_only_surface():
-    """Setup, SetupType, UIConfigManager, Animation must not leak through the public package."""
+    """Setup, SetupType, Animation must not leak through the public package."""
     import src.patcher as patcher
 
-    for name in ("Setup", "SetupType", "SetupError", "UIConfigManager", "Animation"):
+    for name in ("Setup", "SetupType", "SetupError", "Animation"):
         assert not hasattr(patcher, name), f"`{name}` should be CLI-only, not on the public package"
 
 

@@ -12,12 +12,16 @@ from pydantic import BaseModel, HttpUrl
 
 
 class InstallomatorSource(BaseModel):
+    """Installomator source detail: label name, fragment URL, and the raw parsed fields."""
+
     label_name: str
     label_url: HttpUrl
     raw: dict
 
 
 class HomebrewCaskSource(BaseModel):
+    """Homebrew Cask source detail: the cask token and its raw JSON."""
+
     token: str
     cask_json: dict
 
@@ -58,6 +62,8 @@ class AutopkgSource(BaseModel):
 
 
 class MasSource(BaseModel):
+    """Mac App Store source detail: bundle id, store URL, and raw metadata."""
+
     bundle_id: str
     store_url: HttpUrl | None = None
     raw: dict
@@ -83,6 +89,8 @@ class JamfAppInstallerSource(BaseModel):
 
 
 class AppSources(BaseModel):
+    """Per-source detail payloads for one app slug; each is ``None`` when that source didn't contribute."""
+
     installomator: InstallomatorSource | None = None
     homebrew_cask: HomebrewCaskSource | None = None
     autopkg: AutopkgSource | None = None

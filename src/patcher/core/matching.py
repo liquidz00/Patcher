@@ -30,6 +30,7 @@ from __future__ import annotations
 import fnmatch
 import json
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -37,20 +38,12 @@ from rapidfuzz import fuzz, process
 
 from ..clients.jamf import JamfClient
 from ..clients.patcher_api import App, PatcherAPIClient
+from ..policy import IGNORED_TITLES
 from .exceptions import APIResponseError, InstallomatorWarning
 from .logger import LogMe
 from .models.cask import CaskMatch
 from .models.label import Label
 from .models.patch import PatchTitle
-
-_IGNORED_TITLES = [
-    "Apple macOS *",
-    "Oracle Java SE *",
-    "Eclipse Temurin *",
-    "Apple Safari",
-    "Apple Xcode",
-    "Microsoft Visual Studio",  # Support deprecated
-]
 
 DEFAULT_FUZZY_THRESHOLD = 85
 
@@ -218,6 +211,8 @@ async def match_titles(
     threshold: int = DEFAULT_FUZZY_THRESHOLD,
     review_file: Path | None = DEFAULT_REVIEW_FILE,
     include_homebrew: bool = False,
+    ignored_titles: list[str] | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> None:
     """
     Match each :class:`~patcher.core.models.patch.PatchTitle` against the API
@@ -230,8 +225,13 @@ async def match_titles(
     :class:`~patcher.core.models.cask.CaskMatch` stubs; a dual-source slug
     populates both fields.
 
+    Each title is matched deterministically first by its ``name_id`` (Jamf
+    softwareTitleNameId) against the catalog's jamf-index; titles without a
+    code, or whose code isn't indexed, fall back to direct/fuzzy name matching.
+
     Mutates the input list in place. Titles that pattern-match
-    the module's ``_IGNORED_TITLES`` list are skipped silently.
+    :data:`~patcher.policy.IGNORED_TITLES` (plus any caller-supplied
+    ``ignored_titles``) are skipped silently.
 
     :param patch_titles: The list of ``PatchTitle`` objects to match.
     :type patch_titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
@@ -252,8 +252,17 @@ async def match_titles(
         source and populate ``PatchTitle.homebrew_cask`` for Cask matches.
         Defaults to False (Installomator-only, the historical behavior).
     :type include_homebrew: bool
+    :param ignored_titles: Extra Jamf-title skip patterns (``fnmatch`` syntax)
+        merged with the built-in :data:`~patcher.policy.IGNORED_TITLES`. Lets
+        callers skip titles managed out-of-band without editing policy.
+    :type ignored_titles: list[str] | None
+    :param progress_callback: Optional ``(processed, total)`` callback invoked
+        once per title, letting a caller drive a progress display without this
+        module depending on any UI. The CLI passes a Rich-backed callback.
+    :type progress_callback: Callable[[int, int], None] | None
     """
     log = LogMe("matching")
+    ignore_patterns = [*IGNORED_TITLES, *(ignored_titles or [])]
     sources = ["installomator"]
     if include_homebrew:
         sources.append("homebrew_cask")
@@ -269,6 +278,12 @@ async def match_titles(
     log.info(f"Loaded {len(available)} catalog slugs from Patcher API ({', '.join(sources)}).")
 
     try:
+        jamf_index = await api.get_jamf_index()
+    except APIResponseError as exc:
+        log.warning(f"Jamf index unavailable; using fuzzy matching only: {exc}")
+        jamf_index = {}
+
+    try:
         software_titles = await jamf.get_app_names(patch_titles=patch_titles)
     except APIResponseError as exc:
         if getattr(exc, "not_found", False):
@@ -278,10 +293,22 @@ async def match_titles(
     per_title_matches: dict[str, list[str]] = {}
     unmatched_apps: list[dict[str, Any]] = []
 
-    for patch_title in patch_titles:
-        if any(fnmatch.fnmatch(patch_title.title, pattern) for pattern in _IGNORED_TITLES):
+    total = len(patch_titles)
+    for index, patch_title in enumerate(patch_titles, start=1):
+        if progress_callback is not None:
+            progress_callback(index, total)
+        if any(fnmatch.fnmatch(patch_title.title, pattern) for pattern in ignore_patterns):
             log.info(f"Ignoring {patch_title.title}")
             continue
+
+        # Deterministic match first: name_id (Jamf softwareTitleNameId) maps to
+        # catalog slugs exactly. Restrict to the fetched set so a code resolving
+        # only to filtered-out sources still falls through to fuzzy.
+        if patch_title.name_id:
+            index_slugs = [s for s in jamf_index.get(patch_title.name_id, []) if s in available]
+            if index_slugs:
+                per_title_matches[patch_title.title] = index_slugs
+                continue
 
         app_name_entry = next(
             (entry for entry in software_titles if entry["Patch"] == patch_title.title), None
@@ -325,11 +352,9 @@ async def match_titles(
         log.warning(f"{len(unmatched_apps)} PatchTitle objects had no matches.")
         if review_file is not None:
             _save_unmatched(review_file, unmatched_apps)
-        # Surface to library callers via the Python warnings system so they
-        # can catch / escalate independently of log level. The CLI installs
-        # ``warnings.simplefilter("always", InstallomatorWarning)`` so end
-        # users see the message; library callers can suppress with a
-        # ``warnings.filterwarnings("ignore", category=InstallomatorWarning)``.
+        # Surface via the warnings system so callers can catch/escalate
+        # independently of log level. The CLI shows these (simplefilter
+        # "always", InstallomatorWarning); library callers can filter them out.
         warnings.warn(
             f"{len(unmatched_apps)} patch title(s) had no {source_label} match. "
             f"See {review_file} for the list."

@@ -1,16 +1,20 @@
+"""Public ``/apps`` routes: catalog lookups, per-source detail, drift, label generation, the jamf-index."""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import ColumnElement, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from patcher_api.db import get_session
-from patcher_api.drift import detect_drift, extract_versions
+from patcher_api.drift import detect_drift, scan_drift
 from patcher_api.labels import build_installomator_label
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
+from patcher_api.models.jamf import JamfCatalogTitle
 from patcher_api.schemas.app import App
 from patcher_api.schemas.drift import DriftEntry, DriftResponse
 from patcher_api.schemas.labels import GenerateLabelResponse
 from patcher_api.schemas.sources import AppSources
+from patcher_api.stitch import _normalize_name
 
 router = APIRouter(
     prefix="/apps",
@@ -77,6 +81,45 @@ async def list_apps(
     return list(rows)
 
 
+@router.get("/jamf-index", response_model=dict[str, list[str]])
+async def jamf_index(session: AsyncSession = Depends(get_session)) -> dict[str, list[str]]:
+    """
+    Map each Jamf ``softwareTitleNameId`` to the catalog slug(s) it covers.
+
+    Two contributing passes, unioned:
+
+    - **Jamf App Installer codes** — precise, bundle/name-stitched at ingest
+      time, read from ``app_source_detail.jamf_app_installer.jamf_id``.
+    - **The full Jamf patch-title catalog** (``jamf_titles``) — every available
+      Patch Management title, matched to catalog apps by normalized name. This
+      extends coverage well beyond the App Installer subset.
+
+    Clients fetch this index once and resolve patch-title codes to catalog
+    slugs locally.
+    """
+    index: dict[str, set[str]] = {}
+
+    # Pass 1: Jamf App Installer codes (precise, already stitched onto apps).
+    jai_stmt = (
+        select(AppRow.slug, AppSourceDetailRow.jamf_app_installer)
+        .join(AppSourceDetailRow, AppSourceDetailRow.app_id == AppRow.id)
+        .where(func.json_extract(AppSourceDetailRow.jamf_app_installer, "$.jamf_id").isnot(None))
+    )
+    for slug, jai in (await session.execute(jai_stmt)).all():
+        index.setdefault(jai["jamf_id"], set()).add(slug)
+
+    # Pass 2: the full patch-title catalog, matched to apps by normalized name.
+    apps_by_norm: dict[str, list[str]] = {}
+    for slug, name in (await session.execute(select(AppRow.slug, AppRow.name))).all():
+        apps_by_norm.setdefault(_normalize_name(name), []).append(slug)
+    title_stmt = select(JamfCatalogTitle.name_id, JamfCatalogTitle.app_name)
+    for name_id, app_name in (await session.execute(title_stmt)).all():
+        for slug in apps_by_norm.get(_normalize_name(app_name), []):
+            index.setdefault(name_id, set()).add(slug)
+
+    return {code: sorted(slugs) for code, slugs in sorted(index.items())}
+
+
 @router.get("/drift", response_model=DriftResponse)
 async def list_drift(
     vendor: str | None = None,
@@ -108,26 +151,7 @@ async def list_drift(
 
     rows = (await session.scalars(stmt)).all()
 
-    total_scanned = 0
-    all_entries: list[DriftEntry] = []
-    for row in rows:
-        detail = row.source_detail
-        if len(extract_versions(detail)) < 2:
-            continue
-        total_scanned += 1
-        entry = detect_drift(row, detail)
-        if entry is None:
-            continue
-        if source is not None and source not in {sv.source for sv in entry.versions}:
-            continue
-        all_entries.append(entry)
-
-    page = all_entries[offset : offset + limit]
-    return DriftResponse(
-        total_scanned=total_scanned,
-        total_with_drift=len(all_entries),
-        entries=page,
-    )
+    return scan_drift(rows, source=source, limit=limit, offset=offset)
 
 
 @router.get("/{slug}", response_model=App)

@@ -1,3 +1,5 @@
+"""FastAPI application entry point: wires the REST routes, the MCP server, and startup."""
+
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager

@@ -1,3 +1,5 @@
+"""Patcher's logging: rotating file logs for all callers; the CLI adds console output separately."""
+
 import logging
 import os
 import sys
@@ -8,6 +10,8 @@ from typing import Type
 
 
 class PatcherLog:
+    """Configures Patcher's stdlib rotating file logger (under Application Support)."""
+
     LOGGER_NAME = "Patcher"
     LOG_DIR = os.path.expanduser("~/Library/Application Support/Patcher/logs")
     LOG_FILE = os.path.join(LOG_DIR, "patcher.log")
@@ -24,7 +28,7 @@ class PatcherLog:
         Configures and returns the Patcher logger with a rotating file handler.
 
         Pure stdlib, no terminal output. Console / colored output is installed
-        separately by the CLI via :func:`patcher.cli.terminal_logger.install_terminal_handler`;
+        separately by the CLI via :func:`patcher.cli._console.install_terminal_handler`;
         library callers get file logging only.
 
         :param name: Name of the logger, defaults to ``"Patcher"``.
@@ -78,7 +82,7 @@ class PatcherLog:
         Logs unhandled exceptions to Patcher's log file. Pure file logging, no
         terminal output. The CLI installs a chained excepthook that adds
         user-facing stderr messages on top of this one (see
-        :func:`patcher.cli.terminal_logger.install_terminal_excepthook`).
+        :func:`patcher.cli._console.install_terminal_excepthook`).
 
         ``KeyboardInterrupt`` is treated as a graceful exit (logged at INFO,
         process exits 130). All other uncaught exceptions are logged at ERROR.
@@ -94,7 +98,7 @@ class PatcherLog:
         child_logger = parent_logger.getChild("UnhandledException")
         child_logger.setLevel(parent_logger.level)
 
-        if exc_type.__name__ == "KeyboardInterrupt":
+        if issubclass(exc_type, KeyboardInterrupt):
             child_logger.info("User interrupted the process.")
             sys.exit(130)  # SIGINT
 
@@ -107,6 +111,8 @@ class PatcherLog:
 
 
 class LogMe:
+    """Per-class logger wrapper (``self.log = LogMe(self.__class__.__name__)``)."""
+
     def __init__(self, class_name: str):
         """
         Thin wrapper around a stdlib :class:`logging.Logger` scoped to a class

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<patch_available_titles>
+  <size>6</size>
+  <available_titles>
+    <available_title>
+      <name_id>518</name_id>
+      <publisher>SweetScape</publisher>
+      <current_version>16.0.4</current_version>
+      <last_modified>2026-03-05T15:31:49Z</last_modified>
+      <app_name>010 Editor</app_name>
+    </available_title>
+    <available_title>
+      <name_id>575</name_id>
+      <publisher>AgileBits (Combined Definition)</publisher>
+      <current_version>8.12.22</current_version>
+      <last_modified>2026-06-02T15:34:51Z</last_modified>
+      <app_name>1Password</app_name>
+    </available_title>
+    <available_title>
+      <name_id>0F5</name_id>
+      <publisher>AgileBits</publisher>
+      <current_version>4.4.3</current_version>
+      <last_modified>2022-10-20T11:35:19Z</last_modified>
+      <app_name>1Password 4</app_name>
+    </available_title>
+    <available_title>
+      <name_id>0F6</name_id>
+      <publisher>AgileBits</publisher>
+      <current_version>5.4.3</current_version>
+      <last_modified>2022-10-20T10:04:01Z</last_modified>
+      <app_name>1Password 5</app_name>
+    </available_title>
+    <available_title>
+      <name_id>0F7</name_id>
+      <publisher>AgileBits</publisher>
+      <current_version>6.8.9</current_version>
+      <last_modified>2021-03-16T00:45:24Z</last_modified>
+      <app_name>1Password 6</app_name>
+    </available_title>
+    <available_title>
+      <name_id>0F8</name_id>
+      <publisher>AgileBits</publisher>
+      <current_version>7.9.11</current_version>
+      <last_modified>2024-12-02T15:22:54Z</last_modified>
+      <app_name>1Password 7</app_name>
+    </available_title>
+  </available_titles>
+</patch_available_titles>

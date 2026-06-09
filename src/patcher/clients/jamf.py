@@ -1,3 +1,5 @@
+"""Client for the Jamf Pro API."""
+
 import csv
 import io
 from datetime import datetime
@@ -14,6 +16,8 @@ from .token_manager import TokenManager
 
 
 class JamfClient(HTTPClient):
+    """Fetches patch-management data, device inventory, and OS versions from Jamf Pro."""
+
     def __init__(self, config: ConfigManager, concurrency: int):
         """
         Provides methods for interacting with the Jamf API, specifically fetching patch data, device information, and OS versions.
@@ -35,6 +39,11 @@ class JamfClient(HTTPClient):
         self.jamf_url = self.jamf_credentials.base_url
 
         super().__init__(max_concurrency=concurrency)
+
+    async def aclose(self) -> None:
+        """Release this client's connection pool and the token manager's."""
+        await self.token_manager.aclose()
+        await super().aclose()
 
     @classmethod
     def from_credentials(
@@ -115,6 +124,18 @@ class JamfClient(HTTPClient):
         self.log.debug(f"Using token ending in {plaintext[-4:]}")
         return {"accept": "application/json", "Authorization": f"Bearer {plaintext}"}
 
+    async def get_title_configs(self) -> list[dict]:
+        """
+        Fetch the full patch software title configurations.
+
+        .. important::
+            Each config carries ``id`` and ``softwareTitleNameId`` which are easy to conflate.
+            ``softwareTitleNameId`` is the global catalog code used for deterministic matching.
+        """
+        headers = await self._headers()
+        url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
+        return await self.fetch_json(url=url, headers=headers)
+
     async def get_policies(self) -> list[str]:
         """
         Retrieves a list of patch software title IDs from the Jamf API.
@@ -122,13 +143,7 @@ class JamfClient(HTTPClient):
         :return: A list of software title IDs.
         :rtype: list[str]
         """
-        headers = await self._headers()
-        url = f"{self.jamf_url}/api/v2/patch-software-title-configurations"
-        try:
-            response = await self.fetch_json(url=url, headers=headers)
-        except APIResponseError:
-            raise
-        return [title.get("id") for title in response]
+        return [config.get("id") for config in await self.get_title_configs()]
 
     async def get_summaries(self, policy_ids: list[str]) -> list[PatchTitle]:
         """
@@ -144,10 +159,7 @@ class JamfClient(HTTPClient):
             for policy in policy_ids
         ]
         headers = await self._headers()
-        try:
-            summaries = await self.fetch_batch(urls, headers=headers)
-        except APIResponseError:
-            raise
+        summaries = await self.fetch_batch(urls, headers=headers)
 
         patch_titles = [
             PatchTitle(
@@ -259,10 +271,7 @@ class JamfClient(HTTPClient):
         """
         url = f"{self.jamf_url}/api/v2/mobile-devices"
         headers = await self._headers()
-        try:
-            response = await self.fetch_json(url=url, headers=headers)
-        except APIResponseError:
-            raise
+        response = await self.fetch_json(url=url, headers=headers)
         devices = response.get("results")
         return [device.get("id") for device in devices if device]
 
@@ -280,10 +289,7 @@ class JamfClient(HTTPClient):
         """
         urls = [f"{self.jamf_url}/api/v2/mobile-devices/{device}/detail" for device in device_ids]
         headers = await self._headers()
-        try:
-            subsets = await self.fetch_batch(urls, headers=headers)
-        except APIResponseError:
-            raise
+        subsets = await self.fetch_batch(urls, headers=headers)
 
         devices = [
             {

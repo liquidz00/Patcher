@@ -35,11 +35,9 @@ async def test_can_fetch_token_from_dummy_instance(integration_token_manager) ->
     assert token is not None
     assert isinstance(token, AccessToken)
     assert token.token, "Token string should be non-empty"
-    # Note: don't use `is_expired` here — it has a 60-second proactive-refresh
-    # buffer for production callers. The dummy instance issues short-lived
-    # tokens for which `is_expired` returns True even when the token is still
-    # valid for ~30s. `seconds_remaining > 0` is the right smoke check: "we
-    # received a token whose expiration is in the future."
+    # Don't use `is_expired` here: its 60s proactive-refresh buffer reports True
+    # on the dummy instance's short-lived tokens even while still valid for ~30s.
+    # `seconds_remaining > 0` is the right smoke check.
     assert token.seconds_remaining > 0, (
         f"Token expiration should be in the future, got {token.seconds_remaining}s remaining "
         f"(expires at {token.expires.isoformat()})"

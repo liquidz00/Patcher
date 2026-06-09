@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator
 from functools import lru_cache
 
 from sqlalchemy import event
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -17,6 +18,8 @@ from patcher_api.config import get_settings
 
 
 class Base(DeclarativeBase):
+    """Declarative base all ORM models inherit from."""
+
     pass
 
 
@@ -83,3 +86,16 @@ async def init_db() -> None:
 
     async with get_engine().begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+
+def upsert_stmt(model, *, index_elements: list[str], **values):
+    """
+    Build an INSERT ... ON CONFLICT DO UPDATE whose update columns are derived
+    from the inserted values (minus the conflict keys), so the insert and update
+    paths can never desync.
+    """
+    stmt = sqlite_insert(model).values(**values)
+    return stmt.on_conflict_do_update(
+        index_elements=index_elements,
+        set_={col: getattr(stmt.excluded, col) for col in values if col not in index_elements},
+    )

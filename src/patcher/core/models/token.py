@@ -1,3 +1,5 @@
+"""Model for the Jamf Pro OAuth bearer token."""
+
 from datetime import datetime, timedelta, timezone
 
 from pydantic import Field, SecretStr

@@ -1,3 +1,5 @@
+"""ORM model for the AutoPkg recipe catalog source."""
+
 from datetime import UTC, datetime
 
 from sqlalchemy import JSON, DateTime, String
