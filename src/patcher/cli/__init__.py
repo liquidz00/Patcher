@@ -283,11 +283,12 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
             log.info("Resetting UI elements...")
             spinner.update("Resetting UI configuration...")
             if setup.reset_ui_config():
-                spinner.update("Prompting for new UI settings...")
+                spinner.stop()  # prompt_ui_settings prompts; a live spinner swallows input
                 await setup.prompt_ui_settings()
         elif kind.lower() == "creds":
             log.info(f"Resetting credentials... (specific: {credential if credential else 'all'})")
             spinner.update(f"Resetting credentials ({credential if credential else 'all'})...")
+            spinner.stop()  # prompts below can't run under a live spinner (input hangs)
 
             # Keyring automatically overwrites existing passwords if key and service_name are the same.
             # This allows us to just call the set_credential method instead of having to delete existing
@@ -302,7 +303,9 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
                     spinner.update("Saving Client ID to keychain...")
                     config.set_credential("CLIENT_ID", new_client_id)
                 case "client_secret":
-                    new_client_secret = await click.prompt("Enter your API Client Secret")
+                    new_client_secret = await click.prompt(
+                        "Enter your API Client Secret", hide_input=True
+                    )
                     spinner.update("Saving Client Secret to keychain...")
                     config.set_credential("CLIENT_SECRET", new_client_secret)
                 case None:
@@ -310,7 +313,9 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
                     cred_map = {
                         "URL": await click.prompt("Enter your Jamf Pro URL"),
                         "CLIENT_ID": await click.prompt("Enter your API Client ID"),
-                        "CLIENT_SECRET": await click.prompt("Enter your API Client Secret"),
+                        "CLIENT_SECRET": await click.prompt(
+                            "Enter your API Client Secret", hide_input=True
+                        ),
                     }
                     for k, v in cred_map.items():
                         spinner.update(f"Saving {k} to keychain...")
@@ -622,29 +627,17 @@ async def analyze(
         # hydration is parked for v3.0.1.
         _ = excel_file
 
+        # Spinner wraps the work only (compute + file writes); results render below.
+        summary_path = None
         if all_time:  # Analyze trends
             spinner.update(f"Calculating '{criteria}' trend across cached datasets...")
             trend_df = TrendAnalysis.apply(data_manager.get_cached_files(), criteria)
 
-            if trend_df.empty:
-                spinner.stop()
-                console.print(
-                    f"⚠️ No trend data available for criteria '{criteria}'.",
-                    style=WARNING_STYLE,
-                )
-                sys.exit(0)
-
-            spinner.update("Formatting trend results...")
-            console.print(build_table(trend_df.values.tolist(), headers=trend_df.columns.tolist()))
-
-            if summary:
+            if summary and not trend_df.empty:
+                spinner.update("Saving trend analysis report...")
+                summary_path = output_dir / f"trend-analysis-{criteria}.html"
                 try:
-                    spinner.update("Saving trend analysis report...")
-                    output_file = output_dir / f"trend-analysis-{criteria}.html"
-                    trend_df.to_html(output_file, index=False)
-                    console.print(
-                        f"✅ Trend analysis HTML saved to {output_file}.", style=SUCCESS_STYLE
-                    )
+                    trend_df.to_html(summary_path, index=False)
                 except (OSError, PermissionError, FileNotFoundError) as exc:
                     raise PatcherError(
                         "Unable to save trend analysis report as expected.",
@@ -669,55 +662,64 @@ async def analyze(
                 top_n=top_n,
                 where=where_kwargs or None,
             )
-            if len(filtered_titles) == 0:
-                spinner.stop()
-                console.print(
-                    f"⚠️ No PatchTitle objects meet criteria {criteria}", style=WARNING_STYLE
-                )
-                sys.exit(0)
 
-            spinner.update("Formatting filtered results...")
-            table_data = [
-                [
-                    t.title,
-                    t.released,
-                    t.hosts_patched,
-                    t.missing_patch,
-                    t.latest_version,
-                    t.completion_percent,
-                    t.total_hosts,
-                    "Y" if t.install_label else "N",
-                ]
-                for t in filtered_titles
-            ]
-            headers = [
-                "Title",
-                "Released",
-                "Hosts Patched",
-                "Missing Patch",
-                "Latest Version",
-                "Completion %",
-                "Total Hosts",
-                "Label Available (Y/N)",
-            ]
-            console.print(build_table(table_data, headers))
-
-        if summary and not all_time:
-            try:
+            if summary and len(filtered_titles) > 0:
                 spinner.update("Writing HTML summary report...")
-                exported = await data_manager.export(
-                    filtered_titles,
-                    output_dir,
-                    report_title=settings.user_interface_settings.header_text,
-                    analysis=True,
-                    formats={"html"},
-                )
-            except (OSError, PermissionError, FileNotFoundError) as exc:
-                raise PatcherError(
-                    "Unable to save summary report as expected.", path=exported, error_msg=str(exc)
-                )
-            output_paths = "\n".join(list(exported.values()))
-            console.print(f"✅ HTML summary saved to {output_paths}", style=SUCCESS_STYLE)
+                try:
+                    exported = await data_manager.export(
+                        filtered_titles,
+                        output_dir,
+                        report_title=settings.user_interface_settings.header_text,
+                        analysis=True,
+                        formats={"html"},
+                    )
+                except (OSError, PermissionError, FileNotFoundError) as exc:
+                    raise PatcherError(
+                        "Unable to save summary report as expected.",
+                        path=output_dir,
+                        error_msg=str(exc),
+                    )
+                summary_path = "\n".join(list(exported.values()))
+
+    if all_time:
+        if trend_df.empty:
+            console.print(
+                f"⚠️ No trend data available for criteria '{criteria}'.", style=WARNING_STYLE
+            )
+            sys.exit(0)
+        console.print(build_table(trend_df.values.tolist(), headers=trend_df.columns.tolist()))
+        if summary_path is not None:
+            console.print(f"✅ Trend analysis HTML saved to {summary_path}.", style=SUCCESS_STYLE)
+    else:
+        if len(filtered_titles) == 0:
+            console.print(f"⚠️ No PatchTitle objects meet criteria {criteria}", style=WARNING_STYLE)
+            sys.exit(0)
+        table_data = [
+            [
+                t.title,
+                t.released,
+                t.hosts_patched,
+                t.missing_patch,
+                t.latest_version,
+                t.completion_percent,
+                t.total_hosts,
+                "Y" if t.install_label else "N",
+            ]
+            for t in filtered_titles
+        ]
+        headers = [
+            "Title",
+            "Released",
+            "Hosts Patched",
+            "Missing Patch",
+            "Latest Version",
+            "Completion %",
+            "Total Hosts",
+            "Label Available (Y/N)",
+        ]
+        console.print(build_table(table_data, headers))
+        if summary_path is not None:
+            console.print(f"✅ HTML summary saved to {summary_path}", style=SUCCESS_STYLE)
 
 
 @cli.command(

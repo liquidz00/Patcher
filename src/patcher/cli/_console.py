@@ -341,6 +341,11 @@ def install_terminal_excepthook() -> None:
         if exc_type.__name__ == "KeyboardInterrupt":
             return  # base_hook already exits 130
 
+        # PatcherErrors carry recovery context — render them in the styled panel.
+        if isinstance(exc_value, PatcherError):
+            format_err(exc_value)
+            return
+
         err_console.print(f"❌ {exc_type.__name__}: {exc_value}", style="bold red", markup=False)
         err_console.print(
             f"💡 For more details, please check the log file at: '{PatcherLog.LOG_FILE}'",

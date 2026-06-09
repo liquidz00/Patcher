@@ -123,7 +123,9 @@ class Setup:
             return {
                 "URL": await click.prompt("Enter your Jamf Pro URL"),
                 "CLIENT_ID": await click.prompt("Enter your API Client ID"),
-                "CLIENT_SECRET": await click.prompt("Enter your API Client Secret"),
+                "CLIENT_SECRET": await click.prompt(
+                    "Enter your API Client Secret", hide_input=True
+                ),
             }
 
     async def prompt_ui_settings(self) -> None:
@@ -264,18 +266,20 @@ class Setup:
                 setup_type=setup_type.value,
             )
 
-    def prompt_installomator(self) -> None:
+    def prompt_matching(self) -> None:
         """
-        Prompts user to enable or disable InstallomatorClient support.
+        Prompts the user to enable or disable patch-source matching.
 
-        If enabled, assists in identifying :class:`~patcher.core.models.patch.PatchTitle` objects with InstallomatorClient support,
-        used during :ref:`analyze <analyze>` commands.
+        When enabled, Patcher matches :class:`~patcher.core.models.patch.PatchTitle`
+        objects against package sources (Installomator, Homebrew) to surface install
+        support, used during :ref:`analyze <analyze>` commands.
         """
-        use_installomator = click.confirm(
-            "Would you like to enable InstallomatorClient support?", default=True
+        enable = click.confirm(
+            "Would you like to enable matching (Installomator, Homebrew)?", default=True
         )
-        self.settings.enable_matching = use_installomator
-        self.settings.integrations.installomator = use_installomator
+        self.settings.enable_matching = enable
+        self.settings.integrations.installomator = enable
+        self.settings.integrations.homebrew = enable
         self.settings.save()
 
     async def get_token(
@@ -441,6 +445,10 @@ class Setup:
             self._spinner = spinner
         self._greet()
 
+        # A live spinner steals the terminal from blocking prompts (input hangs); keep
+        # it stopped through the interactive phase and resume it for the API work below.
+        self._spinner.stop()
+
         setup_type_map = {1: SetupType.STANDARD, 2: SetupType.SSO}
         # Loop rather than recurse into start() on invalid input; the old
         # recursion blew the stack (~1000 frames) when the prompt returned a
@@ -457,7 +465,10 @@ class Setup:
         setup_type = setup_type_map[choice]
 
         creds = await self.prompt_credentials(setup_type)
-        self.prompt_installomator()
+        self.prompt_matching()
+
+        # Interactive input is done; the spinner is safe to run again for the API work.
+        self._spinner.start()
 
         if setup_type == SetupType.STANDARD:
             self.validate_creds(creds, ("USERNAME", "PASSWORD", "URL"), SetupType.STANDARD)
