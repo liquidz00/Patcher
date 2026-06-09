@@ -2,17 +2,183 @@
 
 import csv
 import io
+import json
 from datetime import datetime
 from typing import Any
 
+import httpx
 from pydantic import ValidationError
 
 from ..core.config_manager import ConfigManager
 from ..core.exceptions import APIResponseError, PatcherError
 from ..core.logger import LogMe
+from ..core.models.jamf import ApiClientModel, ApiRoleModel
 from ..core.models.patch import PatchDevice, PatchTitle
 from . import HTTPClient
 from .token_manager import TokenManager
+
+
+class JamfSetupClient(HTTPClient):
+    """Credential-free Jamf client for the first-run provisioning flow (basic-token auth + API role/client creation)."""
+
+    def __init__(self, jamf_url: str, max_concurrency: int = 5):
+        """
+        A Jamf client for the pre-credential setup flow.
+
+        Unlike :class:`JamfClient`, it needs no stored credentials at
+        construction (only the instance URL), because it runs *before* an API
+        client exists; it is what mints one. Username/password and the basic
+        token are passed per call to the provisioning methods.
+
+        :param jamf_url: The Jamf Pro instance URL to provision against.
+        :type jamf_url: str
+        :param max_concurrency: Maximum number of concurrent API requests.
+        :type max_concurrency: int
+        """
+        self.jamf_url = jamf_url
+        self.log = LogMe(self.__class__.__name__)
+
+        super().__init__(max_concurrency)
+
+    # API calls for client setup
+    async def fetch_basic_token(self, username: str, password: str) -> str:
+        """
+        Asynchronously retrieves a basic token using HTTP Basic authentication.
+
+        This method is intended for initial setup to obtain client credentials for API
+        clients and roles. It should not be used for regular token retrieval after setup.
+
+        The password is passed via httpx's ``auth=`` tuple parameter, which encodes it
+        in the ``Authorization`` header. It never appears in the URL, request body, or
+        log output, so no credential-sanitization step is required on the error path.
+
+        :param username: Username of admin Jamf Pro account for authentication. Not permanently stored, only used for initial token retrieval.
+        :type username: str
+        :param password: Password of admin Jamf Pro account. Not permanently stored, only used for initial token retrieval.
+        :type password: str
+        :returns: The BasicToken string.
+        :rtype: str
+        :raises APIResponseError: If the call is unauthorized, unsuccessful, or the response body doesn't contain a ``token`` field.
+        """
+        self.log.debug("Attempting to retrieve Basic Token with provided credentials.")
+        token_url = f"{self.jamf_url}/api/v1/auth/token"
+
+        try:
+            async with self.semaphore:
+                response = await self.http.post(
+                    token_url,
+                    auth=(username, password),
+                    headers={"accept": "application/json"},
+                )
+        except httpx.RequestError as e:
+            raise APIResponseError(
+                "Network error fetching basic token",
+                username=username,
+                url=self.jamf_url,
+                error_msg=str(e),
+            )
+
+        try:
+            data = response.json()
+        except (json.JSONDecodeError, ValueError) as e:
+            raise APIResponseError(
+                "Failed parsing basic token response",
+                username=username,
+                url=self.jamf_url,
+                status_code=response.status_code,
+                error_msg=str(e),
+            )
+
+        if response.is_success and data and "token" in data:
+            self.log.info("Basic Token retrieved successfully.")
+            return data["token"]
+
+        raise APIResponseError(
+            "Unable to retrieve basic token with provided username and password",
+            username=username,
+            url=self.jamf_url,
+            status_code=response.status_code,
+        )
+
+    async def create_roles(self, token: str) -> bool:
+        """
+        Creates the necessary API roles using the provided basic token.
+
+        .. seealso::
+            :class:`~patcher.core.models.jamf.ApiRoleModel`
+
+        :param token: The basic token to use for authentication.
+        :type token: str
+        :return: True if roles were successfully created, False otherwise.
+        :rtype: bool
+        """
+        self.log.debug("Attempting to create Patcher API Role via Jamf API.")
+        role = ApiRoleModel()
+        payload = {
+            "displayName": role.display_name,
+            "privileges": role.privileges,
+        }
+
+        role_url = f"{self.jamf_url}/api/v1/api-roles"
+        headers = {
+            "accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        }
+        response = await self.fetch_json(url=role_url, headers=headers, method="POST", data=payload)
+
+        if response.get("displayName") == role.display_name:
+            self.log.info("Patcher API Role created successfully.")
+            return True
+        else:
+            self.log.warning("Failed to create Patcher API role as expected.")
+            return False
+
+    async def create_client(self, token: str) -> tuple[str, str]:
+        """
+        Creates an API client and retrieves its client ID and client secret.
+
+        .. seealso::
+            :class:`~patcher.core.models.jamf.ApiClientModel`
+
+        :param token: The basic token to use for authentication.
+        :type token: str
+        :return: A tuple containing the client ID and client secret.
+        :rtype: tuple[str, str]
+        """
+        self.log.debug("Attempting to create Patcher API Client with Jamf API.")
+        client = ApiClientModel()
+        client_url = f"{self.jamf_url}/api/v1/api-integrations"
+        payload = {
+            "authorizationScopes": client.auth_scopes,
+            "displayName": client.display_name,
+            "enabled": client.enabled,
+            "accessTokenLifetimeSeconds": client.token_lifetime,
+        }
+
+        headers = {
+            "accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        }
+
+        response = await self.fetch_json(
+            url=client_url, method="POST", data=payload, headers=headers
+        )
+
+        client_id = response.get("clientId")
+        integration_id = response.get("id")  # Required for integration API call
+        self.log.info("Created Patcher API Client ID successfully.")
+
+        # Obtain client secret
+        self.log.debug("Attempting to retrieve Patcher API Client Secret from Jamf API.")
+        secret_url = f"{self.jamf_url}/api/v1/api-integrations/{integration_id}/client-credentials"
+        secret_response = await self.fetch_json(url=secret_url, method="POST", headers=headers)
+        client_secret = secret_response.get("clientSecret")
+        self.log.info("Retrieved Patcher API Client Secret successfully.")
+
+        # Return credentials
+        return client_id, client_secret
 
 
 class JamfClient(HTTPClient):

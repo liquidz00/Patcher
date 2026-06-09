@@ -9,3 +9,10 @@ description: "Reference for JamfClient: all Jamf Pro API traffic, including patc
    :members:
    :private-members: _headers
 ```
+
+# JamfSetupClient
+
+```{eval-rst}
+.. autoclass:: patcher.clients.jamf.JamfSetupClient
+   :members:
+```
