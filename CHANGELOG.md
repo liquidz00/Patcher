@@ -8,29 +8,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v3.3.1] - 2026-06-09
+### Fixed
+- **Cached snapshots survive pandas upgrades.** Patch-data snapshots are cached in [Parquet](https://parquet.apache.org/) format to prevent `TypeError`'s after pandas version changes. Existing pickle ccaches are still read where the installed pandas can load them ([#81](https://github.com/liquidz00/Patcher/issues/81)).
+- **All errors render in styled panels.** All errors are rendered consistently instead of `PatcherError` objects only ([#81](https://github.com/liquidz00/Patcher/issues/81)).
+
+## [v3.3.0] - 2026-06-09
 ### Added
-- **`GET /stats` API endpoint.** Returns top-line catalog statistics in one call: total app count, per-source coverage counts, the catalog content hash, and `last_refresh` (the newest ingest timestamp across all sources), so consumers can check catalog size and freshness without paging through `/apps`.
-- **The matching skip list is now configurable.** Add your own Jamf-title patterns (`fnmatch` syntax) to skip via the `ignored_titles` plist key, or `PatcherClient(ignored_titles=[...])` / `PatcherSettings.ignored_titles` at the library level. They merge with the built-in defaults (Adobe, Jamf, etc.), so you can suppress titles you manage out-of-band without editing the package.
-- **The full Jamf patch-management title catalog now feeds deterministic matching.** Patcher's catalog ingests every available Patch Management title from Jamf — not just the App Installers subset — and `GET /apps/jamf-index` maps those `softwareTitleNameId` codes to catalog slugs by name, nearly doubling the deterministic-match index. More of your Jamf patch titles now resolve to a catalog app before any fuzzy matching runs, so reports attach the right Installomator label / Homebrew coverage more often.
+- **`GET /stats` API endpoint.** One call returns catalog size, per-source coverage counts, the content hash, and the last-refresh timestamp.
+- **Configurable matching skip list.** Skip your own Jamf-title patterns (`fnmatch` syntax) via the `ignored_titles` plist key or `PatcherClient(ignored_titles=[...])`. They will merge with the built-in defaults (Adobe, Jamf, etc.).
+- **Fuller Jamf catalog matching.** Patcher now ingests every Jamf Patch Management title (not just the App Installers subset), so more of your patch titles resolve to an Installomator label or Homebrew coverage before any fuzzy matching runs.
 
 ### Changed
-- **Catalog backfills bundle identifiers for two dozen apps.** Titles whose install source carries no bundle ID (Zoom, Docker, OBS Studio, DBeaver, IntelliJ IDEA / PyCharm Community, Nextcloud, and more) now attach their Jamf App Installer coverage and a bundle ID through a curated seed, so cross-source matching and version-drift detection work for them too.
-- **Matching now skips Adobe and Jamf-published titles by default.** These are managed out-of-band (Adobe via the Admin Console, Jamf's own apps such as Self Service via Jamf's updater), so they no longer clutter `analyze` reports with unactionable rows. This skip list is now configurable (see Added).
-- **Configuration now lives in a single `PatcherSettings` model.** Patcher's property list is read and written through one Pydantic model (`PatcherSettings.load()` / `save()`) that owns every on-disk setting — UI branding, the matching toggle, integrations, ignored titles, and the recorded interpreter path. This replaces the separate `PropertyListManager` and `UIConfigManager` helpers, consolidates all plist-format migrations into one place (older formats upgrade automatically on first load, keeping a `.bak` safety copy), and moves font handling into a standalone `patcher.core.fonts` module. No user action required; existing plists migrate on launch.
-- **Richer CLI output.** `analyze`, `diff`, and `drift` now render proper Rich tables (auto-sized columns, styled headers) instead of hand-aligned text; status colors flow through a single themed palette defined in one place; and `export` shows a live progress bar that advances title-by-title through Installomator / Homebrew matching instead of an indeterminate spinner.
-- **`analyze` reports surface fleet health at a glance.** Filter results now lead with a compliance summary panel (total titles, average completion, count below your `--threshold`, fleet hosts patched) and color each title's completion percentage by health — red below `--threshold`, yellow up to 90%, green above — so laggards stand out immediately. Tables gained a totals footer row, a provenance caption (the criteria and how many of the cached titles are shown), right-aligned numbers, and truncating (rather than wrapping) app names. The `export` matching progress bar also shows a running title count and an estimated time remaining, and the first-run setup welcome is redrawn as a bordered panel with a clickable docs link.
-- **Setup now offers matching across all available sources.** The first-run prompt reads "Would you like to enable matching (Installomator, Homebrew)?" — previously it asked about "InstallomatorClient support" — and enabling it now turns on Homebrew Cask matching alongside Installomator.
+- **The CLI output got a Rich overhaul.** `analyze`, `diff`, and `drift` render styled tables; `analyze` leads with a fleet-compliance panel and color-codes each title's completion (red/yellow/green by `--threshold`) with row dividers; `export` shows a live progress bar with a running title count and ETA; the first-run setup welcome is a bordered panel; and errors appear in a red panel with recovery hints.
+- **Setup offers matching across all sources.** The first-run prompt now reads "Would you like to enable matching (Installomator, Homebrew)?" and turns on both sources (previously Installomator only).
+- **More titles match out of the box.** A curated seed backfills bundle IDs for ~two dozen apps (Zoom, Docker, OBS Studio, DBeaver, and more) so cross-source matching and drift detection work for them, and matching now skips Adobe- and Jamf-published titles by default (managed out-of-band) to keep `analyze` reports actionable.
+- **Configuration consolidated into one model.** Every on-disk setting now lives in a single `PatcherSettings` plist model; older plist formats migrate automatically on first launch (keeping a `.bak` copy), no user action required.
 
 ### Fixed
-- **Setup and `reset` no longer hang at the first prompt.** The Rich status spinner stayed live *across* the interactive prompts, so the prompt rendered but keystrokes never registered and the process looked frozen — this blocked every new user and anyone running `patcherctl --fresh`, `reset full`, `reset creds`, or `reset ui`. The spinner is now stopped for the duration of any prompt and resumes for the non-interactive work.
-- **The API Client Secret is now hidden during entry.** In SSO setup and `reset creds`, the client secret echoed to the terminal in plaintext as you typed; it is now masked like the Jamf Pro password.
-- **Errors render in the styled panel regardless of how Patcher is launched.** When run through the `patcherctl` command (rather than `python -m patcher.cli`), `PatcherError`s printed as a plain one-line message instead of the bordered red panel with its recovery hint and log-file pointer. Both entry points now use the panel.
-- **`analyze --summary` reports the real error when a report can't be written.** A bug in the failure path raised an unrelated `NameError` instead of the actual file-write error; it now surfaces the underlying cause.
-- **Closing a `JamfClient` or `PatcherClient` now releases every connection pool.** The internal token manager kept its own HTTP pool that `aclose()` never closed, leaking one connection pool per client; `aclose()` (and `async with`) now close it too.
+- **Setup and `reset` no longer hang at the first prompt.** A live status spinner held the terminal across the interactive prompts so keystrokes never registered which blocked every new user and anyone running `patcherctl --fresh`, `reset full`, `reset creds`, or `reset ui`.
+- **The API Client Secret is now hidden during entry.** It previously echoed in plaintext during SSO setup and `reset creds`, it is now masked like the Jamf Pro password.
+- **Errors always render in the styled panel.** Launched via the `patcherctl` command (not just `python -m patcher.cli`), `PatcherError`s now show the bordered red panel with its recovery hint and log-file pointer instead of a plain one-line message.
+- **Closing a `JamfClient` or `PatcherClient` releases every connection pool.** The internal token manager leaked one HTTP pool per client; `aclose()` (and `async with`) now close it too.
 
 ### Deprecated
-- **`PatcherClient(enable_installomator=...)` is renamed to `enable_matching`.** The toggle always meant "do catalog matching at all," not "Installomator specifically" — the new name says what it does. The old keyword still works but emits a `DeprecationWarning`; update library calls to `enable_matching=`.
+- **`PatcherClient(enable_installomator=...)` is renamed to `enable_matching`.** The old keyword still works but emits a `DeprecationWarning`; update library calls to `enable_matching=`.
 
 ## [v3.2.0] - 2026-06-03
 ### Added

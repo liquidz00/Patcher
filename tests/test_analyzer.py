@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 import pytest
 from src.patcher.core.analyze import Diff, TitleFilter, TrendAnalysis
+from src.patcher.core.data_manager import DataManager
 from src.patcher.core.exceptions import PatcherError
 from src.patcher.core.models.cask import CaskMatch
 from src.patcher.core.models.label import Label
@@ -728,7 +729,7 @@ class TestDiff:
         with pytest.raises(PatcherError, match="title_id"):
             Diff(bad, ok).compute()
 
-    def test_from_cache_picks_two_most_recent(self, tmp_path, mocker):
+    def test_from_cache_picks_two_most_recent(self, tmp_path):
         old = self._dump_snapshot(
             tmp_path,
             "old",
@@ -747,8 +748,8 @@ class TestDiff:
             [make_title("Patch A", hosts_patched=70, missing_patch=10)],
             mtime=datetime.now() - timedelta(hours=1),
         )
-        dm = mocker.MagicMock()
-        dm.get_cached_files.return_value = [old, middle, recent]
+        dm = DataManager()
+        dm.cache_dir = tmp_path
         result = Diff.from_cache(dm).compute()
         # `from` should be middle, `to` should be recent
         assert "middle" not in result.from_label  # labels are mtime-derived, not name-derived
@@ -756,22 +757,22 @@ class TestDiff:
         assert change.from_hosts_patched == 60
         assert change.to_hosts_patched == 70
 
-    def test_from_cache_raises_when_no_snapshots(self, mocker):
-        dm = mocker.MagicMock()
-        dm.get_cached_files.return_value = []
+    def test_from_cache_raises_when_no_snapshots(self, tmp_path):
+        dm = DataManager()
+        dm.cache_dir = tmp_path
         with pytest.raises(PatcherError, match="No cached snapshots"):
             Diff.from_cache(dm)
 
-    def test_from_cache_raises_when_only_one_snapshot_and_no_between(self, tmp_path, mocker):
+    def test_from_cache_raises_when_only_one_snapshot_and_no_between(self, tmp_path):
         only = self._dump_snapshot(
             tmp_path, "only", [make_title("Patch A", hosts_patched=50, missing_patch=10)]
         )
-        dm = mocker.MagicMock()
-        dm.get_cached_files.return_value = [only]
+        dm = DataManager()
+        dm.cache_dir = tmp_path
         with pytest.raises(PatcherError, match="at least 2"):
             Diff.from_cache(dm)
 
-    def test_from_cache_all_time_uses_earliest(self, tmp_path, mocker):
+    def test_from_cache_all_time_uses_earliest(self, tmp_path):
         old = self._dump_snapshot(
             tmp_path,
             "old",
@@ -790,14 +791,14 @@ class TestDiff:
             [make_title("Patch A", hosts_patched=70, missing_patch=10)],
             mtime=datetime.now() - timedelta(hours=1),
         )
-        dm = mocker.MagicMock()
-        dm.get_cached_files.return_value = [old, middle, recent]
+        dm = DataManager()
+        dm.cache_dir = tmp_path
         result = Diff.from_cache(dm, all_time=True).compute()
         change = result.changed[0]
         assert change.from_hosts_patched == 50  # earliest
         assert change.to_hosts_patched == 70  # most-recent
 
-    def test_from_cache_since_filters_window(self, tmp_path, mocker):
+    def test_from_cache_since_filters_window(self, tmp_path):
         outside = self._dump_snapshot(
             tmp_path,
             "outside",
@@ -816,15 +817,15 @@ class TestDiff:
             [make_title("Patch A", hosts_patched=70, missing_patch=10)],
             mtime=datetime.now() - timedelta(hours=1),
         )
-        dm = mocker.MagicMock()
-        dm.get_cached_files.return_value = [outside, inside_old, inside_new]
+        dm = DataManager()
+        dm.cache_dir = tmp_path
         # 30-day window: should pick inside_old as `from`, inside_new as `to`
         result = Diff.from_cache(dm, since=timedelta(days=30)).compute()
         change = result.changed[0]
         assert change.from_hosts_patched == 60
         assert change.to_hosts_patched == 70
 
-    def test_from_cache_since_raises_when_no_snapshots_in_window(self, tmp_path, mocker):
+    def test_from_cache_since_raises_when_no_snapshots_in_window(self, tmp_path):
         old1 = self._dump_snapshot(
             tmp_path,
             "old1",
@@ -837,12 +838,12 @@ class TestDiff:
             [make_title("Patch A", hosts_patched=60, missing_patch=10)],
             mtime=datetime.now() - timedelta(days=50),
         )
-        dm = mocker.MagicMock()
-        dm.get_cached_files.return_value = [old1, old2]
+        dm = DataManager()
+        dm.cache_dir = tmp_path
         with pytest.raises(PatcherError, match="No cached snapshots in the requested window"):
             Diff.from_cache(dm, since=timedelta(days=7))
 
-    def test_from_cache_between_picks_closest(self, tmp_path, mocker):
+    def test_from_cache_between_picks_closest(self, tmp_path):
         s1 = self._dump_snapshot(
             tmp_path,
             "s1",
@@ -861,8 +862,8 @@ class TestDiff:
             [make_title("Patch A", hosts_patched=30, missing_patch=10)],
             mtime=datetime(2026, 5, 21, 12, 0, 0),
         )
-        dm = mocker.MagicMock()
-        dm.get_cached_files.return_value = [s1, s2, s3]
+        dm = DataManager()
+        dm.cache_dir = tmp_path
         result = Diff.from_cache(
             dm,
             between=(date(2026, 5, 17), date(2026, 5, 21)),
@@ -871,20 +872,20 @@ class TestDiff:
         assert change.from_hosts_patched == 10
         assert change.to_hosts_patched == 30
 
-    def test_live_vs_cache_uses_most_recent_default(self, tmp_path, mocker):
+    def test_live_vs_cache_uses_most_recent_default(self, tmp_path):
         cached = self._dump_snapshot(
             tmp_path, "cached", [make_title("Patch A", hosts_patched=50, missing_patch=10)]
         )
         live = [make_title("Patch A", hosts_patched=70, missing_patch=10)]
-        dm = mocker.MagicMock()
-        dm.get_cached_files.return_value = [cached]
+        dm = DataManager()
+        dm.cache_dir = tmp_path
         result = Diff.live_vs_cache(live, dm).compute()
         assert result.to_label == "live"
         change = result.changed[0]
         assert change.from_hosts_patched == 50
         assert change.to_hosts_patched == 70
 
-    def test_live_vs_cache_all_time(self, tmp_path, mocker):
+    def test_live_vs_cache_all_time(self, tmp_path):
         old = self._dump_snapshot(
             tmp_path,
             "old",
@@ -898,15 +899,15 @@ class TestDiff:
             mtime=datetime.now() - timedelta(hours=1),
         )
         live = [make_title("Patch A", hosts_patched=70, missing_patch=10)]
-        dm = mocker.MagicMock()
-        dm.get_cached_files.return_value = [old, recent]
+        dm = DataManager()
+        dm.cache_dir = tmp_path
         result = Diff.live_vs_cache(live, dm, all_time=True).compute()
         change = result.changed[0]
         assert change.from_hosts_patched == 10  # earliest
         assert change.to_hosts_patched == 70  # live
 
-    def test_live_vs_cache_raises_when_empty(self, mocker):
-        dm = mocker.MagicMock()
-        dm.get_cached_files.return_value = []
+    def test_live_vs_cache_raises_when_empty(self, tmp_path):
+        dm = DataManager()
+        dm.cache_dir = tmp_path
         with pytest.raises(PatcherError, match="No cached snapshots"):
             Diff.live_vs_cache([make_title("Patch A", hosts_patched=50, missing_patch=10)], dm)

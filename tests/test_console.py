@@ -244,6 +244,14 @@ class TestFormatErr:
             _console.format_err(PatcherError("plain failure"))
         assert "plain failure" in cap.get()
 
+    def test_renders_generic_exception_with_type_prefix(self):
+        # Non-PatcherErrors render in the same panel, prefixed with the type.
+        with _console.err_console.capture() as cap:
+            _console.format_err(TypeError("bad dtype"))
+        out = cap.get()
+        assert "TypeError: bad dtype" in out
+        assert "Error" in out  # the bordered panel, not a plain line
+
 
 class TestProgressBar:
     def test_returns_progress(self):
@@ -302,7 +310,10 @@ class TestTerminalLogging:
                 with _console.err_console.capture() as cap:
                     sys.excepthook(ValueError, ValueError("boom"), None)
                 base.assert_called_once()
-            assert "ValueError" in cap.get()
+            out = cap.get()
+            assert "ValueError: boom" in out  # type-prefixed, in the panel now
+            assert "Error" in out  # panel title — not the old plain ❌ line
+            assert "❌" not in out
         finally:
             sys.excepthook = original
 

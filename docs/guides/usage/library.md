@@ -329,7 +329,7 @@ async with PatcherClient.from_state() as patcher:
 ```
 
 :::{tip}
-To compare two snapshots, construct a {class}`~patcher.core.analyze.Diff` directly. Each side can be a `PatchTitle` list, a DataFrame, or a path to a `.pkl`/`.xlsx` export, as long as it's a Patcher-produced report. See {class}`~patcher.core.analyze.Diff` for full source reference.
+To compare two snapshots, construct a {class}`~patcher.core.analyze.Diff` directly. Each side can be a `PatchTitle` list, a DataFrame, or a path to a `.parquet`/`.xlsx` export (legacy `.pkl` caches are still read), as long as it's a Patcher-produced report. See {class}`~patcher.core.analyze.Diff` for full source reference.
 :::
 
 ### What Gets Compared
