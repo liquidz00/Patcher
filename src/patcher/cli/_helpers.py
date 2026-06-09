@@ -148,7 +148,7 @@ async def process_reports(
     Wraps the orchestration in a Rich status spinner and prints a success
     banner on completion. Both are CLI-presentation concerns that don't
     belong in the core layer. Library callers should call ``patcher.jamf``,
-    the transforms in :mod:`patcher.core.analyze`, and ``patcher.data.export(...)``
+    the transforms in :mod:`patcher.core.analyze`, and ``patcher.export(...)``
     directly.
 
     :param patcher: Pre-configured ``PatcherClient`` carrying the

@@ -14,6 +14,7 @@ For raw, lower-level access without ``PatcherClient``, see
 and :class:`patcher.clients.HTTPClient` (generic httpx with truststore).
 """
 
+import asyncio
 import warnings
 from datetime import date, timedelta
 from pathlib import Path
@@ -33,6 +34,7 @@ from .analyze import (
 from .config_manager import ConfigManager
 from .data_manager import DataManager
 from .exceptions import PatcherError
+from .exporter import Exporter
 from .logger import LogMe
 from .matching import match_titles
 from .models.patch import PatchTitle
@@ -177,7 +179,7 @@ class PatcherClient:
         # the user's header/footer/font/logo instead of UIDefaults placeholders.
         # See issue #69.
         self.ui_config = ui_config if ui_config is not None else UIDefaults().model_dump()
-        self.data = DataManager(disable_cache=disable_cache, ui_config=self.ui_config)
+        self.data = DataManager(disable_cache=disable_cache)
 
     @classmethod
     def from_state(cls, **overrides: Any) -> "PatcherClient":
@@ -541,8 +543,9 @@ class PatcherClient:
         device_reports: dict[str, list] | None = None,
     ) -> dict[str, str]:
         """
-        Export patch titles to one or more report formats. Convenience
-        wrapper around ``self.data.export``.
+        Export patch titles to one or more report formats. Builds and caches
+        the canonical snapshot via :class:`DataManager`, then renders it through
+        :class:`~patcher.core.exporter.Exporter`.
 
         :param titles: Patch titles to include in the report.
         :type titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
@@ -569,8 +572,10 @@ class PatcherClient:
         :return: Mapping of format → output path for every report written.
         :rtype: dict[str, str]
         """
-        return await self.data.export(
-            patch_titles=titles,
+        df = await asyncio.to_thread(self.data.build_and_cache, titles)
+        exporter = Exporter(titles, ui_config=self.ui_config)
+        exported = await exporter.export(
+            df,
             output_dir=output_dir,
             report_title=report_title
             or self.ui_config.get(UIConfigKeys.HEADER.value, "Patch Report"),
@@ -580,6 +585,10 @@ class PatcherClient:
             header_color=header_color,
             device_reports=device_reports,
         )
+        # Track the latest Excel so get_latest_dataset can prefer it as a dataset source.
+        if "excel" in exported:
+            self.data.latest_excel_file = Path(exported["excel"])
+        return exported
 
     async def reset(
         self,

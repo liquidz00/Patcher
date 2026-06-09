@@ -22,6 +22,7 @@ from ..clients.patcher_api import DriftEntry
 from ..core.analyze import TitleFilter, TrendAnalysis
 from ..core.config_manager import ConfigManager
 from ..core.exceptions import APIResponseError, PatcherError, SetupError
+from ..core.exporter import Exporter
 from ..core.logger import LogMe
 from ..core.models.settings import PatcherSettings, UIDefaults
 from ..core.patcher_client import PatcherClient
@@ -668,8 +669,10 @@ async def analyze(
             if summary and len(filtered_titles) > 0:
                 spinner.update("Writing HTML summary report...")
                 try:
-                    exported = await data_manager.export(
-                        filtered_titles,
+                    df = await asyncio.to_thread(data_manager.build_and_cache, filtered_titles)
+                    exporter = Exporter(filtered_titles)
+                    exported = await exporter.export(
+                        df,
                         output_dir,
                         report_title=settings.user_interface_settings.header_text,
                         analysis=True,

@@ -388,8 +388,9 @@ class TestAnalyze:
     @pytest.mark.asyncio
     async def test_analyze_filter_summary_exports_html(self, mocker):
         mocker.patch("src.patcher.cli.TitleFilter.apply", return_value=[_patch_title("Firefox")])
-        dm = mocker.patch("src.patcher.cli.get_data_manager").return_value
-        dm.export = AsyncMock(return_value={"html": "/out/summary.html"})
+        mocker.patch("src.patcher.cli.get_data_manager")
+        mock_exporter = mocker.patch("src.patcher.cli.Exporter")
+        mock_exporter.return_value.export = AsyncMock(return_value={"html": "/out/summary.html"})
         ctx = _ctx()
 
         await analyze.callback.__wrapped__(
@@ -406,7 +407,7 @@ class TestAnalyze:
             all_time=False,
         )
 
-        dm.export.assert_awaited_once()
+        mock_exporter.return_value.export.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_analyze_all_time_trend_summary_saves_html(self, mocker, tmp_path):

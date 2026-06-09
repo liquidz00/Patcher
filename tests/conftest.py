@@ -315,8 +315,8 @@ def patcher_instance(
     patcher.api = mock_patcher_api
     patcher.ui_config = {"header_text": "", "header_color": ""}
     patcher.debug = True
-    # ``patcher.export`` is a top-level convenience method (delegates to
-    # ``patcher.data.export``). The CLI's ``process_reports`` calls it directly.
+    # ``patcher.export`` is a top-level convenience method (builds + caches via
+    # ``patcher.data``, then renders via ``Exporter``). ``process_reports`` calls it.
     patcher.export = AsyncMock()
     return patcher
 
