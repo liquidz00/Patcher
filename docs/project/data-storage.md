@@ -21,12 +21,13 @@ Everything Patcher writes outside of the keychain and the patch-data cache lives
 ```text
 ~/Library/Application Support/Patcher/
 ├── com.liquidzoo.patcher.plist       # Configuration (this page)
-├── .labels/                          # Cached label scripts
 ├── unmatched_apps.json               # Titles with no label match
 ├── fonts/                            # Custom PDF report fonts (if any)
 ├── logo.png                          # Custom PDF report logo (if any)
 └── logs/                             # LaunchAgent stdout/stderr (if scheduled)
 ```
+
+Older versions also kept a `.labels/` directory of cached label scripts. That cache is gone; Patcher removes any leftover directory automatically on the next run and on `reset cache`.
 
 To wipe this directory entirely, use `patcherctl reset full`. To wipe just the patch-data cache (separate location, see below), use `patcherctl reset cache`.
 

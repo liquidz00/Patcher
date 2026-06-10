@@ -33,7 +33,7 @@ src/patcher/
 │   ├── __init__.py         # HTTPClient (httpx + truststore base)
 │   ├── jamf.py             # JamfClient (Jamf Pro API)
 │   ├── patcher_api.py      # PatcherAPIClient (api.patcherctl.dev catalog)
-│   ├── installomator.py    # InstallomatorClient (label fetcher, standalone)
+│   ├── installomator.py    # InstallomatorClient (label fetcher, standalone; deprecated)
 │   └── token_manager.py    # OAuth token lifecycle for Jamf
 │
 ├── core/  

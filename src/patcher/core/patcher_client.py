@@ -20,6 +20,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
+from ..clients.installomator import InstallomatorClient
 from ..clients.jamf import JamfClient
 from ..clients.patcher_api import DriftEntry, DriftResponse, PatcherAPIClient
 from .analyze import (
@@ -633,6 +634,7 @@ class PatcherClient:
         if kind == "cache":
             if not self.data.reset_cache():
                 raise PatcherError("Reset cache: failure removing cached data.")
+            InstallomatorClient.purge_legacy_disk_cache()
             return
 
         if self._config.in_memory_mode:

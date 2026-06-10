@@ -11,6 +11,8 @@ import pytest
 from src.patcher import InstallomatorClient
 from src.patcher.core.models.label import Label
 
+pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio

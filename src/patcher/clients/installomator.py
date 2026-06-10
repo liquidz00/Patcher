@@ -2,6 +2,8 @@
 
 import asyncio
 import re
+import shutil
+import warnings
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -23,6 +25,10 @@ _INSTALLOMATOR_RAW_BASE = (
 )
 _LABELS_TXT_URL = f"{_INSTALLOMATOR_RAW_BASE}/Labels.txt"
 _FRAGMENT_URL_TEMPLATE = f"{_INSTALLOMATOR_RAW_BASE}/fragments/labels/{{name}}.sh"
+
+# Legacy on-disk label cache. Older versions persisted parsed fragments here with
+# no expiration; the cache is gone and purge_legacy_disk_cache() sweeps leftovers.
+_LEGACY_LABEL_CACHE = Path.home() / "Library/Application Support/Patcher/.labels"
 
 
 def _walk(text: str, *, stop_at_delim: bool) -> tuple[str, list[str], bool]:
@@ -268,30 +274,38 @@ def parse_fragment(fragment: str) -> dict[str, Any]:
 
 
 class InstallomatorClient:
-    """Discovers, fetches, and matches Installomator labels to ``PatchTitle`` objects."""
+    """
+    Discovers and fetches Installomator labels directly from upstream GitHub.
+
+    .. deprecated::
+       Prefer :class:`~patcher.core.patcher_client.PatcherClient` /
+       :class:`~patcher.clients.patcher_api.PatcherAPIClient` for label and
+       match data (set ``PATCHER_API_URL`` for self-hosted catalogs). This
+       client will be removed in a future release.
+    """
 
     def __init__(self, concurrency: int = 5, api: HTTPClient | None = None):
         """
         Wrapper around the `Installomator <https://github.com/Installomator/Installomator>`_ project (the macOS automated-installer script set).
 
-        This class provides methods for discovering, fetching, and matching Installomator labels to ``PatchTitle`` objects. Discovery uses the lightweight ``Labels.txt`` file at the Installomator repo root; individual ``.sh`` fragments are fetched lazily and only for matches.
+        This class discovers and fetches Installomator labels. Discovery uses the lightweight ``Labels.txt`` file at the Installomator repo root; individual ``.sh`` fragments are fetched lazily.
 
         :param concurrency: Maximum concurrent requests for label fetches. Defaults to 5.
         :type concurrency: int
         :param api: HTTP client used for fetches against Installomator's GitHub.
             Defaults to a fresh :class:`~patcher.clients.HTTPClient`. No Jamf
-            credentials required, so library callers can use
-            ``InstallomatorClient()`` standalone to enumerate or fetch labels.
-            When :meth:`match` is needed, pass a configured
-            :class:`~patcher.clients.jamf.JamfClient` instead (it inherits
-            from ``HTTPClient`` and adds the Jamf-specific
-            :meth:`~patcher.clients.jamf.JamfClient.get_app_names` call that
-            ``match()`` requires). :class:`PatcherClient` injects its
-            shared ``JamfClient`` automatically.
+            credentials required, so callers can use ``InstallomatorClient()``
+            standalone to enumerate or fetch labels.
         :type api: :class:`~patcher.clients.HTTPClient` | None
         """
+        warnings.warn(
+            "InstallomatorClient is deprecated and will be removed in a future "
+            "release. Use PatcherClient / PatcherAPIClient for label and match "
+            "data (set PATCHER_API_URL for self-hosted catalogs).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.log = LogMe(self.__class__.__name__)
-        self.label_path = Path.home() / "Library/Application Support/Patcher/.labels"
         self.api = api if api is not None else HTTPClient(max_concurrency=concurrency)
 
         # Session-scoped caches. `_available_names` holds the parsed Labels.txt
@@ -299,6 +313,32 @@ class InstallomatorClient:
         # objects keyed by script name as they are fetched.
         self._available_names: set[str] | None = None
         self._labels_by_name: dict[str, Label] = {}
+
+    @staticmethod
+    def purge_legacy_disk_cache() -> bool:
+        """
+        Remove the legacy on-disk Installomator label cache if present.
+
+        Older versions persisted parsed label fragments under
+        ``~/Library/Application Support/Patcher/.labels`` with no expiration or
+        invalidation. That cache is gone; this best-effort sweep deletes any
+        leftover directory so stale fragments don't linger. Safe to call when
+        the directory is absent.
+
+        :return: True if a directory was removed, False if there was nothing to
+            remove or removal failed (failures are logged, not raised).
+        :rtype: bool
+        """
+        if not _LEGACY_LABEL_CACHE.exists():
+            return False
+        log = LogMe(InstallomatorClient.__name__)
+        try:
+            shutil.rmtree(_LEGACY_LABEL_CACHE)
+            log.info(f"Removed legacy Installomator label cache at {_LEGACY_LABEL_CACHE}")
+            return True
+        except OSError as e:
+            log.warning(f"Could not remove legacy label cache {_LEGACY_LABEL_CACHE}: {e}")
+            return False
 
     def _build_label_from_content(self, content: str, script_name: str) -> Label | None:
         """
@@ -368,9 +408,8 @@ class InstallomatorClient:
 
         Lookup order:
 
-        1. Instance cache (``self._labels_by_name``)
-        2. On-disk cache (``~/Library/Application Support/Patcher/.labels/<name>.sh``)
-        3. HTTP fetch from ``_FRAGMENT_URL_TEMPLATE``
+        1. Instance (session) cache (``self._labels_by_name``)
+        2. HTTP fetch from ``_FRAGMENT_URL_TEMPLATE``
 
         :param name: The Installomator script name (e.g. ``"googlechrome"``).
             Case-insensitive; normalized to lowercase before lookup.
@@ -382,20 +421,6 @@ class InstallomatorClient:
         key = name.lower()
         if key in self._labels_by_name:
             return self._labels_by_name[key]
-
-        # On-disk cache
-        cache_path = self.label_path / f"{key}.sh"
-        if cache_path.exists():
-            try:
-                content = cache_path.read_text()
-                label = self._build_label_from_content(content, key)
-                if label is not None:
-                    self._labels_by_name[key] = label
-                return label
-            except OSError as e:
-                self.log.warning(
-                    f"Could not read cached fragment {cache_path}; will refetch. Details: {e}"
-                )
 
         # fetch_text raises APIResponseError on non-2xx (not_found=True on 404),
         # so we never parse error bodies as labels. Best-effort: log and return
@@ -410,13 +435,6 @@ class InstallomatorClient:
 
         if not content:
             return None
-
-        # Best-effort cache write; failure here doesn't prevent returning the label
-        try:
-            self.label_path.mkdir(parents=True, exist_ok=True)
-            cache_path.write_text(content)
-        except OSError as e:
-            self.log.warning(f"Could not write fragment cache to {cache_path}: {e}")
 
         label = self._build_label_from_content(content, key)
         if label is not None:

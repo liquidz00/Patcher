@@ -4,12 +4,10 @@ Match Jamf patch titles against the Patcher API catalog.
 Used by :meth:`PatcherClient.fetch_patches` to populate
 ``PatchTitle.install_label`` with name-only :class:`Label` stubs for every
 patch title that has an Installomator-tracked counterpart. The matching
-algorithm itself (direct → normalized → fuzzy) is the same one
-``InstallomatorClient.match()`` runs against ``Labels.txt``; only the
-source of the slug set differs — here it comes from the API's stitched
-catalog (which already includes every Installomator label, plus
+algorithm (direct → normalized → fuzzy) runs against the API's stitched
+catalog slug set, which already includes every Installomator label plus
 cross-source enrichment for downstream consumers that query the API
-directly).
+directly.
 
 When ``include_homebrew`` is set, the candidate slug set is widened to
 include Homebrew Cask-sourced catalog entries (a second matching

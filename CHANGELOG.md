@@ -13,8 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`PatcherClient.analyze(..., where=)`** accepts a `min_compliance` / `min_hosts` / `released_after` pre-filter, matching the CLI's `analyze` filters.
 
 ### Changed
+- **Patcher no longer keeps a local Installomator label cache.** The on-disk `~/Library/Application Support/Patcher/.labels` cache (unbounded, never expired) is gone; label fetches now go straight to the catalog. Any leftover directory is removed automatically on the next run and by `reset cache`.
 - **Internal: report rendering split out of `DataManager` into a new `Exporter`.** `DataManager` now owns only the on-disk cache and DataFrame (de)serialization; PDF/Excel/HTML/JSON rendering moved to `patcher.core.exporter.Exporter`. The public `PatcherClient.export(...)` API is unchanged. Library callers using `DataManager.export(...)` or the module-level `serialize_titles_to_dict` directly should switch to `PatcherClient.export(...)` or `Exporter`.
 - **Internal: the `analyze` CLI command routes through `PatcherClient`** (`analyze` / `analyze_trend` / `export`) instead of reimplementing the `TitleFilter` / `TrendAnalysis` transforms inline. No change to `analyze` behavior or output.
+
+### Deprecated
+- **`InstallomatorClient` is deprecated** and will be removed in a future release; constructing it now emits a `DeprecationWarning`. Use `PatcherClient` / `PatcherAPIClient` for label and match data (set `PATCHER_API_URL` for self-hosted catalogs).
 
 
 ## [v3.3.1] - 2026-06-09
