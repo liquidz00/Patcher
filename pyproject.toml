@@ -97,7 +97,8 @@ packages = ["src/patcher"]
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
-exclude = ["docs"]
+exclude = ["docs", "api/alembic"]
+force-exclude = true
 
 [tool.ruff.format]
 quote-style = "double"
