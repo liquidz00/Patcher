@@ -183,7 +183,9 @@ class TestAnalyze:
 
         result = await patcher.analyze(["titles"], criteria="most-installed")
 
-        mock_apply.assert_called_once_with(["titles"], "most-installed", threshold=70.0, top_n=None)
+        mock_apply.assert_called_once_with(
+            ["titles"], "most-installed", threshold=70.0, top_n=None, where=None
+        )
         assert result == ["result"]
 
     @pytest.mark.asyncio
@@ -193,7 +195,9 @@ class TestAnalyze:
 
         await patcher.analyze(["titles"], criteria="below-threshold", threshold=85.0, top_n=5)
 
-        mock_apply.assert_called_once_with(["titles"], "below-threshold", threshold=85.0, top_n=5)
+        mock_apply.assert_called_once_with(
+            ["titles"], "below-threshold", threshold=85.0, top_n=5, where=None
+        )
 
     @pytest.mark.asyncio
     async def test_invalid_string_criteria_raises_patcher_error(self, patcher):

@@ -9,8 +9,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- **`PatcherClient.analyze(..., where=)`** accepts a `min_compliance` / `min_hosts` / `released_after` pre-filter, matching the CLI's `analyze` filters.
+
 ### Changed
 - **Internal: report rendering split out of `DataManager` into a new `Exporter`.** `DataManager` now owns only the on-disk cache and DataFrame (de)serialization; PDF/Excel/HTML/JSON rendering moved to `patcher.core.exporter.Exporter`. The public `PatcherClient.export(...)` API is unchanged. Library callers using `DataManager.export(...)` or the module-level `serialize_titles_to_dict` directly should switch to `PatcherClient.export(...)` or `Exporter`.
+- **Internal: the `analyze` CLI command routes through `PatcherClient`** (`analyze` / `analyze_trend` / `export`) instead of reimplementing the `TitleFilter` / `TrendAnalysis` transforms inline. No change to `analyze` behavior or output.
 
 
 ## [v3.3.1] - 2026-06-09

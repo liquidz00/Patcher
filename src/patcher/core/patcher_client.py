@@ -303,6 +303,7 @@ class PatcherClient:
         *,
         threshold: float | None = 70.0,
         top_n: int | None = None,
+        where: dict | None = None,
     ) -> list[PatchTitle]:
         """
         Filter and sort patch titles by a named criterion. The library
@@ -333,11 +334,15 @@ class PatcherClient:
             ``below-threshold`` and ``zero-completion`` criteria ignore this
             (they return all matching titles).
         :type top_n: int | None
+        :param where: Optional pre-filter applied before the criterion runs.
+            Keys are ``min_compliance`` / ``min_hosts`` / ``released_after``;
+            unknown keys raise ``PatcherError``.
+        :type where: dict | None
         :return: Filtered + sorted list of ``PatchTitle`` objects.
         :rtype: list[:class:`~patcher.core.models.patch.PatchTitle`]
         :raises PatcherError: If ``criteria`` is not a recognized value.
         """
-        return TitleFilter.apply(titles, criteria, threshold=threshold, top_n=top_n)
+        return TitleFilter.apply(titles, criteria, threshold=threshold, top_n=top_n, where=where)
 
     async def analyze_excel(
         self,

@@ -19,10 +19,8 @@ import rich.traceback
 
 from ..__about__ import __version__
 from ..clients.patcher_api import DriftEntry
-from ..core.analyze import TitleFilter, TrendAnalysis
 from ..core.config_manager import ConfigManager
 from ..core.exceptions import APIResponseError, PatcherError, SetupError
-from ..core.exporter import Exporter
 from ..core.logger import LogMe
 from ..core.models.settings import PatcherSettings, UIDefaults
 from ..core.patcher_client import PatcherClient
@@ -465,7 +463,6 @@ async def export(
         ui_config=settings.user_interface_settings.model_dump(),
         ignored_titles=settings.ignored_titles,
     )
-    ctx.obj["data_manager"] = patcher.data  # Store in context for analyze
 
     selected_formats = set(formats) if formats else {"excel", "html", "pdf", "json"}
     actual_format = DATE_FORMATS[date_format]
@@ -622,7 +619,14 @@ async def analyze(
 
     debug = ctx.obj.get("debug")
     settings = ctx.obj.get("settings")
-    data_manager = get_data_manager(ctx)
+    patcher = PatcherClient(
+        config=ctx.obj.get("config"),
+        disable_cache=ctx.obj.get("disable_cache"),
+        debug=debug,
+        enable_matching=settings.enable_matching,
+        ui_config=settings.user_interface_settings.model_dump(),
+        ignored_titles=settings.ignored_titles,
+    )
 
     with status("Processing", enabled=not debug) as spinner:
         spinner.update("Loading cached patch data...")
@@ -634,19 +638,16 @@ async def analyze(
         summary_path = None
         if all_time:  # Analyze trends
             spinner.update(f"Calculating '{criteria}' trend across cached datasets...")
-            trend_df = TrendAnalysis.apply(data_manager.get_cached_files(), criteria)
-
-            if summary and not trend_df.empty:
-                spinner.update("Saving trend analysis report...")
-                summary_path = output_dir / f"trend-analysis-{criteria}.html"
-                try:
-                    trend_df.to_html(summary_path, index=False)
-                except (OSError, PermissionError, FileNotFoundError) as exc:
-                    raise PatcherError(
-                        "Unable to save trend analysis report as expected.",
-                        dir=output_dir,
-                        error_msg=str(exc),
-                    )
+            save_to = output_dir / f"trend-analysis-{criteria}.html" if summary else None
+            try:
+                trend_df = await patcher.analyze_trend(criteria, save_to=save_to)
+            except (OSError, PermissionError, FileNotFoundError) as exc:
+                raise PatcherError(
+                    "Unable to save trend analysis report as expected.",
+                    dir=output_dir,
+                    error_msg=str(exc),
+                )
+            summary_path = save_to if (summary and not trend_df.empty) else None
         else:  # Filter analysis
             spinner.update(f"Filtering titles by '{criteria}'...")
             where_kwargs = {
@@ -658,8 +659,8 @@ async def analyze(
                 )
                 if v is not None
             }
-            filtered_titles = TitleFilter.apply(
-                data_manager.titles,
+            filtered_titles = await patcher.analyze(
+                patcher.data.titles,
                 criteria,
                 threshold=threshold,
                 top_n=top_n,
@@ -669,11 +670,9 @@ async def analyze(
             if summary and len(filtered_titles) > 0:
                 spinner.update("Writing HTML summary report...")
                 try:
-                    df = await asyncio.to_thread(data_manager.build_and_cache, filtered_titles)
-                    exporter = Exporter(filtered_titles)
-                    exported = await exporter.export(
-                        df,
-                        output_dir,
+                    exported = await patcher.export(
+                        filtered_titles,
+                        output_dir=output_dir,
                         report_title=settings.user_interface_settings.header_text,
                         analysis=True,
                         formats={"html"},
@@ -700,7 +699,7 @@ async def analyze(
             console.print(f"⚠️ No PatchTitle objects meet criteria {criteria}", style=WARNING_STYLE)
             sys.exit(0)
 
-        console.print(build_fleet_summary(data_manager.titles, threshold))
+        console.print(build_fleet_summary(patcher.data.titles, threshold))
 
         table_data = [
             [
@@ -728,7 +727,7 @@ async def analyze(
         justify = ["left", "left", "right", "right", "left", "right", "right", "center"]
         caption = (
             f"criteria={criteria}  ·  "
-            f"showing {len(filtered_titles)} of {len(data_manager.titles)} titles"
+            f"showing {len(filtered_titles)} of {len(patcher.data.titles)} titles"
         )
         console.print(
             build_table(table_data, headers, caption=caption, justify=justify, lines=True)
