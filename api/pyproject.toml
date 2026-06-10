@@ -60,7 +60,10 @@ addopts = [
   "--cov-report=term-missing",
 ]
 testpaths = ["./tests"]
-filterwarnings = ["error"]
+filterwarnings = [
+  "error",
+  "ignore:SelectableGroups dict interface is deprecated:DeprecationWarning",  # fastmcp opentelemetry issue
+]
 markers = [
   "unit: Fast unit tests that test individual components in isolation",
   "integration: Tests that involve multiple components or external dependencies",
