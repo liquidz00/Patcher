@@ -9,11 +9,13 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel
 
+from ..clients import HTTPClient
 from ..clients.jamf import JamfClient
 from .data_manager import DataManager
 from .exceptions import APIResponseError, PatcherError
 from .logger import LogMe
 from .models.patch import PatchTitle
+from .serialization import titles_to_df
 
 _log = LogMe("analyze")
 _CHANGE_FIELDS = ("completion_percent", "hosts_patched", "total_hosts", "latest_version")
@@ -108,7 +110,7 @@ async def append_ios_status(titles: list[PatchTitle], api: JamfClient) -> list[P
 
     _log.debug("Attempting to retrieve SOFA feed.")
     try:
-        latest_versions = await api.get_sofa_feed()
+        latest_versions = await get_sofa_feed(api)
         _log.info("Obtained latest version information from SOFA feed successfully.")
     except APIResponseError as e:
         _log.error(f"Failed to fetch data from SOFA feed. Details: {e}")
@@ -183,6 +185,44 @@ def calculate_ios_on_latest(
             "Division by zero encountered during iOS Device percentage calculation.",
             error_msg=str(e),
         )
+
+
+async def get_sofa_feed(http_client: HTTPClient) -> list[dict[str, str]]:
+    """
+    Fetches iOS Data feeds from SOFA and extracts latest OS version information.
+
+    .. note::
+        This function is only called if the :ref:`iOS <ios>` option is passed to the CLI.
+
+    :return: A list of dictionaries containing base OS versions, latest iOS versions, and release dates.
+    :rtype: list[dict[str, str]]
+    :raises APIResponseError: If the SOFA feed cannot be fetched or parsed.
+    """
+    sofa_url = "https://sofafeed.macadmins.io/v1/ios_data_feed.json"
+
+    try:
+        result_json = await http_client.fetch_json(url=sofa_url)
+    except APIResponseError as e:
+        raise APIResponseError(
+            "Unable to retrieve SOFA feed",
+            url=sofa_url,
+            error_msg=str(e),
+        )
+
+    os_versions = result_json.get("OSVersions", [])
+
+    # Iterate over versions to obtain iOS 16 & iOS 17 datasets
+    latest_versions = []
+    for version in os_versions:
+        version_info = version.get("Latest", {})
+        latest_versions.append(
+            {
+                "OSVersion": version.get("OSVersion"),
+                "ProductVersion": version_info.get("ProductVersion"),
+                "ReleaseDate": version_info.get("ReleaseDate"),
+            }
+        )
+    return latest_versions
 
 
 class TitleFilter:
@@ -1049,7 +1089,7 @@ def _to_normalized_df(
     """Load any supported snapshot input and normalize column names + dates."""
     match snapshot:
         case list():
-            df = pd.DataFrame([t.model_dump() for t in snapshot])
+            df = titles_to_df(snapshot)
         case pd.DataFrame():
             df = snapshot.copy()
         case Path() | str():

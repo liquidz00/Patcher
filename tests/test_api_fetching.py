@@ -87,27 +87,6 @@ class TestGetSummaries:
                 await api_client.get_summaries(["1", "2", "3"])
 
 
-# Test SOFA feed (success, error) — post-httpx-migration
-class TestGetSofaFeed:
-    @pytest.mark.asyncio
-    async def test_get_sofa_feed_success(self, api_client, mock_sofa_response):
-        """get_sofa_feed delegates to fetch_json and reshapes the OSVersions field."""
-        with patch.object(api_client, "fetch_json", AsyncMock(return_value=mock_sofa_response)):
-            versions = await api_client.get_sofa_feed()
-
-        assert len(versions) == 2
-        assert versions[0]["OSVersion"] == "17"
-        assert versions[0]["ProductVersion"] == "17.5.1"
-
-    @pytest.mark.asyncio
-    async def test_get_sofa_feed_error(self, api_client):
-        """An httpx-layer failure surfaces wrapped as 'Unable to retrieve SOFA feed'."""
-        err = exceptions.APIResponseError("Network error fetching URL", url="https://sofafeed")
-        with patch.object(api_client, "fetch_json", AsyncMock(side_effect=err)):
-            with pytest.raises(exceptions.APIResponseError, match="Unable to retrieve SOFA feed"):
-                await api_client.get_sofa_feed()
-
-
 # Test CSV export (success, error) — post-httpx-migration
 class TestGetTitleReportCsv:
     @pytest.mark.asyncio

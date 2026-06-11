@@ -82,6 +82,16 @@ class PatchTitle(Model):
 
         return self
 
+    @field_validator("released", mode="before")
+    @classmethod
+    def _format_released(cls, value) -> str:
+        if not isinstance(value, str):
+            return value
+        try:
+            return datetime.strptime(value, "%Y-%m-%dT%H:%M:%S%z").strftime("%b %d %Y")
+        except ValueError:
+            return value  # already display string
+
 
 class PatchDevice(Model):
     """

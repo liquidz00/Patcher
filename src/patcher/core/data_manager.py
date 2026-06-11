@@ -5,11 +5,11 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
-from pydantic import ValidationError
 
 from .exceptions import PatcherError
 from .logger import LogMe
 from .models.patch import PatchTitle
+from .serialization import df_to_titles, titles_to_df
 
 
 class DataManager:
@@ -94,7 +94,7 @@ class DataManager:
         """Convert a list of ``PatchTitle`` objects into a pandas DataFrame."""
         self.log.debug("Attempting to create DataFrame from PatchTitle objects.")
         try:
-            df = pd.DataFrame([patch.model_dump() for patch in patch_titles])
+            df = titles_to_df(patch_titles)
             df.columns = [column.replace("_", " ").title() for column in df.columns]
             self.log.info(
                 f"Created DataFrame from {len(patch_titles)} PatchTitle objects successfully."
@@ -158,24 +158,12 @@ class DataManager:
     def _create_patches(self, df: pd.DataFrame) -> list[PatchTitle]:
         """Convert a pandas DataFrame into a list of PatchTitle objects."""
         self.log.debug(f"Creating PatchTitle objects from DataFrame with {len(df)} rows.")
-        skipped_rows = 0
-        patch_titles = []
+        patch_titles, errors = df_to_titles(df)
 
-        for _, row in df.iterrows():
-            try:
-                patch = PatchTitle(
-                    **{str(key).lower().replace(" ", "_"): value for key, value in row.items()}
-                )
-                patch_titles.append(patch)
-            except (KeyError, ValueError, TypeError, ValidationError) as e:
-                exception_name = type(e).__name__
-                self.log.warning(
-                    f"Encountered {exception_name} during PatchTitle creation. Skipping row. Details: {e}."
-                )
-                skipped_rows += 1
-
-        if skipped_rows > 0:
-            self.log.warning(f"{skipped_rows} rows were skipped during PatchTitle creation.")
+        for detail in errors:
+            self.log.warning(f"Skipping row during PatchTitle creation. Details: {detail}")
+        if errors:
+            self.log.warning(f"{len(errors)} rows were skipped during PatchTitle creation.")
         self.log.info(f"Successfully created {len(patch_titles)} PatchTitle objects.")
 
         return patch_titles

@@ -12,6 +12,7 @@ sample) to play nicely with the shared dummy instance.
 from __future__ import annotations
 
 import pytest
+from src.patcher.core.analyze import get_sofa_feed
 
 
 @pytest.mark.integration
@@ -58,7 +59,7 @@ async def test_get_device_os_versions_resolves_sample(integration_jamf_client) -
 @pytest.mark.asyncio
 async def test_get_sofa_feed_returns_release_data(integration_jamf_client) -> None:
     """The SOFA feed (external macadmins.io endpoint) returns iOS release metadata."""
-    feed = await integration_jamf_client.get_sofa_feed()
+    feed = await get_sofa_feed(integration_jamf_client)
 
     assert isinstance(feed, list)
     assert len(feed) > 0, "SOFA feed should contain at least one release entry"

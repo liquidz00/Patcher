@@ -58,6 +58,20 @@ Async `httpx` base every outbound client inherits from. Provides the per-instanc
 `fpdf2`-backed renderer for branded patch reports. Handles font loading, logo placement, and per-page header/footer styling driven by the `ui_config` dict.
 :::
 
+:::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `Policy`
+:link: policy
+:link-type: doc
+
+The hardcoded catalog rules: which Installomator team IDs and Jamf titles are skipped, which bundle_ids are seeded for the stitch, and which internal columns are stripped from rendered reports.
+:::
+
+:::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `Serialization`
+:link: serialization
+:link-type: doc
+
+The shared conversions between `PatchTitle` objects and their DataFrame and dict forms. One place owns `model_dump`, so the cache, the diff path, and JSON export stay consistent.
+:::
+
 :::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `TokenManager`
 :link: token_manager
 :link-type: doc
@@ -75,5 +89,7 @@ data_manager
 exporter
 http_client
 pdf_report
+policy
+serialization
 token_manager
 ```

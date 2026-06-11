@@ -1,12 +1,13 @@
 import os
 import pickle
 from datetime import date, datetime, timedelta
+from unittest.mock import AsyncMock, patch
 
 import pandas as pd
 import pytest
-from src.patcher.core.analyze import Diff, TitleFilter, TrendAnalysis
+from src.patcher.core.analyze import Diff, TitleFilter, TrendAnalysis, get_sofa_feed
 from src.patcher.core.data_manager import DataManager
-from src.patcher.core.exceptions import PatcherError
+from src.patcher.core.exceptions import APIResponseError, PatcherError
 from src.patcher.core.models.cask import CaskMatch
 from src.patcher.core.models.label import Label
 from src.patcher.core.models.patch import PatchTitle
@@ -911,3 +912,23 @@ class TestDiff:
         dm.cache_dir = tmp_path
         with pytest.raises(PatcherError, match="No cached snapshots"):
             Diff.live_vs_cache([make_title("Patch A", hosts_patched=50, missing_patch=10)], dm)
+
+
+class TestGetSofaFeed:
+    @pytest.mark.asyncio
+    async def test_get_sofa_feed_success(self, api_client, mock_sofa_response):
+        """get_sofa_feed delegates to fetch_json and reshapes the OSVersions field."""
+        with patch.object(api_client, "fetch_json", AsyncMock(return_value=mock_sofa_response)):
+            versions = await get_sofa_feed(api_client)
+
+        assert len(versions) == 2
+        assert versions[0]["OSVersion"] == "17"
+        assert versions[0]["ProductVersion"] == "17.5.1"
+
+    @pytest.mark.asyncio
+    async def test_get_sofa_feed_error(self, api_client):
+        """An httpx-layer failure surfaces wrapped as 'Unable to retrieve SOFA feed'."""
+        err = APIResponseError("Network error fetching URL", url="https://sofafeed")
+        with patch.object(api_client, "fetch_json", AsyncMock(side_effect=err)):
+            with pytest.raises(APIResponseError, match="Unable to retrieve SOFA feed"):
+                await get_sofa_feed(api_client)

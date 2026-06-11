@@ -5,7 +5,8 @@ Each constant is consumed by a different layer and is intentionally
 independent: ``INGEST_EXCLUDED_TEAM_IDS`` filters Installomator fragments at
 ingest, ``IGNORED_TITLES`` is the client matcher's Jamf-title skip list, and
 ``CURATED_BUNDLE_IDS`` seeds bundle_ids the catalog stitch needs to attach Jamf
-App Installers to install sources that carry none.
+App Installers to install sources that carry none, and ``IGNORED_EXPORT_COLUMNS``
+lists the internal columns stripped from the rendered PDF/Excel/HTML reports.
 """
 
 # LL3KBL2M3A is lcadvancedvpnclient (broken data); Frydendal/Media are non-standard team values
@@ -54,4 +55,5 @@ CURATED_BUNDLE_IDS: dict[str, str] = {
     "zoom": "us.zoom.xos",
 }
 
-IGNORED_EXPORT_COLUMNS = ["install_label", "homebrew_cask", "title_id", "name_id"]
+# Dropped from rendered reports (PDF/Excel/HTML); JSON keeps them as machine-to-machine transport
+IGNORED_EXPORT_COLUMNS: list[str] = ["install_label", "homebrew_cask", "title_id", "name_id"]
