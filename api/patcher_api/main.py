@@ -11,7 +11,7 @@ from starlette.responses import Response
 
 from patcher_api.catalog import recompute_catalog_sha
 from patcher_api.config import get_settings
-from patcher_api.db import get_engine, get_session_maker, init_db
+from patcher_api.db import get_engine, get_session_maker
 from patcher_api.mcp import mcp_app
 from patcher_api.routes import admin, apps, stats
 from patcher_api.seed import seed_database
@@ -30,8 +30,8 @@ _LANDING_PAGE = Path(__file__).parent / "static" / "index.html"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    await init_db()
-
+    # Schema is owned by Alembic (`alembic upgrade head`, run at deploy); the
+    # service assumes an already-migrated DB and never creates tables itself.
     if get_settings().seed_on_startup:
         async with get_session_maker()() as session:
             await seed_database(session)

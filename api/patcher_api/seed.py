@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from patcher_api.data import SEED_APPS, SEED_SOURCES
-from patcher_api.db import get_session_maker, init_db
+from patcher_api.db import get_session_maker
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 
@@ -59,7 +59,6 @@ async def seed_database(session: AsyncSession) -> int:
 
 
 async def _run_standalone() -> None:
-    await init_db()
     async with get_session_maker()() as session:
         inserted = await seed_database(session)
         print(

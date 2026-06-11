@@ -66,7 +66,7 @@ import sys
 from collections.abc import Awaitable, Callable
 
 from patcher_api.config import get_settings
-from patcher_api.db import get_session_maker, init_db
+from patcher_api.db import get_session_maker
 from patcher_api.ingest.autopkg import fetch_autopkg_index, ingest_autopkg_index
 from patcher_api.ingest.homebrew import fetch_homebrew_casks, ingest_homebrew_casks
 from patcher_api.ingest.jamf import (
@@ -112,7 +112,6 @@ def _configure_logging(verbose: bool = False) -> None:
 
 
 async def cmd_installomator(*, force: bool = False) -> None:
-    await init_db()
     log.info("=== Installomator ingest ===")
     async with get_session_maker()() as session:
         existing_rows = (
@@ -164,7 +163,6 @@ async def cmd_installomator(*, force: bool = False) -> None:
 
 
 async def cmd_homebrew() -> None:
-    await init_db()
     log.info("=== Homebrew Cask ingest ===")
     log.info("Fetching Homebrew Cask catalog...")
     raw_records = await fetch_homebrew_casks()
@@ -175,7 +173,6 @@ async def cmd_homebrew() -> None:
 
 
 async def cmd_autopkg() -> None:
-    await init_db()
     log.info("=== AutoPkg recipe index ingest ===")
     log.info("Fetching AutoPkg recipe index (~10MB)...")
     index_payload = await fetch_autopkg_index()
@@ -187,7 +184,6 @@ async def cmd_autopkg() -> None:
 
 
 async def cmd_jai() -> None:
-    await init_db()
     log.info("=== Jamf App Installers ingest ===")
     settings = get_settings()
     log.info("Fetching JAI titles catalog from %s...", settings.jai_base_url)
@@ -201,7 +197,6 @@ async def cmd_jai() -> None:
 
 
 async def cmd_jamf_titles() -> None:
-    await init_db()
     log.info("=== Jamf patch-title catalog ingest ===")
     settings = get_settings()
     log.info("Fetching Jamf patch-title catalog from %s...", settings.jai_base_url)
@@ -215,7 +210,6 @@ async def cmd_jamf_titles() -> None:
 
 
 async def cmd_stitch() -> None:
-    await init_db()
     log.info("=== Stitch catalog ===")
     log.info("Joining Installomator + Cask + MAS + AutoPkg + JAI into unified apps rows...")
     async with get_session_maker()() as session:
