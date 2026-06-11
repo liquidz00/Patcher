@@ -36,9 +36,6 @@ mcp_app = mcp.http_app(
     path="/",
     stateless_http=True,
     json_response=True,
-    # Per MCP spec rev 2025-06-18, Streamable HTTP servers MUST validate the
-    # Origin header to prevent DNS rebinding. The allowlist is configured via
-    # ``PATCHER_API_MCP_ALLOWED_ORIGINS``; requests without an Origin header
-    # (native clients) bypass the check.
+    # MCP spec MUST: validate Origin (DNS rebinding) against PATCHER_API_MCP_ALLOWED_ORIGINS; no-Origin clients bypass.
     middleware=[Middleware(OriginValidationMiddleware)],
 )

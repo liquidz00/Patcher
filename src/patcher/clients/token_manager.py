@@ -102,10 +102,7 @@ class TokenManager:
             )
             return client
         except ValidationError as e:
-            # Don't echo `str(e)`: Pydantic's default __str__ includes the offending
-            # field VALUES, which here would surface fragments of CLIENT_ID /
-            # CLIENT_SECRET / URL in logs and exception messages. Only the field
-            # names are safe to surface.
+            # Don't echo str(e): Pydantic includes field values, which would leak CLIENT_ID/SECRET/URL. Field names only.
             failing_fields = sorted({".".join(map(str, err["loc"])) for err in e.errors()})
             field_summary = ", ".join(failing_fields) or "<unknown>"
             self.log.error(
@@ -219,9 +216,7 @@ class TokenManager:
                 )
                 return self.token
             except ValidationError as e:
-                # Same hygiene as attach_client: never echo Pydantic's default
-                # `str(e)` because it includes raw input values (token bytes,
-                # expiration timestamps).
+                # Same hygiene as attach_client: don't echo str(e), it includes raw values (token bytes, timestamps).
                 failing_fields = sorted({".".join(map(str, err["loc"])) for err in e.errors()})
                 raise TokenError(
                     "AccessToken failed validation",

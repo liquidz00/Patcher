@@ -176,9 +176,7 @@ class PatcherClient:
         self.api = PatcherAPIClient(max_concurrency=concurrency) if enable_matching else None
         self.enable_homebrew = enable_homebrew
         self.ignored_titles = ignored_titles or []
-        # Resolve ui_config before DataManager so the PDF export pipeline gets
-        # the user's header/footer/font/logo instead of UIDefaults placeholders.
-        # See issue #69.
+        # Resolve ui_config before DataManager so PDF export gets the user's branding, not UIDefaults. See #69.
         self.ui_config = ui_config if ui_config is not None else UIDefaults().model_dump()
         self.data = DataManager(disable_cache=disable_cache)
 

@@ -348,9 +348,7 @@ class Exporter:
             errors="ignore",
         )
 
-        # Derived column: the matched cask token(s). The raw homebrew_cask field
-        # is dropped via IGNORED_EXPORT_COLUMNS; this shows coverage instead. Added only
-        # when a title matched a cask, so Installomator-only exports are unchanged.
+        # Derived Homebrew column (matched cask tokens); the raw field is dropped, added only when a cask matched.
         if any(title.homebrew_cask for title in self.patch_titles):
             df["Homebrew"] = [
                 ", ".join(match.token for match in (title.homebrew_cask or []))

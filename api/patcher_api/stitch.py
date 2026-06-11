@@ -63,10 +63,7 @@ _CANONICAL_SOURCE_ORDER = (
     "mas",
 )
 
-# JAI catalog titles carry decoration the Installomator label name omits: a
-# trailing version/year/edition ("Sublime Text 4", "Microsoft Word 365",
-# "Acrobat DC Continuous") and/or a leading vendor ("SAP Privileges", "Cisco
-# Webex"). Stripping these lets a decorated title match a bare label.
+# JAI titles carry decoration the label name omits (trailing version/edition, leading vendor); strip it so they match.
 _JAI_YEAR_PATTERN = re.compile(r"^(?:19|20)\d{2}$")
 _JAI_VERSION_PATTERN = re.compile(r"^v?\d+(?:\.\d+)*$")
 _JAI_EDITION_TOKENS: set[str] = {
@@ -88,9 +85,7 @@ _JAI_EDITION_TOKENS: set[str] = {
     "mac",
     "macos",
 }
-# Leading tokens stripped only when recognized as a vendor, so a genuine
-# two-word app name ("Visual Studio", "Final Cut") never loses its first word.
-# Extend as new vendor-prefixed JAI titles surface.
+# Strip a leading token only when it's a known vendor, so two-word names ("Visual Studio") keep their first word.
 _JAI_VENDOR_PREFIXES: set[str] = {
     "adobe",
     "amazon",
@@ -671,9 +666,7 @@ async def _upsert_app_with_sources(
     )
     await session.execute(apps_stmt)
 
-    # Separate SELECT to get the row's id. Avoids using RETURNING with ON CONFLICT,
-    # which is broken in SQLite < 3.45 (Python 3.11 ships 3.39, Python 3.12 ships 3.42).
-    # The fix landed in SQLite 3.45.0 (Python 3.13+).
+    # Separate SELECT for the id: RETURNING + ON CONFLICT is broken in SQLite < 3.45 (Python 3.11/3.12 ship older).
     app_id = await session.scalar(select(AppRow.id).where(AppRow.slug == slug))
 
     detail_stmt = sqlite_insert(AppSourceDetailRow).values(
@@ -945,10 +938,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
 
     await session.commit()
 
-    # Invalidate the session's identity map. Every upsert above was a Core-level
-    # ``sqlite_insert.on_conflict_do_update`` that bypasses the ORM, so any ORM
-    # objects loaded before stitch ran (e.g. seed apps the caller already touched)
-    # would otherwise return stale attribute values on next access.
+    # Expire the identity map: the Core upserts above bypass the ORM, so objects loaded earlier would read stale.
     session.expire_all()
 
     return (

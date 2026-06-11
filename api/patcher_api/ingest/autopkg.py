@@ -32,9 +32,7 @@ from patcher_api.schemas.autopkg import AutopkgIndexEntry
 
 AUTOPKG_INDEX_URL = "https://raw.githubusercontent.com/autopkg/index/main/index.json"
 
-# Max number of identifier-level skip reasons to surface at DEBUG. The
-# upstream index always has long tails of malformed entries; per-row logging
-# floods stdout without helping. We aggregate counts and only print exemplars.
+# Cap on skip exemplars logged at DEBUG; aggregate counts instead of flooding per malformed row.
 _MAX_SKIP_EXAMPLES_PER_REASON = 3
 
 log = logging.getLogger(__name__)
@@ -92,9 +90,7 @@ async def ingest_autopkg_index(
     ingested = skipped = 0
     identifiers = index_payload.get("identifiers", {})
 
-    # Aggregate skip reasons so we log once at the end with counts + exemplars
-    # instead of one warning per record (the upstream index has ~1000 malformed
-    # rows and the per-record warnings buried every other log line).
+    # Aggregate skip reasons, logged once at the end (the upstream index has ~1000 malformed rows).
     skip_reason_counts: Counter[str] = Counter()
     skip_examples: dict[str, list[str]] = {}
 
@@ -142,9 +138,7 @@ async def ingest_autopkg_index(
 
     await session.commit()
 
-    # Surface aggregate skip reasons once, with up to a few example identifiers
-    # per reason. Keeps the noise floor flat regardless of how many recipes
-    # upstream malformed.
+    # Surface aggregate skip reasons once, a few exemplars each, so noise stays flat regardless of malformed count.
     for reason, count in skip_reason_counts.most_common():
         examples = ", ".join(skip_examples.get(reason, []))
         log.warning(

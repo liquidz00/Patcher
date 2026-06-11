@@ -42,9 +42,7 @@ def _apply_sqlite_pragmas(dbapi_conn, _connection_record) -> None:
     """
     cur = dbapi_conn.cursor()
     try:
-        # WAL is not supported for :memory: databases (the pragma returns
-        # "memory" silently). Tests use :memory: so the WAL line is a no-op
-        # there; production picks it up. Same applies to the other pragmas.
+        # WAL (and the pragmas below) are no-ops on the :memory: DB tests use; production picks them up.
         cur.execute("PRAGMA journal_mode=WAL")
         cur.execute("PRAGMA synchronous=NORMAL")
         cur.execute("PRAGMA temp_store=MEMORY")

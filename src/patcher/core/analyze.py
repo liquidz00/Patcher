@@ -438,9 +438,7 @@ class TrendAnalysis:
                 amount_found=len(datasets),
             )
         self._log = LogMe(self.__class__.__name__)
-        # Per-snapshot tuples preserve mtime for snapshot-aware methods
-        # (time_to_patch, stale_apps). _combined keeps the old single-frame
-        # shape for the original trend methods.
+        # Per-snapshot tuples preserve mtime (snapshot-aware methods); _combined keeps the old single-frame shape.
         self._snapshots = self._load_snapshots(datasets)
         self._combined = self._concat_snapshots(self._snapshots)
 

@@ -47,9 +47,7 @@ class OriginValidationMiddleware:
         headers = dict(scope.get("headers", []))
         origin_bytes = headers.get(b"origin")
 
-        # Native MCP clients don't send Origin. The MUST is targeted at
-        # browser-initiated requests where DNS rebinding is the threat model;
-        # absent the header, there's nothing to validate.
+        # Native clients send no Origin; the MUST targets browser requests, so absent the header there's nothing to validate.
         if origin_bytes is None:
             await self.app(scope, receive, send)
             return
