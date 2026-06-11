@@ -261,3 +261,40 @@ async def test_ingest_counts_malformed_lines(client, monkeypatch):
     # line 1: known-or-unknown label; line 2: malformed; line 3: missing label key -> malformed
     assert summary["received"] == 3
     assert summary["malformed_lines"] == 2
+
+
+def _configure_deploy(monkeypatch, *, token: str, sentinel_path: str) -> None:
+    """Point the admin route's settings at a known token + deploy sentinel path."""
+    monkeypatch.setattr(
+        "patcher_api.routes.admin.get_settings",
+        lambda: SimpleNamespace(admin_token=token, deploy_sentinel_path=sentinel_path),
+    )
+
+
+@pytest.mark.asyncio
+async def test_deploy_rejects_missing_and_wrong_token(client, monkeypatch):
+    _configure_deploy(monkeypatch, token=_TOKEN, sentinel_path="/tmp/unused")
+    assert (await client.post("/admin/deploy")).status_code == 401
+    wrong = await client.post("/admin/deploy", headers={"Authorization": "Bearer nope"})
+    assert wrong.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_deploy_disabled_without_sentinel(client, monkeypatch):
+    """Fail-closed: an unconfigured sentinel path means the endpoint is off."""
+    _configure_deploy(monkeypatch, token=_TOKEN, sentinel_path="")
+    resp = await client.post("/admin/deploy", headers={"Authorization": f"Bearer {_TOKEN}"})
+    assert resp.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_deploy_touches_sentinel(client, monkeypatch, tmp_path):
+    sentinel = tmp_path / ".deploy-requested"
+    _configure_deploy(monkeypatch, token=_TOKEN, sentinel_path=str(sentinel))
+
+    resp = await client.post("/admin/deploy", headers={"Authorization": f"Bearer {_TOKEN}"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "deploy requested"}
+    assert sentinel.exists()
+    assert sentinel.read_text()  # wrote an ISO timestamp
