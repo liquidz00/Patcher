@@ -1,0 +1,18 @@
+name: Deploy API to production
+
+# Code on main under api/ triggers a box redeploy; the POST just touches a sentinel.
+on:
+  push:
+    branches: [main]
+    paths: ["api/**"]
+
+jobs:
+  trigger-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request redeploy
+        env:
+          ADMIN_TOKEN: ${{ secrets.PATCHER_ADMIN_TOKEN }}
+        run: |
+          curl -fsS -m 30 --retry 3 -X POST https://api.patcherctl.dev/admin/deploy \
+            -H "Authorization: Bearer ${ADMIN_TOKEN}"

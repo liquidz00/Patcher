@@ -1,0 +1,17 @@
+[Unit]
+Description=Pull main, migrate, and restart the Patcher API
+Documentation=https://github.com/liquidz00/Patcher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/patcher-api/env
+# Healthchecks.io dead-man's switch; DEPLOY_HEALTHCHECK_URL lives in the env file.
+ExecStartPre=-/usr/bin/curl -fsS -m 10 --retry 3 -o /dev/null ${DEPLOY_HEALTHCHECK_URL}/start
+ExecStart=/opt/patcher/api/deploy/deploy.sh
+ExecStartPost=-/usr/bin/curl -fsS -m 10 --retry 3 -o /dev/null ${DEPLOY_HEALTHCHECK_URL}
+ExecStopPost=/bin/sh -c '[ "$$SERVICE_RESULT" = success ] || [ -z "$$DEPLOY_HEALTHCHECK_URL" ] || curl -fsS -m 10 --retry 3 -o /dev/null "$$DEPLOY_HEALTHCHECK_URL/fail"'
+TimeoutStartSec=15min
+StandardOutput=journal
+StandardError=journal
