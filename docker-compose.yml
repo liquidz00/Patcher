@@ -1,11 +1,6 @@
-# Reference docker-compose for self-hosting the Patcher API.
-# See docs/project/self-hosting.md for the full walkthrough.
-#
-# Two services share the same SQLite catalog via a named volume:
-#   - api:     long-running FastAPI process serving /apps, /health, /mcp
-#   - ingest:  one-shot job that pulls upstream sources, stitches, and exits.
-#             Schedule it from the host (cron, systemd.timer, k8s CronJob, etc.)
-#             with `docker compose run --rm ingest`.
+# Reference docker-compose for self-hosting the Patcher API; full walkthrough in
+# docs/project/self-hosting.md. Two services share one SQLite catalog: `api` serves,
+# `ingest` is a one-shot you schedule from the host (`docker compose run --rm ingest`).
 
 services:
   api:
@@ -43,7 +38,7 @@ services:
     volumes:
       - catalog:/data
     working_dir: /opt/patcher/api
-    entrypoint: ["/usr/bin/tini", "--"]
+    # Inherits the image entrypoint so the schema is migrated before ingest runs.
     command: ["python", "scripts/ingest.py", "all"]
 
 volumes:

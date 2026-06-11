@@ -84,9 +84,7 @@ class JamfCredentials(Model):
         :raises PatcherError: If the value is empty.
         """
         if not value:
-            # Don't echo the value: the validator runs before the SecretStr
-            # wrap, so a non-empty-but-invalid value would otherwise leak into
-            # the error message.
+            # Don't echo the value: the validator runs before the SecretStr wrap, so it could leak into the error.
             raise PatcherError("Field cannot be empty")
         return value
 

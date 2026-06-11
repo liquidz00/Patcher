@@ -73,9 +73,7 @@ __all__ = [
     "set_resolve_on_ingest",
 ]
 
-# Labels whose downloadURL/appNewVersion resolve from the logged-in user's
-# context (language via runAsUser/launchctl) — unresolvable on a headless host,
-# so neither the Linux refresh nor the macOS runner should attempt them.
+# Labels that resolve from the logged-in user's context: unresolvable headless, so no runner attempts them.
 USER_CONTEXT_LABELS: set[str] = {
     "firefox_intl",
     "firefoxesrintl",
@@ -576,10 +574,7 @@ def _resolve_or_null(
     if value is None:
         return None
     if not _RESOLVE_ON_INGEST:
-        # Resolution disabled. Null shell expressions without attempting any
-        # HTTP-bound evaluation. Plain literals still flow through
-        # :func:`resolve` so the URL validator runs on them (catches literal
-        # ftp:// label values and similar).
+        # Resolution off: null shell expressions, but literals still flow through resolve so the URL validator runs.
         if is_shell_expression(value):
             return None
     outcome = resolve(
@@ -686,9 +681,7 @@ async def _fetch_upstream_tree(
     """
     owns_client = client is None
     client = client or httpx.AsyncClient(timeout=60.0)
-    # The git/trees endpoint is api.github.com — same 60/hr unauthenticated
-    # budget as downloadURLFromGit. Authenticate it too when a token is set
-    # (5000/hr) so discovery doesn't fail before resolution even starts.
+    # The git/trees endpoint is api.github.com too; authenticate it when a token is set (60/hr -> 5000/hr).
     headers = {"Accept": "application/vnd.github+json"}
     token = _github_token()
     if token:

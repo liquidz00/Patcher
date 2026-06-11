@@ -472,9 +472,7 @@ class Setup:
         self._spinner.stop()
 
         setup_type_map = {1: SetupType.STANDARD, 2: SetupType.SSO}
-        # Loop rather than recurse into start() on invalid input; the old
-        # recursion blew the stack (~1000 frames) when the prompt returned a
-        # non-int (asyncclick coroutine). See issue #58.
+        # Loop, don't recurse, on invalid input: recursion blew the stack on a non-int prompt. See #58.
         while True:
             choice = await click.prompt(
                 "Choose setup method (1: Standard setup, 2: SSO setup)",

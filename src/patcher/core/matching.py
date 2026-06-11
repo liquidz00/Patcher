@@ -299,9 +299,7 @@ async def match_titles(
             log.info(f"Ignoring {patch_title.title}")
             continue
 
-        # Deterministic match first: name_id (Jamf softwareTitleNameId) maps to
-        # catalog slugs exactly. Restrict to the fetched set so a code resolving
-        # only to filtered-out sources still falls through to fuzzy.
+        # Deterministic match first: name_id maps to slugs exactly, restricted to the fetched set so misses fall through to fuzzy.
         if patch_title.name_id:
             index_slugs = [s for s in jamf_index.get(patch_title.name_id, []) if s in available]
             if index_slugs:
@@ -350,9 +348,7 @@ async def match_titles(
         log.warning(f"{len(unmatched_apps)} PatchTitle objects had no matches.")
         if review_file is not None:
             _save_unmatched(review_file, unmatched_apps)
-        # Surface via the warnings system so callers can catch/escalate
-        # independently of log level. The CLI shows these (simplefilter
-        # "always", InstallomatorWarning); library callers can filter them out.
+        # Use warnings (not logging) so callers can catch/filter these independently of log level.
         warnings.warn(
             f"{len(unmatched_apps)} patch title(s) had no {source_label} match. "
             f"See {review_file} for the list."

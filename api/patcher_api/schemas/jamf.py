@@ -54,10 +54,7 @@ class JaiTitle(UpstreamModel):
     package_signing_identity: str | None = None
     installer_package_hash: str | None = None
     installer_package_hash_type: str | None = None
-    # Install-mechanics signals worth keeping: a built-in updater
-    # (suppress_auto_update), a bundled launch daemon, an end-user notification
-    # path. Useful beyond deployment — e.g. suppress_auto_update flags apps that
-    # self-update, so Patcher needn't chase their versions as hard.
+    # Keep install-mechanics signals (e.g. suppress_auto_update flags self-updating apps Patcher needn't chase).
     launch_daemon_included: bool | None = None
     notification_available: bool | None = None
     suppress_auto_update: bool | None = None

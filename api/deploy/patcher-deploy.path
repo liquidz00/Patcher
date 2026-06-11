@@ -4,7 +4,7 @@ Documentation=https://github.com/liquidz00/Patcher
 
 [Path]
 # /admin/deploy touches this file; a write fires patcher-deploy.service.
-PathModified=/opt/patcher/.deploy-requested
+PathModified=/var/lib/patcher-api/deploy-requested
 Unit=patcher-deploy.service
 
 [Install]

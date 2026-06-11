@@ -79,6 +79,20 @@ Visit <http://localhost:8000/health> to confirm the service is up.
 Building and running the image does **not** populate the catalog. On first boot the container drops in a small `SEED_ON_STARTUP` sample (a handful of apps) so `/apps` isn't empty, but the real catalog of thousands of apps comes **only** from the separate {ref}`ingest step <self-hosting-ingest>` below. Don't expect a full catalog straight from `docker run`.
 :::
 
+:::{note}
+The container runs `alembic upgrade head` on startup, so it builds the database schema on first boot and applies later migrations automatically. You don't manage the schema yourself.
+
+**Upgrading from a pre-Alembic image:** if you previously ran an image that created its schema implicitly, adopt the existing database once before starting the new image, or the first migration will try to recreate tables that already exist:
+
+```bash
+$ docker run --rm \
+    --volume patcher-catalog:/data \
+    --workdir /opt/patcher/api \
+    --entrypoint alembic \
+    patcher-api:local stamp head
+```
+:::
+
 ### Environment Variables
 
 All runtime configuration uses the `PATCHER_API_` prefix. The full list lives in `api/patcher_api/config.py`; the variables that matter most for self-hosting:

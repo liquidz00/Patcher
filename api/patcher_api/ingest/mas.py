@@ -35,19 +35,13 @@ from patcher_api.schemas.mas import MasLookupRecord
 
 ITUNES_LOOKUP_URL = "https://itunes.apple.com/lookup"
 
-# Apple's documented per-IP rate ceiling for the lookup endpoint is around
-# 20 req/min. We serialize calls and sleep this many seconds between them
-# so a sweep stays well under that without needing a token bucket.
+# Apple's lookup endpoint caps ~20 req/min; serialize + sleep to stay under without a token bucket.
 _INTER_REQUEST_DELAY_SECONDS = 3.0
 
-# Only "mac-software" results are real macOS apps. The lookup endpoint can
-# return iOS apps, TV shows, or music when a bundle_id collides; filter
-# defensively at the parser boundary.
+# Only "mac-software" results are real macOS apps; filter defensively (bundle_id collisions return iOS/TV/etc).
 _MAS_KIND = "mac-software"
 
-# Curated bundle IDs to sweep: Apple first-party MAS apps plus popular paid
-# third-party ones. Apps also in Installomator/Cask join via bundle_id and gain
-# "mas" as a third source.
+# Curated bundle IDs to sweep (Apple + popular paid apps); overlaps with Installomator/Cask gain "mas" as a source.
 MAS_SEED_BUNDLE_IDS: list[str] = [
     # Apple iWork
     "com.apple.iWork.Pages",

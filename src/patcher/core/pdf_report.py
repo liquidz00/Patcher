@@ -54,9 +54,7 @@ class PDFReport(FPDF):
         self.table_headers = []
         self.column_widths = []
 
-        # Custom font is opt-in: register only if both paths exist on disk.
-        # Otherwise fall back to fpdf's built-in Helvetica so library callers
-        # without configured fonts can still generate PDFs.
+        # Custom font is opt-in: register only if both paths exist, else fall back to Helvetica.
         reg = self.ui_config.get("reg_font_path") or ""
         bold = self.ui_config.get("bold_font_path") or ""
         font_name = self.ui_config.get("font_name") or "Helvetica"

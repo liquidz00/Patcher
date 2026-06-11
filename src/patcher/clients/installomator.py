@@ -16,10 +16,7 @@ from ..core.models.label import Label
 from ..policy import INGEST_EXCLUDED_TEAM_IDS
 from . import HTTPClient
 
-# Installomator hosts a flat list of every label name in Labels.txt at the
-# repo root. Parsing this file before fetching individual fragments lets us
-# avoid the ~700-call directory-listing + mass-download fan-out that the
-# previous implementation performed on first run.
+# Parse Labels.txt up front to avoid the ~700-call fan-out the old approach did on first run.
 _INSTALLOMATOR_RAW_BASE = (
     "https://raw.githubusercontent.com/Installomator/Installomator/refs/heads/main"
 )
@@ -308,9 +305,7 @@ class InstallomatorClient:
         self.log = LogMe(self.__class__.__name__)
         self.api = api if api is not None else HTTPClient(max_concurrency=concurrency)
 
-        # Session-scoped caches. `_available_names` holds the parsed Labels.txt
-        # contents (a set of script names). `_labels_by_name` holds Label
-        # objects keyed by script name as they are fetched.
+        # Session-scoped caches: parsed label names + fetched Label objects by name.
         self._available_names: set[str] | None = None
         self._labels_by_name: dict[str, Label] = {}
 
@@ -349,10 +344,7 @@ class InstallomatorClient:
         """
         fragment_dict = parse_fragment(content)
 
-        # A key assigned more than once (resolve-then-transform, arch-conditional
-        # branches) or as a bash array parses to a list. The Label model's scalar
-        # fields take the first assignment (the resolving step / primary value),
-        # matching the API-side projection.
+        # A key assigned more than once parses to a list; scalar fields take the first (matches the API projection).
         fragment_dict = {
             key: (value[0] if isinstance(value, list) and value else value)
             for key, value in fragment_dict.items()
@@ -390,9 +382,7 @@ class InstallomatorClient:
         except APIResponseError as e:
             raise PatcherError("Unable to retrieve Installomator Labels.txt", error_msg=str(e))
 
-        # Labels.txt is one label name per line. Strip whitespace, drop blanks
-        # and comments (lines starting with '#'), normalize to lowercase to
-        # match the rest of the matching pipeline.
+        # One name per line; skip blanks/comments and lowercase to match the matching pipeline.
         names = {
             line.strip().lower()
             for line in content.splitlines()
@@ -422,9 +412,7 @@ class InstallomatorClient:
         if key in self._labels_by_name:
             return self._labels_by_name[key]
 
-        # fetch_text raises APIResponseError on non-2xx (not_found=True on 404),
-        # so we never parse error bodies as labels. Best-effort: log and return
-        # None so one broken label doesn't kill the batch.
+        # fetch_text raises on non-2xx, so one broken label logs + returns None instead of killing the batch.
         url = _FRAGMENT_URL_TEMPLATE.format(name=key)
         self.log.debug(f"Fetching Installomator fragment from {url}")
         try:

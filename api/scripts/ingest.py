@@ -261,9 +261,7 @@ COMMANDS: dict[str, Callable[..., Awaitable[None]]] = {
     "all": cmd_all,
 }
 
-# Commands that accept ``force=`` for SHA-gated re-ingest. Other commands
-# either have no gating to bypass (stitch, JAI) or their upstream sources
-# don't yet support SHA gating.
+# Commands that accept ``force=`` for SHA-gated re-ingest; the others have nothing to bypass.
 _FORCEABLE_COMMANDS = frozenset({"installomator", "all"})
 
 

@@ -213,9 +213,7 @@ async def ingest_resolved_labels(
         # New values only reach the public /apps catalog through stitch, and the
         # ETag must move or revalidating clients keep getting the stale catalog.
         await stitch_catalog(session)
-        # WAL parks commits in the -wal file; checkpoint so the on-disk .db
-        # reflects them before we hash it, or the ETag wouldn't change and
-        # caches would keep serving the pre-upload catalog.
+        # Checkpoint WAL so the on-disk .db reflects new commits before we hash it for the ETag.
         await session.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
         recompute_catalog_sha(request.app)
 

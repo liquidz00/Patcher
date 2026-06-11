@@ -49,10 +49,7 @@ from ._helpers import (
 )
 from .setup import Setup
 
-# show_locals=False keeps tracebacks safe to paste publicly (no leaked tokens).
-# Suppressing asyncclick collapses the framework's own frames so only Patcher
-# code shows up. The project doesn't depend on stdlib click; asyncclick is the
-# async fork imported as `click` throughout the codebase.
+# show_locals=False keeps pasted tracebacks token-safe; suppress collapses asyncclick's own frames.
 rich.traceback.install(show_locals=False, suppress=[click])
 
 DATE_FORMATS = {
@@ -152,9 +149,7 @@ async def cli(
         cache_dir = Path.home() / "Library/Caches/Patcher"
         initialize_cache(cache_dir)
 
-    # Non-interactive mode is engaged when all three credentials are present
-    # (via flags or PATCHER_* env vars). Bypass the keychain and skip every
-    # interactive prompt.
+    # All three creds present (flags or env) means non-interactive: skip the keychain and prompts.
     noninteractive = bool(client_id and client_secret and url)
 
     config_manager = ConfigManager(in_memory_credentials={}) if noninteractive else ConfigManager()
@@ -174,9 +169,7 @@ async def cli(
 
     # Check Setup completion
     with status("Processing", enabled=not debug) as spinner:
-        # Warn on Python interpreter mismatch. Keychain writes (e.g. token refresh)
-        # may fail with errSecInvalidOwnerEdit, but reads work fine so don't block:
-        # the run may succeed entirely if no write is needed. See #68.
+        # Interpreter mismatch warns, doesn't block: keychain writes may fail (errSecInvalidOwnerEdit) but reads work. See #68.
         if not noninteractive and setup.completed and not fresh:
             recorded_interpreter = ctx.obj.get("settings").interpreter_path
             if recorded_interpreter and recorded_interpreter != sys.executable:
@@ -291,9 +284,7 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
             spinner.update(f"Resetting credentials ({credential if credential else 'all'})...")
             spinner.stop()  # prompts below can't run under a live spinner (input hangs)
 
-            # Keyring automatically overwrites existing passwords if key and service_name are the same.
-            # This allows us to just call the set_credential method instead of having to delete existing
-            # entries first.
+            # Keyring overwrites on a matching key+service, so no delete-first is needed.
             match credential:
                 case "url":
                     new_url = await click.prompt("Enter your Jamf Pro URL")
@@ -467,9 +458,7 @@ async def export(
     selected_formats = set(formats) if formats else {"excel", "html", "pdf", "json"}
     actual_format = DATE_FORMATS[date_format]
 
-    # Only the PDF format reads UI config (header/footer/logo); if a PDF is
-    # requested while UI config is still at defaults, it renders placeholder
-    # text, so warn up front.
+    # PDF is the only format that reads UI config; warn if it's still at defaults (placeholder text).
     if "pdf" in selected_formats:
         defaults = UIDefaults().model_dump()
         ui_at_defaults = all(

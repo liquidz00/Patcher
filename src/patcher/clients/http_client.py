@@ -86,9 +86,7 @@ class HTTPClient:
             ceiling that gates ``self.semaphore`` also applies at the HTTP layer.
         """
         if self._http_client is None:
-            # truststore.SSLContext bridges Python's ssl module to the OS's
-            # native trust store. Corporate CAs installed via MDM are trusted
-            # automatically; no certifi-modification dance required.
+            # truststore.SSLContext uses the OS trust store, so MDM-deployed corporate CAs work without a certifi dance.
             ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             self._http_client = httpx.AsyncClient(
                 timeout=httpx.Timeout(30.0),
@@ -288,10 +286,7 @@ class HTTPClient:
         if query_params:
             request_kwargs["params"] = query_params
 
-        # Form-encoded vs JSON body routing mirrors the prior curl logic:
-        # if the caller set Content-Type=application/x-www-form-urlencoded
-        # we pass `data=` (httpx form-encodes); otherwise we pass `json=`
-        # (httpx serializes + sets Content-Type=application/json).
+        # Form-encoded Content-Type routes to data= (httpx form-encodes); otherwise json=.
         if method_upper == "POST" and data:
             self.log.debug("Adding POST data to the request.")
             if final_headers.get("Content-Type") == "application/x-www-form-urlencoded":
