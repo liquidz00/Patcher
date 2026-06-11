@@ -17,6 +17,7 @@ from pathlib import Path
 
 import asyncclick as click
 
+from ..clients.installomator import InstallomatorClient
 from ..core.analyze import append_ios_status, omit_recent, sort_titles
 from ..core.data_manager import DataManager
 from ..core.exceptions import APIResponseError, InstallomatorWarning, PatcherError
@@ -108,6 +109,8 @@ def _install_cli_process_hooks() -> None:
     install_terminal_excepthook()
     warnings.simplefilter("always", InstallomatorWarning)
     warnings.formatwarning = warning_format
+    # One-time sweep of the retired on-disk Installomator label cache (no-op once gone).
+    InstallomatorClient.purge_legacy_disk_cache()
 
 
 def _validate_output_dir(path: str | Path) -> str:
@@ -148,7 +151,7 @@ async def process_reports(
     Wraps the orchestration in a Rich status spinner and prints a success
     banner on completion. Both are CLI-presentation concerns that don't
     belong in the core layer. Library callers should call ``patcher.jamf``,
-    the transforms in :mod:`patcher.core.analyze`, and ``patcher.data.export(...)``
+    the transforms in :mod:`patcher.core.analyze`, and ``patcher.export(...)``
     directly.
 
     :param patcher: Pre-configured ``PatcherClient`` carrying the

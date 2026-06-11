@@ -10,6 +10,7 @@ rather than re-testing the primitives themselves.
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -182,7 +183,9 @@ class TestAnalyze:
 
         result = await patcher.analyze(["titles"], criteria="most-installed")
 
-        mock_apply.assert_called_once_with(["titles"], "most-installed", threshold=70.0, top_n=None)
+        mock_apply.assert_called_once_with(
+            ["titles"], "most-installed", threshold=70.0, top_n=None, where=None
+        )
         assert result == ["result"]
 
     @pytest.mark.asyncio
@@ -192,7 +195,9 @@ class TestAnalyze:
 
         await patcher.analyze(["titles"], criteria="below-threshold", threshold=85.0, top_n=5)
 
-        mock_apply.assert_called_once_with(["titles"], "below-threshold", threshold=85.0, top_n=5)
+        mock_apply.assert_called_once_with(
+            ["titles"], "below-threshold", threshold=85.0, top_n=5, where=None
+        )
 
     @pytest.mark.asyncio
     async def test_invalid_string_criteria_raises_patcher_error(self, patcher):
@@ -590,8 +595,12 @@ class TestFromState:
 
 class TestExport:
     @pytest.mark.asyncio
-    async def test_delegates_to_data_export_with_threaded_params(self, patcher):
-        patcher.data.export = AsyncMock(return_value={"pdf": "/tmp/out.pdf"})
+    async def test_builds_caches_then_renders_via_exporter(self, patcher, mocker):
+        patcher.data.build_and_cache = MagicMock(return_value="DF")
+        mock_exporter = mocker.patch("src.patcher.core.patcher_client.Exporter")
+        mock_exporter.return_value.export = AsyncMock(
+            return_value={"pdf": "/tmp/out.pdf", "excel": "/tmp/out.xlsx"}
+        )
 
         result = await patcher.export(
             ["titles"],
@@ -602,8 +611,10 @@ class TestExport:
             header_color="#ff0000",
         )
 
-        patcher.data.export.assert_awaited_once_with(
-            patch_titles=["titles"],
+        patcher.data.build_and_cache.assert_called_once_with(["titles"])
+        mock_exporter.assert_called_once_with(["titles"], ui_config=patcher.ui_config)
+        mock_exporter.return_value.export.assert_awaited_once_with(
+            "DF",
             output_dir="/tmp",
             report_title="Q2 Patch Report",
             analysis=False,
@@ -612,36 +623,53 @@ class TestExport:
             header_color="#ff0000",
             device_reports=None,
         )
-        assert result == {"pdf": "/tmp/out.pdf"}
+        assert result == {"pdf": "/tmp/out.pdf", "excel": "/tmp/out.xlsx"}
 
     @pytest.mark.asyncio
-    async def test_default_report_title_falls_back_to_ui_config(self, patcher):
+    async def test_tracks_latest_excel_for_dataset_lookup(self, patcher, mocker):
+        """A written Excel report is recorded so get_latest_dataset can prefer it."""
+        patcher.data.build_and_cache = MagicMock(return_value="DF")
+        mock_exporter = mocker.patch("src.patcher.core.patcher_client.Exporter")
+        mock_exporter.return_value.export = AsyncMock(return_value={"excel": "/tmp/out.xlsx"})
+
+        await patcher.export(["titles"], output_dir="/tmp")
+
+        assert patcher.data.latest_excel_file == Path("/tmp/out.xlsx")
+
+    @pytest.mark.asyncio
+    async def test_default_report_title_falls_back_to_ui_config(self, patcher, mocker):
         """When report_title isn't passed, use ui_config['header_text']."""
-        patcher.data.export = AsyncMock(return_value={})
+        patcher.data.build_and_cache = MagicMock(return_value="DF")
+        mock_exporter = mocker.patch("src.patcher.core.patcher_client.Exporter")
+        mock_exporter.return_value.export = AsyncMock(return_value={})
         patcher.ui_config = {"header_text": "Custom Header"}
 
         await patcher.export(["titles"], output_dir="/tmp")
 
-        call_kwargs = patcher.data.export.await_args.kwargs
+        call_kwargs = mock_exporter.return_value.export.await_args.kwargs
         assert call_kwargs["report_title"] == "Custom Header"
 
     @pytest.mark.asyncio
-    async def test_default_report_title_when_ui_config_missing_header(self, patcher):
+    async def test_default_report_title_when_ui_config_missing_header(self, patcher, mocker):
         """When ui_config lacks header_text, fall back to the literal default."""
-        patcher.data.export = AsyncMock(return_value={})
+        patcher.data.build_and_cache = MagicMock(return_value="DF")
+        mock_exporter = mocker.patch("src.patcher.core.patcher_client.Exporter")
+        mock_exporter.return_value.export = AsyncMock(return_value={})
         patcher.ui_config = {}
 
         await patcher.export(["titles"], output_dir="/tmp")
 
-        call_kwargs = patcher.data.export.await_args.kwargs
+        call_kwargs = mock_exporter.return_value.export.await_args.kwargs
         assert call_kwargs["report_title"] == "Patch Report"
 
     @pytest.mark.asyncio
-    async def test_formats_optional(self, patcher):
-        """When formats isn't passed, DataManager.export's own default takes over (all four)."""
-        patcher.data.export = AsyncMock(return_value={})
+    async def test_formats_optional(self, patcher, mocker):
+        """When formats isn't passed, the Exporter's own default takes over (all four)."""
+        patcher.data.build_and_cache = MagicMock(return_value="DF")
+        mock_exporter = mocker.patch("src.patcher.core.patcher_client.Exporter")
+        mock_exporter.return_value.export = AsyncMock(return_value={})
 
         await patcher.export(["titles"], output_dir="/tmp")
 
-        call_kwargs = patcher.data.export.await_args.kwargs
+        call_kwargs = mock_exporter.return_value.export.await_args.kwargs
         assert call_kwargs["formats"] is None

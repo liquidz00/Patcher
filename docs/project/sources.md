@@ -37,7 +37,7 @@ Coverage characteristics
 : Broad coverage of common third-party Mac apps, maintained by an active community. The catch is that many labels compute their version and URL at runtime via shell, so the static label alone does not always carry a version. Apple-managed software (macOS, Safari, Xcode) and license-gated runtimes (Oracle Java, Eclipse Temurin) are intentionally outside Installomator's useful scope for patch tracking.
 
 :::{seealso}
-Matching against labels happens during the export/fetch flow. How to disable it is covered in the {doc}`export guide </guides/usage/cli>`, and the matching client itself (direct, normalized, and fuzzy passes) is documented in the {class}`~patcher.clients.installomator.InstallomatorClient` reference.
+Matching against labels happens during the export/fetch flow. How to disable it is covered in the {doc}`export guide </guides/usage/cli>`, and the matching algorithm itself (direct, normalized, and fuzzy passes) is documented in the {mod}`patcher.core.matching` reference.
 :::
 
 ## Homebrew Cask

@@ -37,6 +37,13 @@ Owns Jamf credentials. Keychain-backed by default; pass `in_memory_credentials` 
 Patch report persistence. Reads and writes the Parquet cache under `~/Library/Caches/Patcher/` that powers analyze and trend comparisons across snapshots.
 :::
 
+:::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `Exporter`
+:link: exporter
+:link-type: doc
+
+Renders patch titles to PDF, Excel, HTML, and JSON. A pure consumer: `DataManager` builds and caches the canonical frame, the exporter only writes the report files.
+:::
+
 :::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `HttpClient`
 :link: http_client
 :link-type: doc
@@ -65,6 +72,7 @@ OAuth token lifecycle for the Jamf Pro API. Acquires, caches, and refreshes bear
 analyze
 config_manager
 data_manager
+exporter
 http_client
 pdf_report
 token_manager

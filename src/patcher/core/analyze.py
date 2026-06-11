@@ -982,22 +982,9 @@ class Diff:
                 found=len(cached),
             )
 
-        if all_time:
-            from_path = cached[0]
-        elif since is not None:
-            window_start = datetime.now() - since
-            in_window = [
-                p for p in cached if datetime.fromtimestamp(p.stat().st_mtime) >= window_start
-            ]
-            if not in_window:
-                raise PatcherError(
-                    "No cached snapshots in the requested window.",
-                    since=str(since),
-                )
-            from_path = in_window[0]
-        else:
-            from_path = cached[-2]
-
+        from_path = data_manager.select_baseline(
+            cached, since=since, all_time=all_time, default=cached[-2]
+        )
         to_path = cached[-1]
         return cls(
             from_path,
@@ -1034,21 +1021,9 @@ class Diff:
                 "No cached snapshots available; run `patcherctl export` first to seed the cache.",
             )
 
-        if all_time:
-            from_path = cached[0]
-        elif since is not None:
-            window_start = datetime.now() - since
-            in_window = [
-                p for p in cached if datetime.fromtimestamp(p.stat().st_mtime) >= window_start
-            ]
-            if not in_window:
-                raise PatcherError(
-                    "No cached snapshots in the requested window.",
-                    since=str(since),
-                )
-            from_path = in_window[0]
-        else:
-            from_path = cached[-1]
+        from_path = data_manager.select_baseline(
+            cached, since=since, all_time=all_time, default=cached[-1]
+        )
 
         return cls(
             from_path,

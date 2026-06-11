@@ -10,7 +10,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
 
-from ..clients import HTTPClient
+from ..clients.jamf import JamfSetupClient
 from ..clients.token_manager import TokenManager
 from ..core.config_manager import ConfigManager
 from ..core.exceptions import APIResponseError, PatcherError, SetupError, TokenError
@@ -333,12 +333,11 @@ class Setup:
                     error_msg=str(e),
                 )
         elif setup_type == SetupType.STANDARD:
-            api_client = HTTPClient()
             try:
+                api_client = JamfSetupClient(jamf_url=creds.get("URL"))
                 return await api_client.fetch_basic_token(
                     username=creds.get("USERNAME"),
                     password=creds.get("PASSWORD"),
-                    jamf_url=creds.get("URL"),
                 )
             except (KeyError, APIResponseError) as e:
                 self.log.error(
@@ -361,17 +360,15 @@ class Setup:
         :return: The client ID and client secret of the created API Client and Role.
         :rtype: tuple[str, str]
         """
-        api_client = HTTPClient()
-        if not await api_client.create_roles(token=basic_token, jamf_url=jamf_url):
+        api_client = JamfSetupClient(jamf_url=jamf_url)
+        if not await api_client.create_roles(token=basic_token):
             self.log.error(
                 "Failed to create API role as expected during setup. Verify SSO is not being used in Jamf instance."
             )
             raise SetupError("Failed to create API Role during Setup. Check logs for more details.")
         else:
             try:
-                client_id, client_secret = await api_client.create_client(
-                    token=basic_token, jamf_url=jamf_url
-                )
+                client_id, client_secret = await api_client.create_client(token=basic_token)
                 return client_id, client_secret
             except APIResponseError as e:
                 self.log.error(f"Unable to create API client as expected. Details: {e}")
@@ -500,7 +497,7 @@ class Setup:
             self._spinner.update("Retrieving basic token")
             basic_token = await self.get_token(setup_type=setup_type, creds=creds)
             self._spinner.update("Creating API integrations")
-            client_id, client_secret = await self.create_api_client(basic_token, creds.get("URL"))
+            client_id, client_secret = await self.create_api_client(basic_token)
             self._save_creds(
                 {"URL": creds.get("URL"), "CLIENT_ID": client_id, "CLIENT_SECRET": client_secret}
             )

@@ -193,6 +193,46 @@ class TestStart:
 
         assert setup_instance.settings.interpreter_path == _sys.executable
 
+    @pytest.mark.asyncio
+    async def test_start_stops_spinner_before_first_prompt(self, setup_instance):
+        """
+        Regression: a live Rich spinner owns the terminal and swallows blocking
+        ``click.prompt`` input, so setup hung at the very first prompt. ``start()``
+        must stop the spinner before prompting for the setup method.
+        """
+        stopped = {"yet": False}
+        spinner = MagicMock()
+        spinner.stop.side_effect = lambda: stopped.__setitem__("yet", True)
+
+        async def guard_prompt(*args, **kwargs):
+            assert stopped["yet"], "spinner.stop() must run before the first click.prompt"
+            return 2  # SSO branch
+
+        sso_creds = {
+            "URL": "https://test.jamfcloud.com",
+            "CLIENT_ID": "abc-123",
+            "CLIENT_SECRET": "secret-xyz",
+        }
+        creds_with_token = {
+            **sso_creds,
+            "TOKEN": "bearer-token-value",
+            "TOKEN_EXPIRATION": "2030-01-01T00:00:00+00:00",
+        }
+
+        with patch("src.patcher.cli.setup.click.prompt", new=guard_prompt):
+            setup_instance.prompt_credentials = AsyncMock(return_value=sso_creds)
+            setup_instance.prompt_matching = MagicMock()
+            setup_instance.validate_creds = MagicMock()
+            setup_instance._save_creds = MagicMock()
+            setup_instance.get_token = AsyncMock(return_value="dummy-basic-token")
+            setup_instance.prompt_ui_settings = AsyncMock()
+            setup_instance._mark_completion = MagicMock()
+            setup_instance._get_creds = MagicMock(side_effect=[sso_creds, creds_with_token])
+
+            await setup_instance.start(fresh=True, spinner=spinner)
+
+        spinner.stop.assert_called()
+
 
 class TestBootstrap:
     @pytest.mark.asyncio

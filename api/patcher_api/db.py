@@ -73,21 +73,6 @@ async def get_session() -> AsyncIterator[AsyncSession]:
         yield session
 
 
-async def init_db() -> None:
-    """
-    Create any missing tables. Idempotent — safe to call multiple times.
-
-    Called by the FastAPI lifespan on server startup and by the unified
-    ingest entry point (``scripts/ingest.py``) so it works regardless of
-    DB state. Imports :mod:`patcher_api.models` to guarantee every ORM
-    model is registered on ``Base.metadata`` before ``create_all`` runs.
-    """
-    import patcher_api.models  # noqa: F401 — side-effect: register tables on Base
-
-    async with get_engine().begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-
 def upsert_stmt(model, *, index_elements: list[str], **values):
     """
     Build an INSERT ... ON CONFLICT DO UPDATE whose update columns are derived

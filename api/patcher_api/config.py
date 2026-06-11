@@ -31,28 +31,19 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="PATCHER_API_",
-        # Missing files are silently skipped; the resolved settings still honor
-        # the relative-path default if nothing else provides a value.
         env_file=(_ENV_FILE_PATH, ".env"),
         extra="ignore",
     )
 
     database_url: str = "sqlite+aiosqlite:///./patcher_api.db"
     seed_on_startup: bool = True
-    # Shared secret gating the macOS resolver's write endpoint. Unset means the
-    # endpoint refuses every request (fail-closed), so a misconfigured host
-    # can't accidentally expose an open write surface.
     admin_token: str = ""
-    # Jamf App Installers titles API. The title endpoints are catalog-global, so
-    # Jamf's public dummy instance returns the same data as any tenant — these
-    # public sandbox credentials are the default source. Override per-host if a
-    # real tenant is ever preferred.
+    deploy_sentinel_path: str = ""
+    # Jamf App Installers titles API. Override per-host if a real tenant is ever preferred.
     jai_base_url: str = "https://dummy.jamfcloud.com"
     jai_client_id: str = "2b7ea5e9-cbab-4f60-97e3-32eaefeee768"
     jai_client_secret: str = "o0dwi8E0XMaYtX760LB05csjHeJoGHKldTi4R5x7NKwLMl25gYenpMAlRDerA6G1"
-    # MCP spec (2025-06-18) has a security MUST on Origin validation to prevent
-    # DNS rebinding. No-Origin requests (native clients) bypass; browser requests
-    # with an Origin are validated. Set via env as a JSON list.
+    # MCP spec (2025-06-18) security MUST on Origin validation
     mcp_allowed_origins: list[str] = ["https://claude.ai"]
 
 

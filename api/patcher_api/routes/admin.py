@@ -15,10 +15,12 @@ configured it refuses every request, so a misconfigured host can't expose an
 open write surface.
 """
 
+import asyncio
 import json
 import logging
 import secrets
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
@@ -61,6 +63,12 @@ class UnresolvedLabels(BaseModel):
     """Worklist the macOS runner fetches: label names that need macOS resolution."""
 
     labels: list[str]
+
+
+class DeployResponse(BaseModel):
+    """Acknowledges that a deploy was requested (the sentinel was touched)."""
+
+    status: str
 
 
 def _needs_macos_resolution(row: InstallomatorLabel) -> bool:
@@ -221,3 +229,35 @@ async def ingest_resolved_labels(
     )
     log.info("Resolved-label ingest: %s", summary.model_dump())
     return summary
+
+
+def _touch_sentinel(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(datetime.now(UTC).isoformat())
+
+
+@router.post(
+    "/deploy",
+    response_model=DeployResponse,
+    dependencies=[Depends(require_admin)],
+    include_in_schema=False,
+)
+async def request_deploy() -> DeployResponse:
+    """
+    Request a code redeploy by touching the deploy sentinel file.
+
+    The endpoint does no work itself: it touches a sentinel that a
+    ``systemd.path`` unit watches, which runs the real deploy (guarded git
+    pull, ``uv sync``, ``alembic upgrade head``, service restart) out of
+    process. Reaching the box this way (public tunnel, deploy-token-gated)
+    avoids opening an inbound SSH surface. Fail-closed: with no
+    ``PATCHER_API_DEPLOY_SENTINEL_PATH`` set, the endpoint is disabled.
+    """
+    sentinel_path = get_settings().deploy_sentinel_path
+    if not sentinel_path:
+        raise HTTPException(
+            status_code=503, detail="Deploy endpoint disabled: no sentinel path set."
+        )
+    await asyncio.to_thread(_touch_sentinel, Path(sentinel_path))
+    log.info("Deploy requested; touched sentinel %s", sentinel_path)
+    return DeployResponse(status="deploy requested")

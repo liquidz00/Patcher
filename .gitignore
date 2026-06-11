@@ -168,5 +168,8 @@ api/*.db-journal
 api/*.db-wal
 api/*.db-shm
 
+# Deploy sentinel touched by /admin/deploy on the box
+/.deploy-requested
+
 # Added by ggshield
 *.cache_ggshield

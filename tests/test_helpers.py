@@ -74,11 +74,14 @@ class TestInstallProcessHooks:
     def test_installs_excepthook_and_warning_filter(self, mocker):
         mock_excepthook = mocker.patch("src.patcher.cli._helpers.install_terminal_excepthook")
         mock_simplefilter = mocker.patch.object(warnings, "simplefilter")
+        # Don't let the legacy-cache sweep touch the real filesystem.
+        mock_purge = mocker.patch.object(_helpers.InstallomatorClient, "purge_legacy_disk_cache")
         original_fmt = warnings.formatwarning
         try:
             _helpers._install_cli_process_hooks()
             mock_excepthook.assert_called_once()
             mock_simplefilter.assert_called_once()
+            mock_purge.assert_called_once()
             assert warnings.formatwarning is _helpers.warning_format
         finally:
             warnings.formatwarning = original_fmt

@@ -2,18 +2,19 @@
 Tests for src/patcher/clients/installomator.py.
 
 The InstallomatorClient class can't be exercised against a live Jamf instance, so
-every test here mocks ``api.fetch_text`` (the httpx-based GET helper) and
-``api.get_app_names`` (the Jamf-side patch-title → app-name resolver). The
+every test here mocks ``api.fetch_text`` (the httpx-based GET helper). The
 test surface validates:
 
 - Labels.txt discovery + caching
-- Single-label fetch with disk + instance cache
+- Single-label fetch with session caching
 - Bulk fetch (specific names AND eager-all)
 - Team ID filtering
-- The full match() pipeline end-to-end
 
 Shell-pipeline resolver tests (the ``pyinstallomator`` subset) live with the
 resolver itself at ``api/tests/test_installomator_resolver.py``.
+
+The client is deprecated (see :meth:`InstallomatorClient.__init__`), so the
+expected ``DeprecationWarning`` is ignored module-wide; one test asserts it fires.
 """
 
 from __future__ import annotations
@@ -25,6 +26,8 @@ import pytest
 from src.patcher.clients import HTTPClient
 from src.patcher.clients.installomator import InstallomatorClient, _scan_value
 from src.patcher.core.exceptions import APIResponseError
+
+pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
 
 
 def _sample_fragment(
@@ -48,16 +51,13 @@ def _sample_fragment(
 @pytest.fixture
 def iom(tmp_path: Path) -> InstallomatorClient:
     """
-    Return an InstallomatorClient with isolated cache paths and a mocked api.
+    Return an InstallomatorClient with a mocked api.
 
     Constructed bare — no Jamf credentials needed (the default ``HTTPClient``
-    has no keyring touchpoint). The api attribute is then replaced with an
-    ``AsyncMock(spec=JamfClient)`` so ``match()`` sees a JamfClient-shaped
-    object (it asserts on type to surface a clear error for callers passing
-    a plain ``HTTPClient`` to a method that requires Jamf endpoints).
+    has no keyring touchpoint). The api attribute is replaced with an
+    ``AsyncMock(spec=HTTPClient)`` so fetches are deterministic and offline.
     """
     instance = InstallomatorClient()
-    instance.label_path = tmp_path / ".labels"
     instance.api = AsyncMock(spec=HTTPClient)
     return instance
 
@@ -86,6 +86,11 @@ class TestInstallomatorClient:
 
         iom = InstallomatorClient()
         assert isinstance(iom.api, HTTPClient)
+
+    def test_init_emits_deprecation_warning(self) -> None:
+        """Constructing the client warns callers it's on the way out."""
+        with pytest.warns(DeprecationWarning, match="deprecated"):
+            InstallomatorClient()
 
 
 class TestListAvailableLabels:
@@ -151,27 +156,6 @@ class TestGetLabel:
         label_again = await iom.get_label("googlechrome")
         assert label_again is label
         assert iom.api.fetch_text.call_count == 1
-
-    @pytest.mark.asyncio
-    async def test_get_label_writes_to_disk_cache(self, iom: InstallomatorClient) -> None:
-        iom.api.fetch_text.return_value = _sample_fragment()
-
-        await iom.get_label("googlechrome")
-
-        cached_path = iom.label_path / "googlechrome.sh"
-        assert cached_path.exists()
-        assert "Google Chrome" in cached_path.read_text()
-
-    @pytest.mark.asyncio
-    async def test_get_label_reads_from_disk_cache_first(self, iom: InstallomatorClient) -> None:
-        iom.label_path.mkdir(parents=True, exist_ok=True)
-        (iom.label_path / "googlechrome.sh").write_text(_sample_fragment())
-
-        label = await iom.get_label("googlechrome")
-
-        assert label is not None
-        assert label.name == "Google Chrome"
-        iom.api.fetch_text.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_label_returns_none_on_404(self, iom: InstallomatorClient) -> None:
@@ -287,3 +271,20 @@ class TestGetLabels:
 
         assert len(labels) == 1
         assert labels[0].name == "Google Chrome"
+
+
+class TestPurgeLegacyDiskCache:
+    def test_removes_existing_legacy_dir(self, tmp_path, monkeypatch) -> None:
+        legacy = tmp_path / ".labels"
+        legacy.mkdir()
+        (legacy / "googlechrome.sh").write_text("x")
+        monkeypatch.setattr("src.patcher.clients.installomator._LEGACY_LABEL_CACHE", legacy)
+
+        assert InstallomatorClient.purge_legacy_disk_cache() is True
+        assert not legacy.exists()
+
+    def test_noop_when_absent(self, tmp_path, monkeypatch) -> None:
+        legacy = tmp_path / "nope"
+        monkeypatch.setattr("src.patcher.clients.installomator._LEGACY_LABEL_CACHE", legacy)
+
+        assert InstallomatorClient.purge_legacy_disk_cache() is False

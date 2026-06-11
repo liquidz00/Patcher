@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch for Patcher API deploy requests
+Documentation=https://github.com/liquidz00/Patcher
+
+[Path]
+# /admin/deploy touches this file; a write fires patcher-deploy.service.
+PathModified=/opt/patcher/.deploy-requested
+Unit=patcher-deploy.service
+
+[Install]
+WantedBy=multi-user.target

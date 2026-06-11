@@ -4,6 +4,13 @@ description: "Reference for InstallomatorClient: the standalone fetcher for Inst
 
 # Installomator
 
+:::{warning}
+`InstallomatorClient` is deprecated and will be removed in a future release. For label
+and match data, prefer {class}`~patcher.core.patcher_client.PatcherClient` /
+{class}`~patcher.clients.patcher_api.PatcherAPIClient` (set `PATCHER_API_URL` for
+self-hosted catalogs). Constructing the client emits a `DeprecationWarning`.
+:::
+
 :::{seealso}
 {doc}`/project/sources` for what each catalog source contributes.
 :::

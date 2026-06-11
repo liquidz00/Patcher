@@ -33,14 +33,15 @@ src/patcher/
 │   ├── __init__.py         # HTTPClient (httpx + truststore base)
 │   ├── jamf.py             # JamfClient (Jamf Pro API)
 │   ├── patcher_api.py      # PatcherAPIClient (api.patcherctl.dev catalog)
-│   ├── installomator.py    # InstallomatorClient (label fetcher, standalone)
+│   ├── installomator.py    # InstallomatorClient (label fetcher, standalone; deprecated)
 │   └── token_manager.py    # OAuth token lifecycle for Jamf
 │
 ├── core/  
 │   ├── patcher_client.py   # PatcherClient (the headline composer)
 │   ├── matching.py         # Jamf title → catalog slug matching pipeline
 │   ├── analyze.py          # TitleFilter / TrendAnalysis
-│   ├── data_manager.py     # On-disk patch-data cache + export pipeline
+│   ├── data_manager.py     # On-disk patch-data cache + DataFrame (de)serialization
+│   ├── exporter.py         # Multi-format report rendering (PDF, Excel, HTML, JSON)
 │   ├── pdf_report.py       # PDF generation
 │   ├── config_manager.py   # Credential resolution (keyring or in-memory)
 │   ├── fonts.py            # Bundled-font discovery, download, asset copying
@@ -69,7 +70,7 @@ Imports only flow in one direction. `core/` never reaches into `cli/`, and `clie
 |---|---|---|
 | `patcher.jamf` | {class}`~patcher.clients.jamf.JamfClient` | All Jamf Pro API traffic |
 | `patcher.api` | {class}`~patcher.clients.patcher_api.PatcherAPIClient` | Patcher catalog reads (matching, label enrichment); `None` when `enable_matching=False` |
-| `patcher.data` | {class}`~patcher.core.data_manager.DataManager` | On-disk patch-data cache + export pipeline |
+| `patcher.data` | {class}`~patcher.core.data_manager.DataManager` | On-disk patch-data cache + DataFrame (de)serialization |
 
 ```{mermaid}
 graph LR

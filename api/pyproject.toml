@@ -10,6 +10,7 @@ authors = [
 requires-python = ">=3.11"
 dependencies = [
     "aiosqlite>=0.22.1",
+    "alembic>=1.18.4",
     "fastapi>=0.136.1",
     "fastmcp>=3.3.1",
     "lxml>=5.3.0",
@@ -41,6 +42,8 @@ packages = ["patcher_api"]
 
 [tool.ruff]
 extend = "../pyproject.toml"
+extend-exclude = ["alembic"]  # don't lint/format Alembic
+force-exclude = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
@@ -58,8 +61,8 @@ addopts = [
 ]
 testpaths = ["./tests"]
 filterwarnings = [
-  "ignore::DeprecationWarning",
-  "ignore::RuntimeWarning",
+  "error",
+  "ignore:SelectableGroups dict interface is deprecated:DeprecationWarning",  # fastmcp opentelemetry issue
 ]
 markers = [
   "unit: Fast unit tests that test individual components in isolation",

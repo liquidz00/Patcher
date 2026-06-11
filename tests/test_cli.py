@@ -322,9 +322,9 @@ class TestAnalyze:
 
     @pytest.mark.asyncio
     async def test_analyze_filter_prints_results(self, mocker):
-        mock_filter = mocker.patch(
-            "src.patcher.cli.TitleFilter.apply", return_value=[_patch_title("Firefox")]
-        )
+        mock_client = mocker.patch("src.patcher.cli.PatcherClient").return_value
+        mock_client.data.titles = [_patch_title("Firefox")]
+        mock_client.analyze = AsyncMock(return_value=[_patch_title("Firefox")])
         ctx = _ctx()
         await analyze.callback.__wrapped__(
             ctx,
@@ -339,11 +339,13 @@ class TestAnalyze:
             output_dir=None,
             all_time=False,
         )
-        mock_filter.assert_called_once()
+        mock_client.analyze.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_analyze_no_matches_exits(self, mocker):
-        mocker.patch("src.patcher.cli.TitleFilter.apply", return_value=[])
+        mock_client = mocker.patch("src.patcher.cli.PatcherClient").return_value
+        mock_client.data.titles = []
+        mock_client.analyze = AsyncMock(return_value=[])
         ctx = _ctx()
         with pytest.raises(SystemExit) as excinfo:
             await analyze.callback.__wrapped__(
@@ -365,9 +367,9 @@ class TestAnalyze:
     async def test_analyze_all_time_trend(self, mocker):
         import pandas as pd
 
-        mock_trend = mocker.patch(
-            "src.patcher.cli.TrendAnalysis.apply",
-            return_value=pd.DataFrame([{"Title": "Firefox", "Trend": 1}]),
+        mock_client = mocker.patch("src.patcher.cli.PatcherClient").return_value
+        mock_client.analyze_trend = AsyncMock(
+            return_value=pd.DataFrame([{"Title": "Firefox", "Trend": 1}])
         )
         ctx = _ctx()
         await analyze.callback.__wrapped__(
@@ -383,13 +385,14 @@ class TestAnalyze:
             output_dir=None,
             all_time=True,
         )
-        mock_trend.assert_called_once()
+        mock_client.analyze_trend.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_analyze_filter_summary_exports_html(self, mocker):
-        mocker.patch("src.patcher.cli.TitleFilter.apply", return_value=[_patch_title("Firefox")])
-        dm = mocker.patch("src.patcher.cli.get_data_manager").return_value
-        dm.export = AsyncMock(return_value={"html": "/out/summary.html"})
+    async def test_analyze_filter_summary_routes_through_client_export(self, mocker):
+        mock_client = mocker.patch("src.patcher.cli.PatcherClient").return_value
+        mock_client.data.titles = [_patch_title("Firefox")]
+        mock_client.analyze = AsyncMock(return_value=[_patch_title("Firefox")])
+        mock_client.export = AsyncMock(return_value={"html": "/out/summary.html"})
         ctx = _ctx()
 
         await analyze.callback.__wrapped__(
@@ -406,15 +409,15 @@ class TestAnalyze:
             all_time=False,
         )
 
-        dm.export.assert_awaited_once()
+        mock_client.export.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_analyze_all_time_trend_summary_saves_html(self, mocker, tmp_path):
+    async def test_analyze_all_time_trend_summary_delegates_save_path(self, mocker, tmp_path):
         import pandas as pd
 
-        mocker.patch(
-            "src.patcher.cli.TrendAnalysis.apply",
-            return_value=pd.DataFrame([{"Title": "Firefox", "Trend": 1}]),
+        mock_client = mocker.patch("src.patcher.cli.PatcherClient").return_value
+        mock_client.analyze_trend = AsyncMock(
+            return_value=pd.DataFrame([{"Title": "Firefox", "Trend": 1}])
         )
         ctx = _ctx()
 
@@ -432,15 +435,20 @@ class TestAnalyze:
             all_time=True,
         )
 
-        assert (tmp_path / "trend-analysis-most-installed.html").exists()
+        # The CLI delegates the save to PatcherClient.analyze_trend with the conventional
+        # path; the actual to_html write is covered in test_patcher_client.
+        mock_client.analyze_trend.assert_awaited_once_with(
+            "most-installed", save_to=tmp_path / "trend-analysis-most-installed.html"
+        )
 
     @pytest.mark.asyncio
     async def test_analyze_filter_renders_fleet_panel_and_caption(self, mocker):
         from src.patcher.cli import _console
 
         titles = [_patch_title("Firefox"), _patch_title("Slack")]
-        mocker.patch("src.patcher.cli.get_data_manager").return_value.titles = titles
-        mocker.patch("src.patcher.cli.TitleFilter.apply", return_value=titles)
+        mock_client = mocker.patch("src.patcher.cli.PatcherClient").return_value
+        mock_client.data.titles = titles
+        mock_client.analyze = AsyncMock(return_value=titles)
         ctx = _ctx()
 
         with _console.console.capture() as cap:

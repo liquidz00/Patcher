@@ -53,3 +53,5 @@ CURATED_BUNDLE_IDS: dict[str, str] = {
     "windsurf": "com.exafunction.windsurf",
     "zoom": "us.zoom.xos",
 }
+
+IGNORED_EXPORT_COLUMNS = ["install_label", "homebrew_cask", "title_id", "name_id"]
