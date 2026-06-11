@@ -6,6 +6,9 @@ on:
     branches: [main]
     paths: ["api/**"]
 
+permissions:
+  contents: read
+
 jobs:
   trigger-deploy:
     runs-on: ubuntu-latest
