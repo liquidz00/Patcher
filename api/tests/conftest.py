@@ -20,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 async def test_engine() -> AsyncIterator:
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:
+        # create_all (fast) instead of the prod Alembic chain; test_migrations.py
+        # guards that the two bootstrap paths produce the same schema.
         await conn.run_sync(Base.metadata.create_all)
     yield engine
     await engine.dispose()
