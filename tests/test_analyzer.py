@@ -110,9 +110,12 @@ class TestTitleFilterMethods:
 
     def test_installomator_keeps_titles_with_labels(self):
         label = Label(name="Firefox", installomator_label="firefox")
+        none_title = make_title("None labels")
+        none_title.install_label = None  # uncovered titles can deserialize to None
         titles = [
             make_title("With label", install_label=[label]),
             make_title("Without", install_label=[]),
+            none_title,
         ]
         result = TitleFilter(titles).installomator()
         assert [t.title for t in result] == ["With label"]

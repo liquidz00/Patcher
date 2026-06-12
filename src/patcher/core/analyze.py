@@ -307,7 +307,7 @@ class TitleFilter:
 
     def installomator(self, top_n: int | None = None) -> list[PatchTitle]:
         """Titles that carry one or more Installomator labels."""
-        result = [pt for pt in self._titles if pt.install_label != []]
+        result = [pt for pt in self._titles if pt.install_label]
         return self._cap(result, top_n)
 
     def impact_weighted_risk(self, top_n: int | None = None) -> list[PatchTitle]:

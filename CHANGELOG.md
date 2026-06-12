@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Matched Installomator labels in reports now carry their install type and download URL.** Previously every `install_label` entry in an export showed `null` for `type` and `download_url` even when the catalog had them; the matcher now hydrates both from the matched catalog record. (`expected_team_id` remains pending a catalog change.)
+- **The `installomator` analyze filter no longer counts uncovered titles.** A title with no Installomator label could slip through the filter (it compared against an empty list, not truthiness), so titles without a label were wrongly listed as Installomator-covered.
 
 
 ## [v3.3.1] - 2026-06-09
