@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from starlette.responses import Response
 
-from patcher_api.catalog import recompute_catalog_sha
+from patcher_api.catalog import recompute_catalog_version
 from patcher_api.config import get_settings
 from patcher_api.db import get_engine, get_session_maker
 from patcher_api.mcp import mcp_app
@@ -36,12 +36,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         async with get_session_maker()() as session:
             await seed_database(session)
 
-    # Catalog ETag hash, recomputed once per startup (the refresh unit restarts us after each ingest).
-    # ``None`` (tests' in-memory DB, or first boot pre-catalog) makes the cache middleware a no-op.
-    app.state.catalog_sha = None
-    sha = recompute_catalog_sha(app)
-    if sha is not None:
-        log.info("Catalog SHA-256 on startup: %s", sha)
+    # Catalog ETag token, recomputed once per startup (the refresh unit restarts us after each ingest).
+    # ``None`` (empty catalog, or first boot pre-catalog) makes the cache middleware a no-op.
+    app.state.catalog_version = None
+    async with get_session_maker()() as session:
+        token = await recompute_catalog_version(app, session)
+    if token is not None:
+        log.info("Catalog version token on startup: %s", token)
 
     # app.mount doesn't run a child app's lifespan, so enter fastmcp's explicitly for the serving window.
     async with mcp_app.router.lifespan_context(app):
@@ -61,28 +62,27 @@ app = FastAPI(
 @app.middleware("http")
 async def catalog_etag(request: Request, call_next):
     """
-    Tag catalog responses with a weak ETag derived from the catalog file's
-    SHA-256, plus a public ``Cache-Control`` header that authorizes
-    Cloudflare and well-behaved clients to cache.
+    Tag catalog responses with a weak ETag derived from the catalog version
+    token, plus a public ``Cache-Control`` header that authorizes Cloudflare
+    and well-behaved clients to cache.
 
-    The catalog file's hash changes exactly when the data changes, never
-    otherwise, so it's a perfect cache key: an ``If-None-Match`` from a
-    revalidating client short-circuits to 304 instantly between deploys,
-    and Cloudflare can serve the cached body across many users without
-    hitting the origin. The combined effect typically takes 90%+ of read
-    traffic off the origin.
+    The version token changes exactly when the data changes, never otherwise,
+    so it's a perfect cache key: an ``If-None-Match`` from a revalidating
+    client short-circuits to 304 instantly between deploys, and Cloudflare can
+    serve the cached body across many users without hitting the origin. The
+    combined effect typically takes 90%+ of read traffic off the origin.
 
     Scoped to GET requests against ``/apps*``. /health and POSTs bypass.
     """
     if request.method != "GET" or not request.url.path.startswith(_CACHEABLE_PATH_PREFIX):
         return await call_next(request)
 
-    catalog_sha = getattr(request.app.state, "catalog_sha", None)
-    if not catalog_sha:
-        # No hash yet (test transport, or first boot pre-catalog); skip cache headers.
+    catalog_version = getattr(request.app.state, "catalog_version", None)
+    if not catalog_version:
+        # No token yet (test transport, or first boot pre-catalog); skip cache headers.
         return await call_next(request)
 
-    etag = f'W/"{catalog_sha}"'
+    etag = f'W/"{catalog_version}"'
 
     # 304 short-circuit skips the route and its DB read. If-None-Match is ``*`` or a comma-list per RFC 7232.
     if_none_match = request.headers.get("if-none-match")

@@ -16,4 +16,4 @@ async def test_stats_returns_catalog_summary(client):
     }
     # Present in the response even when the seed leaves them empty.
     assert "last_refresh" in body
-    assert "catalog_sha" in body
+    assert "catalog_version" in body

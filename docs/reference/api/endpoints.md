@@ -45,7 +45,7 @@ The API is served behind a Cloudflare named tunnel terminating TLS at Cloudflare
 
 ## Caching
 
-Catalog responses carry an `ETag` whose value is the SHA-256 of the underlying SQLite catalog file. The hash changes exactly when the catalog deploys (typically once per day) and never otherwise, so it's a perfect cache key.
+Catalog responses carry an `ETag` whose value is a version token derived from the catalog's newest update timestamp. The token changes exactly when the catalog data changes (typically once per day) and never otherwise, so it's a perfect cache key.
 
 ```{code-block} text
 :caption: Example response headers

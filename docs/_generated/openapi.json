@@ -730,7 +730,7 @@
             ],
             "title": "Last Refresh"
           },
-          "catalog_sha": {
+          "catalog_version": {
             "anyOf": [
               {
                 "type": "string"
@@ -739,7 +739,7 @@
                 "type": "null"
               }
             ],
-            "title": "Catalog Sha"
+            "title": "Catalog Version"
           }
         },
         "type": "object",
@@ -747,7 +747,7 @@
           "total_apps",
           "sources",
           "last_refresh",
-          "catalog_sha"
+          "catalog_version"
         ],
         "title": "CatalogStats",
         "description": "Top-line catalog statistics returned by ``GET /stats``."

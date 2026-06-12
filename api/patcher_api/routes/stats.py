@@ -20,5 +20,5 @@ async def get_stats(
         total_apps=summary["total_apps"],
         sources=summary["sources"],
         last_refresh=await catalog_last_refresh(session),
-        catalog_sha=getattr(request.app.state, "catalog_sha", None),
+        catalog_version=getattr(request.app.state, "catalog_version", None),
     )

@@ -321,7 +321,7 @@ api/patcher_api/
 ├── main.py                  # FastAPI app + lifespan + ETag middleware + /mcp mount
 ├── config.py                # pydantic-settings, env-var-driven
 ├── db.py                    # async SQLAlchemy engine + session, SQLite-tuned pragmas
-├── catalog.py               # SHA-256 of the catalog file for ETag derivation
+├── catalog.py               # version token (newest row timestamp) for ETag derivation
 ├── stitch.py                # canonical-row projection (see concept page)
 ├── drift.py                 # cross-source version disagreement detection
 ├── labels.py                # Installomator-shaped label fragment builder
@@ -404,7 +404,7 @@ A standard FastAPI app, with three nuances worth surfacing:
 :icon: octicon:gear-16
 
 :::{marker} ETag middleware on `/apps*`
-A weak ETag whose value is the SHA-256 of the underlying SQLite catalog file. The hash changes exactly when the catalog deploys (typically once per day, plus whenever a macOS runner pass uploads resolved values) and never otherwise. `If-None-Match` is parsed per RFC 7232, with both multi-value lists and the `*` wildcard honored. Revalidating clients short-circuit to 304 instantly between deploys, and Cloudflare absorbs the bulk of traffic in front of the origin.
+A weak ETag whose value is a version token: the catalog's newest row timestamp (latest ingest plus the latest macOS resolver write). The token changes exactly when the served data changes (typically once per day, plus whenever a macOS runner pass uploads resolved values) and never otherwise. `If-None-Match` is parsed per RFC 7232, with both multi-value lists and the `*` wildcard honored. Revalidating clients short-circuit to 304 instantly between deploys, and Cloudflare absorbs the bulk of traffic in front of the origin.
 :::
 
 :::{marker} Admin-route hardening

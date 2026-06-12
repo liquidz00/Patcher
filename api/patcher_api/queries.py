@@ -57,3 +57,21 @@ async def catalog_last_refresh(session: AsyncSession) -> datetime | None:
     # SQLite returns naive datetimes; the stamps are written in UTC, so label them.
     newest = max(present)
     return newest if newest.tzinfo else newest.replace(tzinfo=timezone.utc)
+
+
+async def catalog_last_mutation(session: AsyncSession) -> datetime | None:
+    """
+    Newest change to the *served* catalog: the latest ingest, plus the latest
+    macOS ``resolved_at`` on Installomator labels. ``None`` when empty.
+
+    Distinct from :func:`catalog_last_refresh` (ingest only): a macOS resolver
+    upload rewrites label download URLs and versions via ``resolved_at`` without
+    touching ``ingested_at``, yet it changes what ``/apps`` serves. Backs the
+    ``/apps*`` ETag, which must move whenever the served data does.
+    """
+    refresh = await catalog_last_refresh(session)
+    resolved = await session.scalar(select(func.max(InstallomatorLabel.resolved_at)))
+    if resolved is not None and resolved.tzinfo is None:
+        resolved = resolved.replace(tzinfo=timezone.utc)
+    candidates = [t for t in (refresh, resolved) if t is not None]
+    return max(candidates) if candidates else None

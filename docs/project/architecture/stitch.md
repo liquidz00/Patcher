@@ -84,8 +84,8 @@ Joining `apps` and `app_source_details` at request time is intentionally avoided
 Text normalization, version parsing, and source-priority. Expressing that in SQL would be painful, and it would run on every request.
 :::
 
-:::{marker} The catalog needs a stable hash for ETag caching
-The hash is the SHA-256 of the SQLite file. If reads computed canonical fields on the fly, the file's bytes would be stable but the served bytes wouldn't reflect that, and ETag invalidation would be subtle.
+:::{marker} The cache key must match what's served
+The `/apps*` ETag is a version token derived from the newest row timestamp. If reads computed canonical fields on the fly, the served bytes could change without any row (or token) moving, making ETag invalidation subtle. Precomputing keeps served bytes a pure function of stored rows.
 :::
 
 :::{marker} Drift detection needs both views
@@ -113,7 +113,7 @@ Stitch runs (immediately for admin upserts, on the daily refresh otherwise) and 
 
 :::{step} The ETag changes.
 
-The catalog file's bytes change, so its SHA-256 changes, so the ETag changes, so clients revalidate and see the new data.
+The newest row timestamp advances, so the catalog version token changes, so the ETag changes, so clients revalidate and see the new data.
 :::
 
 ::::

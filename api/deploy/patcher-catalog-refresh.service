@@ -13,9 +13,9 @@ ExecStartPre=-/usr/bin/curl -fsS -m 10 --retry 3 -o /dev/null ${HEALTHCHECK_URL}
 
 # Run the ingest as `patcher` (the user that owns the live SQLite DB) so
 # writes succeed. The service unit itself runs as root so it can restart
-# patcher-api.service in ExecStartPost (an `app.state.catalog_sha` cache
+# patcher-api.service in ExecStartPost (an `app.state.catalog_version` cache
 # is computed at lifespan startup and used in /apps* ETags; the restart
-# is what makes the new hash visible to clients).
+# is what makes the new token visible to clients).
 ExecStart=/usr/sbin/runuser -u patcher -- \
     /opt/patcher/.venv/bin/python /opt/patcher/api/scripts/ingest.py all
 ExecStartPost=/bin/systemctl restart patcher-api.service
