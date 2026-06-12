@@ -50,9 +50,9 @@ import httpx
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher.catalog._fragment_parser import parse_fragment
 from patcher.policy import INGEST_EXCLUDED_TEAM_IDS
 from patcher_api.db import upsert_stmt
-from patcher_api.installomator.parser import parse_fragment
 from patcher_api.installomator.resolver import (
     InvalidOutput,
     Resolved,

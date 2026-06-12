@@ -1,8 +1,7 @@
-"""Installomator label-fragment parser for ingest.
+"""Installomator label-fragment parser.
 
-Local copy of :func:`patcher.clients.installomator.parse_fragment` to sever
-the api-workspace's only ``from patcher.*`` import. If parsing behavior
-changes in either copy, update both intentionally.
+The single source of truth shared by the library's (deprecated)
+``InstallomatorClient`` and the API's catalog ingest.
 
 The parser is a small quote-aware *scanner* rather than a regex. Installomator
 label values are shell expressions, and a non-greedy regex truncates them at
@@ -227,8 +226,7 @@ def parse_fragment(fragment: str) -> dict[str, Any]:
     array). A key assigned more than once maps to the ordered list of every
     assignment, so the resolve step in a resolve-then-transform chain and the
     primary URL in an arch-conditional branch are never discarded. Consumers
-    that need a single value should take the first element (see
-    ``_scalar_for_column`` in the ingest module).
+    that need a single value should take the first element.
 
     Lines starting with ``#`` and blank lines are skipped. The opening
     ``<label>)`` header (including multi-name ``a|b|c)`` headers) and the
