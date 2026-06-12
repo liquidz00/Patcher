@@ -35,12 +35,7 @@ class DataManager:
 
     @property
     def cache_off(self) -> bool:
-        """
-        Indicates whether caching is disabled.
-
-        :return: True if caching is disabled, False otherwise.
-        :rtype: bool
-        """
+        """True if caching is disabled."""
         return self._disabled
 
     @property
@@ -269,12 +264,7 @@ class DataManager:
             return False
 
     def get_cached_files(self) -> list[Path]:
-        """
-        Retrieves all cached file Paths.
-
-        :return: A list of ``Path`` objects pointing to cached files.
-        :rtype: list[~pathlib.Path]
-        """
+        """Paths of all cached snapshot files."""
         return [file for file in self.cache_dir.iterdir() if file.suffix in (".parquet", ".pkl")]
 
     def get_latest_dataset(self) -> Path | None:

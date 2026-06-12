@@ -67,14 +67,7 @@ class PDFReport(FPDF):
 
     @staticmethod
     def get_image_ratio(image_path: str) -> float:
-        """
-        Gets the aspect ratio of the logo provided.
-
-        :param image_path: Path to the image file
-        :type image_path: str
-        :return: The width-to-height ratio of the image.
-        :rtype: :py:class:`float`
-        """
+        """The width-to-height aspect ratio of the image at ``image_path``."""
         with Image.open(image_path) as img:
             width, height = img.size
             return width / height

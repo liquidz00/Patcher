@@ -30,7 +30,6 @@ async def seed_database(session: AsyncSession) -> int:
             name=app.name,
             vendor=app.vendor,
             current_version=app.current_version,
-            latest_release_date=app.latest_release_date,
             download_url=str(app.download_url),
             install_method=app.install_method.value,
             sha256=app.sha256,

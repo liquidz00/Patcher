@@ -1,12 +1,9 @@
 """
 Base async HTTP client for all Patcher API calls.
 
-``HTTPClient`` owns the concurrency ceiling (semaphore + httpx connection
-limit), OS-native-trust-store TLS (via ``truststore``), and the shared
-network-error → :class:`~patcher.core.exceptions.APIResponseError` translation.
-The per-service clients (``JamfClient``, ``InstallomatorClient``,
-``PatcherAPIClient``) build on it. Re-exported from ``patcher.clients`` so the
-public import path (``from patcher.clients import HTTPClient``) is unchanged.
+``HTTPClient`` owns the concurrency ceiling, OS-trust-store TLS (via
+``truststore``), and the shared network-error → :class:`~patcher.core.exceptions.APIResponseError`
+translation. The per-service clients build on it.
 """
 
 import asyncio

@@ -15,7 +15,7 @@ from .data_manager import DataManager
 from .exceptions import APIResponseError, PatcherError
 from .logger import LogMe
 from .models.patch import PatchTitle
-from .serialization import titles_to_df
+from .serialization import df_to_titles, titles_to_df
 
 _log = LogMe("analyze")
 _CHANGE_FIELDS = ("completion_percent", "hosts_patched", "total_hosts", "latest_version")
@@ -931,8 +931,8 @@ class Diff:
         removed_ids = from_ids - to_ids
         common_ids = from_ids & to_ids
 
-        added = _df_rows_to_titles(to_df[to_df["title_id"].astype(str).isin(added_ids)])
-        removed = _df_rows_to_titles(from_df[from_df["title_id"].astype(str).isin(removed_ids)])
+        added = _hydrate_titles(to_df[to_df["title_id"].astype(str).isin(added_ids)])
+        removed = _hydrate_titles(from_df[from_df["title_id"].astype(str).isin(removed_ids)])
 
         # Index both sides by title_id for O(1) lookup during pairwise comparison.
         from_indexed = from_df.set_index(from_df["title_id"].astype(str), drop=False)
@@ -1132,23 +1132,15 @@ def _build_title_change(tid: str, from_row: pd.Series, to_row: pd.Series) -> Tit
     )
 
 
-def _df_rows_to_titles(df: pd.DataFrame) -> list[PatchTitle]:
-    """Hydrate DataFrame rows back into :class:`PatchTitle` objects."""
-    titles: list[PatchTitle] = []
-    for _, row in df.iterrows():
-        try:
-            titles.append(
-                PatchTitle(
-                    title=str(row.get("title", "")),
-                    title_id=str(row.get("title_id", "")),
-                    released=_coerce_released(row.get("released")),
-                    hosts_patched=int(row.get("hosts_patched", 0) or 0),
-                    missing_patch=int(row.get("missing_patch", 0) or 0),
-                    latest_version=_optional_str(row.get("latest_version")) or "",
-                )
-            )
-        except Exception as exc:
-            _log.warning(f"Failed to hydrate PatchTitle from row: {exc}")
+def _hydrate_titles(df: pd.DataFrame) -> list[PatchTitle]:
+    """Hydrate DataFrame rows back into :class:`PatchTitle` via the shared serializer."""
+    df = df.copy()
+    if "released" in df.columns:
+        # _to_normalized_df coerced this to datetime; PatchTitle.released wants a display string.
+        df["released"] = df["released"].apply(_coerce_released)
+    titles, errors = df_to_titles(df)
+    for error in errors:
+        _log.warning(f"Failed to hydrate PatchTitle from row: {error}")
     return titles
 
 

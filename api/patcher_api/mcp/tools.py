@@ -88,7 +88,7 @@ async def get_app(slug: str) -> dict:
     Fetch a single app record by its slug.
 
     Returns the full app projection: identity (slug, name, vendor,
-    bundle_id), versioning (current_version, latest_release_date),
+    bundle_id), versioning (current_version),
     download metadata (download_url, install_method, sha256), and
     provenance (sources). Identical to ``GET /apps/{slug}`` on
     the REST API.

@@ -281,12 +281,7 @@ class JamfClient(HTTPClient):
         return await self.fetch_json(url=url, headers=headers)
 
     async def get_policies(self) -> list[str]:
-        """
-        Retrieves a list of patch software title IDs from the Jamf API.
-
-        :return: A list of software title IDs.
-        :rtype: list[str]
-        """
+        """Retrieve the list of patch software title IDs from the Jamf API."""
         return [config.get("id") for config in await self.get_title_configs()]
 
     async def get_summaries(self, policy_ids: list[str]) -> list[PatchTitle]:

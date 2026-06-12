@@ -29,7 +29,6 @@ _FIREFOX_RECORD = {
     "name": "Firefox",
     "vendor": "Mozilla",
     "current_version": "150.0.3",
-    "latest_release_date": None,
     "download_url": "https://download.mozilla.org/firefox.pkg",
     "install_method": "pkg",
     "sha256": None,

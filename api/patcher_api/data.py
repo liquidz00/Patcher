@@ -6,8 +6,6 @@ persistence lands, this module is replaced (or repurposed as a seeding script
 that populates the DB on first run).
 """
 
-from datetime import date
-
 from patcher.catalog import (
     App,
     AppSources,
@@ -24,7 +22,6 @@ SEED_APPS: list[App] = [
         name="Firefox",
         vendor="Mozilla",
         current_version="121.0",
-        latest_release_date=date(2023, 12, 19),
         download_url="https://download.mozilla.org/?product=firefox-pkg-latest-ssl&os=osx&lang=en-US",
         install_method=InstallMethod.PKG,
         sources=["installomator", "homebrew_cask"],
@@ -35,7 +32,6 @@ SEED_APPS: list[App] = [
         name="Google Chrome",
         vendor="Google",
         current_version="120.0.6099.129",
-        latest_release_date=date(2023, 12, 12),
         download_url="https://dl.google.com/chrome/mac/stable/GGRO/googlechrome.pkg",
         install_method=InstallMethod.PKG,
         sources=["installomator", "homebrew_cask"],
@@ -46,7 +42,6 @@ SEED_APPS: list[App] = [
         name="Slack",
         vendor="Slack",
         current_version="4.36.140",
-        latest_release_date=date(2024, 2, 28),
         download_url="https://downloads.slack-edge.com/releases/macos/4.36.140/prod/universal/Slack-4.36.140-macOS.dmg",
         install_method=InstallMethod.DMG,
         sources=["installomator"],
@@ -57,7 +52,6 @@ SEED_APPS: list[App] = [
         name="Zoom",
         vendor="Zoom",
         current_version="5.17.5",
-        latest_release_date=date(2024, 2, 12),
         download_url="https://zoom.us/client/latest/ZoomInstallerIT.pkg",
         install_method=InstallMethod.PKG,
         sources=["installomator", "homebrew_cask"],
@@ -68,7 +62,6 @@ SEED_APPS: list[App] = [
         name="Visual Studio Code",
         vendor="Microsoft",
         current_version="1.87.0",
-        latest_release_date=date(2024, 3, 5),
         download_url="https://code.visualstudio.com/sha/download?build=stable&os=darwin-universal",
         install_method=InstallMethod.ZIP,
         sources=["installomator", "homebrew_cask"],
@@ -79,7 +72,6 @@ SEED_APPS: list[App] = [
         name="Microsoft Edge",
         vendor="Microsoft",
         current_version="122.0.2365.59",
-        latest_release_date=date(2024, 3, 1),
         download_url="https://go.microsoft.com/fwlink/?linkid=2069148",
         install_method=InstallMethod.PKG,
         sources=["homebrew_cask"],

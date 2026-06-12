@@ -1,12 +1,6 @@
 """
-Top-level class for Patcher's library use.
-
-Composes the per-service clients (:class:`JamfClient`,
-:class:`PatcherAPIClient`) and data layer (:class:`DataManager`) into
-a single object library callers instantiate. CLI users construct the
-same object via the existing ``Setup`` flow, which populates a
-:class:`~patcher.core.config_manager.ConfigManager` and hands it to ``PatcherClient`` through the
-``config=`` argument.
+Top-level class for Patcher's library use: composes the per-service clients and
+data layer into a single object library callers instantiate.
 
 For raw, lower-level access without ``PatcherClient``, see
 :class:`patcher.clients.jamf.JamfClient` (Jamf API directly),

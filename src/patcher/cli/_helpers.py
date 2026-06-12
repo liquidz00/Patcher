@@ -82,16 +82,7 @@ def initialize_cache(cache_dir: Path) -> None:
 
 
 def get_data_manager(ctx: click.Context) -> DataManager:
-    """
-    Lazily initializes and returns the shared ``DataManager`` instance.
-
-    This ensures consistent handling of ``DataManager`` objects. Inconsistent handling of said objects could lead to inaccurate patch reports or false errors getting raised.
-
-    :param ctx: Click context object.
-    :type ctx: `click.Context <https://click.palletsprojects.com/en/stable/api/#click.Context>`_
-    :return: The initialized ``DataManager`` instance.
-    :rtype: :class:`~patcher.core.data_manager.DataManager`
-    """
+    """Lazily initialize and return the one shared ``DataManager``, so callers never juggle inconsistent instances."""
     if "data_manager" not in ctx.obj or ctx.obj.get("data_manager") is None:
         ctx.obj["data_manager"] = DataManager(disable_cache=ctx.obj.get("disable_cache", False))
     return ctx.obj["data_manager"]

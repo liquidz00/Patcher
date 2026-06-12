@@ -552,7 +552,6 @@ async def _upsert_app_with_sources(
         name=name,
         vendor=vendor,
         current_version=current_version,
-        latest_release_date=None,
         download_url=download_url,
         install_method=install_method,
         expected_team_id=expected_team_id,

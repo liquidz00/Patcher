@@ -13,7 +13,6 @@ rows) plus ``extra="ignore"`` (so the client tolerates fields a newer server add
 
 from __future__ import annotations
 
-from datetime import date
 from enum import StrEnum
 from typing import Any
 
@@ -46,7 +45,6 @@ class App(_CatalogSchema):
     name: str
     vendor: str | None = None
     current_version: str | None = None
-    latest_release_date: date | None = None
     download_url: HttpUrl | None = None
     install_method: InstallMethod | None = None
     expected_team_id: str | None = None

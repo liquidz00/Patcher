@@ -500,18 +500,6 @@
             ],
             "title": "Current Version"
           },
-          "latest_release_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Latest Release Date"
-          },
           "download_url": {
             "anyOf": [
               {

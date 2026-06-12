@@ -28,7 +28,6 @@ def _make_drift_app(
         name=name,
         vendor=vendor,
         current_version=cask_version,
-        latest_release_date=None,
         download_url=None,
         install_method=None,
         sha256=None,

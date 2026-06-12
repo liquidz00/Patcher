@@ -38,23 +38,10 @@ class AccessToken(Model):
 
     @property
     def is_expired(self) -> bool:
-        """
-        This property evaluates whether the access token has expired. A token is
-        considered expired if the current time is within 60 seconds of the expiration
-        time.
-
-        :return: ``True`` if the token is expired.
-        :rtype: bool
-        """
+        """True if the token has expired (within 60 seconds of its expiration time)."""
         return self.expires - timedelta(seconds=60) < datetime.now(timezone.utc)
 
     @property
     def seconds_remaining(self) -> int:
-        """
-        This property calculates the time remaining before the token expires.
-        If the token is already expired, it returns 0.
-
-        :return: The number of seconds remaining until the token expires.
-        :rtype: int
-        """
+        """Seconds remaining until the token expires (0 if already expired)."""
         return max(0, int((self.expires - datetime.now(timezone.utc)).total_seconds()))

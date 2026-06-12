@@ -1,20 +1,12 @@
 """
 Client for the Patcher API (https://api.patcherctl.dev).
 
-The Patcher API serves a community catalog of macOS app patching metadata
-stitched from Installomator, Homebrew Cask, AutoPkg, and the Jamf App
-Installers index. This client wraps the four ``/apps*`` read endpoints
-plus the ``POST /apps/{slug}/generate-label`` label-generator.
-
-Read endpoints are public — no authentication required. The client is
-useful standalone (enrich your own scripts with stitched catalog data)
-and is also the backend :class:`PatcherClient` uses internally for
-Installomator-style matching once the package adopts API-sourced labels.
-
-Response models are imported from :mod:`patcher.catalog.schemas`, the single
-source of truth shared with the ``patcher-api`` server, so the client can
-never drift from what the server serializes. They are re-exported here for
-backwards compatibility with ``from patcher.clients.patcher_api import App``.
+Wraps the public (no-auth) ``/apps*`` read endpoints plus the
+``POST /apps/{slug}/generate-label`` generator. Response models are imported
+from :mod:`patcher.catalog.schemas`, the single source of truth shared with the
+``patcher-api`` server, so the client can never drift from what the server
+serializes; they are re-exported here for backwards compatibility with
+``from patcher.clients.patcher_api import App``.
 
 Usage::
 

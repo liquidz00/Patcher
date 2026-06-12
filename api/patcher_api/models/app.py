@@ -1,8 +1,6 @@
 """ORM models for the canonical app record and its per-source detail payloads."""
 
-from datetime import date
-
-from sqlalchemy import JSON, Date, ForeignKey, String
+from sqlalchemy import JSON, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from patcher_api.db import Base
@@ -32,7 +30,6 @@ class App(Base):
     name: Mapped[str] = mapped_column(String)
     vendor: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     current_version: Mapped[str | None] = mapped_column(String, nullable=True)
-    latest_release_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     download_url: Mapped[str | None] = mapped_column(String, nullable=True)
     install_method: Mapped[str | None] = mapped_column(String, nullable=True)
     # Apple Team ID for code-signature checks; authoritatively from Installomator only.

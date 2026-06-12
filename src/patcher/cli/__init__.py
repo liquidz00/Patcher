@@ -1,11 +1,9 @@
 """
 The ``patcherctl`` command-line interface.
 
-Defines the asyncclick command group and every subcommand (``export``,
-``analyze``, ``diff``, ``drift``, ``reset``). Terminal output and logging live
-in :mod:`patcher.cli._console`; orchestration helpers (arg parsing, cache, the
-export workflow) live in :mod:`patcher.cli._helpers`. This module is the entry
-point that wires them into commands.
+The asyncclick entry point and every subcommand (``export``, ``analyze``,
+``diff``, ``drift``, ``reset``). Terminal output lives in
+:mod:`patcher.cli._console`; orchestration helpers in :mod:`patcher.cli._helpers`.
 """
 
 import asyncio
