@@ -128,3 +128,21 @@ class TestEnsureValidToken:
 
         # Ensure that fetch_token is called
         token_manager.fetch_token.assert_called_once()
+
+
+class TestParseTokenResponse:
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {},  # both missing
+            {"access_token": "abc"},  # no expires_in → would TypeError on timedelta
+            {"expires_in": 1800},  # no access_token
+            {"access_token": "", "expires_in": 1800},  # empty token
+            {"access_token": "abc", "expires_in": None},  # null expires_in
+        ],
+    )
+    def test_malformed_2xx_raises_token_error(self, config_manager, payload):
+        """A 2xx with a missing/empty field raises TokenError, never a raw TypeError."""
+        tm = TokenManager(config=config_manager)
+        with pytest.raises(TokenError):
+            tm._parse_token_response(payload)

@@ -161,6 +161,14 @@ class TokenManager:
         token = response.get("access_token")
         expires_in = response.get("expires_in")
 
+        # A 2xx with a malformed body would otherwise TypeError on timedelta(seconds=None)
+        if not token or not isinstance(expires_in, (int, float)):
+            self.log.error("Token response missing 'access_token' or numeric 'expires_in'.")
+            raise TokenError(
+                "Token response from Jamf was missing required fields.",
+                fields="access_token, expires_in",
+            )
+
         expiration = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
         access_token = AccessToken(token=token, expires=expiration)
 

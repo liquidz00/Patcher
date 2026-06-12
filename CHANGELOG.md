@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Matched Installomator labels in reports now carry their install type and download URL.** Previously every `install_label` entry in an export showed `null` for `type` and `download_url` even when the catalog had them; the matcher now hydrates both from the matched catalog record. (`expected_team_id` remains pending a catalog change.)
 - **The `installomator` analyze filter no longer counts uncovered titles.** A title with no Installomator label could slip through the filter (it compared against an empty list, not truthiness), so titles without a label were wrongly listed as Installomator-covered.
 - **Fetching an app's per-source detail no longer crashes on shared AutoPkg recipes.** `PatcherAPIClient.get_app_sources` raised a validation error for any app whose matched AutoPkg recipes had a `null` name or shortname (shared-processor recipes); the client model now matches the API and tolerates them.
+- **A malformed token response surfaces a clear error.** If the Jamf API returned a success response missing the `access_token` or `expires_in` field, Patcher raised an unhandled `TypeError`; it now raises a `TokenError` explaining the response was incomplete.
 
 
 ## [v3.3.1] - 2026-06-09
