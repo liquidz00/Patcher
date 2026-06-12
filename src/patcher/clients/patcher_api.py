@@ -21,11 +21,8 @@ Usage::
 
 from __future__ import annotations
 
-import json
 import os
 from typing import Any
-
-import httpx
 
 from ..catalog import (
     App,
@@ -41,7 +38,7 @@ from ..catalog import (
     JamfAppInstallerSource,
     SourceVersion,
 )
-from ..core.exceptions import APIResponseError
+from ..core.exceptions import APIResponseError, NotFoundError
 from . import HTTPClient
 
 # allow env var override for local testing
@@ -145,10 +142,8 @@ class PatcherAPIClient(HTTPClient):
         """
         try:
             payload = await self._get(f"/apps/{slug}")
-        except APIResponseError as exc:
-            if getattr(exc, "not_found", False):
-                return None
-            raise
+        except NotFoundError:
+            return None
         return App.model_validate(payload)
 
     async def get_app_sources(self, slug: str) -> AppSources | None:
@@ -161,10 +156,8 @@ class PatcherAPIClient(HTTPClient):
         """
         try:
             payload = await self._get(f"/apps/{slug}/sources")
-        except APIResponseError as exc:
-            if getattr(exc, "not_found", False):
-                return None
-            raise
+        except NotFoundError:
+            return None
         return AppSources.model_validate(payload)
 
     async def list_drift(
@@ -231,10 +224,8 @@ class PatcherAPIClient(HTTPClient):
         """
         try:
             payload = await self._get(f"/apps/{slug}/drift")
-        except APIResponseError as exc:
-            if getattr(exc, "not_found", False):
-                return None
-            raise
+        except NotFoundError:
+            return None
         if payload is None:
             return None
         return DriftEntry.model_validate(payload)
@@ -249,41 +240,12 @@ class PatcherAPIClient(HTTPClient):
         """
         try:
             payload = await self._post(f"/apps/{slug}/generate-label")
-        except APIResponseError as exc:
-            if getattr(exc, "not_found", False):
-                return None
-            raise
+        except NotFoundError:
+            return None
         return GeneratedLabel.model_validate(payload)
 
     async def _get(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
-        url = f"{self.base_url}{path}"
-        response = await self._request("GET", url, params=params)
-        return self._parse(response, url)
+        return await self.fetch_json(f"{self.base_url}{path}", query_params=params)
 
     async def _post(self, path: str) -> Any:
-        url = f"{self.base_url}{path}"
-        response = await self._request("POST", url)
-        return self._parse(response, url)
-
-    @staticmethod
-    def _parse(response: httpx.Response, url: str) -> Any:
-        if response.status_code == 404:
-            raise APIResponseError(
-                "Requested resource was not found.",
-                url=url,
-                status_code=response.status_code,
-                not_found=True,
-            )
-        if not response.is_success:
-            try:
-                detail = response.json().get("detail")
-            except (ValueError, json.JSONDecodeError):
-                detail = None
-            raise APIResponseError(
-                "Non-success HTTP status from Patcher API",
-                url=url,
-                status_code=response.status_code,
-                error=detail or "(no detail in response body)",
-            )
-
-        return response.json()
+        return await self.fetch_json(f"{self.base_url}{path}", method="POST")

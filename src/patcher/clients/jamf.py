@@ -5,7 +5,6 @@ import io
 import json
 from typing import Any
 
-import httpx
 from pydantic import ValidationError
 
 from ..core.config_manager import ConfigManager
@@ -62,20 +61,9 @@ class JamfSetupClient(HTTPClient):
         self.log.debug("Attempting to retrieve Basic Token with provided credentials.")
         token_url = f"{self.jamf_url}/api/v1/auth/token"
 
-        try:
-            async with self.semaphore:
-                response = await self.http.post(
-                    token_url,
-                    auth=(username, password),
-                    headers={"accept": "application/json"},
-                )
-        except httpx.RequestError as e:
-            raise APIResponseError(
-                "Network error fetching basic token",
-                username=username,
-                url=self.jamf_url,
-                error_msg=str(e),
-            )
+        response = await self._request(
+            "POST", token_url, auth=(username, password), headers={"accept": "application/json"}
+        )
 
         try:
             data = response.json()

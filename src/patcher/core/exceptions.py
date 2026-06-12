@@ -67,6 +67,21 @@ class APIResponseError(PatcherError):
     pass
 
 
+class NotFoundError(APIResponseError):
+    """
+    Raised when an API call returns 404 (resource not found).
+
+    A subclass of :class:`APIResponseError`, so existing ``except APIResponseError``
+    handlers still catch it; new code can ``except NotFoundError`` for the 404 case.
+    Always carries ``not_found=True`` so the legacy ``getattr(err, "not_found", ...)``
+    short-circuit keeps working.
+    """
+
+    def __init__(self, message: str = None, **kwargs):
+        kwargs.setdefault("not_found", True)
+        super().__init__(message, **kwargs)
+
+
 class TokenError(PatcherError):
     """Raised when there is an error fetching, saving or retrieving a bearer token from Jamf API."""
 

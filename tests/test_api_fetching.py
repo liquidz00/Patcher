@@ -157,15 +157,15 @@ class TestJamfSetupClient:
         mock_response = Mock(status_code=200, is_success=True)
         mock_response.json.return_value = {"token": "abc123"}
         mock_http = AsyncMock()
-        mock_http.post = AsyncMock(return_value=mock_response)
+        mock_http.request = AsyncMock(return_value=mock_response)
         client._http_client = mock_http
 
         result = await client.fetch_basic_token("user", "pass")
 
         assert result == "abc123"
         # Basic auth via httpx's auth= kwarg (not in URL/body), against the instance URL.
-        assert mock_http.post.call_args.kwargs["auth"] == ("user", "pass")
-        assert mock_http.post.call_args.args[0].startswith("https://example.com")
+        assert mock_http.request.call_args.kwargs["auth"] == ("user", "pass")
+        assert mock_http.request.call_args.args[1].startswith("https://example.com")
 
     @pytest.mark.asyncio
     async def test_create_roles(self):
