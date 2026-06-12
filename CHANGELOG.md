@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 - **`InstallomatorClient` is deprecated** and will be removed in a future release; constructing it now emits a `DeprecationWarning`. Use `PatcherClient` / `PatcherAPIClient` for label and match data (set `PATCHER_API_URL` for self-hosted catalogs).
 
+### Fixed
+- **Matched Installomator labels in reports now carry their install type and download URL.** Previously every `install_label` entry in an export showed `null` for `type` and `download_url` even when the catalog had them; the matcher now hydrates both from the matched catalog record. (`expected_team_id` remains pending a catalog change.)
+
 
 ## [v3.3.1] - 2026-06-09
 ### Fixed

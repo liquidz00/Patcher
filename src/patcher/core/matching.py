@@ -2,7 +2,8 @@
 Match Jamf patch titles against the Patcher API catalog.
 
 Used by :meth:`PatcherClient.fetch_patches` to populate
-``PatchTitle.install_label`` with name-only :class:`Label` stubs for every
+``PatchTitle.install_label`` with :class:`Label` stubs (name, slug, install
+type, download URL) for every
 patch title that has an Installomator-tracked counterpart. The matching
 algorithm (direct → normalized → fuzzy) runs against the API's stitched
 catalog slug set, which already includes every Installomator label plus
@@ -88,9 +89,14 @@ def match_fuzzy(
     return matched
 
 
-def _make_stub(patch_title: str, slug: str) -> Label:
-    """A name-only Label stub — enough to mark a match for downstream truthiness checks."""
-    return Label(name=patch_title, installomator_label=slug)
+def _make_stub(patch_title: str, app: App) -> Label:
+    """Coverage stub for an Installomator match, hydrated from the matched catalog App."""
+    return Label(
+        name=patch_title,
+        installomator_label=app.slug,
+        type=app.install_method.value if app.install_method else None,
+        download_url=str(app.download_url) if app.download_url else None,
+    )
 
 
 def _make_cask_match(patch_title: str, app: App) -> CaskMatch:
@@ -191,7 +197,7 @@ def _attach_matches(
         if "installomator" in app.sources:
             if patch_title.install_label is None:
                 patch_title.install_label = []
-            patch_title.install_label.append(_make_stub(patch_title.title, slug))
+            patch_title.install_label.append(_make_stub(patch_title.title, app))
             attached = True
         if include_homebrew and "homebrew_cask" in app.sources:
             if patch_title.homebrew_cask is None:

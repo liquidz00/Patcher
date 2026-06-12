@@ -13,7 +13,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
-from src.patcher.clients.patcher_api import App
+from src.patcher.clients.patcher_api import App, InstallMethod
 from src.patcher.core import matching
 from src.patcher.core.exceptions import APIResponseError, InstallomatorWarning
 from src.patcher.core.matching import (
@@ -107,6 +107,28 @@ class TestMatchTitlesPipeline:
         assert len(title.install_label) == 1
         assert title.install_label[0].installomator_label == "firefox"
         assert title.install_label[0].name == "Firefox"
+
+    @pytest.mark.asyncio
+    async def test_install_label_stub_hydrated_from_app(self, tmp_path):
+        """Tier 1: the stub carries install type + download URL from the matched App."""
+        title = _patch_title("Firefox")
+        app = App(
+            slug="firefox",
+            name="Firefox",
+            sources=["installomator"],
+            install_method=InstallMethod.DMG,
+            download_url="https://download.mozilla.org/?product=firefox-latest&os=osx",
+        )
+        api = AsyncMock()
+        api.list_apps.return_value = [app]
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = [{"Patch": "Firefox", "App Names": ["Firefox"]}]
+
+        await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "review.json")
+
+        stub = title.install_label[0]
+        assert stub.type == "dmg"
+        assert stub.download_url is not None and "download.mozilla.org" in stub.download_url
 
     @pytest.mark.asyncio
     async def test_no_match_writes_review_file(self, tmp_path):
