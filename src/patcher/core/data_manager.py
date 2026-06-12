@@ -152,8 +152,9 @@ class DataManager:
                         file.unlink()
                         self.log.info(f"Deleted expired cache file: {file}")
                     except OSError as e:
+                        # One locked file shouldn't abort pruning the rest
                         self.log.warning(f"Failed to delete cache file {file}. Details: {e}")
-                        return
+                        continue
 
     def _create_patches(self, df: pd.DataFrame) -> list[PatchTitle]:
         """Convert a pandas DataFrame into a list of PatchTitle objects."""
