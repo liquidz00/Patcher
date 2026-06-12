@@ -26,6 +26,7 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher.catalog._normalize import normalize_name as _normalize_name
 from patcher.policy import CURATED_BUNDLE_IDS
 from patcher_api.installomator.resolver import is_shell_expression, looks_like_clean_http_url
 from patcher_api.models.app import App as AppRow
@@ -385,22 +386,6 @@ def _build_autopkg_payload(recipes: list[AutopkgRecipe]) -> dict[str, Any]:
             for r in recipes
         ],
     }
-
-
-def _normalize_name(name: str | None) -> str:
-    """
-    Lowercase + strip all non-alphanumeric for cross-variant name matching.
-
-    AutoPkg recipe names use both whitespace-separated (``"Google Chrome"``)
-    and concatenated (``"GoogleChrome"``) forms for the same app, depending
-    on the maintainer. Both normalize to ``"googlechrome"`` so either
-    variant matches an app whose display name is the other variant. Empty
-    or ``None`` input returns the empty string, which won't match anything
-    in the index (lookups against empty keys are guarded at the call site).
-    """
-    if not name:
-        return ""
-    return re.sub(r"[^a-z0-9]+", "", name.lower())
 
 
 def _index_autopkg_by_name(recipes: list[AutopkgRecipe]) -> dict[str, list[AutopkgRecipe]]:

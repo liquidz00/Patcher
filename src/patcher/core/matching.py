@@ -35,6 +35,7 @@ from typing import Any
 
 from rapidfuzz import fuzz, process
 
+from ..catalog._normalize import normalize_name
 from ..clients.jamf import JamfClient
 from ..clients.patcher_api import App, PatcherAPIClient
 from ..policy import IGNORED_TITLES
@@ -51,11 +52,6 @@ DEFAULT_REVIEW_FILE = Path.home() / "Library/Application Support/Patcher/unmatch
 # The ``/apps`` endpoint caps ``limit`` at 1000. Installomator's slug set fits
 # in one page, but the Homebrew Cask set (~7k) does not, so callers paginate.
 _CATALOG_PAGE_SIZE = 1000
-
-
-def normalize_name(app_name: str) -> str:
-    """Lowercase + strip spaces and dots — aligns Jamf app names with Installomator slugs."""
-    return app_name.lower().replace(" ", "").replace(".", "")
 
 
 def match_directly(app_names: list[str], available: set[str]) -> list[str]:

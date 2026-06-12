@@ -68,6 +68,11 @@ class TestNormalizeName:
     def test_strips_dots(self):
         assert normalize_name("Node.js") == "nodejs"
 
+    def test_strips_all_punctuation(self):
+        # Canonical form shared with the API: every non-alphanumeric is stripped.
+        assert normalize_name("Adobe Acrobat (64-bit)") == "adobeacrobat64bit"
+        assert normalize_name(None) == ""
+
 
 class TestMatchDirectly:
     def test_lowercase_hit(self):
