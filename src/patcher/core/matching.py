@@ -91,6 +91,7 @@ def _make_stub(patch_title: str, app: App) -> Label:
         name=patch_title,
         installomator_label=app.slug,
         type=app.install_method.value if app.install_method else None,
+        expected_team_id=app.expected_team_id,
         download_url=str(app.download_url) if app.download_url else None,
     )
 

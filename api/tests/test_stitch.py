@@ -667,6 +667,8 @@ async def test_stitch_installomator_only_label(populated_session):
     assert only_il is not None
     assert only_il.sources == ["installomator"]
     assert only_il.download_url == "https://example.com/onlyinstallomator.dmg"
+    # Team ID is promoted from the Installomator label onto the canonical apps row.
+    assert only_il.expected_team_id == "TESTTEAMID"
 
     detail = await populated_session.scalar(
         select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == only_il.id)

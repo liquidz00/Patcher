@@ -35,6 +35,8 @@ class App(Base):
     latest_release_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     download_url: Mapped[str | None] = mapped_column(String, nullable=True)
     install_method: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Apple Team ID for code-signature checks; authoritatively from Installomator only.
+    expected_team_id: Mapped[str | None] = mapped_column(String, nullable=True)
     sha256: Mapped[str | None] = mapped_column(String, nullable=True)
     sources: Mapped[list[str]] = mapped_column(JSON, default=list)
 

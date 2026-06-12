@@ -580,6 +580,7 @@ async def _upsert_app_with_sources(
     current_version: str | None,
     download_url: str | None,
     install_method: str | None,
+    expected_team_id: str | None,
     sha256: str | None,
     sources: list[str],
     installomator_payload: dict | None,
@@ -609,6 +610,8 @@ async def _upsert_app_with_sources(
     :type download_url: str | None
     :param install_method: One of the InstallMethod enum values, or None.
     :type install_method: str | None
+    :param expected_team_id: Apple Team ID from the Installomator label, or None.
+    :type expected_team_id: str | None
     :param sha256: SHA-256 of the artifact, or None.
     :type sha256: str | None
     :param sources: List of source names (e.g. ``["installomator", "homebrew_cask"]``).
@@ -633,6 +636,7 @@ async def _upsert_app_with_sources(
         latest_release_date=None,
         download_url=download_url,
         install_method=install_method,
+        expected_team_id=expected_team_id,
         sha256=sha256,
         sources=sources,
     )
@@ -645,6 +649,7 @@ async def _upsert_app_with_sources(
             "current_version": apps_stmt.excluded.current_version,
             "download_url": apps_stmt.excluded.download_url,
             "install_method": apps_stmt.excluded.install_method,
+            "expected_team_id": apps_stmt.excluded.expected_team_id,
             "sha256": apps_stmt.excluded.sha256,
             "sources": apps_stmt.excluded.sources,
         },
@@ -776,6 +781,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                     current_version=_resolve_version(il, matching_cask, matching_jai),
                     download_url=_resolve_download_url(il, matching_cask, matching_jai),
                     install_method=_resolve_install_method(il.install_type),
+                    expected_team_id=il.expected_team_id,
                     sha256=matching_cask.sha256 if matching_cask else None,
                     sources=sources,
                     installomator_payload=_build_installomator_payload(il),
@@ -832,6 +838,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                     or (matching_jai.version if matching_jai else None),
                     download_url=_clean_cask_url(cask) or _jai_external_url(matching_jai),
                     install_method=_infer_install_method_from_cask(cask),
+                    expected_team_id=None,
                     sha256=cask.sha256,
                     sources=sources,
                     installomator_payload=None,
@@ -900,6 +907,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                     or (matching_jai.version if matching_jai else None),
                     download_url=_jai_external_url(matching_jai),
                     install_method=None,
+                    expected_team_id=None,
                     sha256=None,
                     sources=sources,
                     installomator_payload=None,

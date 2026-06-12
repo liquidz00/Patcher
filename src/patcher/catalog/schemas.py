@@ -49,6 +49,7 @@ class App(_CatalogSchema):
     latest_release_date: date | None = None
     download_url: HttpUrl | None = None
     install_method: InstallMethod | None = None
+    expected_team_id: str | None = None
     sha256: str | None = None
     sources: list[str]
 

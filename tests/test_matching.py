@@ -115,13 +115,14 @@ class TestMatchTitlesPipeline:
 
     @pytest.mark.asyncio
     async def test_install_label_stub_hydrated_from_app(self, tmp_path):
-        """Tier 1: the stub carries install type + download URL from the matched App."""
+        """The stub carries install type, download URL, and Team ID from the matched App."""
         title = _patch_title("Firefox")
         app = App(
             slug="firefox",
             name="Firefox",
             sources=["installomator"],
             install_method=InstallMethod.DMG,
+            expected_team_id="43AQ936H96",
             download_url="https://download.mozilla.org/?product=firefox-latest&os=osx",
         )
         api = AsyncMock()
@@ -133,6 +134,7 @@ class TestMatchTitlesPipeline:
 
         stub = title.install_label[0]
         assert stub.type == "dmg"
+        assert stub.expected_team_id == "43AQ936H96"
         assert stub.download_url is not None and "download.mozilla.org" in stub.download_url
 
     @pytest.mark.asyncio

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 - **`PatcherClient.analyze(..., where=)`** accepts a `min_compliance` / `min_hosts` / `released_after` pre-filter, matching the CLI's `analyze` filters.
+- **Catalog `App` records now expose `expected_team_id`.** The Apple Team ID (used for code-signature verification, authoritatively sourced from Installomator) is promoted onto the stitched app record, so `GET /apps` and `GET /apps/{slug}` carry it directly instead of requiring a second `/apps/{slug}/sources` lookup.
 
 ### Changed
 - **Patcher no longer keeps a local Installomator label cache.** The on-disk `~/Library/Application Support/Patcher/.labels` cache (unbounded, never expired) is gone; label fetches now go straight to the catalog. Any leftover directory is removed automatically on the next run and by `reset cache`.
@@ -26,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`InstallomatorClient` is deprecated** and will be removed in a future release; constructing it now emits a `DeprecationWarning`. Use `PatcherClient` / `PatcherAPIClient` for label and match data (set `PATCHER_API_URL` for self-hosted catalogs).
 
 ### Fixed
-- **Matched Installomator labels in reports now carry their install type and download URL.** Previously every `install_label` entry in an export showed `null` for `type` and `download_url` even when the catalog had them; the matcher now hydrates both from the matched catalog record. (`expected_team_id` remains pending a catalog change.)
+- **Matched Installomator labels in reports now carry their install type, download URL, and Team ID.** Previously every `install_label` entry in an export showed `null` for `type`, `download_url`, and `expected_team_id` even when the catalog had them; the matcher now hydrates all three from the matched catalog record.
 - **The `installomator` analyze filter no longer counts uncovered titles.** A title with no Installomator label could slip through the filter (it compared against an empty list, not truthiness), so titles without a label were wrongly listed as Installomator-covered.
 - **Fetching an app's per-source detail no longer crashes on shared AutoPkg recipes.** `PatcherAPIClient.get_app_sources` raised a validation error for any app whose matched AutoPkg recipes had a `null` name or shortname (shared-processor recipes); the client model now matches the API and tolerates them.
 - **A malformed token response surfaces a clear error.** If the Jamf API returned a success response missing the `access_token` or `expires_in` field, Patcher raised an unhandled `TypeError`; it now raises a `TokenError` explaining the response was incomplete.
