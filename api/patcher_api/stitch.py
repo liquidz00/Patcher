@@ -20,6 +20,7 @@ Idempotent — re-running upserts existing rows rather than duplicating.
 
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import select
@@ -114,6 +115,43 @@ _JAI_VENDOR_PREFIXES: set[str] = {
     "vmware",
     "zoom",
 }
+
+
+@dataclass(frozen=True)
+class _StitchIndexes:
+    """The five lookups both stitch phases match against, built once from the ingested rows."""
+
+    casks_by_token: dict[str, HomebrewCask]
+    casks_by_app_name: dict[str, HomebrewCask]
+    autopkg_by_name: dict[str, list[AutopkgRecipe]]
+    jai_by_title: dict[str, JamfAppInstaller]
+    jai_by_bundle_id: dict[str, JamfAppInstaller]
+
+    @classmethod
+    def build(
+        cls,
+        casks: list[HomebrewCask],
+        autopkg_recipes: list[AutopkgRecipe],
+        jai_rows: list[JamfAppInstaller],
+    ) -> "_StitchIndexes":
+        """Construct every lookup from the ingested source rows."""
+        return cls(
+            casks_by_token={c.token: c for c in casks},
+            casks_by_app_name=_index_casks_by_app_name(casks),
+            autopkg_by_name=_index_autopkg_by_name(autopkg_recipes),
+            jai_by_title=_index_jai_by_title(jai_rows),
+            jai_by_bundle_id={j.bundle_id: j for j in jai_rows if j.bundle_id},
+        )
+
+
+@dataclass
+class _ResolvedApp:
+    """One app's fully-resolved upsert payload plus the flags the phase loops tally."""
+
+    upsert_kwargs: dict[str, Any]
+    matched_cask_token: str | None
+    has_autopkg: bool
+    has_jai: bool
 
 
 def _extract_vendor(il: InstallomatorLabel) -> str | None:
@@ -596,6 +634,122 @@ async def _upsert_app_with_sources(
     await session.execute(detail_stmt)
 
 
+def _match_aux(
+    normalized: str,
+    own_bundle: str | None,
+    indexes: _StitchIndexes,
+) -> tuple[list[AutopkgRecipe], JamfAppInstaller | None]:
+    """
+    Match the auxiliary (non-primary) sources both phases share: AutoPkg recipes
+    by normalized name, and a JAI row by bundle_id-then-name. Neither ever creates
+    an app; they only attach to the primary Installomator label or Cask.
+    """
+    matching_autopkg = indexes.autopkg_by_name.get(normalized, [])
+    matching_jai = _match_jai(
+        own_bundle, normalized, indexes.jai_by_bundle_id, indexes.jai_by_title
+    )
+    return matching_autopkg, matching_jai
+
+
+def _resolve_label(il: InstallomatorLabel, indexes: _StitchIndexes) -> _ResolvedApp:
+    """Resolve an Installomator label (plus any Cask/AutoPkg/JAI matches) into an upsertable app."""
+    matching_cask = _find_matching_cask(il, indexes.casks_by_token, indexes.casks_by_app_name)
+    display_name = il.display_name or il.name
+    normalized = _normalize_name(display_name)
+    own_bundle = il.package_id or CURATED_BUNDLE_IDS.get(il.name)
+    matching_autopkg, matching_jai = _match_aux(normalized, own_bundle, indexes)
+
+    sources = ["installomator"]
+    if matching_cask is not None:
+        sources.append("homebrew_cask")
+    if matching_autopkg:
+        sources.append("autopkg")
+    if matching_jai is not None:
+        sources.append("jamf_app_installer")
+
+    return _ResolvedApp(
+        upsert_kwargs={
+            "slug": il.name,
+            "bundle_id": _backfilled_bundle_id(own_bundle, matching_jai),
+            "name": display_name,
+            "vendor": _extract_vendor(il),
+            "current_version": _resolve_version(il, matching_cask, matching_jai),
+            "download_url": _resolve_download_url(il, matching_cask, matching_jai),
+            "install_method": _resolve_install_method(il.install_type),
+            "expected_team_id": il.expected_team_id,
+            "sha256": matching_cask.sha256 if matching_cask else None,
+            "sources": sources,
+            "installomator_payload": _build_installomator_payload(il),
+            "homebrew_payload": _build_cask_payload(matching_cask) if matching_cask else None,
+            "autopkg_payload": (
+                _build_autopkg_payload(matching_autopkg) if matching_autopkg else None
+            ),
+            "jamf_app_installer_payload": (
+                _build_jai_payload(matching_jai) if matching_jai else None
+            ),
+        },
+        matched_cask_token=matching_cask.token if matching_cask else None,
+        has_autopkg=bool(matching_autopkg),
+        has_jai=matching_jai is not None,
+    )
+
+
+def _resolve_cask(cask: HomebrewCask, indexes: _StitchIndexes) -> _ResolvedApp:
+    """Resolve a Cask-only record (plus any AutoPkg/JAI matches) into an upsertable app."""
+    cask_name = cask.name or cask.token
+    normalized = _normalize_name(cask_name)
+    # Casks carry no native bundle_id; a curated override or JAI hit can supply one.
+    own_bundle = CURATED_BUNDLE_IDS.get(cask.token)
+    matching_autopkg, matching_jai = _match_aux(normalized, own_bundle, indexes)
+
+    sources = ["homebrew_cask"]
+    if matching_autopkg:
+        sources.append("autopkg")
+    if matching_jai is not None:
+        sources.append("jamf_app_installer")
+
+    return _ResolvedApp(
+        upsert_kwargs={
+            "slug": cask.token,
+            "bundle_id": _backfilled_bundle_id(own_bundle, matching_jai),
+            "name": cask_name,
+            "vendor": cask_name.split()[0] if cask_name else None,
+            "current_version": cask.version or (matching_jai.version if matching_jai else None),
+            "download_url": _clean_cask_url(cask) or _jai_external_url(matching_jai),
+            "install_method": _infer_install_method_from_cask(cask),
+            "expected_team_id": None,
+            "sha256": cask.sha256,
+            "sources": sources,
+            "installomator_payload": None,
+            "homebrew_payload": _build_cask_payload(cask),
+            "autopkg_payload": (
+                _build_autopkg_payload(matching_autopkg) if matching_autopkg else None
+            ),
+            "jamf_app_installer_payload": (
+                _build_jai_payload(matching_jai) if matching_jai else None
+            ),
+        },
+        matched_cask_token=None,
+        has_autopkg=bool(matching_autopkg),
+        has_jai=matching_jai is not None,
+    )
+
+
+async def _commit_app(session: AsyncSession, resolved: _ResolvedApp) -> bool:
+    """
+    Upsert one resolved app inside a SAVEPOINT so a single bad record can't poison
+    the batch. Returns True on success; logs and returns False on any failure.
+    """
+    slug = resolved.upsert_kwargs["slug"]
+    try:
+        async with session.begin_nested():
+            await _upsert_app_with_sources(session, **resolved.upsert_kwargs)
+        return True
+    except Exception as exc:
+        log.warning("Failed to stitch %r: %s", slug, exc)
+        return False
+
+
 async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int, int]:
     """
     Run the stitch process. Builds unified ``apps`` rows from ingested
@@ -637,120 +791,36 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
     autopkg_recipes = (await session.scalars(select(AutopkgRecipe))).all()
     jai_rows = (await session.scalars(select(JamfAppInstaller))).all()
 
-    casks_by_token = {c.token: c for c in casks}
-    casks_by_app_name = _index_casks_by_app_name(casks)
-    autopkg_by_name = _index_autopkg_by_name(list(autopkg_recipes))
-    jai_by_title = _index_jai_by_title(list(jai_rows))
-    jai_by_bundle_id = {j.bundle_id: j for j in jai_rows if j.bundle_id}
+    indexes = _StitchIndexes.build(list(casks), list(autopkg_recipes), list(jai_rows))
     matched_cask_tokens: set[str] = set()
 
-    installomator_count = 0
-    both_sources = 0
-    autopkg_attached_count = 0
-    jai_attached_count = 0
-    failed = 0
+    installomator_count = both_sources = cask_only_count = 0
+    autopkg_attached_count = jai_attached_count = failed = 0
 
+    # Phase 1: Installomator-led. Each label upserts one app, claiming a Cask if matched.
     for il in labels:
-        matching_cask = _find_matching_cask(il, casks_by_token, casks_by_app_name)
-        display_name = il.display_name or il.name
-        normalized = _normalize_name(display_name)
-        matching_autopkg = autopkg_by_name.get(normalized, [])
-        own_bundle = il.package_id or CURATED_BUNDLE_IDS.get(il.name)
-        matching_jai = _match_jai(own_bundle, normalized, jai_by_bundle_id, jai_by_title)
-
-        sources = ["installomator"]
-        if matching_cask is not None:
-            sources.append("homebrew_cask")
-        if matching_autopkg:
-            sources.append("autopkg")
-        if matching_jai is not None:
-            sources.append("jamf_app_installer")
-
-        try:
-            async with session.begin_nested():
-                await _upsert_app_with_sources(
-                    session,
-                    slug=il.name,
-                    bundle_id=_backfilled_bundle_id(own_bundle, matching_jai),
-                    name=display_name,
-                    vendor=_extract_vendor(il),
-                    current_version=_resolve_version(il, matching_cask, matching_jai),
-                    download_url=_resolve_download_url(il, matching_cask, matching_jai),
-                    install_method=_resolve_install_method(il.install_type),
-                    expected_team_id=il.expected_team_id,
-                    sha256=matching_cask.sha256 if matching_cask else None,
-                    sources=sources,
-                    installomator_payload=_build_installomator_payload(il),
-                    homebrew_payload=_build_cask_payload(matching_cask) if matching_cask else None,
-                    autopkg_payload=(
-                        _build_autopkg_payload(matching_autopkg) if matching_autopkg else None
-                    ),
-                    jamf_app_installer_payload=(
-                        _build_jai_payload(matching_jai) if matching_jai else None
-                    ),
-                )
-            if matching_cask is not None:
-                matched_cask_tokens.add(matching_cask.token)
-                both_sources += 1
-            if matching_autopkg:
-                autopkg_attached_count += 1
-            if matching_jai is not None:
-                jai_attached_count += 1
-            installomator_count += 1
-        except Exception as exc:
-            log.warning("Failed to stitch Installomator label %r: %s", il.name, exc)
+        resolved = _resolve_label(il, indexes)
+        if not await _commit_app(session, resolved):
             failed += 1
+            continue
+        installomator_count += 1
+        if resolved.matched_cask_token is not None:
+            matched_cask_tokens.add(resolved.matched_cask_token)
+            both_sources += 1
+        autopkg_attached_count += resolved.has_autopkg
+        jai_attached_count += resolved.has_jai
 
-    cask_only_count = 0
+    # Phase 2: Cask-only. Walk Casks no label claimed.
     for cask in casks:
         if cask.token in matched_cask_tokens:
             continue
-
-        cask_name = cask.name or cask.token
-        normalized = _normalize_name(cask_name)
-        matching_autopkg = autopkg_by_name.get(normalized, [])
-        # Casks carry no native bundle_id; a curated override or JAI hit can supply one.
-        own_bundle = CURATED_BUNDLE_IDS.get(cask.token)
-        matching_jai = _match_jai(own_bundle, normalized, jai_by_bundle_id, jai_by_title)
-
-        sources = ["homebrew_cask"]
-        if matching_autopkg:
-            sources.append("autopkg")
-        if matching_jai is not None:
-            sources.append("jamf_app_installer")
-
-        try:
-            async with session.begin_nested():
-                await _upsert_app_with_sources(
-                    session,
-                    slug=cask.token,
-                    bundle_id=_backfilled_bundle_id(own_bundle, matching_jai),
-                    name=cask_name,
-                    vendor=cask_name.split()[0] if cask_name else None,
-                    current_version=cask.version
-                    or (matching_jai.version if matching_jai else None),
-                    download_url=_clean_cask_url(cask) or _jai_external_url(matching_jai),
-                    install_method=_infer_install_method_from_cask(cask),
-                    expected_team_id=None,
-                    sha256=cask.sha256,
-                    sources=sources,
-                    installomator_payload=None,
-                    homebrew_payload=_build_cask_payload(cask),
-                    autopkg_payload=(
-                        _build_autopkg_payload(matching_autopkg) if matching_autopkg else None
-                    ),
-                    jamf_app_installer_payload=(
-                        _build_jai_payload(matching_jai) if matching_jai else None
-                    ),
-                )
-            if matching_autopkg:
-                autopkg_attached_count += 1
-            if matching_jai is not None:
-                jai_attached_count += 1
-            cask_only_count += 1
-        except Exception as exc:
-            log.warning("Failed to stitch Cask %r: %s", cask.token, exc)
+        resolved = _resolve_cask(cask, indexes)
+        if not await _commit_app(session, resolved):
             failed += 1
+            continue
+        cask_only_count += 1
+        autopkg_attached_count += resolved.has_autopkg
+        jai_attached_count += resolved.has_jai
 
     await session.commit()
 
