@@ -92,8 +92,9 @@ class AutopkgRecipeEntry(BaseModel):
     """A single AutoPkg recipe entry within an AutoPkg source."""
 
     identifier: str
-    name: str
-    shortname: str
+    # Nullable to match the API: shared-processor recipes carry name: null
+    name: str | None = None
+    shortname: str | None = None
     repo: str
     path: str
     parent_identifier: str | None = None

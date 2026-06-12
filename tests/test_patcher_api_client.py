@@ -176,6 +176,40 @@ class TestGetApp:
         assert result.installomator.label_name == "firefoxpkg"
         assert result.homebrew_cask is None
 
+    @pytest.mark.asyncio
+    async def test_get_app_sources_tolerates_null_recipe_name(self):
+        """Shared-processor AutoPkg recipes carry name/shortname: null; the client must not crash."""
+        payload = {
+            "installomator": None,
+            "homebrew_cask": None,
+            "autopkg": {
+                "recipes": [
+                    {
+                        "identifier": "com.github.autopkg.shared.Processor",
+                        "name": None,
+                        "shortname": None,
+                        "repo": "autopkg/recipes",
+                        "path": "Shared/Processor.recipe",
+                    }
+                ]
+            },
+            "mas": None,
+            "jamf_app_installer": None,
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=payload)
+
+        client = _build_client(handler)
+        try:
+            result = await client.get_app_sources("someapp")
+        finally:
+            await client.aclose()
+
+        assert result.autopkg is not None
+        assert result.autopkg.recipes[0].name is None
+        assert result.autopkg.recipes[0].shortname is None
+
 
 class TestGenerateLabel:
     @pytest.mark.asyncio
