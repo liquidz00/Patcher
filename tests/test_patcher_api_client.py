@@ -210,6 +210,42 @@ class TestGetApp:
         assert result.autopkg.recipes[0].name is None
         assert result.autopkg.recipes[0].shortname is None
 
+    @pytest.mark.asyncio
+    async def test_get_app_sources_captures_full_jamf_installer(self):
+        """The client keeps the enriched JAI fields (was dropping all but title/source/host)."""
+        payload = {
+            "installomator": None,
+            "homebrew_cask": None,
+            "autopkg": None,
+            "mas": None,
+            "jamf_app_installer": {
+                "title": "OpenAI ChatGPT Atlas",
+                "source": "External",
+                "host": "persistent.oaistatic.com",
+                "bundle_id": "com.openai.atlas",
+                "version": "1.2026.126.0",
+                "jamf_id": "81F",
+                "download_url": "https://persistent.oaistatic.com/atlas/x.dmg",
+                "architecture": "arm64",
+            },
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=payload)
+
+        client = _build_client(handler)
+        try:
+            result = await client.get_app_sources("chatgpt-atlas")
+        finally:
+            await client.aclose()
+
+        jai = result.jamf_app_installer
+        assert jai.bundle_id == "com.openai.atlas"
+        assert jai.jamf_id == "81F"
+        assert jai.version == "1.2026.126.0"
+        assert jai.architecture == "arm64"
+        assert jai.download_url == "https://persistent.oaistatic.com/atlas/x.dmg"
+
 
 class TestGenerateLabel:
     @pytest.mark.asyncio

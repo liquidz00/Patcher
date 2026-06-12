@@ -4,16 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import ColumnElement, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher.catalog import App, AppSources, DriftEntry, DriftResponse, GeneratedLabel
 from patcher_api.db import get_session
 from patcher_api.drift import detect_drift, scan_drift
 from patcher_api.labels import build_installomator_label
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.jamf import JamfCatalogTitle
-from patcher_api.schemas.app import App
-from patcher_api.schemas.drift import DriftEntry, DriftResponse
-from patcher_api.schemas.labels import GenerateLabelResponse
-from patcher_api.schemas.sources import AppSources
 from patcher_api.stitch import _normalize_name
 
 router = APIRouter(
@@ -219,11 +216,11 @@ async def get_app_drift(
     return detect_drift(app_row, app_row.source_detail)
 
 
-@router.post("/{slug}/generate-label", response_model=GenerateLabelResponse)
+@router.post("/{slug}/generate-label", response_model=GeneratedLabel)
 async def generate_label(
     slug: str,
     session: AsyncSession = Depends(get_session),
-) -> GenerateLabelResponse:
+) -> GeneratedLabel:
     """
     Generate an Installomator label for ``slug``.
 
@@ -240,7 +237,7 @@ async def generate_label(
     :raises HTTPException: 404 if ``slug`` doesn't exist; 422 if the app has
         no source detail attached (rare — usually a leftover seed record).
     :return: The generated label content + metadata.
-    :rtype: :class:`patcher_api.schemas.labels.GenerateLabelResponse`
+    :rtype: :class:`patcher_api.schemas.labels.GeneratedLabel`
     """
     app_row = await session.scalar(select(AppRow).where(AppRow.slug == slug))
     if app_row is None:

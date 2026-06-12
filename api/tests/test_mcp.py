@@ -16,8 +16,9 @@ from fastmcp import Client
 from patcher_api.mcp import mcp
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
-from patcher_api.schemas.app import InstallMethod
 from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from patcher.catalog import InstallMethod
 
 
 @pytest_asyncio.fixture

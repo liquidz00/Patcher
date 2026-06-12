@@ -29,9 +29,9 @@ detail from the DB and hands them to :func:`build_installomator_label`.
 
 from typing import Any
 
+from patcher.catalog import GeneratedLabel
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
-from patcher_api.schemas.labels import GenerateLabelResponse
 
 _URL_SUFFIX_TO_TYPE = (
     (".dmg", "dmg"),
@@ -59,7 +59,7 @@ def _first_scalar(value: Any) -> Any:
 def build_installomator_label(
     app_row: AppRow,
     detail: AppSourceDetailRow | None,
-) -> GenerateLabelResponse:
+) -> GeneratedLabel:
     """
     Project an apps row + source detail into an Installomator label.
 
@@ -70,7 +70,7 @@ def build_installomator_label(
         record).
     :type detail: :class:`AppSourceDetailRow` | None
     :return: Generated label content + provenance metadata.
-    :rtype: :class:`GenerateLabelResponse`
+    :rtype: :class:`GeneratedLabel`
     """
     warnings: list[str] = []
 
@@ -114,7 +114,7 @@ def build_installomator_label(
         bundle_id=app_row.bundle_id,
     )
 
-    return GenerateLabelResponse(
+    return GeneratedLabel(
         label_name=app_row.slug,
         content=content,
         sources_used=_sources_used(installomator_payload, cask_payload, jai_payload),

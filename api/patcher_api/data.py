@@ -8,10 +8,11 @@ that populates the DB on first run).
 
 from datetime import date
 
-from patcher_api.schemas.app import App, InstallMethod
-from patcher_api.schemas.sources import (
+from patcher.catalog import (
+    App,
     AppSources,
     HomebrewCaskSource,
+    InstallMethod,
     InstallomatorSource,
     JamfAppInstallerSource,
 )

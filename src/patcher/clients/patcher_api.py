@@ -11,9 +11,10 @@ useful standalone (enrich your own scripts with stitched catalog data)
 and is also the backend :class:`PatcherClient` uses internally for
 Installomator-style matching once the package adopts API-sourced labels.
 
-Pydantic response models defined here mirror the API's wire format but
-are intentionally decoupled from the ``patcher-api`` workspace package —
-the wire format is the contract, not a Python import.
+Response models are imported from :mod:`patcher.catalog.schemas`, the single
+source of truth shared with the ``patcher-api`` server, so the client can
+never drift from what the server serializes. They are re-exported here for
+backwards compatibility with ``from patcher.clients.patcher_api import App``.
 
 Usage::
 
@@ -30,166 +31,48 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date
-from enum import StrEnum
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, ConfigDict, HttpUrl
 
+from ..catalog import (
+    App,
+    AppSources,
+    AutopkgRecipeEntry,
+    AutopkgSource,
+    DriftEntry,
+    DriftResponse,
+    GeneratedLabel,
+    HomebrewCaskSource,
+    InstallMethod,
+    InstallomatorSource,
+    JamfAppInstallerSource,
+    MasSource,
+    SourceVersion,
+)
 from ..core.exceptions import APIResponseError
 from . import HTTPClient
 
 # allow env var override for local testing
 DEFAULT_BASE_URL = os.environ.get("PATCHER_API_URL", "https://api.patcherctl.dev")
 
-
-class InstallMethod(StrEnum):
-    """Mirrors Installomator's ``type`` variable."""
-
-    DMG = "dmg"
-    PKG = "pkg"
-    ZIP = "zip"
-    TBZ = "tbz"
-    PKG_IN_DMG = "pkgInDmg"
-    PKG_IN_ZIP = "pkgInZip"
-    APP_IN_DMG_IN_ZIP = "appInDmgInZip"
-
-
-class App(BaseModel):
-    """A stitched catalog record. One row per app slug."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    slug: str
-    bundle_id: str | None = None
-    name: str
-    vendor: str | None = None
-    current_version: str | None = None
-    latest_release_date: date | None = None
-    download_url: HttpUrl | None = None
-    install_method: InstallMethod | None = None
-    sha256: str | None = None
-    sources: list[str]
-
-
-class InstallomatorSource(BaseModel):
-    """Client-side shape of an Installomator source payload."""
-
-    label_name: str
-    label_url: HttpUrl
-    raw: dict[str, Any]
-
-
-class HomebrewCaskSource(BaseModel):
-    """Client-side shape of a Homebrew Cask source payload."""
-
-    token: str
-    cask_json: dict[str, Any]
-
-
-class AutopkgRecipeEntry(BaseModel):
-    """A single AutoPkg recipe entry within an AutoPkg source."""
-
-    identifier: str
-    # Nullable to match the API: shared-processor recipes carry name: null
-    name: str | None = None
-    shortname: str | None = None
-    repo: str
-    path: str
-    parent_identifier: str | None = None
-    inferred_type: str | None = None
-    recipe_url: HttpUrl | None = None
-
-
-class AutopkgSource(BaseModel):
-    """Client-side shape of an AutoPkg source payload (a list of recipes)."""
-
-    recipes: list[AutopkgRecipeEntry]
-
-
-class MasSource(BaseModel):
-    """Client-side shape of a Mac App Store source payload."""
-
-    bundle_id: str
-    store_url: HttpUrl | None = None
-    raw: dict[str, Any]
-
-
-class JamfAppInstallerSource(BaseModel):
-    """Client-side shape of a Jamf App Installer source payload."""
-
-    title: str
-    source: str
-    host: str | None = None
-
-
-class AppSources(BaseModel):
-    """Per-source payloads for a single app slug. Source values are ``None`` when that source didn't contribute."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    installomator: InstallomatorSource | None = None
-    homebrew_cask: HomebrewCaskSource | None = None
-    autopkg: AutopkgSource | None = None
-    mas: MasSource | None = None
-    jamf_app_installer: JamfAppInstallerSource | None = None
-
-
-class GeneratedLabel(BaseModel):
-    """Response from ``POST /apps/{slug}/generate-label``."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    label_name: str
-    content: dict[str, Any]
-    sources_used: list[str]
-    warnings: list[str]
-
-
-class SourceVersion(BaseModel):
-    """One source's reported version for an app."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    source: str
-    version: str
-    parsed_ok: bool
-
-
-class DriftEntry(BaseModel):
-    """
-    Drift detected on a single app.
-
-    ``leader`` and ``laggard`` are the source names with the highest and
-    lowest parsed versions; both are ``None`` when at least one version
-    string couldn't be parsed (e.g. Cask date-style versions).
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    slug: str
-    name: str
-    vendor: str | None = None
-    versions: list[SourceVersion]
-    leader: str | None = None
-    laggard: str | None = None
-
-
-class DriftResponse(BaseModel):
-    """
-    Paginated drift results from ``GET /apps/drift``.
-
-    ``total_scanned`` counts apps with at least two versioned sources;
-    ``total_with_drift`` is the unpaged count of disagreements that
-    matched the request's filters.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    total_scanned: int
-    total_with_drift: int
-    entries: list[DriftEntry]
+__all__ = [
+    "App",
+    "AppSources",
+    "AutopkgRecipeEntry",
+    "AutopkgSource",
+    "DriftEntry",
+    "DriftResponse",
+    "GeneratedLabel",
+    "HomebrewCaskSource",
+    "InstallMethod",
+    "InstallomatorSource",
+    "JamfAppInstallerSource",
+    "MasSource",
+    "SourceVersion",
+    "PatcherAPIClient",
+    "DEFAULT_BASE_URL",
+]
 
 
 class PatcherAPIClient(HTTPClient):
@@ -283,7 +166,7 @@ class PatcherAPIClient(HTTPClient):
         ``GET /apps/{slug}/sources`` — fetch per-source payloads for a slug.
 
         Returns ``None`` on 404. Source values inside the returned
-        :class:`~patcher.clients.patcher_api.AppSources` object are ``None`` for sources that didn't
+        :class:`~patcher.catalog.schemas.AppSources` object are ``None`` for sources that didn't
         contribute data for this slug.
         """
         try:
@@ -370,7 +253,7 @@ class PatcherAPIClient(HTTPClient):
         """
         ``POST /apps/{slug}/generate-label`` — server-side label projection.
 
-        Returns ``None`` on 404. The returned :class:`~patcher.clients.patcher_api.GeneratedLabel` carries
+        Returns ``None`` on 404. The returned :class:`~patcher.catalog.schemas.GeneratedLabel` carries
         a ``warnings`` array surfacing fields that couldn't be resolved
         (most commonly ``expectedTeamID`` for Cask-only apps).
         """
@@ -412,31 +295,5 @@ class PatcherAPIClient(HTTPClient):
                 status_code=response.status_code,
                 error=detail or "(no detail in response body)",
             )
-        try:
-            return response.json()
-        except (ValueError, json.JSONDecodeError) as exc:
-            raise APIResponseError(
-                "Failed parsing JSON from Patcher API response",
-                url=url,
-                status_code=response.status_code,
-                error_msg=str(exc),
-            )
 
-
-__all__ = [
-    "App",
-    "AppSources",
-    "AutopkgRecipeEntry",
-    "AutopkgSource",
-    "DEFAULT_BASE_URL",
-    "DriftEntry",
-    "DriftResponse",
-    "GeneratedLabel",
-    "HomebrewCaskSource",
-    "InstallMethod",
-    "InstallomatorSource",
-    "JamfAppInstallerSource",
-    "MasSource",
-    "PatcherAPIClient",
-    "SourceVersion",
-]
+        return response.json()

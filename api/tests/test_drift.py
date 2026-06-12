@@ -9,7 +9,8 @@ from patcher_api.drift import (
     detect_drift,
     extract_versions,
 )
-from patcher_api.schemas.drift import DriftEntry
+
+from patcher.catalog import DriftEntry
 
 
 def _detail(*, installomator=None, homebrew_cask=None):

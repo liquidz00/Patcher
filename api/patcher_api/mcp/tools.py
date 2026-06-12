@@ -15,6 +15,7 @@ shape an MCP client sees is identical to ``GET /apps/{slug}``.
 
 from sqlalchemy import or_, select
 
+from patcher.catalog import AppSources
 from patcher_api.db import get_session_maker
 from patcher_api.drift import scan_drift
 from patcher_api.labels import build_installomator_label
@@ -22,7 +23,6 @@ from patcher_api.mcp._queries import catalog_categories, catalog_summary, serial
 from patcher_api.mcp.server import mcp
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
-from patcher_api.schemas.sources import AppSources
 
 
 @mcp.tool

@@ -1,5 +1,6 @@
 import pytest
-from patcher_api.schemas.app import InstallMethod
+
+from patcher.catalog import InstallMethod
 
 
 @pytest.mark.asyncio
@@ -299,7 +300,7 @@ def test_autopkg_recipe_entry_tolerates_null_name_and_shortname():
     must accept them or /apps/{slug}/sources 500s for any app whose matched
     recipes lack one (caught on `privileges`).
     """
-    from patcher_api.schemas.sources import AppSources, AutopkgRecipeEntry
+    from patcher.catalog import AppSources, AutopkgRecipeEntry
 
     entry = AutopkgRecipeEntry.model_validate(
         {

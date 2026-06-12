@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Internal: the `analyze` CLI command routes through `PatcherClient`** (`analyze` / `analyze_trend` / `export`) instead of reimplementing the `TitleFilter` / `TrendAnalysis` transforms inline. No change to `analyze` behavior or output.
 - **Internal: `PatchTitle ↔ DataFrame ↔ dict` conversions consolidated into a new `patcher.core.serialization` module** (`titles_to_df` / `df_to_titles` / `titles_to_dict`). `DataManager`, `Exporter`, and the trend-analysis diff path now share these instead of each re-implementing `model_dump`. `Exporter.serialize_titles_to_dict(...)` is unchanged and now delegates to `titles_to_dict`.
 - **Internal: release-date formatting and the SOFA feed moved off `JamfClient`.** Display formatting (`Aug 09 2023`) is now a `PatchTitle.released` field validator instead of the private `JamfClient._convert_tz`, and the SOFA fetch is a `patcher.core.analyze.get_sofa_feed(http_client)` function rather than a `JamfClient` method. No change to export output.
+- **Internal: catalog wire schemas now have a single definition.** `App`, `AppSources`, the per-source payloads, the generated-label, and drift schemas live in `patcher.catalog.schemas` and are shared by the library client and the API server, replacing two hand-mirrored copies that had drifted. They remain importable from `patcher.clients.patcher_api` for backwards compatibility.
 
 ### Deprecated
 - **`InstallomatorClient` is deprecated** and will be removed in a future release; constructing it now emits a `DeprecationWarning`. Use `PatcherClient` / `PatcherAPIClient` for label and match data (set `PATCHER_API_URL` for self-hosted catalogs).
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A malformed token response surfaces a clear error.** If the Jamf API returned a success response missing the `access_token` or `expires_in` field, Patcher raised an unhandled `TypeError`; it now raises a `TokenError` explaining the response was incomplete.
 - **Resetting credentials in in-memory mode no longer touches the system keychain.** `ConfigManager.delete_credential` ignored in-memory mode and always called keyring; it now removes from the in-memory store, matching `get_credential`/`set_credential`.
 - **Cache pruning no longer stops at the first undeletable file.** When clearing expired snapshots, a single locked or permission-denied file aborted the whole cleanup; it now logs the file and continues pruning the rest.
+- **Jamf App Installer source detail now exposes its full fields.** `get_app_sources(...).jamf_app_installer` previously kept only `title`/`source`/`host` and silently dropped `bundle_id`, `version`, `jamf_id`, `download_url`, and `architecture` that the API returns; the client now captures them.
 
 
 ## [v3.3.1] - 2026-06-09
