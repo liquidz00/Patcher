@@ -812,11 +812,6 @@ def _filter_method_names(cls: type) -> list[str]:
     ]
 
 
-def _resolve_method(cls: type, titles: list[PatchTitle], criterion: str):
-    instance = cls(titles)
-    return _resolve_method_on_instance(instance, criterion)
-
-
 def _resolve_method_on_instance(instance, criterion: str):
     method_name = criterion.replace("-", "_")
     if method_name.startswith("_") or method_name not in _filter_method_names(type(instance)):

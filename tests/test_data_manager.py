@@ -1,5 +1,4 @@
 import os
-import pickle
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -132,20 +131,6 @@ class TestCache:
         data_manager = DataManager(disable_cache=True)
         with patch.object(data_manager, "get_cached_files", return_value=[]):
             assert data_manager.get_latest_dataset() is None
-
-    @pytest.mark.asyncio
-    async def test_load_cached_data_with_corrupted_files(self, mock_data_manager):
-        """Ensure load_cached_data skips corrupted files."""
-        corrupted_file = MagicMock(spec=Path)
-        corrupted_file.name = "corrupted_cache.pkl"
-        corrupted_file.__str__.return_value = "/mocked/path/corrupted_cache.pkl"
-
-        with patch.object(mock_data_manager, "get_cached_files", return_value=[corrupted_file]):
-            with patch("pickle.load", side_effect=pickle.UnpicklingError("Test Unpickling error")):
-                loaded_data = mock_data_manager.load_cached_data()
-
-        # Assert that no valid data was loaded
-        assert len(loaded_data) == 0
 
     def test_cache_data_writes_parquet_and_load_round_trips(self, tmp_path):
         """New caches are written as Parquet (version-stable) and load() reads them back."""

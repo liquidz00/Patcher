@@ -26,7 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 - **`InstallomatorClient` is deprecated** and will be removed in a future release; constructing it now emits a `DeprecationWarning`. Use `PatcherClient` / `PatcherAPIClient` for label and match data (set `PATCHER_API_URL` for self-hosted catalogs).
 
+### Removed
+- **`DataManager.load_cached_data` and `HTTPClient.set_concurrency` were removed.** Both were unused: `load_cached_data` had no callers, and outbound concurrency is set once at construction via the `max_concurrency` argument.
+
 ### Fixed
+- **`analyze --excel-file` (and `PatcherClient.analyze_excel`) now actually read the file.** Previously the path was accepted but ignored, and analysis ran against the cached snapshot instead. You can now analyze a previously-exported Excel report directly — useful for re-analyzing a shared or historical export without re-fetching from Jamf. Combining `--excel-file` with `--all-time` is rejected with a clear error.
 - **Matched Installomator labels in reports now carry their install type, download URL, and Team ID.** Previously every `install_label` entry in an export showed `null` for `type`, `download_url`, and `expected_team_id` even when the catalog had them; the matcher now hydrates all three from the matched catalog record.
 - **The `installomator` analyze filter no longer counts uncovered titles.** A title with no Installomator label could slip through the filter (it compared against an empty list, not truthiness), so titles without a label were wrongly listed as Installomator-covered.
 - **Fetching an app's per-source detail no longer crashes on shared AutoPkg recipes.** `PatcherAPIClient.get_app_sources` raised a validation error for any app whose matched AutoPkg recipes had a `null` name or shortname (shared-processor recipes); the client model now matches the API and tolerates them.

@@ -18,7 +18,7 @@ from urllib.parse import urlencode
 import httpx
 import truststore
 
-from ..core.exceptions import APIResponseError, PatcherError
+from ..core.exceptions import APIResponseError
 from ..core.logger import LogMe
 
 
@@ -48,23 +48,6 @@ class HTTPClient:
         # Lazily-constructed httpx.AsyncClient. See the ``http`` property.
         self._http_client: httpx.AsyncClient | None = None
         self.log.debug(f"HTTPClient initialized with max_concurrency: {max_concurrency}")
-
-    def set_concurrency(self, value: int) -> None:
-        """
-        Set the maximum concurrency level for outbound API requests, with validation.
-
-        Read access is via the ``self.max_concurrency`` attribute directly;
-        this method exists specifically for validated writes. It is recommended
-        to keep the value at no more than 5 to avoid overloading Jamf. See
-        the class docstring for the upstream guidance.
-
-        :param value: The new maximum concurrency level.
-        :type value: int
-        :raises PatcherError: If ``value`` is less than 1.
-        """
-        if value < 1:
-            raise PatcherError("Concurrency level must be at least 1.")
-        self.max_concurrency = value
 
     @property
     def http(self) -> httpx.AsyncClient:

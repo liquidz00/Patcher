@@ -16,14 +16,6 @@ class TestLifecycle:
         }
 
     @pytest.mark.asyncio
-    async def test_set_concurrency(self, http_client):
-        http_client.set_concurrency(2)
-        assert http_client.max_concurrency == 2
-
-        with pytest.raises(exceptions.PatcherError):
-            http_client.set_concurrency(0)
-
-    @pytest.mark.asyncio
     async def test_aclose_is_idempotent(self, http_client):
         """aclose() is safe to call multiple times and resets the lazy-init state."""
         # Force construction

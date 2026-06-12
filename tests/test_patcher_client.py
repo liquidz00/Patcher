@@ -207,17 +207,20 @@ class TestAnalyze:
 
 class TestAnalyzeExcel:
     @pytest.mark.asyncio
-    async def test_dispatches_via_title_filter_apply_on_data_titles(self, patcher, mocker):
-        """Pre-v3.0.1: --excel-file is accepted but unread; we filter data.titles."""
-        mock_apply = mocker.patch("src.patcher.core.patcher_client.TitleFilter.apply")
-        mock_apply.return_value = ["filtered"]
+    async def test_reads_titles_from_excel_not_cache(self, patcher, mocker):
+        """analyze_excel hydrates titles from the file and analyzes those, not data.titles."""
+        excel_titles = ["from-excel"]
+        mocker.patch("src.patcher.core.patcher_client.excel_to_titles", return_value=excel_titles)
+        mock_analyze = mocker.patch.object(
+            patcher, "analyze", new=AsyncMock(return_value=["filtered"])
+        )
         patcher.data = MagicMock()
-        patcher.data.titles = ["cached-titles"]
+        patcher.data.titles = ["cached-should-not-be-used"]
 
         result = await patcher.analyze_excel("/tmp/report.xlsx", criteria="most-installed")
 
-        mock_apply.assert_called_once_with(
-            ["cached-titles"], "most-installed", threshold=70.0, top_n=None
+        mock_analyze.assert_awaited_once_with(
+            excel_titles, "most-installed", threshold=70.0, top_n=None, where=None
         )
         assert result == ["filtered"]
 

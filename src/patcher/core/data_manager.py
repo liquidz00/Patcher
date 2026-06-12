@@ -268,22 +268,6 @@ class DataManager:
             self.log.warning(f"Encountered {type(e).__name__} during cache reset. Details: {e}")
             return False
 
-    def load_cached_data(self) -> list[pd.DataFrame]:
-        """
-        Load all cached data files into a list of DataFrames.
-
-        :return: list of pandas DataFrame objects with cached data.
-        :rtype: list[~pandas.DataFrame]
-        """
-        dataframes = []
-        for file in self.get_cached_files():
-            try:
-                dataframes.append(self.load(file))
-                self.log.info(f"Loaded cache data from {file}")
-            except PatcherError as e:
-                self.log.warning(f"Failed to load cached file {file}. Details: {e}")
-        return dataframes
-
     def get_cached_files(self) -> list[Path]:
         """
         Retrieves all cached file Paths.

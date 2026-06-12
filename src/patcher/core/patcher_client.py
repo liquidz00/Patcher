@@ -40,6 +40,7 @@ from .logger import LogMe
 from .matching import match_titles
 from .models.patch import PatchTitle
 from .models.settings import PatcherSettings, UIConfigKeys, UIDefaults
+from .serialization import excel_to_titles
 
 
 class PatcherClient:
@@ -350,20 +351,17 @@ class PatcherClient:
         *,
         threshold: float | None = 70.0,
         top_n: int | None = None,
+        where: dict | None = None,
     ) -> list[PatchTitle]:
         """
         Filter and sort patch titles loaded from a saved Excel report.
 
-        Library equivalent of ``patcherctl analyze --excel-file``.
-
-        .. note::
-           Excel-to-``PatchTitle`` hydration is parked for v3.0.1. Today this
-           method filters the currently cached ``data.titles`` and ignores
-           ``excel_path``. Behavior is unchanged from v2 to preserve existing
-           callers; the parking is purely about closing the no-op gap.
+        Hydrates ``PatchTitle`` objects from ``excel_path`` (a previously-exported
+        Patcher report) and analyzes those instead of the cached snapshot — the
+        library equivalent of ``patcherctl analyze --excel-file``. Useful for
+        re-analyzing a shared or historical export without re-fetching from Jamf.
 
         :param excel_path: Path to a previously-exported Patcher Excel report.
-            Currently accepted but not read (see note).
         :type excel_path: str | :class:`pathlib.Path`
         :param criteria: CLI-style filter criterion.
         :type criteria: str
@@ -372,10 +370,15 @@ class PatcherClient:
         :param top_n: Optional result cap. Ignored by ``below-threshold`` and
             ``zero-completion``.
         :type top_n: int | None
+        :param where: Optional pre-filter (``min_compliance`` / ``min_hosts`` /
+            ``released_after``), same as :meth:`analyze`.
+        :type where: dict | None
         :return: Filtered + sorted titles.
         :rtype: list[:class:`~patcher.core.models.patch.PatchTitle`]
+        :raises PatcherError: If the Excel file can't be read or yields no titles.
         """
-        return TitleFilter.apply(self.data.titles, criteria, threshold=threshold, top_n=top_n)
+        titles = excel_to_titles(excel_path)
+        return await self.analyze(titles, criteria, threshold=threshold, top_n=top_n, where=where)
 
     async def analyze_trend(
         self,
