@@ -22,7 +22,7 @@ import logging
 import re
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,7 +35,6 @@ from patcher_api.models.autopkg import AutopkgRecipe
 from patcher_api.models.homebrew import HomebrewCask
 from patcher_api.models.installomator import InstallomatorLabel
 from patcher_api.models.jamf import JamfAppInstaller
-from patcher_api.models.mas import MasApp
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +60,6 @@ _CANONICAL_SOURCE_ORDER = (
     "homebrew_cask",
     "autopkg",
     "jamf_app_installer",
-    "mas",
 )
 
 # JAI titles carry decoration the label name omits (trailing version/edition, leading vendor); strip it so they match.
@@ -345,21 +343,6 @@ def _canonicalize_sources(sources: list[str]) -> list[str]:
     return [s for s in _CANONICAL_SOURCE_ORDER if s in present]
 
 
-def _build_mas_payload(mas_app: MasApp) -> dict[str, Any]:
-    """
-    Build the MasSource shape for the source_detail JSON column.
-
-    The full Apple lookup payload is preserved in ``raw`` so consumers can
-    see Apple's native shape (matching the principle applied to Cask and
-    Installomator sources).
-    """
-    return {
-        "bundle_id": mas_app.bundle_id,
-        "store_url": mas_app.store_url,
-        "raw": mas_app.raw,
-    }
-
-
 def _build_autopkg_payload(recipes: list[AutopkgRecipe]) -> dict[str, Any]:
     """
     Build the AutopkgSource shape (a list of recipe entries) for the
@@ -423,50 +406,6 @@ def _build_jai_payload(jai: JamfAppInstaller) -> dict[str, Any]:
         "download_url": jai.download_url,
         "architecture": jai.architecture,
     }
-
-
-async def _attach_mas_to_existing_app(
-    session: AsyncSession,
-    *,
-    app_id: int,
-    mas_app: MasApp,
-) -> None:
-    """
-    Merge a MAS payload into an existing ``apps`` row instead of creating a
-    new MAS-only row.
-
-    Invoked by phase 3 when ``_slugify(mas_app.name)`` collides with an
-    already-stitched row (typically a phase-2 Cask-only app whose token
-    happens to match the MAS app's slugified name — Apple Pro Suite +
-    Microsoft Office are the common cases). The merge preserves the
-    existing row's name/vendor/version/download_url and only:
-
-    1. Appends ``"mas"`` to the row's ``sources`` list, reordered into the
-       canonical fixed-position sequence.
-    2. Writes the mas source_detail payload (existing detail row gets its
-       ``mas`` column updated; if no detail row exists for any reason, one
-       is created via ON CONFLICT DO UPDATE).
-    """
-    current_sources = (
-        await session.scalar(select(AppRow.sources).where(AppRow.id == app_id))
-    ) or []
-    new_sources = _canonicalize_sources([*current_sources, "mas"])
-    await session.execute(update(AppRow).where(AppRow.id == app_id).values(sources=new_sources))
-
-    mas_payload = _build_mas_payload(mas_app)
-    detail_stmt = sqlite_insert(AppSourceDetailRow).values(
-        app_id=app_id,
-        installomator=None,
-        homebrew_cask=None,
-        autopkg=None,
-        mas=mas_payload,
-        jamf_app_installer=None,
-    )
-    detail_stmt = detail_stmt.on_conflict_do_update(
-        index_elements=["app_id"],
-        set_={"mas": detail_stmt.excluded.mas},
-    )
-    await session.execute(detail_stmt)
 
 
 def _jai_index_keys(title: str) -> list[str]:
@@ -553,23 +492,6 @@ def _backfilled_bundle_id(own: str | None, matching_jai: JamfAppInstaller | None
     return matching_jai.bundle_id if matching_jai else None
 
 
-def _slugify(name: str) -> str:
-    """
-    Convert an app name to a URL-friendly slug.
-
-    Lowercase, collapse runs of non-alphanumeric into single hyphens,
-    strip leading and trailing hyphens. Used for MAS-only apps that don't
-    inherit a slug from Installomator (which uses the label name) or
-    Homebrew Cask (which uses the cask token).
-
-    Returns ``"unknown"`` on inputs that collapse to empty, so callers
-    don't have to guard against empty-string slugs blowing up the
-    unique-index constraint.
-    """
-    cleaned = re.sub(r"[^a-zA-Z0-9]+", "-", name).strip("-").lower()
-    return cleaned or "unknown"
-
-
 async def _upsert_app_with_sources(
     session: AsyncSession,
     *,
@@ -586,7 +508,6 @@ async def _upsert_app_with_sources(
     installomator_payload: dict | None,
     homebrew_payload: dict | None,
     autopkg_payload: dict | None,
-    mas_payload: dict | None,
     jamf_app_installer_payload: dict | None,
 ) -> None:
     """
@@ -622,8 +543,6 @@ async def _upsert_app_with_sources(
     :type homebrew_payload: dict | None
     :param autopkg_payload: AutopkgSource shape, or None.
     :type autopkg_payload: dict | None
-    :param mas_payload: MasSource shape, or None.
-    :type mas_payload: dict | None
     :param jamf_app_installer_payload: JamfAppInstallerSource shape, or None.
     :type jamf_app_installer_payload: dict | None
     """
@@ -664,7 +583,6 @@ async def _upsert_app_with_sources(
         installomator=installomator_payload,
         homebrew_cask=homebrew_payload,
         autopkg=autopkg_payload,
-        mas=mas_payload,
         jamf_app_installer=jamf_app_installer_payload,
     )
     detail_stmt = detail_stmt.on_conflict_do_update(
@@ -673,38 +591,28 @@ async def _upsert_app_with_sources(
             "installomator": detail_stmt.excluded.installomator,
             "homebrew_cask": detail_stmt.excluded.homebrew_cask,
             "autopkg": detail_stmt.excluded.autopkg,
-            "mas": detail_stmt.excluded.mas,
             "jamf_app_installer": detail_stmt.excluded.jamf_app_installer,
         },
     )
     await session.execute(detail_stmt)
 
 
-async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int, int, int, int]:
+async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int, int]:
     """
     Run the stitch process. Builds unified ``apps`` rows from ingested
-    Installomator labels, Homebrew Cask records, Mac App Store metadata,
-    AutoPkg recipe-index entries, and Jamf App Installers catalog rows.
+    Installomator labels, Homebrew Cask records, AutoPkg recipe-index entries,
+    and Jamf App Installers catalog rows.
 
     Phases:
 
     1. **Installomator-led.** For each label, try to match a Cask (token or
-       artifact app-name), a MAS record (by ``packageID``), any AutoPkg
-       recipes (by normalized display name), and any JAI catalog row (by
-       normalized display name). Upsert one ``apps`` row per label.
-       Sources land in canonical ordering
-       ``[installomator, homebrew_cask, autopkg, jamf_app_installer, mas]``
+       artifact app-name), any AutoPkg recipes (by normalized display name),
+       and any JAI catalog row (by normalized display name). Upsert one
+       ``apps`` row per label. Sources land in canonical ordering
+       ``[installomator, homebrew_cask, autopkg, jamf_app_installer]``
        regardless of which combination is present.
-    2. **Cask-only.** Walk Casks not claimed in phase 1. Cask records don't
-       expose ``bundle_id``, so no MAS join is attempted, but AutoPkg + JAI
-       name matching is still attempted.
-    3. **MAS-only with merge-on-collision.** Walk MAS records not joined in
-       phase 1. Slug derived from MAS ``trackName`` via :func:`_slugify`. If
-       the slug collides with an existing phase-1 or phase-2 row, merge the
-       MAS payload into that row via :func:`_attach_mas_to_existing_app`
-       rather than skipping (Microsoft Office + Apple Pro Suite are typical
-       collision cases). Otherwise create a new MAS-only row. AutoPkg + JAI
-       name matching still applies for newly-created rows.
+    2. **Cask-only.** Walk Casks not claimed in phase 1, with AutoPkg + JAI
+       name matching still attempted.
 
     **AutoPkg and JAI never create new apps.** Both are coverage indicators
     attached to existing apps when their normalized name matches the app's
@@ -713,47 +621,38 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
     :param session: Async SQLAlchemy session bound to the target DB.
     :type session: sqlalchemy.ext.asyncio.AsyncSession
     :return: ``(installomator_apps, cask_only_apps, both_sources,
-        mas_only_apps, mas_merged_apps, autopkg_attached_apps,
-        jai_attached_apps, failed)``.
+        autopkg_attached_apps, jai_attached_apps, failed)``.
 
         - ``installomator_apps`` is the count of apps with an Installomator source
         - ``cask_only_apps`` is the count of apps with only a Cask source
         - ``both_sources`` is the subset of ``installomator_apps`` that also matched a Cask
-        - ``mas_only_apps`` is the count of *newly-created* MAS-only rows from phase 3
-        - ``mas_merged_apps`` is the count of MAS records merged into an existing
-          row via slug collision in phase 3
         - ``autopkg_attached_apps`` is the count of apps with one or more
           AutoPkg recipes attached (across all phases)
         - ``jai_attached_apps`` is the count of apps with a JAI catalog row
           attached (across all phases)
         - ``failed`` is the count of records that raised an unexpected error
-    :rtype: tuple[int, int, int, int, int, int, int, int]
+    :rtype: tuple[int, int, int, int, int, int]
     """
     labels = (await session.scalars(select(InstallomatorLabel))).all()
     casks = (await session.scalars(select(HomebrewCask))).all()
-    mas_apps = (await session.scalars(select(MasApp))).all()
     autopkg_recipes = (await session.scalars(select(AutopkgRecipe))).all()
     jai_rows = (await session.scalars(select(JamfAppInstaller))).all()
 
     casks_by_token = {c.token: c for c in casks}
     casks_by_app_name = _index_casks_by_app_name(casks)
-    mas_by_bundle_id = {m.bundle_id: m for m in mas_apps}
     autopkg_by_name = _index_autopkg_by_name(list(autopkg_recipes))
     jai_by_title = _index_jai_by_title(list(jai_rows))
     jai_by_bundle_id = {j.bundle_id: j for j in jai_rows if j.bundle_id}
     matched_cask_tokens: set[str] = set()
-    matched_mas_bundle_ids: set[str] = set()
 
     installomator_count = 0
     both_sources = 0
     autopkg_attached_count = 0
     jai_attached_count = 0
-    mas_merged_count = 0
     failed = 0
 
     for il in labels:
         matching_cask = _find_matching_cask(il, casks_by_token, casks_by_app_name)
-        matching_mas = mas_by_bundle_id.get(il.package_id) if il.package_id else None
         display_name = il.display_name or il.name
         normalized = _normalize_name(display_name)
         matching_autopkg = autopkg_by_name.get(normalized, [])
@@ -767,8 +666,6 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
             sources.append("autopkg")
         if matching_jai is not None:
             sources.append("jamf_app_installer")
-        if matching_mas is not None:
-            sources.append("mas")
 
         try:
             async with session.begin_nested():
@@ -789,7 +686,6 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                     autopkg_payload=(
                         _build_autopkg_payload(matching_autopkg) if matching_autopkg else None
                     ),
-                    mas_payload=_build_mas_payload(matching_mas) if matching_mas else None,
                     jamf_app_installer_payload=(
                         _build_jai_payload(matching_jai) if matching_jai else None
                     ),
@@ -797,8 +693,6 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
             if matching_cask is not None:
                 matched_cask_tokens.add(matching_cask.token)
                 both_sources += 1
-            if matching_mas is not None:
-                matched_mas_bundle_ids.add(matching_mas.bundle_id)
             if matching_autopkg:
                 autopkg_attached_count += 1
             if matching_jai is not None:
@@ -846,7 +740,6 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
                     autopkg_payload=(
                         _build_autopkg_payload(matching_autopkg) if matching_autopkg else None
                     ),
-                    mas_payload=None,
                     jamf_app_installer_payload=(
                         _build_jai_payload(matching_jai) if matching_jai else None
                     ),
@@ -860,75 +753,6 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
             log.warning("Failed to stitch Cask %r: %s", cask.token, exc)
             failed += 1
 
-    mas_only_count = 0
-    for mas_app in mas_apps:
-        if mas_app.bundle_id in matched_mas_bundle_ids:
-            continue
-
-        slug = _slugify(mas_app.name)
-        existing_app_id = await session.scalar(select(AppRow.id).where(AppRow.slug == slug))
-        if existing_app_id is not None:
-            try:
-                async with session.begin_nested():
-                    await _attach_mas_to_existing_app(
-                        session, app_id=existing_app_id, mas_app=mas_app
-                    )
-                mas_merged_count += 1
-            except Exception as exc:
-                log.warning(
-                    "Failed to merge MAS app %r into existing slug %r: %s",
-                    mas_app.bundle_id,
-                    slug,
-                    exc,
-                )
-                failed += 1
-            continue
-
-        normalized = _normalize_name(mas_app.name)
-        matching_autopkg = autopkg_by_name.get(normalized, [])
-        matching_jai = _match_jai(mas_app.bundle_id, normalized, jai_by_bundle_id, jai_by_title)
-
-        sources: list[str] = []
-        if matching_autopkg:
-            sources.append("autopkg")
-        if matching_jai is not None:
-            sources.append("jamf_app_installer")
-        sources.append("mas")
-
-        try:
-            async with session.begin_nested():
-                await _upsert_app_with_sources(
-                    session,
-                    slug=slug,
-                    bundle_id=mas_app.bundle_id,
-                    name=mas_app.name,
-                    vendor=mas_app.raw.get("artistName"),
-                    current_version=mas_app.version
-                    or (matching_jai.version if matching_jai else None),
-                    download_url=_jai_external_url(matching_jai),
-                    install_method=None,
-                    expected_team_id=None,
-                    sha256=None,
-                    sources=sources,
-                    installomator_payload=None,
-                    homebrew_payload=None,
-                    autopkg_payload=(
-                        _build_autopkg_payload(matching_autopkg) if matching_autopkg else None
-                    ),
-                    mas_payload=_build_mas_payload(mas_app),
-                    jamf_app_installer_payload=(
-                        _build_jai_payload(matching_jai) if matching_jai else None
-                    ),
-                )
-            if matching_autopkg:
-                autopkg_attached_count += 1
-            if matching_jai is not None:
-                jai_attached_count += 1
-            mas_only_count += 1
-        except Exception as exc:
-            log.warning("Failed to stitch MAS app %r: %s", mas_app.bundle_id, exc)
-            failed += 1
-
     await session.commit()
 
     # Expire the identity map: the Core upserts above bypass the ORM, so objects loaded earlier would read stale.
@@ -938,8 +762,6 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
         installomator_count,
         cask_only_count,
         both_sources,
-        mas_only_count,
-        mas_merged_count,
         autopkg_attached_count,
         jai_attached_count,
         failed,

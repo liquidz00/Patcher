@@ -66,7 +66,6 @@ class AppSourceDetail(Base):
     installomator: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     homebrew_cask: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     autopkg: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    mas: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     jamf_app_installer: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     app: Mapped[App] = relationship(back_populates="source_detail")

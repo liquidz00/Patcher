@@ -93,14 +93,6 @@ class AutopkgSource(_CatalogSchema):
     recipes: list[AutopkgRecipeEntry]
 
 
-class MasSource(_CatalogSchema):
-    """Mac App Store source detail: bundle id, store URL, and raw metadata."""
-
-    bundle_id: str
-    store_url: HttpUrl | None = None
-    raw: dict[str, Any]
-
-
 class JamfAppInstallerSource(_CatalogSchema):
     """
     Jamf App Installers coverage for an app.
@@ -125,7 +117,6 @@ class AppSources(_CatalogSchema):
     installomator: InstallomatorSource | None = None
     homebrew_cask: HomebrewCaskSource | None = None
     autopkg: AutopkgSource | None = None
-    mas: MasSource | None = None
     jamf_app_installer: JamfAppInstallerSource | None = None
 
 

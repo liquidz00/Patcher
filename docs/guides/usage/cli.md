@@ -506,7 +506,6 @@ Only sources that expose a stable per-app version string get compared:
 | Installomator | `appNewVersion` | Yes |
 | Homebrew Cask | `cask_json.version` | Yes |
 | AutoPkg | _resolves at recipe run time, not in catalog_ | No |
-| Mac App Store | _empirically negligible overlap with versioned sources_ | No |
 | Jamf App Installers | _coverage indicator only_ | No |
 
 Versions are compared via `packaging.Version` (so `4.32` and `4.32.0` are treated as equal, only meaningful disagreement counts as drift). Unparseable strings (Cask's date-style `2025-04-15`, Installomator's shell-expression `$(curl ...)`) get a case-insensitive string compare and a `parsed_ok=False` marker in the result.

@@ -36,9 +36,6 @@ Pydantic models that mirror the API's wire format. Returned from the client meth
 .. autoclass:: patcher.clients.patcher_api.AutopkgRecipeEntry
    :members:
 
-.. autoclass:: patcher.clients.patcher_api.MasSource
-   :members:
-
 .. autoclass:: patcher.clients.patcher_api.JamfAppInstallerSource
    :members:
 

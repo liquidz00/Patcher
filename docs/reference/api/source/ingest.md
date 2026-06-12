@@ -31,11 +31,3 @@ One module per upstream source. Each pulls data from the upstream (HTTP, git clo
 
 .. autofunction:: patcher_api.ingest.jamf.ingest_jai_titles
 ```
-
-## Mac App Store
-
-```{eval-rst}
-.. autofunction:: patcher_api.ingest.mas.fetch_mas_lookup
-
-.. autofunction:: patcher_api.ingest.mas.ingest_mas_apps
-```

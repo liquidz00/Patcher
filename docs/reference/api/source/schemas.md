@@ -1,77 +1,17 @@
 ---
-description: "Reference for patcher_api.schemas — Pydantic models returned by the API."
+description: "Reference for patcher_api.schemas — the API's ingest/upstream-parsing schemas."
 ---
 
 # schemas
 
-Pydantic models the API uses for response serialization (and a few request bodies). One module per source's payload shape, plus shared schemas for apps, drift, and labels.
+The API's ingest schemas — the shapes used to parse each source's native upstream
+payload on the way *into* the catalog.
 
-## App
-
-```{eval-rst}
-.. autoclass:: patcher_api.schemas.app.InstallMethod
-   :members:
-
-.. autoclass:: patcher_api.schemas.app.App
-   :members:
-   :exclude-members: model_computed_fields, model_config, model_fields
-```
-
-## Sources (composite payload)
-
-```{eval-rst}
-.. autoclass:: patcher_api.schemas.sources.InstallomatorSource
-   :members:
-   :exclude-members: model_computed_fields, model_config, model_fields
-
-.. autoclass:: patcher_api.schemas.sources.HomebrewCaskSource
-   :members:
-   :exclude-members: model_computed_fields, model_config, model_fields
-
-.. autoclass:: patcher_api.schemas.sources.AutopkgRecipeEntry
-   :members:
-   :exclude-members: model_computed_fields, model_config, model_fields
-
-.. autoclass:: patcher_api.schemas.sources.AutopkgSource
-   :members:
-   :exclude-members: model_computed_fields, model_config, model_fields
-
-.. autoclass:: patcher_api.schemas.sources.MasSource
-   :members:
-   :exclude-members: model_computed_fields, model_config, model_fields
-
-.. autoclass:: patcher_api.schemas.sources.JamfAppInstallerSource
-   :members:
-   :exclude-members: model_computed_fields, model_config, model_fields
-
-.. autoclass:: patcher_api.schemas.sources.AppSources
-   :members:
-   :exclude-members: model_computed_fields, model_config, model_fields
-```
-
-## Drift
-
-```{eval-rst}
-.. autoclass:: patcher_api.schemas.drift.SourceVersion
-   :members:
-   :exclude-members: model_computed_fields, model_config, model_fields
-
-.. autoclass:: patcher_api.schemas.drift.DriftEntry
-   :members:
-   :exclude-members: model_computed_fields, model_config, model_fields
-
-.. autoclass:: patcher_api.schemas.drift.DriftResponse
-   :members:
-   :exclude-members: model_computed_fields, model_config, model_fields
-```
-
-## Labels
-
-```{eval-rst}
-.. autoclass:: patcher_api.schemas.labels.GenerateLabelResponse
-   :members:
-   :exclude-members: model_computed_fields, model_config, model_fields
-```
+:::{seealso}
+The catalog **response** schemas (`App`, `AppSources`, the per-source payloads,
+`GeneratedLabel`, drift) now live in the shared `patcher.catalog.schemas` module
+and are documented on the {doc}`/reference/library/patcher_api_client` page.
+:::
 
 ## Shared base
 
@@ -111,14 +51,6 @@ Pydantic models the API uses for response serialization (and a few request bodie
    :exclude-members: model_computed_fields, model_config, model_fields
 
 .. autoclass:: patcher_api.schemas.jamf.JaiTitlePage
-   :members:
-   :exclude-members: model_computed_fields, model_config, model_fields
-```
-
-## Mac App Store
-
-```{eval-rst}
-.. autoclass:: patcher_api.schemas.mas.MasLookupRecord
    :members:
    :exclude-members: model_computed_fields, model_config, model_fields
 ```

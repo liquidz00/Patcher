@@ -326,7 +326,7 @@ api/patcher_api/
 ├── drift.py                 # cross-source version disagreement detection
 ├── labels.py                # Installomator-shaped label fragment builder
 ├── seed.py                  # smoke seed for empty DBs
-├── ingest/                  # per-source pullers (homebrew, autopkg, jamf, mas)
+├── ingest/                  # per-source pullers (homebrew, autopkg, jamf)
 ├── installomator/           # parser, resolver, ingest (co-located subsystem)
 ├── routes/
 │   ├── apps.py              # public catalog reads
@@ -361,7 +361,6 @@ flowchart LR
       INST[Installomator]
       CASK[Homebrew Cask]
       AP[AutoPkg]
-      MAS[Mac App Store]
       JAI[Jamf App Installers]
     end
 

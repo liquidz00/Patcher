@@ -374,7 +374,7 @@
           "apps"
         ],
         "summary": "Generate Label",
-        "description": "Generate an Installomator label for ``slug``.\n\nProjects the app's Homebrew Cask + Installomator source payloads into\nan Installomator label fragment that consumers can drop into their\nInstallomator deployments. Returns the label plus provenance metadata\n(which sources contributed) and any warnings about fields that couldn't\nbe resolved (most commonly ``expectedTeamID`` for Cask-only apps).\n\n:param slug: URL-friendly app identifier.\n:type slug: str\n:param session: Async SQLAlchemy session (injected).\n:type session: sqlalchemy.ext.asyncio.AsyncSession\n:raises HTTPException: 404 if ``slug`` doesn't exist; 422 if the app has\n    no source detail attached (rare \u2014 usually a leftover seed record).\n:return: The generated label content + metadata.\n:rtype: :class:`patcher_api.schemas.labels.GenerateLabelResponse`",
+        "description": "Generate an Installomator label for ``slug``.\n\nProjects the app's Homebrew Cask + Installomator source payloads into\nan Installomator label fragment that consumers can drop into their\nInstallomator deployments. Returns the label plus provenance metadata\n(which sources contributed) and any warnings about fields that couldn't\nbe resolved (most commonly ``expectedTeamID`` for Cask-only apps).\n\n:param slug: URL-friendly app identifier.\n:type slug: str\n:param session: Async SQLAlchemy session (injected).\n:type session: sqlalchemy.ext.asyncio.AsyncSession\n:raises HTTPException: 404 if ``slug`` doesn't exist; 422 if the app has\n    no source detail attached (rare \u2014 usually a leftover seed record).\n:return: The generated label content + metadata.\n:rtype: :class:`patcher_api.schemas.labels.GeneratedLabel`",
         "operationId": "generate_label_apps__slug__generate_label_post",
         "parameters": [
           {
@@ -393,7 +393,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GenerateLabelResponse"
+                  "$ref": "#/components/schemas/GeneratedLabel"
                 }
               }
             }
@@ -536,6 +536,17 @@
               }
             ]
           },
+          "expected_team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Team Id"
+          },
           "sha256": {
             "anyOf": [
               {
@@ -562,7 +573,7 @@
           "sources"
         ],
         "title": "App",
-        "description": "Public app record returned by ``/apps`` and ``/apps/{slug}``."
+        "description": "A stitched catalog record. One row per app slug; returned by ``/apps`` and ``/apps/{slug}``."
       },
       "AppSources": {
         "properties": {
@@ -590,16 +601,6 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/AutopkgSource"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "mas": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/MasSource"
               },
               {
                 "type": "null"
@@ -701,7 +702,7 @@
           "path"
         ],
         "title": "AutopkgRecipeEntry",
-        "description": "Single recipe attached to an app via the AutoPkg index.\n\n``name`` and ``shortname`` are optional, mirroring the upstream index\n(and the :class:`~patcher_api.schemas.autopkg.AutopkgIndexEntry` ingest\nschema): shared-processor recipes carry ``name: null`` and some app\nrecipes have no clean ``shortname``. The response must tolerate the\n``None`` that stitch faithfully stored, or ``/apps/{slug}/sources``\n500s for any app whose matched recipes lack one."
+        "description": "A single AutoPkg recipe attached to an app.\n\n``name``/``shortname`` are optional: shared-processor recipes carry\n``name: null`` and some recipes have no clean shortname."
       },
       "AutopkgSource": {
         "properties": {
@@ -718,7 +719,7 @@
           "recipes"
         ],
         "title": "AutopkgSource",
-        "description": "All AutoPkg recipes matched to an app via the recipe index.\n\nAutoPkg coverage is multi-recipe by nature: a single app like Firefox\ntypically has download, munki, pkg, jamf, and intune variants across\nmultiple maintainer repos. Each match is preserved as a separate\n:class:`AutopkgRecipeEntry`."
+        "description": "All AutoPkg recipes matched to an app (multi-recipe by nature)."
       },
       "CatalogStats": {
         "properties": {
@@ -821,7 +822,7 @@
           "versions"
         ],
         "title": "DriftEntry",
-        "description": "Drift detected on a single app.\n\n``leader`` and ``laggard`` are the source names with the highest and\nlowest parsed versions; both are ``None`` when at least one version\nstring couldn't be parsed (e.g. Cask's ``2025-04-15`` date-style\nversions). In that case ``versions`` is still complete and consumers\ncan render the disagreement without ordering it."
+        "description": "Drift detected on a single app.\n\n``leader``/``laggard`` are the highest/lowest parsed-version sources; both\nare ``None`` when a version string couldn't be parsed (e.g. Cask date-style\nversions), in which case ``versions`` is still complete."
       },
       "DriftResponse": {
         "properties": {
@@ -848,9 +849,9 @@
           "entries"
         ],
         "title": "DriftResponse",
-        "description": "Paginated drift results across the catalog.\n\n``total_scanned`` is the number of apps inspected (those with \u22652\nversioned sources); ``total_with_drift`` is the subset where the\nsources disagreed. ``entries`` is the page of disagreements."
+        "description": "Paginated drift results from ``GET /apps/drift``.\n\n``total_scanned`` counts apps with two or more versioned sources;\n``total_with_drift`` is the unpaged count of disagreements matching the\nrequest's filters."
       },
-      "GenerateLabelResponse": {
+      "GeneratedLabel": {
         "properties": {
           "label_name": {
             "type": "string",
@@ -876,7 +877,6 @@
             "title": "Warnings"
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "label_name",
@@ -884,8 +884,8 @@
           "sources_used",
           "warnings"
         ],
-        "title": "GenerateLabelResponse",
-        "description": "Response for the label-generation endpoint: structured label fields + any warnings."
+        "title": "GeneratedLabel",
+        "description": "Response from ``POST /apps/{slug}/generate-label``: structured label fields plus any warnings."
       },
       "HTTPValidationError": {
         "properties": {
@@ -932,7 +932,7 @@
           "appInDmgInZip"
         ],
         "title": "InstallMethod",
-        "description": "Mirrors Installomator's `type` variable.\n\nSee https://github.com/Installomator/Installomator/wiki/Label-Variables-Reference\nfor the upstream definition."
+        "description": "Mirrors Installomator's ``type`` variable."
       },
       "InstallomatorSource": {
         "properties": {
@@ -1045,41 +1045,7 @@
           "source"
         ],
         "title": "JamfAppInstallerSource",
-        "description": "Jamf App Installers catalog coverage for an app.\n\n``title``/``source``/``host`` come from the public HTML catalog; the rest\nis enrichment from the App Installers titles API (absent on HTML-only\nrows, hence optional)."
-      },
-      "MasSource": {
-        "properties": {
-          "bundle_id": {
-            "type": "string",
-            "title": "Bundle Id"
-          },
-          "store_url": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 2083,
-                "minLength": 1,
-                "format": "uri"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Store Url"
-          },
-          "raw": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Raw"
-          }
-        },
-        "type": "object",
-        "required": [
-          "bundle_id",
-          "raw"
-        ],
-        "title": "MasSource",
-        "description": "Mac App Store source detail: bundle id, store URL, and raw metadata."
+        "description": "Jamf App Installers coverage for an app.\n\n``title``/``source``/``host`` come from the public HTML catalog; the rest is\nenrichment from the App Installers titles API (absent on HTML-only rows)."
       },
       "SourceCoverage": {
         "properties": {

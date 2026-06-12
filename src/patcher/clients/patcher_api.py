@@ -2,7 +2,7 @@
 Client for the Patcher API (https://api.patcherctl.dev).
 
 The Patcher API serves a community catalog of macOS app patching metadata
-stitched from Installomator, Homebrew Cask, AutoPkg, MAS, and the Jamf App
+stitched from Installomator, Homebrew Cask, AutoPkg, and the Jamf App
 Installers index. This client wraps the four ``/apps*`` read endpoints
 plus the ``POST /apps/{slug}/generate-label`` label-generator.
 
@@ -47,7 +47,6 @@ from ..catalog import (
     InstallMethod,
     InstallomatorSource,
     JamfAppInstallerSource,
-    MasSource,
     SourceVersion,
 )
 from ..core.exceptions import APIResponseError
@@ -68,7 +67,6 @@ __all__ = [
     "InstallMethod",
     "InstallomatorSource",
     "JamfAppInstallerSource",
-    "MasSource",
     "SourceVersion",
     "PatcherAPIClient",
     "DEFAULT_BASE_URL",
@@ -120,7 +118,7 @@ class PatcherAPIClient(HTTPClient):
         :param vendor: Case-insensitive exact vendor match. None disables.
         :param source: Include only apps whose ``sources`` array contains
             this token (``installomator``, ``homebrew_cask``, ``autopkg``,
-            ``mas``, ``jamf_app_installer``).
+            ``jamf_app_installer``).
         :param exclude_source: Drop apps whose ``sources`` array contains
             this token.
         :param limit: Maximum rows to return. Server caps at 1000.

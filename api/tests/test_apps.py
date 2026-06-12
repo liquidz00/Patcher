@@ -281,7 +281,6 @@ async def test_get_app_sources_returns_empty_for_app_without_seed_sources(client
         "installomator": None,
         "homebrew_cask": None,
         "autopkg": None,
-        "mas": None,
         "jamf_app_installer": None,
     }
 

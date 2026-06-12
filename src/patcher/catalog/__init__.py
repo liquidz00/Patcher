@@ -18,7 +18,6 @@ from .schemas import (
     InstallMethod,
     InstallomatorSource,
     JamfAppInstallerSource,
-    MasSource,
     SourceVersion,
 )
 
@@ -34,6 +33,5 @@ __all__ = [
     "InstallMethod",
     "InstallomatorSource",
     "JamfAppInstallerSource",
-    "MasSource",
     "SourceVersion",
 ]

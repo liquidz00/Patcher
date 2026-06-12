@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`InstallomatorClient` is deprecated** and will be removed in a future release; constructing it now emits a `DeprecationWarning`. Use `PatcherClient` / `PatcherAPIClient` for label and match data (set `PATCHER_API_URL` for self-hosted catalogs).
 
 ### Removed
+- **The Mac App Store (MAS) catalog source was removed.** It was a dormant source (Apple's ~20 req/hr lookup rate-limit made it impractical, and it carried no `download_url` and little cross-source overlap). `mas` no longer appears in any app's `sources`, the `mas` per-source payload is gone from `GET /apps/{slug}/sources`, and the `MasSource` client model was removed. A migration drops the `mas_apps` table and the `app_source_details.mas` column.
 - **`DataManager.load_cached_data` and `HTTPClient.set_concurrency` were removed.** Both were unused: `load_cached_data` had no callers, and outbound concurrency is set once at construction via the `max_concurrency` argument.
 
 ### Fixed

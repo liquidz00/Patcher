@@ -1,5 +1,5 @@
 ---
-description: "How Patcher merges Installomator, Homebrew Cask, AutoPkg, Mac App Store, and Jamf App Installers data into a single canonical catalog of macOS apps."
+description: "How Patcher merges Installomator, Homebrew Cask, AutoPkg, and Jamf App Installers data into a single canonical catalog of macOS apps."
 ---
 
 (stitching)=
@@ -40,7 +40,6 @@ flowchart LR
     INST[Installomator labels] --> SD[(app_source_details)]
     CASK[Homebrew Cask] --> SD
     AP[AutoPkg recipes] --> SD
-    MAS[Mac App Store] --> SD
     JAI[Jamf App Installers] --> SD
     SD --> STITCH[stitch pipeline]
     STITCH --> APPS[(apps)]

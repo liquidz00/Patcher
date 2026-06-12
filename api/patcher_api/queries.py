@@ -18,10 +18,9 @@ from patcher_api.models.autopkg import AutopkgRecipe
 from patcher_api.models.homebrew import HomebrewCask
 from patcher_api.models.installomator import InstallomatorLabel
 from patcher_api.models.jamf import JamfAppInstaller
-from patcher_api.models.mas import MasApp
 
 # Source tables stamped at ingest; the newest stamp is the catalog's last refresh.
-_INGEST_MODELS = (InstallomatorLabel, HomebrewCask, AutopkgRecipe, JamfAppInstaller, MasApp)
+_INGEST_MODELS = (InstallomatorLabel, HomebrewCask, AutopkgRecipe, JamfAppInstaller)
 
 
 async def catalog_summary(session: AsyncSession) -> dict:

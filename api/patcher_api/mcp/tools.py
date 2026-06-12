@@ -228,8 +228,8 @@ async def get_app_sources(slug: str) -> dict:
     rather than raising.
 
     Returned dict has keys ``installomator``, ``homebrew_cask``, ``autopkg``,
-    ``mas``, and ``jamf_app_installer``; each value is either the source's
-    native payload (dict) or ``None`` when that source has no data for the app.
+    and ``jamf_app_installer``; each value is either the source's native
+    payload (dict) or ``None`` when that source has no data for the app.
     """
     async with get_session_maker()() as session:
         app_row = await session.scalar(select(AppRow).where(AppRow.slug == slug))

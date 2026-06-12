@@ -18,7 +18,7 @@ The Patcher catalog is not a single dataset. It is stitched together from severa
 Merging the same app's records from multiple upstream sources into one canonical record, picking the best value for each field. The pipeline that does this is described in {doc}`/project/architecture/stitch`.
 :::
 
-Four sources contribute to the catalog today: Installomator, Homebrew Cask, AutoPkg, and Jamf App Installers. A fifth, the Mac App Store, is ingested but contributes narrowly and is not covered here.
+Four sources contribute to the catalog today: Installomator, Homebrew Cask, AutoPkg, and Jamf App Installers.
 
 (installomator)=
 

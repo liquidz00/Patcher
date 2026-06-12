@@ -158,7 +158,6 @@ class TestGetApp:
             },
             "homebrew_cask": None,
             "autopkg": None,
-            "mas": None,
             "jamf_app_installer": None,
         }
 
@@ -193,7 +192,6 @@ class TestGetApp:
                     }
                 ]
             },
-            "mas": None,
             "jamf_app_installer": None,
         }
 
@@ -217,7 +215,6 @@ class TestGetApp:
             "installomator": None,
             "homebrew_cask": None,
             "autopkg": None,
-            "mas": None,
             "jamf_app_installer": {
                 "title": "OpenAI ChatGPT Atlas",
                 "source": "External",
