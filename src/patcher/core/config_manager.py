@@ -137,22 +137,32 @@ class ConfigManager:
 
     def delete_credential(self, key: str) -> bool:
         """
-        Deletes the provided credential in the keyring under the specified key. Primarily intended for
+        Deletes the provided credential under the specified key. Primarily intended for
         use with the ``--reset`` flag (See :meth:`~patcher.core.config_manager.ConfigManager.reset_config`).
 
-        If the specified credential could not be deleted, an error is logged.
+        Deletion is best-effort and always reports success: an absent credential is
+        already in the desired state, and a present-but-undeletable one is overwritten
+        at the next setup. A genuinely broken keyring fails loudly at write time in
+        :meth:`set_credential`, which is the right place to surface it.
 
         :param key: The credential to delete.
         :type key: str
-        :return: True if the credential was successfully deleted, False otherwise.
+        :return: Always True (best-effort; see above).
         :rtype: bool
         """
         self.log.debug(f"Attempting to delete credential for key: '{key}'")
+        if self.in_memory_mode:
+            self._memory.pop(key, None)
+            self.log.info(f"Credential for key '{key}' removed from in-memory store.")
+            return True
         try:
             keyring.delete_password(self.service_name, key)
             self.log.info(f"Credential for key '{key}' deleted successfully.")
         except KeyringError as e:
-            self.log.warning(f"Failed to delete credential for '{key}'. Details: {e}")
+            # Best-effort: a stale credential is overwritten at next setup; a broken keyring fails at set_credential.
+            self.log.warning(
+                f"Could not delete credential for '{key}' (overwritten at setup). Details: {e}"
+            )
         return True
 
     def create_client(self, client: JamfCredentials, token: AccessToken) -> None:
