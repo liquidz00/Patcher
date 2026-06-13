@@ -12,5 +12,4 @@ from patcher_api.models import (  # noqa: F401
     homebrew,
     installomator,
     jamf,
-    mas,
 )

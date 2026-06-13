@@ -9,10 +9,10 @@ mirror resources keep importing from one place.
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher.catalog import App as AppSchema
+from patcher.catalog import InstallMethod
 from patcher_api.models.app import App as AppRow
 from patcher_api.queries import catalog_summary
-from patcher_api.schemas.app import App as AppSchema
-from patcher_api.schemas.app import InstallMethod
 
 __all__ = ["catalog_categories", "catalog_summary", "serialize_app"]
 

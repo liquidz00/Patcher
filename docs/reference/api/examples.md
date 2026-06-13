@@ -216,7 +216,7 @@ The endpoint returns a `warnings` array surfacing fields that couldn't be resolv
 
 ## Use the ETag to skip unchanged downloads
 
-Every read response carries an `ETag` whose value is the SHA-256 of the underlying catalog DB. The hash changes exactly when a fresh catalog deploys (typically once per day). Clients that store the ETag from the first response and send it back on subsequent requests get a `304 Not Modified` short-circuit when nothing has changed; no body transfer, no DB read on the server.
+Every read response carries an `ETag` whose value is a version token derived from the catalog's newest update timestamp. The token changes exactly when the catalog data changes (typically once per day). Clients that store the ETag from the first response and send it back on subsequent requests get a `304 Not Modified` short-circuit when nothing has changed; no body transfer, no DB read on the server.
 
 ```{note}
 {class}`~patcher.clients.patcher_api.PatcherAPIClient` does not currently surface ETag caching as a method. The API sits behind Cloudflare, so identical requests typically resolve from edge cache before reaching origin. If you need explicit If-None-Match revalidation, drop to raw HTTP for that specific call.

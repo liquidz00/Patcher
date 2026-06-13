@@ -9,11 +9,13 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel
 
+from ..clients import HTTPClient
 from ..clients.jamf import JamfClient
 from .data_manager import DataManager
 from .exceptions import APIResponseError, PatcherError
 from .logger import LogMe
 from .models.patch import PatchTitle
+from .serialization import df_to_titles, titles_to_df
 
 _log = LogMe("analyze")
 _CHANGE_FIELDS = ("completion_percent", "hosts_patched", "total_hosts", "latest_version")
@@ -108,7 +110,7 @@ async def append_ios_status(titles: list[PatchTitle], api: JamfClient) -> list[P
 
     _log.debug("Attempting to retrieve SOFA feed.")
     try:
-        latest_versions = await api.get_sofa_feed()
+        latest_versions = await get_sofa_feed(api)
         _log.info("Obtained latest version information from SOFA feed successfully.")
     except APIResponseError as e:
         _log.error(f"Failed to fetch data from SOFA feed. Details: {e}")
@@ -183,6 +185,44 @@ def calculate_ios_on_latest(
             "Division by zero encountered during iOS Device percentage calculation.",
             error_msg=str(e),
         )
+
+
+async def get_sofa_feed(http_client: HTTPClient) -> list[dict[str, str]]:
+    """
+    Fetches iOS Data feeds from SOFA and extracts latest OS version information.
+
+    .. note::
+        This function is only called if the :ref:`iOS <ios>` option is passed to the CLI.
+
+    :return: A list of dictionaries containing base OS versions, latest iOS versions, and release dates.
+    :rtype: list[dict[str, str]]
+    :raises APIResponseError: If the SOFA feed cannot be fetched or parsed.
+    """
+    sofa_url = "https://sofafeed.macadmins.io/v1/ios_data_feed.json"
+
+    try:
+        result_json = await http_client.fetch_json(url=sofa_url)
+    except APIResponseError as e:
+        raise APIResponseError(
+            "Unable to retrieve SOFA feed",
+            url=sofa_url,
+            error_msg=str(e),
+        )
+
+    os_versions = result_json.get("OSVersions", [])
+
+    # Iterate over versions to obtain iOS 16 & iOS 17 datasets
+    latest_versions = []
+    for version in os_versions:
+        version_info = version.get("Latest", {})
+        latest_versions.append(
+            {
+                "OSVersion": version.get("OSVersion"),
+                "ProductVersion": version_info.get("ProductVersion"),
+                "ReleaseDate": version_info.get("ReleaseDate"),
+            }
+        )
+    return latest_versions
 
 
 class TitleFilter:
@@ -267,7 +307,7 @@ class TitleFilter:
 
     def installomator(self, top_n: int | None = None) -> list[PatchTitle]:
         """Titles that carry one or more Installomator labels."""
-        result = [pt for pt in self._titles if pt.install_label != []]
+        result = [pt for pt in self._titles if pt.install_label]
         return self._cap(result, top_n)
 
     def impact_weighted_risk(self, top_n: int | None = None) -> list[PatchTitle]:
@@ -772,11 +812,6 @@ def _filter_method_names(cls: type) -> list[str]:
     ]
 
 
-def _resolve_method(cls: type, titles: list[PatchTitle], criterion: str):
-    instance = cls(titles)
-    return _resolve_method_on_instance(instance, criterion)
-
-
 def _resolve_method_on_instance(instance, criterion: str):
     method_name = criterion.replace("-", "_")
     if method_name.startswith("_") or method_name not in _filter_method_names(type(instance)):
@@ -896,8 +931,8 @@ class Diff:
         removed_ids = from_ids - to_ids
         common_ids = from_ids & to_ids
 
-        added = _df_rows_to_titles(to_df[to_df["title_id"].astype(str).isin(added_ids)])
-        removed = _df_rows_to_titles(from_df[from_df["title_id"].astype(str).isin(removed_ids)])
+        added = _hydrate_titles(to_df[to_df["title_id"].astype(str).isin(added_ids)])
+        removed = _hydrate_titles(from_df[from_df["title_id"].astype(str).isin(removed_ids)])
 
         # Index both sides by title_id for O(1) lookup during pairwise comparison.
         from_indexed = from_df.set_index(from_df["title_id"].astype(str), drop=False)
@@ -1049,7 +1084,7 @@ def _to_normalized_df(
     """Load any supported snapshot input and normalize column names + dates."""
     match snapshot:
         case list():
-            df = pd.DataFrame([t.model_dump() for t in snapshot])
+            df = titles_to_df(snapshot)
         case pd.DataFrame():
             df = snapshot.copy()
         case Path() | str():
@@ -1097,23 +1132,15 @@ def _build_title_change(tid: str, from_row: pd.Series, to_row: pd.Series) -> Tit
     )
 
 
-def _df_rows_to_titles(df: pd.DataFrame) -> list[PatchTitle]:
-    """Hydrate DataFrame rows back into :class:`PatchTitle` objects."""
-    titles: list[PatchTitle] = []
-    for _, row in df.iterrows():
-        try:
-            titles.append(
-                PatchTitle(
-                    title=str(row.get("title", "")),
-                    title_id=str(row.get("title_id", "")),
-                    released=_coerce_released(row.get("released")),
-                    hosts_patched=int(row.get("hosts_patched", 0) or 0),
-                    missing_patch=int(row.get("missing_patch", 0) or 0),
-                    latest_version=_optional_str(row.get("latest_version")) or "",
-                )
-            )
-        except Exception as exc:
-            _log.warning(f"Failed to hydrate PatchTitle from row: {exc}")
+def _hydrate_titles(df: pd.DataFrame) -> list[PatchTitle]:
+    """Hydrate DataFrame rows back into :class:`PatchTitle` via the shared serializer."""
+    df = df.copy()
+    if "released" in df.columns:
+        # _to_normalized_df coerced this to datetime; PatchTitle.released wants a display string.
+        df["released"] = df["released"].apply(_coerce_released)
+    titles, errors = df_to_titles(df)
+    for error in errors:
+        _log.warning(f"Failed to hydrate PatchTitle from row: {error}")
     return titles
 
 

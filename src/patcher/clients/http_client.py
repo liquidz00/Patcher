@@ -1,12 +1,9 @@
 """
 Base async HTTP client for all Patcher API calls.
 
-``HTTPClient`` owns the concurrency ceiling (semaphore + httpx connection
-limit), OS-native-trust-store TLS (via ``truststore``), and the shared
-network-error → :class:`~patcher.core.exceptions.APIResponseError` translation.
-The per-service clients (``JamfClient``, ``InstallomatorClient``,
-``PatcherAPIClient``) build on it. Re-exported from ``patcher.clients`` so the
-public import path (``from patcher.clients import HTTPClient``) is unchanged.
+``HTTPClient`` owns the concurrency ceiling, OS-trust-store TLS (via
+``truststore``), and the shared network-error → :class:`~patcher.core.exceptions.APIResponseError`
+translation. The per-service clients build on it.
 """
 
 import asyncio
@@ -18,7 +15,7 @@ from urllib.parse import urlencode
 import httpx
 import truststore
 
-from ..core.exceptions import APIResponseError, PatcherError
+from ..core.exceptions import APIResponseError, NotFoundError
 from ..core.logger import LogMe
 
 
@@ -48,23 +45,6 @@ class HTTPClient:
         # Lazily-constructed httpx.AsyncClient. See the ``http`` property.
         self._http_client: httpx.AsyncClient | None = None
         self.log.debug(f"HTTPClient initialized with max_concurrency: {max_concurrency}")
-
-    def set_concurrency(self, value: int) -> None:
-        """
-        Set the maximum concurrency level for outbound API requests, with validation.
-
-        Read access is via the ``self.max_concurrency`` attribute directly;
-        this method exists specifically for validated writes. It is recommended
-        to keep the value at no more than 5 to avoid overloading Jamf. See
-        the class docstring for the upstream guidance.
-
-        :param value: The new maximum concurrency level.
-        :type value: int
-        :raises PatcherError: If ``value`` is less than 1.
-        """
-        if value < 1:
-            raise PatcherError("Concurrency level must be at least 1.")
-        self.max_concurrency = value
 
     @property
     def http(self) -> httpx.AsyncClient:
@@ -165,77 +145,54 @@ class HTTPClient:
         :rtype: str
         :raises APIResponseError: If the response is non-2xx, or if a
             network-level error (connect, DNS, timeout) prevents the
-            request from completing. ``not_found=True`` is set on 404.
+            request from completing. A 404 raises ``NotFoundError``.
         """
         self.log.debug(f"Fetching text from {url}")
-        try:
-            async with self.semaphore:
-                response = await self.http.get(url, headers=headers, params=params)
-        except httpx.RequestError as e:
-            raise APIResponseError(
-                "Network error fetching URL",
-                url=url,
-                error_msg=str(e),
-            )
-
-        if response.status_code == 404:
-            raise APIResponseError(
-                "Requested resource was not found.",
-                url=url,
-                status_code=response.status_code,
-                not_found=True,
-            )
-        if not response.is_success:
-            raise APIResponseError(
-                "Non-success HTTP status received.",
-                url=url,
-                status_code=response.status_code,
-            )
-
+        response = await self._request("GET", url, headers=headers, params=params)
+        self._raise_for_status(response.status_code, None, url)
         return response.text
 
-    def _raise_for_status(self, status_code: int, response_json: dict | None) -> None:
+    def _raise_for_status(
+        self, status_code: int, response_json: dict | None, url: str | None = None
+    ) -> None:
         """
-        Raise :class:`patcher.core.exceptions.APIResponseError` if ``status_code`` is non-2xx.
+        The single status-code handler for every client built on this base.
 
-        2xx is a no-op (control returns to the caller, which uses
-        ``response_json`` directly). 404 carries ``not_found=True`` so callers
-        can distinguish missing-resource from other client errors. 4xx, 5xx,
-        and anything outside 200-599 each get a distinct error message.
-
-        Pulls a human-readable ``error`` field from the JSON body's
-        ``"errors"`` key when present; otherwise reports ``"No details"``.
+        2xx is a no-op. 404 raises :class:`~patcher.core.exceptions.NotFoundError`;
+        other non-2xx raise :class:`~patcher.core.exceptions.APIResponseError`. Error
+        detail is pulled from the JSON body's ``errors`` (Jamf) or ``detail`` (Patcher
+        API) key, whichever is present.
         """
-        self.log.debug(f"Parsing API response. (status code: {status_code})")
-
         if 200 <= status_code < 300:
-            self.log.info("API call successful.")
             return
 
-        error_message = (
-            response_json.get("errors", "Unknown error") if response_json else "No details"
-        )
-        if status_code == 404:
-            raise APIResponseError(
-                "Requested resource was not found.",
-                status_code=status_code,
-                error=error_message,
-                not_found=True,
-            )
-        elif 400 <= status_code < 500:
-            raise APIResponseError(
-                "Client error received.", status_code=status_code, error=error_message
-            )
-        elif 500 <= status_code < 600:
-            raise APIResponseError(
-                "Server error received.", status_code=status_code, error=error_message
-            )
+        if response_json:
+            error_message = response_json.get("errors") or response_json.get("detail")
         else:
-            raise APIResponseError(
-                "Unexpected HTTP status code received.",
+            error_message = None
+        error_message = error_message or "No details"
+
+        if status_code == 404:
+            raise NotFoundError(
+                "Requested resource was not found.",
+                url=url,
                 status_code=status_code,
                 error=error_message,
             )
+        if 400 <= status_code < 500:
+            raise APIResponseError(
+                "Client error received.", url=url, status_code=status_code, error=error_message
+            )
+        if 500 <= status_code < 600:
+            raise APIResponseError(
+                "Server error received.", url=url, status_code=status_code, error=error_message
+            )
+        raise APIResponseError(
+            "Unexpected HTTP status code received.",
+            url=url,
+            status_code=status_code,
+            error=error_message,
+        )
 
     async def fetch_json(
         self,
@@ -279,30 +236,18 @@ class HTTPClient:
         final_headers = headers if headers else self.default_headers
         method_upper = method.upper()
 
-        request_kwargs: dict[str, Any] = {
-            "url": url,
-            "headers": final_headers,
-        }
+        request_kwargs: dict[str, Any] = {"headers": final_headers}
         if query_params:
             request_kwargs["params"] = query_params
 
         # Form-encoded Content-Type routes to data= (httpx form-encodes); otherwise json=.
         if method_upper == "POST" and data:
-            self.log.debug("Adding POST data to the request.")
             if final_headers.get("Content-Type") == "application/x-www-form-urlencoded":
                 request_kwargs["data"] = data
             else:
                 request_kwargs["json"] = data
 
-        try:
-            async with self.semaphore:
-                response = await self.http.request(method_upper, **request_kwargs)
-        except httpx.RequestError as e:
-            raise APIResponseError(
-                "Network error fetching URL",
-                url=url,
-                error_msg=str(e),
-            )
+        response = await self._request(method_upper, url, **request_kwargs)
 
         try:
             response_json = response.json()
@@ -314,8 +259,7 @@ class HTTPClient:
                 error_msg=str(e),
             )
 
-        self.log.info("Retrieved valid JSON response API call.")
-        self._raise_for_status(response.status_code, response_json)
+        self._raise_for_status(response.status_code, response_json, url)
         return response_json
 
     async def fetch_batch(
@@ -344,10 +288,5 @@ class HTTPClient:
             query_string = urlencode(query_params)
             urls = [f"{url}?{query_string}" for url in urls]
 
-        results = []
-        for i in range(0, len(urls), self.max_concurrency):
-            batch = urls[i : i + self.max_concurrency]
-            tasks = [self.fetch_json(url, headers=headers) for url in batch]
-            batch_results = await asyncio.gather(*tasks)
-            results.extend(batch_results)
-        return results
+        # The per-instance semaphore (held in _request) caps in-flight requests at max_concurrency.
+        return list(await asyncio.gather(*(self.fetch_json(url, headers=headers) for url in urls)))

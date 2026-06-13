@@ -321,12 +321,13 @@ api/patcher_api/
 ├── main.py                  # FastAPI app + lifespan + ETag middleware + /mcp mount
 ├── config.py                # pydantic-settings, env-var-driven
 ├── db.py                    # async SQLAlchemy engine + session, SQLite-tuned pragmas
-├── catalog.py               # SHA-256 of the catalog file for ETag derivation
+├── catalog.py               # version token (newest row timestamp) for ETag derivation
 ├── stitch.py                # canonical-row projection (see concept page)
+├── services.py              # per-app fetch/project/label logic shared by routes + MCP
 ├── drift.py                 # cross-source version disagreement detection
 ├── labels.py                # Installomator-shaped label fragment builder
 ├── seed.py                  # smoke seed for empty DBs
-├── ingest/                  # per-source pullers (homebrew, autopkg, jamf, mas)
+├── ingest/                  # per-source pullers (homebrew, autopkg, jamf)
 ├── installomator/           # parser, resolver, ingest (co-located subsystem)
 ├── routes/
 │   ├── apps.py              # public catalog reads
@@ -361,7 +362,6 @@ flowchart LR
       INST[Installomator]
       CASK[Homebrew Cask]
       AP[AutoPkg]
-      MAS[Mac App Store]
       JAI[Jamf App Installers]
     end
 
@@ -405,7 +405,7 @@ A standard FastAPI app, with three nuances worth surfacing:
 :icon: octicon:gear-16
 
 :::{marker} ETag middleware on `/apps*`
-A weak ETag whose value is the SHA-256 of the underlying SQLite catalog file. The hash changes exactly when the catalog deploys (typically once per day, plus whenever a macOS runner pass uploads resolved values) and never otherwise. `If-None-Match` is parsed per RFC 7232, with both multi-value lists and the `*` wildcard honored. Revalidating clients short-circuit to 304 instantly between deploys, and Cloudflare absorbs the bulk of traffic in front of the origin.
+A weak ETag whose value is a version token: the catalog's newest row timestamp (latest ingest plus the latest macOS resolver write). The token changes exactly when the served data changes (typically once per day, plus whenever a macOS runner pass uploads resolved values) and never otherwise. `If-None-Match` is parsed per RFC 7232, with both multi-value lists and the `*` wildcard honored. Revalidating clients short-circuit to 304 instantly between deploys, and Cloudflare absorbs the bulk of traffic in front of the origin.
 :::
 
 :::{marker} Admin-route hardening

@@ -73,8 +73,6 @@ async def test_ingest_rejects_missing_and_wrong_token(client, monkeypatch):
 @pytest.mark.asyncio
 async def test_ingest_updates_only_existing_with_validation(client, test_session, monkeypatch):
     _configure_token(monkeypatch, _TOKEN)
-    # Don't hash a real on-disk DB during the post-update ETag recompute.
-    monkeypatch.setattr("patcher_api.routes.admin.recompute_catalog_sha", lambda app: None)
 
     await _add_label(test_session, "googlechrome")
     await _add_label(test_session, "badurllabel")
@@ -217,7 +215,6 @@ async def test_ingest_coerces_array_shaped_values_to_first_scalar(
     ingest uses) so one bad shape can't poison the run.
     """
     _configure_token(monkeypatch, _TOKEN)
-    monkeypatch.setattr("patcher_api.routes.admin.recompute_catalog_sha", lambda app: None)
 
     await _add_label(test_session, "arraylabel")
 
@@ -248,7 +245,6 @@ async def test_ingest_coerces_array_shaped_values_to_first_scalar(
 @pytest.mark.asyncio
 async def test_ingest_counts_malformed_lines(client, monkeypatch):
     _configure_token(monkeypatch, _TOKEN)
-    monkeypatch.setattr("patcher_api.routes.admin.recompute_catalog_sha", lambda app: None)
 
     body = b'{"label": "x", "ok": true}\nnot json at all\n{"ok": true}\n'
     resp = await client.post(

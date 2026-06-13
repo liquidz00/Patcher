@@ -24,9 +24,14 @@ class TestAppendIosStatus:
         api = AsyncMock()
         api.get_device_ids.return_value = [1, 2]
         api.get_device_os_versions.return_value = [{"OS": "17.5", "DeviceID": "1"}]
-        api.get_sofa_feed.return_value = [
-            {"OSVersion": "iOS 17", "ProductVersion": "17.5", "ReleaseDate": "2026-01-01"}
-        ]
+        sofa = mocker.patch(
+            "src.patcher.core.analyze.get_sofa_feed",
+            AsyncMock(
+                return_value=[
+                    {"OSVersion": "iOS 17", "ProductVersion": "17.5", "ReleaseDate": "2026-01-01"}
+                ]
+            ),
+        )
         ios_title = _patch_title("iOS 17", "iOS")
         mocker.patch("src.patcher.core.analyze.calculate_ios_on_latest", return_value=[ios_title])
 
@@ -35,21 +40,22 @@ class TestAppendIosStatus:
         assert result[-1].title == "iOS 17"
         api.get_device_ids.assert_awaited_once()
         api.get_device_os_versions.assert_awaited_once_with(device_ids=[1, 2])
-        api.get_sofa_feed.assert_awaited_once()
+        sofa.assert_awaited_once_with(api)
 
     @pytest.mark.parametrize(
         "failing", ["get_device_ids", "get_device_os_versions", "get_sofa_feed"]
     )
     @pytest.mark.asyncio
-    async def test_append_ios_status_wraps_api_errors(self, failing):
+    async def test_append_ios_status_wraps_api_errors(self, failing, mocker):
         """An APIResponseError from any of the three fetches becomes a PatcherError."""
         api = AsyncMock()
         api.get_device_ids.return_value = [1]
         api.get_device_os_versions.return_value = [{"OS": "17.5", "DeviceID": "1"}]
-        api.get_sofa_feed.return_value = [
-            {"OSVersion": "iOS 17", "ProductVersion": "17.5", "ReleaseDate": "2026-01-01"}
-        ]
-        getattr(api, failing).side_effect = exceptions.APIResponseError("boom", status_code=500)
+        err = exceptions.APIResponseError("boom", status_code=500)
+        if failing == "get_sofa_feed":
+            mocker.patch("src.patcher.core.analyze.get_sofa_feed", AsyncMock(side_effect=err))
+        else:
+            getattr(api, failing).side_effect = err
 
         with pytest.raises(exceptions.PatcherError):
             await append_ios_status([], api)

@@ -1,61 +1,36 @@
 """
-Catalog file hashing for the ``/apps*`` ETag.
+Catalog version token for the ``/apps*`` ETag.
 
-The ETag is the SHA-256 of the on-disk SQLite catalog, computed once at
-startup (the daily refresh restarts the service, so it stays current for the
-process lifetime). Endpoints that mutate the catalog *without* a restart —
-the macOS resolver upload — must call :func:`recompute_catalog_sha` after
-writing, or revalidating clients keep getting ``304`` against a stale hash.
+The token is the catalog's newest mutation timestamp (see
+:func:`patcher_api.queries.catalog_last_mutation`) rendered as a string. It
+changes exactly when the served data changes and never otherwise, so it's an
+ideal cache key for both Cloudflare and revalidating clients. Computed once at
+startup (the daily refresh restarts the service) and again after the macOS
+resolver upload, then cached on ``app.state.catalog_version`` so the middleware
+reads it without a per-request DB hit.
 
-Lives in its own module so both :mod:`patcher_api.main` and the admin route
-can use it without importing each other (``main`` imports the routers).
+Lives in its own module so both :mod:`patcher_api.main` and the admin route can
+use it without importing each other (``main`` imports the routers).
 """
 
-import hashlib
-from pathlib import Path
-
 from fastapi import FastAPI
-from sqlalchemy.engine.url import make_url
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from patcher_api.config import get_settings
-
-_HASH_CHUNK_BYTES = 65536
+from patcher_api.queries import catalog_last_mutation
 
 
-def catalog_db_path() -> Path | None:
+async def recompute_catalog_version(app: FastAPI, session: AsyncSession) -> str | None:
     """
-    On-disk path of the SQLite catalog, or ``None`` for in-memory databases.
+    Recompute the catalog version token and cache it on ``app.state.catalog_version``.
 
-    Tests run against ``sqlite+aiosqlite:///:memory:``; there's no file to
-    hash, so callers treat ``None`` as "no ETag" and skip cache headers.
+    Returns the new token, or ``None`` for an empty catalog (state left
+    untouched). Called at startup and after any live write so the ``/apps*``
+    ETag reflects the current data instead of pinning to the token captured when
+    the process booted.
     """
-    url = make_url(get_settings().database_url)
-    if not url.database or url.database == ":memory:":
+    mutation = await catalog_last_mutation(session)
+    if mutation is None:
         return None
-    return Path(url.database)
-
-
-def hash_catalog_file(path: Path) -> str:
-    """One-shot SHA-256 of the catalog DB file, ~1 second for a 65 MB DB."""
-    hasher = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(_HASH_CHUNK_BYTES), b""):
-            hasher.update(chunk)
-    return hasher.hexdigest()
-
-
-def recompute_catalog_sha(app: FastAPI) -> str | None:
-    """
-    Re-hash the catalog and store it on ``app.state.catalog_sha``.
-
-    Returns the new hash, or ``None`` for an in-memory / missing DB (state is
-    left untouched in that case). Called at startup and after any live write
-    so the ``/apps*`` ETag reflects the current data instead of pinning to the
-    hash captured when the process booted.
-    """
-    path = catalog_db_path()
-    if path is None or not path.exists():
-        return None
-    sha = hash_catalog_file(path)
-    app.state.catalog_sha = sha
-    return sha
+    token = str(mutation.timestamp())
+    app.state.catalog_version = token
+    return token

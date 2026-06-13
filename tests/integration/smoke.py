@@ -45,12 +45,10 @@ import click
 logging.getLogger("Patcher").addHandler(logging.NullHandler())
 logging.getLogger("Patcher").propagate = False
 
-# Import via the installed package name. The pytest integration suite
-# uses ``from src.patcher import ...`` because pytest adds the project
-# root to ``sys.path``; this script runs standalone, so we import the
-# normally-resolvable ``patcher`` package instead.
+# Import the installed `patcher` package: this script runs standalone, unlike the pytest suite.
 from patcher import PatcherClient
 from patcher.clients.installomator import InstallomatorClient
+from patcher.core.analyze import get_sofa_feed
 from patcher.core.models.patch import PatchTitle
 
 # Same defaults as the integration suite. Credentials are intentionally
@@ -131,7 +129,7 @@ async def check_ios(patcher: PatcherClient, count: Counter) -> None:
             count.fail("get_device_os_versions raised", exc)
 
     try:
-        sofa = await patcher.jamf.get_sofa_feed()
+        sofa = await get_sofa_feed(patcher.jamf)
         if sofa:
             count.ok(f"SOFA feed returned {len(sofa)} OS-version entries")
         else:

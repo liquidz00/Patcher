@@ -20,4 +20,4 @@ class CatalogStats(BaseModel):
     total_apps: int
     sources: SourceCoverage
     last_refresh: datetime | None
-    catalog_sha: str | None
+    catalog_version: str | None

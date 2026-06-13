@@ -618,36 +618,48 @@ async def test_ingest_nulls_literal_ftp_url_with_resolution_off(test_session):
 
 
 @pytest.mark.asyncio
-async def test_ingest_row_failure_does_not_poison_remaining_batch(test_session, monkeypatch):
-    """If a single row INSERT raises, surrounding rows still commit successfully."""
-    from patcher_api.installomator import ingest as ingest_module
+async def test_ingest_db_error_on_one_row_does_not_poison_batch(test_session, monkeypatch):
+    """A database error on a single row's write is isolated by the savepoint; the rest commit."""
+    from sqlalchemy.exc import SQLAlchemyError
 
-    real_scalar = ingest_module._scalar_for_column
+    real_execute = test_session.execute
     call_count = {"n": 0}
 
-    def flaky_scalar(value):
-        """Raise on the second invocation to simulate an unexpected mid-batch error."""
+    async def flaky_execute(statement, *args, **kwargs):
+        """Raise on the second row's write to simulate a mid-batch database error."""
         call_count["n"] += 1
-        if call_count["n"] == 8:  # second label's first column-coerce call
-            raise RuntimeError("simulated row failure")
-        return real_scalar(value)
+        if call_count["n"] == 2:
+            raise SQLAlchemyError("simulated database error")
+        return await real_execute(statement, *args, **kwargs)
 
-    monkeypatch.setattr(ingest_module, "_scalar_for_column", flaky_scalar)
+    monkeypatch.setattr(test_session, "execute", flaky_execute)
 
     ingested, skipped, failed = await ingest_installomator_labels(
         test_session,
         {"firefoxpkg": FIREFOX_FRAGMENT, "googlechromepkg": GOOGLECHROME_FRAGMENT},
     )
 
-    # Exactly one row survives the batch; the other fails on the flaky
-    # scalar. Which one fails depends on call ordering across the parallel
-    # resolve phase and the serial persist phase, so the test asserts the
-    # batch-survival invariant rather than a specific victim.
+    # The first row commits; the second hits the simulated DB error, is rolled
+    # back to its savepoint, counted as failed, and the batch continues.
     assert ingested == 1
     assert failed == 1
     labels = (await test_session.scalars(select(InstallomatorLabel))).all()
     assert len(labels) == 1
-    assert labels[0].name in {"firefoxpkg", "googlechromepkg"}
+    assert labels[0].name == "firefoxpkg"
+
+
+@pytest.mark.asyncio
+async def test_ingest_non_db_error_propagates(test_session, monkeypatch):
+    """A non-database error (a bug) surfaces instead of being silently tallied as failed."""
+    from patcher_api.installomator import ingest as ingest_module
+
+    def boom(value):
+        raise RuntimeError("a bug, not a data problem")
+
+    monkeypatch.setattr(ingest_module, "_scalar_for_column", boom)
+
+    with pytest.raises(RuntimeError, match="a bug"):
+        await ingest_installomator_labels(test_session, {"firefoxpkg": FIREFOX_FRAGMENT})
 
 
 # SHA-gating: tree discovery, gating logic, force, deletion, blob_sha persistence.

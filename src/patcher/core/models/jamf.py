@@ -38,12 +38,7 @@ class JamfCredentials(Model):
 
     @property
     def base_url(self):
-        """
-        Gets the base URL of the Jamf server.
-
-        :return: The base URL of the Jamf server.
-        :rtype: str
-        """
+        """The base URL of the Jamf server."""
         return self.server
 
     @staticmethod

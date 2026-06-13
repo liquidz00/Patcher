@@ -29,7 +29,6 @@ _FIREFOX_RECORD = {
     "name": "Firefox",
     "vendor": "Mozilla",
     "current_version": "150.0.3",
-    "latest_release_date": None,
     "download_url": "https://download.mozilla.org/firefox.pkg",
     "install_method": "pkg",
     "sha256": None,
@@ -158,7 +157,6 @@ class TestGetApp:
             },
             "homebrew_cask": None,
             "autopkg": None,
-            "mas": None,
             "jamf_app_installer": None,
         }
 
@@ -175,6 +173,74 @@ class TestGetApp:
         assert result.installomator is not None
         assert result.installomator.label_name == "firefoxpkg"
         assert result.homebrew_cask is None
+
+    @pytest.mark.asyncio
+    async def test_get_app_sources_tolerates_null_recipe_name(self):
+        """Shared-processor AutoPkg recipes carry name/shortname: null; the client must not crash."""
+        payload = {
+            "installomator": None,
+            "homebrew_cask": None,
+            "autopkg": {
+                "recipes": [
+                    {
+                        "identifier": "com.github.autopkg.shared.Processor",
+                        "name": None,
+                        "shortname": None,
+                        "repo": "autopkg/recipes",
+                        "path": "Shared/Processor.recipe",
+                    }
+                ]
+            },
+            "jamf_app_installer": None,
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=payload)
+
+        client = _build_client(handler)
+        try:
+            result = await client.get_app_sources("someapp")
+        finally:
+            await client.aclose()
+
+        assert result.autopkg is not None
+        assert result.autopkg.recipes[0].name is None
+        assert result.autopkg.recipes[0].shortname is None
+
+    @pytest.mark.asyncio
+    async def test_get_app_sources_captures_full_jamf_installer(self):
+        """The client keeps the enriched JAI fields (was dropping all but title/source/host)."""
+        payload = {
+            "installomator": None,
+            "homebrew_cask": None,
+            "autopkg": None,
+            "jamf_app_installer": {
+                "title": "OpenAI ChatGPT Atlas",
+                "source": "External",
+                "host": "persistent.oaistatic.com",
+                "bundle_id": "com.openai.atlas",
+                "version": "1.2026.126.0",
+                "jamf_id": "81F",
+                "download_url": "https://persistent.oaistatic.com/atlas/x.dmg",
+                "architecture": "arm64",
+            },
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=payload)
+
+        client = _build_client(handler)
+        try:
+            result = await client.get_app_sources("chatgpt-atlas")
+        finally:
+            await client.aclose()
+
+        jai = result.jamf_app_installer
+        assert jai.bundle_id == "com.openai.atlas"
+        assert jai.jamf_id == "81F"
+        assert jai.version == "1.2026.126.0"
+        assert jai.architecture == "arm64"
+        assert jai.download_url == "https://persistent.oaistatic.com/atlas/x.dmg"
 
 
 class TestGenerateLabel:

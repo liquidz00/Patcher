@@ -1,26 +1,11 @@
 """
-Match Jamf patch titles against the Patcher API catalog.
+Match Jamf patch titles against the Patcher API catalog (direct → normalized → fuzzy).
 
-Used by :meth:`PatcherClient.fetch_patches` to populate
-``PatchTitle.install_label`` with name-only :class:`Label` stubs for every
-patch title that has an Installomator-tracked counterpart. The matching
-algorithm (direct → normalized → fuzzy) runs against the API's stitched
-catalog slug set, which already includes every Installomator label plus
-cross-source enrichment for downstream consumers that query the API
-directly.
-
-When ``include_homebrew`` is set, the candidate slug set is widened to
-include Homebrew Cask-sourced catalog entries (a second matching
-dimension). Matches are then routed by provenance: an Installomator-sourced
-slug populates ``install_label`` as before, while a Homebrew Cask-sourced
-slug populates ``PatchTitle.homebrew_cask`` with a
-:class:`~patcher.core.models.cask.CaskMatch`. A dual-source slug populates
-both. This keeps the Installomator-only meaning of ``install_label``
-intact rather than overloading it.
-
-Module-level functions so the algorithm can be exercised standalone in
-tests and (eventually) by other backends without going through
-``PatcherClient``.
+Matches are routed by provenance: Installomator-sourced slugs populate
+``install_label``, Homebrew Cask-sourced slugs populate ``homebrew_cask``, and a
+dual-source slug populates both. This keeps the Installomator-only meaning of
+``install_label`` intact rather than overloading it. Module-level functions so
+the algorithm can be exercised standalone in tests.
 """
 
 from __future__ import annotations
@@ -34,6 +19,7 @@ from typing import Any
 
 from rapidfuzz import fuzz, process
 
+from ..catalog._normalize import normalize_name
 from ..clients.jamf import JamfClient
 from ..clients.patcher_api import App, PatcherAPIClient
 from ..policy import IGNORED_TITLES
@@ -50,11 +36,6 @@ DEFAULT_REVIEW_FILE = Path.home() / "Library/Application Support/Patcher/unmatch
 # The ``/apps`` endpoint caps ``limit`` at 1000. Installomator's slug set fits
 # in one page, but the Homebrew Cask set (~7k) does not, so callers paginate.
 _CATALOG_PAGE_SIZE = 1000
-
-
-def normalize_name(app_name: str) -> str:
-    """Lowercase + strip spaces and dots — aligns Jamf app names with Installomator slugs."""
-    return app_name.lower().replace(" ", "").replace(".", "")
 
 
 def match_directly(app_names: list[str], available: set[str]) -> list[str]:
@@ -88,9 +69,15 @@ def match_fuzzy(
     return matched
 
 
-def _make_stub(patch_title: str, slug: str) -> Label:
-    """A name-only Label stub — enough to mark a match for downstream truthiness checks."""
-    return Label(name=patch_title, installomator_label=slug)
+def _make_stub(patch_title: str, app: App) -> Label:
+    """Coverage stub for an Installomator match, hydrated from the matched catalog App."""
+    return Label(
+        name=patch_title,
+        installomator_label=app.slug,
+        type=app.install_method.value if app.install_method else None,
+        expected_team_id=app.expected_team_id,
+        download_url=str(app.download_url) if app.download_url else None,
+    )
 
 
 def _make_cask_match(patch_title: str, app: App) -> CaskMatch:
@@ -191,7 +178,7 @@ def _attach_matches(
         if "installomator" in app.sources:
             if patch_title.install_label is None:
                 patch_title.install_label = []
-            patch_title.install_label.append(_make_stub(patch_title.title, slug))
+            patch_title.install_label.append(_make_stub(patch_title.title, app))
             attached = True
         if include_homebrew and "homebrew_cask" in app.sources:
             if patch_title.homebrew_cask is None:

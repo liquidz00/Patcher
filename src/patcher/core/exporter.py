@@ -3,7 +3,7 @@
 import asyncio
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from string import Template
 
@@ -16,6 +16,7 @@ from .exceptions import PatcherError
 from .logger import LogMe
 from .models.patch import PatchDevice, PatchTitle
 from .pdf_report import PDFReport
+from .serialization import titles_to_dict
 
 
 class Exporter:
@@ -42,29 +43,8 @@ class Exporter:
         self.log = LogMe(self.__class__.__name__)
 
     def serialize_titles_to_dict(self, report_title: str | None = None) -> dict:
-        """
-        Convert the patch titles into a JSON-serializable dict.
-
-        The returned dict has the shape::
-
-            {
-                "generated_at": "2026-05-04T18:30:00+00:00",
-                "report_title": "...",
-                "title_count": 42,
-                "titles": [<PatchTitle.model_dump()>, ...]
-            }
-
-        :param report_title: Optional title carried through to consumers.
-        :type report_title: str | None
-        :return: A dict ready for ``json.dump`` or direct programmatic use.
-        :rtype: dict
-        """
-        return {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "report_title": report_title,
-            "title_count": len(self.patch_titles),
-            "titles": [title.model_dump(mode="json") for title in self.patch_titles],
-        }
+        """Serialize the patch titles to a JSON-ready dict (see :func:`~patcher.core.serialization.titles_to_dict`)."""
+        return titles_to_dict(self.patch_titles, report_title=report_title)
 
     @staticmethod
     def _generate_filename(output_dir: str | Path, extension: str, analysis: bool = False) -> Path:

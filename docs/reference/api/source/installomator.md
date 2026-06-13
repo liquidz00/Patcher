@@ -24,8 +24,10 @@ Pulls the Installomator label registry from GitHub and writes parsed/resolved ro
 
 ## Parser
 
+The fragment parser now lives in the shared library package (`patcher.catalog._fragment_parser`); the API ingest imports it.
+
 ```{eval-rst}
-.. autofunction:: patcher_api.installomator.parser.parse_fragment
+.. autofunction:: patcher.catalog._fragment_parser.parse_fragment
 ```
 
 ## Resolver

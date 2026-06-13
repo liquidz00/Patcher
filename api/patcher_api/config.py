@@ -36,7 +36,8 @@ class Settings(BaseSettings):
     )
 
     database_url: str = "sqlite+aiosqlite:///./patcher_api.db"
-    seed_on_startup: bool = True
+    # Off by default so mock data never lands in a production DB; opt in for dev.
+    seed_on_startup: bool = False
     admin_token: str = ""
     deploy_sentinel_path: str = ""
     # Jamf App Installers titles API. Override per-host if a real tenant is ever preferred.

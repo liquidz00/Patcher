@@ -18,7 +18,6 @@ from patcher_api.models.autopkg import AutopkgRecipe
 from patcher_api.models.homebrew import HomebrewCask
 from patcher_api.models.installomator import InstallomatorLabel
 from patcher_api.models.jamf import JamfAppInstaller
-from patcher_api.models.mas import MasApp
 from patcher_api.stitch import (
     _clean_cask_url,
     _extract_vendor,
@@ -32,7 +31,6 @@ from patcher_api.stitch import (
     _resolve_download_url,
     _resolve_install_method,
     _resolve_version,
-    _slugify,
     stitch_catalog,
 )
 from sqlalchemy import select
@@ -88,33 +86,6 @@ def _make_cask(
         url=url,
         version=version,
         sha256=sha256,
-        raw=raw,
-        ingested_at=datetime.now(UTC),
-    )
-
-
-def _make_mas(
-    *,
-    bundle_id: str,
-    name: str,
-    version: str | None = None,
-    artist_name: str | None = None,
-    store_url: str | None = None,
-) -> MasApp:
-    """Build a :class:`MasApp` row for unit tests."""
-    raw = {
-        "bundleId": bundle_id,
-        "trackName": name,
-        "version": version,
-        "artistName": artist_name,
-        "trackViewUrl": store_url,
-        "kind": "mac-software",
-    }
-    return MasApp(
-        bundle_id=bundle_id,
-        name=name,
-        version=version,
-        store_url=store_url,
         raw=raw,
         ingested_at=datetime.now(UTC),
     )
@@ -427,35 +398,6 @@ class TestIndexAutopkgByName:
         assert set(index.keys()) == {"firefox", "chrome"}
 
 
-class TestSlugify:
-    """
-    Used by phase 3 to derive a URL-friendly slug from a MAS app's
-    ``trackName``. The exact normalization isn't load-bearing but the
-    cases here protect against silent regressions.
-    """
-
-    def test_simple_name(self):
-        assert _slugify("Pages") == "pages"
-
-    def test_multi_word_name(self):
-        assert _slugify("Final Cut Pro") == "final-cut-pro"
-
-    def test_collapses_runs_of_non_alphanumerics(self):
-        assert _slugify("OmniFocus 3 — Pro") == "omnifocus-3-pro"
-
-    def test_strips_leading_and_trailing_punctuation(self):
-        assert _slugify("...Things 3...") == "things-3"
-
-    def test_returns_unknown_for_empty_input(self):
-        assert _slugify("") == "unknown"
-
-    def test_returns_unknown_for_all_punctuation_input(self):
-        assert _slugify("!!!") == "unknown"
-
-    def test_alphanumerics_are_lowercased(self):
-        assert _slugify("BBEdit") == "bbedit"
-
-
 class TestResolveInstallMethod:
     def test_known_type_is_returned(self):
         assert _resolve_install_method("pkg") == "pkg"
@@ -596,8 +538,6 @@ async def test_stitch_returns_correct_counts(populated_session):
         il,
         cask_only,
         both,
-        mas_only,
-        mas_merged,
         autopkg_attached,
         jai_attached,
         failed,
@@ -609,14 +549,40 @@ async def test_stitch_returns_correct_counts(populated_session):
     assert both == 2
     # `onlycask` is the only Cask not matched by an Installomator label
     assert cask_only == 1
-    # No MAS records in this fixture → no MAS-only apps or merges
-    assert mas_only == 0
-    assert mas_merged == 0
     # No AutoPkg recipes in this fixture → no autopkg attachments
     assert autopkg_attached == 0
     # No JAI catalog rows in this fixture → no jamf_app_installer attachments
     assert jai_attached == 0
     assert failed == 0
+
+
+@pytest.mark.asyncio
+async def test_stitch_db_error_on_one_app_does_not_poison_batch(populated_session, monkeypatch):
+    """A database error upserting one app is isolated by the savepoint; the rest still land."""
+    from patcher_api import stitch as stitch_module
+    from sqlalchemy.exc import SQLAlchemyError
+
+    real_upsert = stitch_module._upsert_app_with_sources
+
+    async def flaky_upsert(session, **kwargs):
+        if kwargs.get("slug") == "onlyinstallomator":
+            raise SQLAlchemyError("simulated database error")
+        return await real_upsert(session, **kwargs)
+
+    monkeypatch.setattr(stitch_module, "_upsert_app_with_sources", flaky_upsert)
+
+    (il, cask_only, both, autopkg_attached, jai_attached, failed) = await stitch_catalog(
+        populated_session
+    )
+
+    assert failed == 1
+    # The failing app is absent; every other app still upserted.
+    assert (
+        await populated_session.scalar(select(AppRow).where(AppRow.slug == "onlyinstallomator"))
+    ) is None
+    assert (
+        await populated_session.scalar(select(AppRow).where(AppRow.slug == "firefox"))
+    ) is not None
 
 
 @pytest.mark.asyncio
@@ -667,6 +633,8 @@ async def test_stitch_installomator_only_label(populated_session):
     assert only_il is not None
     assert only_il.sources == ["installomator"]
     assert only_il.download_url == "https://example.com/onlyinstallomator.dmg"
+    # Team ID is promoted from the Installomator label onto the canonical apps row.
+    assert only_il.expected_team_id == "TESTTEAMID"
 
     detail = await populated_session.scalar(
         select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == only_il.id)
@@ -730,170 +698,6 @@ async def test_stitch_cask_only_record_with_ftp_url_nulls_download_url(test_sess
 
 
 @pytest.mark.asyncio
-async def test_stitch_attaches_mas_when_installomator_bundle_id_matches(test_session):
-    """
-    An Installomator label whose ``package_id`` matches an existing
-    :class:`MasApp.bundle_id` should produce an apps row with both
-    ``installomator`` and ``mas`` in ``sources`` (canonical ordering) and
-    both source-detail payloads populated.
-    """
-    test_session.add_all(
-        [
-            _make_label(
-                name="microsoftword",
-                display_name="Microsoft Word",
-                install_type="pkg",
-                package_id="com.microsoft.Word",
-                download_url="https://example.com/word.pkg",
-            ),
-            _make_mas(
-                bundle_id="com.microsoft.Word",
-                name="Microsoft Word",
-                version="16.83",
-                artist_name="Microsoft Corporation",
-                store_url="https://apps.apple.com/us/app/microsoft-word/id462054704",
-            ),
-        ]
-    )
-    await test_session.commit()
-
-    await stitch_catalog(test_session)
-
-    word = await test_session.scalar(select(AppRow).where(AppRow.slug == "microsoftword"))
-    assert word is not None
-    # Sources land in canonical order: installomator, homebrew_cask, autopkg, mas
-    assert word.sources == ["installomator", "mas"]
-
-    detail = await test_session.scalar(
-        select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == word.id)
-    )
-    assert detail.installomator is not None
-    assert detail.mas is not None
-    assert detail.mas["bundle_id"] == "com.microsoft.Word"
-    assert detail.mas["raw"]["artistName"] == "Microsoft Corporation"
-
-
-@pytest.mark.asyncio
-async def test_stitch_mas_only_record_creates_new_app_row(test_session):
-    """
-    A MAS record with no matching Installomator label produces a phase 3
-    apps row with ``["mas"]`` as the only source, slug derived from the
-    track name, and vendor pulled from ``artistName`` in the raw payload.
-    """
-    test_session.add(
-        _make_mas(
-            bundle_id="com.apple.iWork.Pages",
-            name="Pages",
-            version="14.2",
-            artist_name="Apple",
-            store_url="https://apps.apple.com/us/app/pages/id409201541",
-        )
-    )
-    await test_session.commit()
-
-    (
-        il,
-        cask_only,
-        both,
-        mas_only,
-        mas_merged,
-        autopkg_attached,
-        jai_attached,
-        failed,
-    ) = await stitch_catalog(test_session)
-    assert mas_only == 1
-    assert failed == 0
-
-    pages = await test_session.scalar(select(AppRow).where(AppRow.slug == "pages"))
-    assert pages is not None
-    assert pages.bundle_id == "com.apple.iWork.Pages"
-    assert pages.name == "Pages"
-    assert pages.vendor == "Apple"
-    assert pages.current_version == "14.2"
-    assert pages.sources == ["mas"]
-    # MAS apps have no direct download URL; the App Store handles install
-    assert pages.download_url is None
-
-    detail = await test_session.scalar(
-        select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == pages.id)
-    )
-    assert detail.installomator is None
-    assert detail.homebrew_cask is None
-    assert detail.mas is not None
-    assert detail.mas["store_url"].startswith("https://apps.apple.com/")
-
-
-@pytest.mark.asyncio
-async def test_stitch_mas_slug_collision_merges_into_existing_row(test_session):
-    """
-    A MAS app whose slug collides with an existing apps row (typically a
-    phase-2 Cask-only entry like "microsoft-word" or "xcode") gets MERGED
-    into that row rather than skipped. The merge:
-
-    1. Preserves the existing row's name/vendor/version/download_url.
-    2. Appends "mas" to the row's sources list, reordered into canonical
-       position.
-    3. Writes the mas source_detail payload onto the existing
-       app_source_details row.
-
-    This is the fix for the empirical issue where Microsoft Office and
-    Apple Pro Suite MAS apps were silently dropped because their slugified
-    names already existed on the apps table from Homebrew Cask phase 2.
-    """
-    # Simulate a phase-2 Cask-only row at slug "microsoft-word" that the
-    # MAS app for Microsoft Word would collide with.
-    test_session.add_all(
-        [
-            _make_cask(
-                token="microsoft-word",
-                name="Microsoft Word",
-                url="https://example.com/word.pkg",
-                version="16.83",
-            ),
-            _make_mas(
-                bundle_id="com.microsoft.Word",
-                name="Microsoft Word",
-                version="16.109",
-                artist_name="Microsoft Corporation",
-                store_url="https://apps.apple.com/us/app/microsoft-word/id462054704",
-            ),
-        ]
-    )
-    await test_session.commit()
-
-    (
-        il,
-        cask_only,
-        both,
-        mas_only,
-        mas_merged,
-        autopkg_attached,
-        jai_attached,
-        failed,
-    ) = await stitch_catalog(test_session)
-    assert mas_only == 0
-    assert mas_merged == 1
-    assert failed == 0
-
-    word = await test_session.scalar(select(AppRow).where(AppRow.slug == "microsoft-word"))
-    assert word is not None
-    # The cask row's fields are preserved (cask version, cask name, etc.)
-    assert word.current_version == "16.83"
-    assert word.name == "Microsoft Word"
-    # "mas" added to sources in canonical order (homebrew_cask comes before mas)
-    assert word.sources == ["homebrew_cask", "mas"]
-
-    # Source detail row gained the mas payload while keeping the cask payload
-    detail = await test_session.scalar(
-        select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == word.id)
-    )
-    assert detail is not None
-    assert detail.homebrew_cask is not None
-    assert detail.mas is not None
-    assert detail.mas["bundle_id"] == "com.microsoft.Word"
-
-
-@pytest.mark.asyncio
 async def test_stitch_attaches_autopkg_to_installomator_app(test_session):
     """
     AutoPkg recipes whose normalized name matches an Installomator label's
@@ -926,12 +730,10 @@ async def test_stitch_attaches_autopkg_to_installomator_app(test_session):
     )
     await test_session.commit()
 
-    _, _, _, _, _, autopkg_attached, _, _ = await stitch_catalog(test_session)
+    _, _, _, autopkg_attached, _, _ = await stitch_catalog(test_session)
     assert autopkg_attached == 1
 
     firefox = await test_session.scalar(select(AppRow).where(AppRow.slug == "firefox"))
-    # Canonical source ordering: installomator, homebrew_cask, autopkg, mas.
-    # Cask + mas absent → just installomator + autopkg.
     assert firefox.sources == ["installomator", "autopkg"]
 
     detail = await test_session.scalar(
@@ -969,27 +771,9 @@ async def test_stitch_attaches_autopkg_to_cask_only_app(test_session):
 
 
 @pytest.mark.asyncio
-async def test_stitch_attaches_autopkg_to_mas_only_app(test_session):
-    """Phase 3 (MAS-only) also gets AutoPkg attached by name match."""
-    test_session.add_all(
-        [
-            _make_mas(bundle_id="com.apple.dt.Xcode", name="Xcode", version="15.4"),
-            _make_autopkg(identifier="com.github.autopkg.download.Xcode", name="Xcode"),
-        ]
-    )
-    await test_session.commit()
-
-    await stitch_catalog(test_session)
-
-    xcode = await test_session.scalar(select(AppRow).where(AppRow.slug == "xcode"))
-    # Canonical ordering puts autopkg before mas.
-    assert xcode.sources == ["autopkg", "mas"]
-
-
-@pytest.mark.asyncio
 async def test_stitch_does_not_create_autopkg_only_apps(test_session):
     """
-    An AutoPkg recipe with no matching app in Installomator / Cask / MAS
+    An AutoPkg recipe with no matching app in Installomator / Cask
     should NOT generate a new ``apps`` row. AutoPkg is a coverage indicator,
     not an app source.
     """
@@ -1001,7 +785,7 @@ async def test_stitch_does_not_create_autopkg_only_apps(test_session):
     )
     await test_session.commit()
 
-    _, _, _, _, _, autopkg_attached, _, _ = await stitch_catalog(test_session)
+    _, _, _, autopkg_attached, _, _ = await stitch_catalog(test_session)
     assert autopkg_attached == 0
 
     apps = (await test_session.scalars(select(AppRow))).all()
@@ -1060,11 +844,11 @@ async def test_stitch_attaches_jai_to_installomator_app(test_session):
     )
     await test_session.commit()
 
-    _, _, _, _, _, _, jai_attached, _ = await stitch_catalog(test_session)
+    _, _, _, _, jai_attached, _ = await stitch_catalog(test_session)
     assert jai_attached == 1
 
     firefox = await test_session.scalar(select(AppRow).where(AppRow.slug == "firefox"))
-    # Canonical ordering: installomator, homebrew_cask, autopkg, jamf_app_installer, mas.
+    # Canonical ordering: installomator, homebrew_cask, autopkg, jamf_app_installer.
     assert firefox.sources == ["installomator", "jamf_app_installer"]
 
     detail = await test_session.scalar(
@@ -1108,7 +892,7 @@ async def test_stitch_matches_jai_by_bundle_id_over_name(test_session):
     )
     await test_session.commit()
 
-    _, _, _, _, _, _, jai_attached, _ = await stitch_catalog(test_session)
+    _, _, _, _, jai_attached, _ = await stitch_catalog(test_session)
     assert jai_attached == 1
 
     app = await test_session.scalar(select(AppRow).where(AppRow.slug == "someapp"))
@@ -1154,34 +938,16 @@ async def test_stitch_attaches_jai_to_cask_only_app(test_session):
 
 
 @pytest.mark.asyncio
-async def test_stitch_attaches_jai_to_mas_only_app(test_session):
-    """Phase 3 (MAS-only) also gets JAI attached by name match."""
-    test_session.add_all(
-        [
-            _make_mas(bundle_id="com.example.Xcode", name="Xcode", version="15.4"),
-            _make_jai(title="Xcode", source="Jamf", host=None),
-        ]
-    )
-    await test_session.commit()
-
-    await stitch_catalog(test_session)
-
-    xcode = await test_session.scalar(select(AppRow).where(AppRow.slug == "xcode"))
-    # Canonical ordering puts jamf_app_installer before mas.
-    assert xcode.sources == ["jamf_app_installer", "mas"]
-
-
-@pytest.mark.asyncio
 async def test_stitch_does_not_create_jai_only_apps(test_session):
     """
-    A JAI title with no matching app in Installomator / Cask / MAS does
-    NOT generate a new apps row. JAI is a coverage indicator, not an app
+    A JAI title with no matching app in Installomator / Cask does NOT
+    generate a new apps row. JAI is a coverage indicator, not an app
     source.
     """
     test_session.add(_make_jai(title="SomeObscureApp", source="Jamf"))
     await test_session.commit()
 
-    _, _, _, _, _, _, jai_attached, _ = await stitch_catalog(test_session)
+    _, _, _, _, jai_attached, _ = await stitch_catalog(test_session)
     assert jai_attached == 0
 
     apps = (await test_session.scalars(select(AppRow))).all()
@@ -1189,7 +955,7 @@ async def test_stitch_does_not_create_jai_only_apps(test_session):
 
 
 @pytest.mark.asyncio
-async def test_stitch_canonical_source_ordering_with_all_five(test_session):
+async def test_stitch_canonical_source_ordering_with_all_four(test_session):
     """
     When an app has every possible source attached, the ``sources`` list
     lands in the canonical order regardless of insertion order. This
@@ -1211,7 +977,6 @@ async def test_stitch_canonical_source_ordering_with_all_five(test_session):
                 artifacts=[{"app": ["Firefox.app"]}],
             ),
             _make_autopkg(identifier="com.github.autopkg.download.Firefox", name="Firefox"),
-            _make_mas(bundle_id="org.mozilla.firefox", name="Firefox", version="125.0"),
             _make_jai(title="Firefox", source="External", host="download.mozilla.org"),
         ]
     )
@@ -1225,7 +990,6 @@ async def test_stitch_canonical_source_ordering_with_all_five(test_session):
         "homebrew_cask",
         "autopkg",
         "jamf_app_installer",
-        "mas",
     ]
 
 

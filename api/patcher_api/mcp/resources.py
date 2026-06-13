@@ -9,8 +9,7 @@ without spending a tool call. The query logic is shared with the tools via
 :mod:`patcher_api.mcp._queries` so the two surfaces stay identical.
 """
 
-from sqlalchemy import select
-
+from patcher_api import services
 from patcher_api.db import get_session_maker
 from patcher_api.mcp._queries import (
     catalog_categories,
@@ -18,7 +17,7 @@ from patcher_api.mcp._queries import (
     serialize_app,
 )
 from patcher_api.mcp.server import mcp
-from patcher_api.models.app import App as AppRow
+from patcher_api.services import AppNotFound
 
 
 @mcp.resource(
@@ -59,9 +58,8 @@ async def app_resource(slug: str) -> dict:
     ``ValueError`` if no app with that slug exists in the catalog.
     """
     async with get_session_maker()() as session:
-        row = await session.scalar(select(AppRow).where(AppRow.slug == slug))
-
-    if row is None:
-        raise ValueError(f"App with slug '{slug}' not found")
-
+        try:
+            row = await services.get_app(session, slug)
+        except AppNotFound as exc:
+            raise ValueError(str(exc)) from exc
     return serialize_app(row)

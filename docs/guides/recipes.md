@@ -184,7 +184,7 @@ Datadog's HTTP intake has a 5 MB body cap and 1 000 events per batch. A typical 
 
 ## Generate an Installomator Label for a Cask-Only Title
 
-The Patcher catalog stitches Homebrew Cask, Installomator, AutoPkg, JAI, and MAS into one view. For apps that exist in Cask but have no Installomator label, the catalog's `generate-label` endpoint projects Cask's metadata into a label-shaped object. You can pipe that into Installomator's {ghwiki}`valuesfromarguments <Installomator:Configuration-and-Variables#install-without-a-label>` mode to install the app without writing a real label first.
+The Patcher catalog stitches Homebrew Cask, Installomator, AutoPkg, and Jamf App Installers (JAI) in into one view. For apps that exist in Cask but have no Installomator label, the catalog's `generate-label` endpoint projects Cask's metadata into a label-shaped object. You can pipe that into Installomator's {ghwiki}`valuesfromarguments <Installomator:Configuration-and-Variables#install-without-a-label>` mode to install the app without writing a real label first.
 
 ```{code-block} python
 :caption: generate_label.py

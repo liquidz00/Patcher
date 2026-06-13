@@ -1,11 +1,9 @@
 """
 Terminal output layer for the Patcher CLI.
 
-Owns everything the CLI puts on the terminal: the shared Rich console
-singletons and palette, the debug-aware status spinner, the table / diff /
-drift renderers, the error panel, and the logging that routes through the
-console (the terminal handler and excepthook). Library callers who never
-import ``patcher.cli`` get file-only logging and pay for none of this.
+Owns the Rich console singletons, spinner, renderers, error panel, and
+console-routed logging. Library callers who never import ``patcher.cli`` get
+file-only logging and pay for none of this.
 
 .. versionchanged:: 3.3.0
     Absorbed the former ``terminal_logger`` module and the CLI's rendering

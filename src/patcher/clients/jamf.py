@@ -3,14 +3,12 @@
 import csv
 import io
 import json
-from datetime import datetime
 from typing import Any
 
-import httpx
 from pydantic import ValidationError
 
 from ..core.config_manager import ConfigManager
-from ..core.exceptions import APIResponseError, PatcherError
+from ..core.exceptions import APIResponseError
 from ..core.logger import LogMe
 from ..core.models.jamf import ApiClientModel, ApiRoleModel
 from ..core.models.patch import PatchDevice, PatchTitle
@@ -63,20 +61,9 @@ class JamfSetupClient(HTTPClient):
         self.log.debug("Attempting to retrieve Basic Token with provided credentials.")
         token_url = f"{self.jamf_url}/api/v1/auth/token"
 
-        try:
-            async with self.semaphore:
-                response = await self.http.post(
-                    token_url,
-                    auth=(username, password),
-                    headers={"accept": "application/json"},
-                )
-        except httpx.RequestError as e:
-            raise APIResponseError(
-                "Network error fetching basic token",
-                username=username,
-                url=self.jamf_url,
-                error_msg=str(e),
-            )
+        response = await self._request(
+            "POST", token_url, auth=(username, password), headers={"accept": "application/json"}
+        )
 
         try:
             data = response.json()
@@ -260,27 +247,6 @@ class JamfClient(HTTPClient):
         )
         return cls(config=config, concurrency=concurrency)
 
-    def _convert_tz(self, utc_time_str: str) -> str:
-        """
-        Converts a UTC time string to a formatted string without timezone information.
-
-        :param utc_time_str: UTC time string in ISO 8601 format (e.g., "2023-08-09T12:34:56+0000").
-        :type utc_time_str: str
-        :return: Formatted date string (e.g., "Aug 09 2023") or None if the input format is invalid.
-        :rtype: str
-        :raises PatcherError: If the time format provided is invalid.
-        """
-        try:
-            utc_time = datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S%z")
-            return utc_time.strftime("%b %d %Y")
-        except ValueError as e:
-            self.log.error(f"Invalid time format provided. Details: {e}")
-            raise PatcherError(
-                "Invalid time format provided.",
-                time_str=utc_time_str,
-                error_msg=str(e),
-            )
-
     async def _headers(self) -> dict[str, str]:
         """Generates headers for API calls, ensuring the latest token is used."""
         # Ensure token is valid
@@ -303,12 +269,7 @@ class JamfClient(HTTPClient):
         return await self.fetch_json(url=url, headers=headers)
 
     async def get_policies(self) -> list[str]:
-        """
-        Retrieves a list of patch software title IDs from the Jamf API.
-
-        :return: A list of software title IDs.
-        :rtype: list[str]
-        """
+        """Retrieve the list of patch software title IDs from the Jamf API."""
         return [config.get("id") for config in await self.get_title_configs()]
 
     async def get_summaries(self, policy_ids: list[str]) -> list[PatchTitle]:
@@ -331,7 +292,7 @@ class JamfClient(HTTPClient):
             PatchTitle(
                 title=summary.get("title"),
                 title_id=summary.get("softwareTitleId"),
-                released=self._convert_tz(summary.get("releaseDate")),
+                released=summary.get("releaseDate"),
                 hosts_patched=summary.get("upToDate"),
                 missing_patch=summary.get("outOfDate"),
                 latest_version=summary.get("latestVersion"),
@@ -511,40 +472,3 @@ class JamfClient(HTTPClient):
             )
 
         return app_names
-
-    async def get_sofa_feed(self) -> list[dict[str, str]]:
-        """
-        Fetches iOS Data feeds from SOFA and extracts latest OS version information.
-
-        .. note::
-            This method is only called if the :ref:`iOS <ios>` option is passed to the CLI.
-
-        :return: A list of dictionaries containing base OS versions, latest iOS versions, and release dates.
-        :rtype: list[dict[str, str]]
-        :raises APIResponseError: If the SOFA feed cannot be fetched or parsed.
-        """
-        sofa_url = "https://sofafeed.macadmins.io/v1/ios_data_feed.json"
-
-        try:
-            result_json = await self.fetch_json(url=sofa_url)
-        except APIResponseError as e:
-            raise APIResponseError(
-                "Unable to retrieve SOFA feed",
-                url=sofa_url,
-                error_msg=str(e),
-            )
-
-        os_versions = result_json.get("OSVersions", [])
-
-        # Iterate over versions to obtain iOS 16 & iOS 17 datasets
-        latest_versions = []
-        for version in os_versions:
-            version_info = version.get("Latest", {})
-            latest_versions.append(
-                {
-                    "OSVersion": version.get("OSVersion"),
-                    "ProductVersion": version_info.get("ProductVersion"),
-                    "ReleaseDate": self._convert_tz(version_info.get("ReleaseDate")),
-                }
-            )
-        return latest_versions

@@ -1,11 +1,9 @@
 """
 The ``patcherctl`` command-line interface.
 
-Defines the asyncclick command group and every subcommand (``export``,
-``analyze``, ``diff``, ``drift``, ``reset``). Terminal output and logging live
-in :mod:`patcher.cli._console`; orchestration helpers (arg parsing, cache, the
-export workflow) live in :mod:`patcher.cli._helpers`. This module is the entry
-point that wires them into commands.
+The asyncclick entry point and every subcommand (``export``, ``analyze``,
+``diff``, ``drift``, ``reset``). Terminal output lives in
+:mod:`patcher.cli._console`; orchestration helpers in :mod:`patcher.cli._helpers`.
 """
 
 import asyncio
@@ -502,7 +500,7 @@ async def export(
     "-e",
     type=click.Path(exists=True),
     metavar="<file_path>",
-    help="Provide path to alternate excel report. Latest exported excel report is used by default.",
+    help="Analyze a previously-exported Excel report instead of the cached patch data.",
 )
 @click.option(
     "--all-time",
@@ -617,11 +615,15 @@ async def analyze(
         ignored_titles=settings.ignored_titles,
     )
 
+    if excel_file and all_time:
+        raise PatcherError(
+            "--excel-file cannot be combined with --all-time; trend analysis needs cached snapshots."
+        )
+
     with status("Processing", enabled=not debug) as spinner:
-        spinner.update("Loading cached patch data...")
-        # NOTE: --excel-file is currently accepted but not read. Excel-to-PatchTitle
-        # hydration is parked for v3.0.1.
-        _ = excel_file
+        spinner.update(
+            "Loading patch data from Excel..." if excel_file else "Loading cached patch data..."
+        )
 
         # Spinner wraps the work only (compute + file writes); results render below.
         summary_path = None
@@ -648,13 +650,22 @@ async def analyze(
                 )
                 if v is not None
             }
-            filtered_titles = await patcher.analyze(
-                patcher.data.titles,
-                criteria,
-                threshold=threshold,
-                top_n=top_n,
-                where=where_kwargs or None,
-            )
+            if excel_file:
+                filtered_titles = await patcher.analyze_excel(
+                    excel_file,
+                    criteria,
+                    threshold=threshold,
+                    top_n=top_n,
+                    where=where_kwargs or None,
+                )
+            else:
+                filtered_titles = await patcher.analyze(
+                    patcher.data.titles,
+                    criteria,
+                    threshold=threshold,
+                    top_n=top_n,
+                    where=where_kwargs or None,
+                )
 
             if summary and len(filtered_titles) > 0:
                 spinner.update("Writing HTML summary report...")

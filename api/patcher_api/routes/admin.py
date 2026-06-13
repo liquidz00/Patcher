@@ -24,10 +24,10 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import select, text, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from patcher_api.catalog import recompute_catalog_sha
+from patcher_api.catalog import recompute_catalog_version
 from patcher_api.config import get_settings
 from patcher_api.db import get_session
 from patcher_api.installomator.ingest import (
@@ -158,7 +158,7 @@ async def ingest_resolved_labels(
 
     After the batch the catalog is re-stitched (so ``/apps`` reflects the new
     values) and the ETag recomputed (so caches don't pin to the pre-upload
-    hash).
+    token).
     """
     body = await request.body()
     now = datetime.now(UTC)
@@ -213,9 +213,7 @@ async def ingest_resolved_labels(
         # New values only reach the public /apps catalog through stitch, and the
         # ETag must move or revalidating clients keep getting the stale catalog.
         await stitch_catalog(session)
-        # Checkpoint WAL so the on-disk .db reflects new commits before we hash it for the ETag.
-        await session.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
-        recompute_catalog_sha(request.app)
+        await recompute_catalog_version(request.app, session)
 
     summary = ResolvedIngestSummary(
         received=received,

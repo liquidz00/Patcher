@@ -77,9 +77,8 @@ class TestDeleteCredential:
             assert result is True
 
     def test_delete_credential_failure(self, real_config_manager):
-        # delete_credential currently swallows KeyringError and reports success.
-        # Issue #71 will split "didn't exist" from real failures; update this
-        # assertion and delete_credential together when it lands.
+        # Best-effort by design: a present-but-undeletable credential still reports True
+        # because it's overwritten at the next setup (a broken keyring fails at write time).
         with patch("keyring.delete_password", side_effect=KeyringError("Keyring failure")):
             result = real_config_manager.delete_credential("API_KEY")
             assert result is True
@@ -160,6 +159,14 @@ class TestInMemoryMode:
         with patch("keyring.set_password") as mock_keyring:
             cm.set_credential("CLIENT_SECRET", "shh")
         assert cm.get_credential("CLIENT_SECRET") == "shh"
+        mock_keyring.assert_not_called()
+
+    def test_in_memory_delete_removes_from_dict_without_keyring(self):
+        """delete_credential pops from the in-memory dict and never touches keyring."""
+        cm = ConfigManager(service_name="TestService", in_memory_credentials={"TOKEN": "abc"})
+        with patch("keyring.delete_password") as mock_keyring:
+            assert cm.delete_credential("TOKEN") is True
+        assert cm.get_credential("TOKEN") is None
         mock_keyring.assert_not_called()
 
     def test_in_memory_constructor_copies_input_dict(self):

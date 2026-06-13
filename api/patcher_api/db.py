@@ -6,15 +6,19 @@ swap :func:`get_settings` before they're instantiated. Production code touches
 nothing more than :func:`get_session` via FastAPI's ``Depends``.
 """
 
-from collections.abc import AsyncIterator
+import logging
+from collections.abc import AsyncIterator, Awaitable, Callable
 from functools import lru_cache
 
 from sqlalchemy import event
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 from patcher_api.config import get_settings
+
+log = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
@@ -82,3 +86,35 @@ def upsert_stmt(model, *, index_elements: list[str], **values):
         index_elements=index_elements,
         set_={col: getattr(stmt.excluded, col) for col in values if col not in index_elements},
     )
+
+
+async def run_in_savepoint(
+    session: AsyncSession, work: Callable[[], Awaitable[object]], *, label: str
+) -> bool:
+    """
+    Run one record's writes inside a SAVEPOINT so a single failure rolls back
+    just that record, not the whole batch (the caller commits once at the end).
+
+    The single per-record resilience primitive shared by the ingest and stitch
+    loops. Returns ``True`` on success. On a database error it rolls the
+    savepoint back, logs it with a traceback, and returns ``False`` so the loop
+    can count it and move on. Anything that isn't a :class:`SQLAlchemyError`
+    propagates — a real bug surfaces loudly instead of being silently tallied as
+    a failed record.
+
+    :param session: Async session with an active (auto-begun) transaction.
+    :param work: Zero-arg callable returning the awaitable that does the writes.
+    :param label: Human-readable record identifier for the failure log.
+    """
+    try:
+        async with session.begin_nested():
+            await work()
+        return True
+    except SQLAlchemyError:
+        log.warning("Skipping %s: database error during write", label, exc_info=True)
+        return False
+
+
+async def execute_in_savepoint(session: AsyncSession, stmt, *, label: str) -> bool:
+    """Run a single statement through :func:`run_in_savepoint`."""
+    return await run_in_savepoint(session, lambda: session.execute(stmt), label=label)

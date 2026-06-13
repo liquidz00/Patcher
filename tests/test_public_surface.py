@@ -4,24 +4,31 @@ Smoke tests for the public ``patcher`` package surface.
 Verifies that the symbols exposed in ``patcher/__init__.py`` resolve to
 their canonical implementations, that internal classes stay internal, and
 that ``__all__`` accurately describes the public API.
+
+Imports the installed ``patcher`` package (the path users get), not the
+``src.patcher`` source tree the rest of the suite reaches through, so a
+packaging change that drops a module from the wheel surfaces here.
 """
 
+import subprocess
+import sys
 from unittest.mock import AsyncMock
 
 import pytest
-from src.patcher.clients.installomator import InstallomatorClient as _IomCanonical
-from src.patcher.clients.jamf import JamfClient as _JamfFromClient
-from src.patcher.clients.patcher_api import PatcherAPIClient as _PatcherAPIFromClient
-from src.patcher.core.exceptions import APIResponseError as _APIErr
-from src.patcher.core.exceptions import PatcherError as _PatcherErr
-from src.patcher.core.models.patch import PatchDevice as _DeviceFromCore
-from src.patcher.core.models.patch import PatchTitle as _TitleFromCore
-from src.patcher.core.patcher_client import PatcherClient as _PatcherCanonical
+
+from patcher.clients.installomator import InstallomatorClient as _IomCanonical
+from patcher.clients.jamf import JamfClient as _JamfFromClient
+from patcher.clients.patcher_api import PatcherAPIClient as _PatcherAPIFromClient
+from patcher.core.exceptions import APIResponseError as _APIErr
+from patcher.core.exceptions import PatcherError as _PatcherErr
+from patcher.core.models.patch import PatchDevice as _DeviceFromCore
+from patcher.core.models.patch import PatchTitle as _TitleFromCore
+from patcher.core.patcher_client import PatcherClient as _PatcherCanonical
 
 
 def test_package_exposes_patcher_client():
     """PatcherClient is the headline library entry point."""
-    from src.patcher import PatcherClient
+    from patcher import PatcherClient
 
     assert PatcherClient is _PatcherCanonical
 
@@ -35,7 +42,7 @@ async def test_patcher_client_async_context_manager_closes_jamf():
     guarantee the underlying httpx connection pool is closed when the block
     exits — no manual ``aclose()`` required.
     """
-    from src.patcher import PatcherClient
+    from patcher import PatcherClient
 
     patcher = PatcherClient(
         client_id="cid",
@@ -56,7 +63,7 @@ async def test_patcher_client_aclose_is_idempotent():
     Calling :meth:`PatcherClient.aclose` multiple times is safe — the
     underlying :class:`HTTPClient.aclose` is itself idempotent.
     """
-    from src.patcher import PatcherClient
+    from patcher import PatcherClient
 
     patcher = PatcherClient(
         client_id="cid",
@@ -70,34 +77,34 @@ async def test_patcher_client_aclose_is_idempotent():
 
 
 def test_package_exposes_jamf_client():
-    from src.patcher import JamfClient
+    from patcher import JamfClient
 
     assert JamfClient is _JamfFromClient
 
 
 def test_package_exposes_installomator_client():
     """InstallomatorClient is the public name for the Installomator label-matching service."""
-    from src.patcher import InstallomatorClient
+    from patcher import InstallomatorClient
 
     assert InstallomatorClient is _IomCanonical
 
 
 def test_package_exposes_patcher_api_client():
     """PatcherAPIClient is the public name for the Patcher API catalog client."""
-    from src.patcher import PatcherAPIClient
+    from patcher import PatcherAPIClient
 
     assert PatcherAPIClient is _PatcherAPIFromClient
 
 
 def test_package_exposes_return_shapes():
-    from src.patcher import PatchDevice, PatchTitle
+    from patcher import PatchDevice, PatchTitle
 
     assert PatchTitle is _TitleFromCore
     assert PatchDevice is _DeviceFromCore
 
 
 def test_package_exposes_exceptions():
-    from src.patcher import APIResponseError, PatcherError
+    from patcher import APIResponseError, PatcherError
 
     assert APIResponseError is _APIErr
     assert PatcherError is _PatcherErr
@@ -105,7 +112,7 @@ def test_package_exposes_exceptions():
 
 def test_package_hides_cli_only_surface():
     """Setup, SetupType, Animation must not leak through the public package."""
-    import src.patcher as patcher
+    import patcher
 
     for name in ("Setup", "SetupType", "SetupError", "Animation"):
         assert not hasattr(patcher, name), f"`{name}` should be CLI-only, not on the public package"
@@ -113,7 +120,7 @@ def test_package_hides_cli_only_surface():
 
 def test_package_hides_internal_models():
     """JamfCredentials, AccessToken, Label are internal data shapes — not on the public package."""
-    import src.patcher as patcher
+    import patcher
 
     for name in ("JamfCredentials", "AccessToken", "Label"):
         assert not hasattr(patcher, name), (
@@ -123,7 +130,7 @@ def test_package_hides_internal_models():
 
 def test_package_hides_advanced_classes():
     """HTTPClient, ConfigManager, DataManager remain importable via submodules but not at root."""
-    import src.patcher as patcher
+    import patcher
 
     for name in ("HTTPClient", "ConfigManager", "DataManager"):
         assert not hasattr(patcher, name), (
@@ -133,7 +140,26 @@ def test_package_hides_advanced_classes():
 
 def test_package_all_matches_exports():
     """Every name in __all__ should resolve as a real attribute on the package."""
-    import src.patcher as patcher
+    import patcher
 
     for name in patcher.__all__:
         assert hasattr(patcher, name), f"__all__ promises `{name}` but it is not on the package"
+
+
+def test_leaf_import_stays_lightweight():
+    """
+    ``import patcher.catalog`` (the wire schemas the API server shares) must not
+    drag in the CLI/report-only heavyweights. Guards the lazy ``__init__`` from
+    regressing if someone re-adds an eager top-level import. Runs in a fresh
+    interpreter because the test process has already imported these elsewhere.
+    """
+    code = (
+        "import sys, patcher.catalog;"
+        "heavy = [m for m in ('pandas', 'keyring', 'fpdf', 'openpyxl', 'numpy')"
+        " if any(k == m or k.startswith(m + '.') for k in sys.modules)];"
+        "print(','.join(heavy))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    assert result.stdout.strip() == "", f"leaf import pulled heavy deps: {result.stdout.strip()}"

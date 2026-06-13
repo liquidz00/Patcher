@@ -14,15 +14,6 @@ Usage::
     uv run python scripts/ingest.py stitch
     uv run python scripts/ingest.py all
 
-The Mac App Store (MAS) source is intentionally absent from this entry
-point. The ingest module (:mod:`patcher_api.ingest.mas`) and its
-``mas_apps`` table remain in the codebase for potential future
-re-enablement, but the empirical signal-to-noise ratio (15 records from
-a 20-bundle-ID seed, no bundle_id overlap with Installomator, no
-download URL) and the rate-limited sequential lookup making it the
-slowest pipeline step led to dropping it from routine refreshes. Stitch's
-MAS phase no-ops gracefully against an empty ``mas_apps`` table.
-
 Each subcommand corresponds to a single upstream source (or the stitch
 phase that joins them). ``all`` runs every ingest in sequence, then
 stitches the catalog — matching what the daily refresh GitHub Actions
@@ -211,28 +202,23 @@ async def cmd_jamf_titles() -> None:
 
 async def cmd_stitch() -> None:
     log.info("=== Stitch catalog ===")
-    log.info("Joining Installomator + Cask + MAS + AutoPkg + JAI into unified apps rows...")
+    log.info("Joining Installomator + Cask + AutoPkg + JAI into unified apps rows...")
     async with get_session_maker()() as session:
         (
             installomator_count,
             cask_only_count,
             both_sources,
-            mas_only_count,
-            mas_merged_count,
             autopkg_attached_count,
             jai_attached_count,
             failed,
         ) = await stitch_catalog(session)
-    total = installomator_count + cask_only_count + mas_only_count
+    total = installomator_count + cask_only_count
     log.info(
         "Stitch summary: installomator=%d (cask_overlap=%d), cask_only=%d, "
-        "mas_only=%d, mas_merged=%d, autopkg_attached=%d, jai_attached=%d, "
-        "total=%d, failed=%d",
+        "autopkg_attached=%d, jai_attached=%d, total=%d, failed=%d",
         installomator_count,
         both_sources,
         cask_only_count,
-        mas_only_count,
-        mas_merged_count,
         autopkg_attached_count,
         jai_attached_count,
         total,

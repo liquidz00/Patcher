@@ -29,7 +29,6 @@ def _make_app(
         name=name,
         vendor=None,
         current_version=current_version,
-        latest_release_date=None,
         download_url=download_url,
         install_method=install_method,
         sha256=None,

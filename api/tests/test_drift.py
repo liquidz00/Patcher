@@ -9,7 +9,8 @@ from patcher_api.drift import (
     detect_drift,
     extract_versions,
 )
-from patcher_api.schemas.drift import DriftEntry
+
+from patcher.catalog import DriftEntry
 
 
 def _detail(*, installomator=None, homebrew_cask=None):
@@ -33,7 +34,7 @@ def _app(slug="testapp", name="Test App", vendor="Test Vendor"):
 
 
 def test_versioned_sources_only_includes_installomator_and_cask():
-    """MAS, AutoPkg, JAI deliberately excluded — see project_patcher_mas_low_value memory."""
+    """AutoPkg, JAI deliberately excluded — see project_patcher_mas_low_value memory."""
     assert VERSIONED_SOURCES == ("installomator", "homebrew_cask")
 
 

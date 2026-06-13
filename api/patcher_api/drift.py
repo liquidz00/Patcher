@@ -15,9 +15,9 @@ from typing import Any
 
 from packaging.version import InvalidVersion, Version
 
+from patcher.catalog import DriftEntry, DriftResponse, SourceVersion
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
-from patcher_api.schemas.drift import DriftEntry, DriftResponse, SourceVersion
 
 VERSIONED_SOURCES: tuple[str, ...] = ("installomator", "homebrew_cask")
 

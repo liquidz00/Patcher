@@ -50,7 +50,7 @@ SQLite-backed catalog hash and ETag helpers.
 :link: ingest
 :link-type: doc
 
-Per-source ingest pipelines (Homebrew, AutoPkg, JAI, MAS).
+Per-source ingest pipelines (Homebrew, AutoPkg, JAI).
 :::
 
 :::{grid-item-card} {iconify}`octicon:arrow-up-right-16` `installomator`

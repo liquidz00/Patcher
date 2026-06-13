@@ -5,11 +5,11 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
-from pydantic import ValidationError
 
 from .exceptions import PatcherError
 from .logger import LogMe
 from .models.patch import PatchTitle
+from .serialization import df_to_titles, titles_to_df
 
 
 class DataManager:
@@ -35,12 +35,7 @@ class DataManager:
 
     @property
     def cache_off(self) -> bool:
-        """
-        Indicates whether caching is disabled.
-
-        :return: True if caching is disabled, False otherwise.
-        :rtype: bool
-        """
+        """True if caching is disabled."""
         return self._disabled
 
     @property
@@ -94,7 +89,7 @@ class DataManager:
         """Convert a list of ``PatchTitle`` objects into a pandas DataFrame."""
         self.log.debug("Attempting to create DataFrame from PatchTitle objects.")
         try:
-            df = pd.DataFrame([patch.model_dump() for patch in patch_titles])
+            df = titles_to_df(patch_titles)
             df.columns = [column.replace("_", " ").title() for column in df.columns]
             self.log.info(
                 f"Created DataFrame from {len(patch_titles)} PatchTitle objects successfully."
@@ -152,30 +147,19 @@ class DataManager:
                         file.unlink()
                         self.log.info(f"Deleted expired cache file: {file}")
                     except OSError as e:
+                        # One locked file shouldn't abort pruning the rest
                         self.log.warning(f"Failed to delete cache file {file}. Details: {e}")
-                        return
+                        continue
 
     def _create_patches(self, df: pd.DataFrame) -> list[PatchTitle]:
         """Convert a pandas DataFrame into a list of PatchTitle objects."""
         self.log.debug(f"Creating PatchTitle objects from DataFrame with {len(df)} rows.")
-        skipped_rows = 0
-        patch_titles = []
+        patch_titles, errors = df_to_titles(df)
 
-        for _, row in df.iterrows():
-            try:
-                patch = PatchTitle(
-                    **{str(key).lower().replace(" ", "_"): value for key, value in row.items()}
-                )
-                patch_titles.append(patch)
-            except (KeyError, ValueError, TypeError, ValidationError) as e:
-                exception_name = type(e).__name__
-                self.log.warning(
-                    f"Encountered {exception_name} during PatchTitle creation. Skipping row. Details: {e}."
-                )
-                skipped_rows += 1
-
-        if skipped_rows > 0:
-            self.log.warning(f"{skipped_rows} rows were skipped during PatchTitle creation.")
+        for detail in errors:
+            self.log.warning(f"Skipping row during PatchTitle creation. Details: {detail}")
+        if errors:
+            self.log.warning(f"{len(errors)} rows were skipped during PatchTitle creation.")
         self.log.info(f"Successfully created {len(patch_titles)} PatchTitle objects.")
 
         return patch_titles
@@ -279,29 +263,8 @@ class DataManager:
             self.log.warning(f"Encountered {type(e).__name__} during cache reset. Details: {e}")
             return False
 
-    def load_cached_data(self) -> list[pd.DataFrame]:
-        """
-        Load all cached data files into a list of DataFrames.
-
-        :return: list of pandas DataFrame objects with cached data.
-        :rtype: list[~pandas.DataFrame]
-        """
-        dataframes = []
-        for file in self.get_cached_files():
-            try:
-                dataframes.append(self.load(file))
-                self.log.info(f"Loaded cache data from {file}")
-            except PatcherError as e:
-                self.log.warning(f"Failed to load cached file {file}. Details: {e}")
-        return dataframes
-
     def get_cached_files(self) -> list[Path]:
-        """
-        Retrieves all cached file Paths.
-
-        :return: A list of ``Path`` objects pointing to cached files.
-        :rtype: list[~pathlib.Path]
-        """
+        """Paths of all cached snapshot files."""
         return [file for file in self.cache_dir.iterdir() if file.suffix in (".parquet", ".pkl")]
 
     def get_latest_dataset(self) -> Path | None:

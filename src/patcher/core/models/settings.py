@@ -1,11 +1,9 @@
 """
 Pydantic models for Patcher's on-disk configuration.
 
-:class:`PatcherSettings` is the single source of truth for everything stored in
-the property list — UI branding, the matching toggle, integration flags,
-ignored titles, and the recorded interpreter path. It owns reading and writing
-the plist (:meth:`~PatcherSettings.load` / :meth:`~PatcherSettings.save`) and
-migrating older on-disk formats forward.
+:class:`PatcherSettings` is the single source of truth for everything in the
+property list; it owns plist read/write (:meth:`~PatcherSettings.load` /
+:meth:`~PatcherSettings.save`) and migrating older on-disk formats forward.
 """
 
 import plistlib

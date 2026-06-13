@@ -1,5 +1,4 @@
 import os
-import pickle
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -104,25 +103,34 @@ class TestCache:
             # Ensure the file was attempted to be deleted, but an error was logged
             cache_file.unlink.assert_called_once()
 
+    def test_clean_cache_continues_after_failed_delete(self):
+        """A locked file logs a warning but pruning continues to the next file."""
+        expired = (datetime.now() - timedelta(days=91)).timestamp()
+
+        def _expired_file(unlink_error=None):
+            f = MagicMock()
+            f.suffix = ".parquet"
+            f.is_file.return_value = True
+            f.stat.return_value.st_mtime = expired
+            if unlink_error:
+                f.unlink.side_effect = unlink_error
+            return f
+
+        bad = _expired_file(PermissionError("locked"))
+        good = _expired_file()
+
+        data_manager = DataManager(disable_cache=True)
+        with patch.object(Path, "iterdir", return_value=[bad, good]):
+            data_manager._clean_cache()
+
+        bad.unlink.assert_called_once()
+        good.unlink.assert_called_once()  # would never run if the loop aborted on `bad`
+
     def test_get_latest_dataset_no_files(self):
         """Ensure get_latest_dataset returns None when no datasets are available."""
         data_manager = DataManager(disable_cache=True)
         with patch.object(data_manager, "get_cached_files", return_value=[]):
             assert data_manager.get_latest_dataset() is None
-
-    @pytest.mark.asyncio
-    async def test_load_cached_data_with_corrupted_files(self, mock_data_manager):
-        """Ensure load_cached_data skips corrupted files."""
-        corrupted_file = MagicMock(spec=Path)
-        corrupted_file.name = "corrupted_cache.pkl"
-        corrupted_file.__str__.return_value = "/mocked/path/corrupted_cache.pkl"
-
-        with patch.object(mock_data_manager, "get_cached_files", return_value=[corrupted_file]):
-            with patch("pickle.load", side_effect=pickle.UnpicklingError("Test Unpickling error")):
-                loaded_data = mock_data_manager.load_cached_data()
-
-        # Assert that no valid data was loaded
-        assert len(loaded_data) == 0
 
     def test_cache_data_writes_parquet_and_load_round_trips(self, tmp_path):
         """New caches are written as Parquet (version-stable) and load() reads them back."""

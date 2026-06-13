@@ -15,14 +15,12 @@ shape an MCP client sees is identical to ``GET /apps/{slug}``.
 
 from sqlalchemy import or_, select
 
+from patcher_api import services
 from patcher_api.db import get_session_maker
-from patcher_api.drift import scan_drift
-from patcher_api.labels import build_installomator_label
 from patcher_api.mcp._queries import catalog_categories, catalog_summary, serialize_app
 from patcher_api.mcp.server import mcp
 from patcher_api.models.app import App as AppRow
-from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
-from patcher_api.schemas.sources import AppSources
+from patcher_api.services import AppNotFound, NoSourceDetail
 
 
 @mcp.tool
@@ -88,7 +86,7 @@ async def get_app(slug: str) -> dict:
     Fetch a single app record by its slug.
 
     Returns the full app projection: identity (slug, name, vendor,
-    bundle_id), versioning (current_version, latest_release_date),
+    bundle_id), versioning (current_version),
     download metadata (download_url, install_method, sha256), and
     provenance (sources). Identical to ``GET /apps/{slug}`` on
     the REST API.
@@ -99,11 +97,10 @@ async def get_app(slug: str) -> dict:
     in the catalog.
     """
     async with get_session_maker()() as session:
-        row = await session.scalar(select(AppRow).where(AppRow.slug == slug))
-
-    if row is None:
-        raise ValueError(f"App with slug '{slug}' not found")
-
+        try:
+            row = await services.get_app(session, slug)
+        except AppNotFound as exc:
+            raise ValueError(str(exc)) from exc
     return serialize_app(row)
 
 
@@ -140,12 +137,10 @@ async def list_drift(
     offset = max(0, offset)
 
     async with get_session_maker()() as session:
-        stmt = select(AppRow).order_by(AppRow.slug)
-        if vendor is not None:
-            stmt = stmt.where(AppRow.vendor.ilike(vendor))
-        rows = (await session.scalars(stmt)).all()
-
-    return scan_drift(rows, source=source, limit=limit, offset=offset).model_dump(mode="json")
+        response = await services.scan_catalog_drift(
+            session, vendor=vendor, source=source, limit=limit, offset=offset
+        )
+    return response.model_dump(mode="json")
 
 
 @mcp.tool
@@ -190,25 +185,11 @@ async def generate_installomator_label(slug: str) -> dict:
     resolved, most commonly ``expectedTeamID`` for Cask-only apps).
     """
     async with get_session_maker()() as session:
-        app_row = await session.scalar(select(AppRow).where(AppRow.slug == slug))
-        if app_row is None:
-            raise ValueError(f"App with slug '{slug}' not found")
-
-        detail = await session.scalar(
-            select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == app_row.id)
-        )
-
-        if detail is None or (
-            detail.homebrew_cask is None
-            and detail.installomator is None
-            and detail.jamf_app_installer is None
-        ):
-            raise ValueError(
-                f"App '{slug}' has no source detail, cannot generate a label. "
-                "This is usually a leftover seed record; expected for production data."
-            )
-
-        return build_installomator_label(app_row, detail).model_dump(mode="json")
+        try:
+            label = await services.generate_label(session, slug)
+        except (AppNotFound, NoSourceDetail) as exc:
+            raise ValueError(str(exc)) from exc
+    return label.model_dump(mode="json")
 
 
 @mcp.tool
@@ -228,28 +209,15 @@ async def get_app_sources(slug: str) -> dict:
     rather than raising.
 
     Returned dict has keys ``installomator``, ``homebrew_cask``, ``autopkg``,
-    ``mas``, and ``jamf_app_installer``; each value is either the source's
-    native payload (dict) or ``None`` when that source has no data for the app.
+    and ``jamf_app_installer``; each value is either the source's native
+    payload (dict) or ``None`` when that source has no data for the app.
     """
     async with get_session_maker()() as session:
-        app_row = await session.scalar(select(AppRow).where(AppRow.slug == slug))
-        if app_row is None:
-            raise ValueError(f"App with slug '{slug}' not found")
-
-        detail_row = await session.scalar(
-            select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == app_row.id)
-        )
-        if detail_row is None:
-            return AppSources().model_dump(mode="json")
-
-        return AppSources.model_validate(
-            {
-                "installomator": detail_row.installomator,
-                "homebrew_cask": detail_row.homebrew_cask,
-                "autopkg": detail_row.autopkg,
-                "jamf_app_installer": detail_row.jamf_app_installer,
-            }
-        ).model_dump(mode="json")
+        try:
+            sources = await services.get_app_sources(session, slug)
+        except AppNotFound as exc:
+            raise ValueError(str(exc)) from exc
+    return sources.model_dump(mode="json")
 
 
 @mcp.tool

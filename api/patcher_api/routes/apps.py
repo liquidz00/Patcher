@@ -4,16 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import ColumnElement, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher.catalog import App, AppSources, DriftEntry, DriftResponse, GeneratedLabel
+from patcher_api import services
 from patcher_api.db import get_session
-from patcher_api.drift import detect_drift, scan_drift
-from patcher_api.labels import build_installomator_label
+from patcher_api.drift import detect_drift
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
 from patcher_api.models.jamf import JamfCatalogTitle
-from patcher_api.schemas.app import App
-from patcher_api.schemas.drift import DriftEntry, DriftResponse
-from patcher_api.schemas.labels import GenerateLabelResponse
-from patcher_api.schemas.sources import AppSources
+from patcher_api.services import AppNotFound, NoSourceDetail
 from patcher_api.stitch import _normalize_name
 
 router = APIRouter(
@@ -145,13 +143,9 @@ async def list_drift(
     :param limit: Max entries on this page. Default 100, max 1000.
     :param offset: Entries to skip before the page. Default 0.
     """
-    stmt = select(AppRow).order_by(AppRow.slug)
-    if vendor is not None:
-        stmt = stmt.where(AppRow.vendor.ilike(vendor))
-
-    rows = (await session.scalars(stmt)).all()
-
-    return scan_drift(rows, source=source, limit=limit, offset=offset)
+    return await services.scan_catalog_drift(
+        session, vendor=vendor, source=source, limit=limit, offset=offset
+    )
 
 
 @router.get("/{slug}", response_model=App)
@@ -159,13 +153,10 @@ async def get_app(
     slug: str,
     session: AsyncSession = Depends(get_session),
 ) -> AppRow:
-    row = await session.scalar(select(AppRow).where(AppRow.slug == slug))
-    if row is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"App with slug '{slug}' not found",
-        )
-    return row
+    try:
+        return await services.get_app(session, slug)
+    except AppNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 @router.get("/{slug}/sources", response_model=AppSources)
@@ -173,27 +164,10 @@ async def get_app_sources(
     slug: str,
     session: AsyncSession = Depends(get_session),
 ) -> AppSources:
-    app_row = await session.scalar(select(AppRow).where(AppRow.slug == slug))
-    if app_row is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"App with slug '{slug}' not found",
-        )
-
-    detail_row = await session.scalar(
-        select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == app_row.id)
-    )
-    if detail_row is None:
-        return AppSources()
-
-    return AppSources.model_validate(
-        {
-            "installomator": detail_row.installomator,
-            "homebrew_cask": detail_row.homebrew_cask,
-            "autopkg": detail_row.autopkg,
-            "jamf_app_installer": detail_row.jamf_app_installer,
-        }
-    )
+    try:
+        return await services.get_app_sources(session, slug)
+    except AppNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 @router.get("/{slug}/drift", response_model=DriftEntry | None)
@@ -219,11 +193,11 @@ async def get_app_drift(
     return detect_drift(app_row, app_row.source_detail)
 
 
-@router.post("/{slug}/generate-label", response_model=GenerateLabelResponse)
+@router.post("/{slug}/generate-label", response_model=GeneratedLabel)
 async def generate_label(
     slug: str,
     session: AsyncSession = Depends(get_session),
-) -> GenerateLabelResponse:
+) -> GeneratedLabel:
     """
     Generate an Installomator label for ``slug``.
 
@@ -240,30 +214,11 @@ async def generate_label(
     :raises HTTPException: 404 if ``slug`` doesn't exist; 422 if the app has
         no source detail attached (rare — usually a leftover seed record).
     :return: The generated label content + metadata.
-    :rtype: :class:`patcher_api.schemas.labels.GenerateLabelResponse`
+    :rtype: :class:`patcher_api.schemas.labels.GeneratedLabel`
     """
-    app_row = await session.scalar(select(AppRow).where(AppRow.slug == slug))
-    if app_row is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"App with slug '{slug}' not found",
-        )
-
-    detail = await session.scalar(
-        select(AppSourceDetailRow).where(AppSourceDetailRow.app_id == app_row.id)
-    )
-
-    if detail is None or (
-        detail.homebrew_cask is None
-        and detail.installomator is None
-        and detail.jamf_app_installer is None
-    ):
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                f"App '{slug}' has no source detail — cannot generate a label. "
-                "This is usually a leftover seed record; expected for production data."
-            ),
-        )
-
-    return build_installomator_label(app_row, detail)
+    try:
+        return await services.generate_label(session, slug)
+    except AppNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except NoSourceDetail as exc:
+        raise HTTPException(status_code=422, detail=str(exc))

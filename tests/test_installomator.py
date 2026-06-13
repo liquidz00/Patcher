@@ -23,8 +23,9 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
+from src.patcher.catalog._fragment_parser import _scan_value
 from src.patcher.clients import HTTPClient
-from src.patcher.clients.installomator import InstallomatorClient, _scan_value
+from src.patcher.clients.installomator import InstallomatorClient
 from src.patcher.core.exceptions import APIResponseError
 
 pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")

@@ -1,5 +1,6 @@
 import pytest
-from patcher_api.schemas.app import InstallMethod
+
+from patcher.catalog import InstallMethod
 
 
 @pytest.mark.asyncio
@@ -152,45 +153,45 @@ async def test_list_apps_rejects_negative_offset(client):
     assert response.status_code == 422
 
 
-# ETag + Cache-Control headers — derived from the catalog file's SHA-256
+# ETag + Cache-Control headers — derived from the catalog version token
 # computed at API startup. ASGITransport doesn't run lifespan by default,
-# so tests inject a synthetic hash directly into app.state.
+# so tests inject a synthetic token directly into app.state.
 
 
 @pytest.fixture
-def fixed_catalog_sha(monkeypatch):
-    """Pin a deterministic catalog hash so ETag assertions are stable."""
+def fixed_catalog_version(monkeypatch):
+    """Pin a deterministic catalog version token so ETag assertions are stable."""
     from patcher_api.main import app as fastapi_app
 
-    sha = "a" * 64
-    monkeypatch.setattr(fastapi_app.state, "catalog_sha", sha, raising=False)
-    return sha
+    token = "1749738600.123456"
+    monkeypatch.setattr(fastapi_app.state, "catalog_version", token, raising=False)
+    return token
 
 
 @pytest.mark.asyncio
-async def test_etag_present_on_apps_response(client, fixed_catalog_sha):
+async def test_etag_present_on_apps_response(client, fixed_catalog_version):
     response = await client.get("/apps?limit=3")
 
     assert response.status_code == 200
-    assert response.headers["etag"] == f'W/"{fixed_catalog_sha}"'
+    assert response.headers["etag"] == f'W/"{fixed_catalog_version}"'
     assert "max-age=300" in response.headers["cache-control"]
     assert "stale-while-revalidate=3600" in response.headers["cache-control"]
 
 
 @pytest.mark.asyncio
-async def test_etag_returns_304_on_if_none_match(client, fixed_catalog_sha):
+async def test_etag_returns_304_on_if_none_match(client, fixed_catalog_version):
     response = await client.get(
         "/apps?limit=3",
-        headers={"If-None-Match": f'W/"{fixed_catalog_sha}"'},
+        headers={"If-None-Match": f'W/"{fixed_catalog_version}"'},
     )
 
     assert response.status_code == 304
-    assert response.headers["etag"] == f'W/"{fixed_catalog_sha}"'
+    assert response.headers["etag"] == f'W/"{fixed_catalog_version}"'
     assert response.text == ""
 
 
 @pytest.mark.asyncio
-async def test_etag_returns_full_body_on_if_none_match_mismatch(client, fixed_catalog_sha):
+async def test_etag_returns_full_body_on_if_none_match_mismatch(client, fixed_catalog_version):
     """If the client's cached ETag doesn't match the live one, send the body."""
     response = await client.get(
         "/apps?limit=3",
@@ -202,11 +203,11 @@ async def test_etag_returns_full_body_on_if_none_match_mismatch(client, fixed_ca
 
 
 @pytest.mark.asyncio
-async def test_etag_absent_when_catalog_sha_unset(client, monkeypatch):
+async def test_etag_absent_when_catalog_version_unset(client, monkeypatch):
     """First boot pre-catalog or test transports without lifespan: no ETag."""
     from patcher_api.main import app as fastapi_app
 
-    monkeypatch.setattr(fastapi_app.state, "catalog_sha", None, raising=False)
+    monkeypatch.setattr(fastapi_app.state, "catalog_version", None, raising=False)
 
     response = await client.get("/apps?limit=3")
 
@@ -215,7 +216,7 @@ async def test_etag_absent_when_catalog_sha_unset(client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_etag_not_applied_to_health(client, fixed_catalog_sha):
+async def test_etag_not_applied_to_health(client, fixed_catalog_version):
     """/health is an ops endpoint; should always return fresh, no caching."""
     response = await client.get("/health")
 
@@ -280,7 +281,6 @@ async def test_get_app_sources_returns_empty_for_app_without_seed_sources(client
         "installomator": None,
         "homebrew_cask": None,
         "autopkg": None,
-        "mas": None,
         "jamf_app_installer": None,
     }
 
@@ -299,7 +299,7 @@ def test_autopkg_recipe_entry_tolerates_null_name_and_shortname():
     must accept them or /apps/{slug}/sources 500s for any app whose matched
     recipes lack one (caught on `privileges`).
     """
-    from patcher_api.schemas.sources import AppSources, AutopkgRecipeEntry
+    from patcher.catalog import AppSources, AutopkgRecipeEntry
 
     entry = AutopkgRecipeEntry.model_validate(
         {
