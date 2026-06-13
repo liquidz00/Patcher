@@ -18,7 +18,6 @@ whole batch — same resilience pattern as the ingest scripts.
 Idempotent — re-running upserts existing rows rather than duplicating.
 """
 
-import logging
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -29,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from patcher.catalog._normalize import normalize_name as _normalize_name
 from patcher.policy import CURATED_BUNDLE_IDS
+from patcher_api.db import run_in_savepoint
 from patcher_api.installomator.resolver import is_shell_expression, looks_like_clean_http_url
 from patcher_api.models.app import App as AppRow
 from patcher_api.models.app import AppSourceDetail as AppSourceDetailRow
@@ -36,8 +36,6 @@ from patcher_api.models.autopkg import AutopkgRecipe
 from patcher_api.models.homebrew import HomebrewCask
 from patcher_api.models.installomator import InstallomatorLabel
 from patcher_api.models.jamf import JamfAppInstaller
-
-log = logging.getLogger(__name__)
 
 # Mirrors patcher_api.schemas.app.InstallMethod values. Anything outside this
 # set comes back as None, which the nullable install_method column accepts.
@@ -736,18 +734,13 @@ def _resolve_cask(cask: HomebrewCask, indexes: _StitchIndexes) -> _ResolvedApp:
 
 
 async def _commit_app(session: AsyncSession, resolved: _ResolvedApp) -> bool:
-    """
-    Upsert one resolved app inside a SAVEPOINT so a single bad record can't poison
-    the batch. Returns True on success; logs and returns False on any failure.
-    """
+    """Upsert one resolved app inside a SAVEPOINT (see :func:`patcher_api.db.run_in_savepoint`)."""
     slug = resolved.upsert_kwargs["slug"]
-    try:
-        async with session.begin_nested():
-            await _upsert_app_with_sources(session, **resolved.upsert_kwargs)
-        return True
-    except Exception as exc:
-        log.warning("Failed to stitch %r: %s", slug, exc)
-        return False
+    return await run_in_savepoint(
+        session,
+        lambda: _upsert_app_with_sources(session, **resolved.upsert_kwargs),
+        label=f"app {slug!r}",
+    )
 
 
 async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int, int]:
@@ -783,7 +776,7 @@ async def stitch_catalog(session: AsyncSession) -> tuple[int, int, int, int, int
           AutoPkg recipes attached (across all phases)
         - ``jai_attached_apps`` is the count of apps with a JAI catalog row
           attached (across all phases)
-        - ``failed`` is the count of records that raised an unexpected error
+        - ``failed`` is the count of records whose upsert hit a database error
     :rtype: tuple[int, int, int, int, int, int]
     """
     labels = (await session.scalars(select(InstallomatorLabel))).all()

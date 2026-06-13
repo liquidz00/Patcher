@@ -52,7 +52,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from patcher.catalog._fragment_parser import parse_fragment
 from patcher.policy import INGEST_EXCLUDED_TEAM_IDS
-from patcher_api.db import upsert_stmt
+from patcher_api.db import execute_in_savepoint, upsert_stmt
 from patcher_api.installomator.resolver import (
     InvalidOutput,
     Resolved,
@@ -384,34 +384,31 @@ async def ingest_installomator_labels(
                 skipped += 1
                 continue
 
-            try:
-                now = datetime.now(UTC)
-                stmt = upsert_stmt(
-                    InstallomatorLabel,
-                    index_elements=["name"],
-                    name=name,
-                    display_name=_scalar_for_column(parsed.get("name")),
-                    install_type=_scalar_for_column(parsed.get("type")),
-                    package_id=_scalar_for_column(parsed.get("packageID")),
-                    download_url=resolved_download_url,
-                    expected_team_id=_scalar_for_column(parsed.get("expectedTeamID")),
-                    app_new_version=resolved_app_new_version,
-                    raw=parsed,
-                    fragment=name_to_content[name],
-                    blob_sha=blob_shas.get(name),
-                    # Linux wrote these; clear any macOS stamp (content changed,
-                    # so the old macOS value is stale — the next runner re-stamps).
-                    resolution_source=None,
-                    resolved_at=None,
-                    ingested_at=now,
-                )
-                await session.execute(stmt)
-                await session.commit()
+            now = datetime.now(UTC)
+            stmt = upsert_stmt(
+                InstallomatorLabel,
+                index_elements=["name"],
+                name=name,
+                display_name=_scalar_for_column(parsed.get("name")),
+                install_type=_scalar_for_column(parsed.get("type")),
+                package_id=_scalar_for_column(parsed.get("packageID")),
+                download_url=resolved_download_url,
+                expected_team_id=_scalar_for_column(parsed.get("expectedTeamID")),
+                app_new_version=resolved_app_new_version,
+                raw=parsed,
+                fragment=name_to_content[name],
+                blob_sha=blob_shas.get(name),
+                # Linux wrote these; clear any macOS stamp (content changed,
+                # so the old macOS value is stale — the next runner re-stamps).
+                resolution_source=None,
+                resolved_at=None,
+                ingested_at=now,
+            )
+            if await execute_in_savepoint(session, stmt, label=f"label {name!r}"):
                 ingested += 1
-            except Exception as exc:
-                await session.rollback()
-                log.warning("Failed to ingest label %r: %s", name, exc)
+            else:
                 failed += 1
+        await session.commit()
     finally:
         if resolver_client is not None:
             resolver_client.close()
@@ -486,17 +483,14 @@ async def refresh_dynamic_resolutions(session: AsyncSession, *, already_resolved
     try:
         results = await asyncio.gather(*(refresh_one(row) for row in candidates))
         for name, download_url, app_new_version in results:
-            try:
-                await session.execute(
-                    update(InstallomatorLabel)
-                    .where(InstallomatorLabel.name == name)
-                    .values(download_url=download_url, app_new_version=app_new_version)
-                )
-                await session.commit()
+            stmt = (
+                update(InstallomatorLabel)
+                .where(InstallomatorLabel.name == name)
+                .values(download_url=download_url, app_new_version=app_new_version)
+            )
+            if await execute_in_savepoint(session, stmt, label=f"label {name!r}"):
                 refreshed += 1
-            except Exception as exc:
-                await session.rollback()
-                log.warning("Failed to refresh resolution for %r: %s", name, exc)
+        await session.commit()
     finally:
         resolver_client.close()
 

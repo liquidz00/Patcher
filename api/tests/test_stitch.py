@@ -557,6 +557,35 @@ async def test_stitch_returns_correct_counts(populated_session):
 
 
 @pytest.mark.asyncio
+async def test_stitch_db_error_on_one_app_does_not_poison_batch(populated_session, monkeypatch):
+    """A database error upserting one app is isolated by the savepoint; the rest still land."""
+    from patcher_api import stitch as stitch_module
+    from sqlalchemy.exc import SQLAlchemyError
+
+    real_upsert = stitch_module._upsert_app_with_sources
+
+    async def flaky_upsert(session, **kwargs):
+        if kwargs.get("slug") == "onlyinstallomator":
+            raise SQLAlchemyError("simulated database error")
+        return await real_upsert(session, **kwargs)
+
+    monkeypatch.setattr(stitch_module, "_upsert_app_with_sources", flaky_upsert)
+
+    (il, cask_only, both, autopkg_attached, jai_attached, failed) = await stitch_catalog(
+        populated_session
+    )
+
+    assert failed == 1
+    # The failing app is absent; every other app still upserted.
+    assert (
+        await populated_session.scalar(select(AppRow).where(AppRow.slug == "onlyinstallomator"))
+    ) is None
+    assert (
+        await populated_session.scalar(select(AppRow).where(AppRow.slug == "firefox"))
+    ) is not None
+
+
+@pytest.mark.asyncio
 async def test_stitch_token_match_attaches_cask_source(populated_session):
     await stitch_catalog(populated_session)
 
