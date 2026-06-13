@@ -5,10 +5,14 @@ import re
 import keyring
 from keyring.errors import KeyringError
 
+from .._platform import _configure_keyring
 from .exceptions import CredentialError
 from .logger import LogMe
 from .models.jamf import JamfCredentials
 from .models.token import AccessToken
+
+# Set the keyring backend here (the keyring boundary), not in patcher/__init__, so the catalog path stays import-light.
+_configure_keyring()
 
 # macOS Security framework -25244 / errSecInvalidOwnerEdit fires when a
 # different process identity tries to update a Keychain item. See issue #68.

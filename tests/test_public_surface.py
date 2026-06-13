@@ -10,6 +10,8 @@ Imports the installed ``patcher`` package (the path users get), not the
 packaging change that drops a module from the wheel surfaces here.
 """
 
+import subprocess
+import sys
 from unittest.mock import AsyncMock
 
 import pytest
@@ -142,3 +144,22 @@ def test_package_all_matches_exports():
 
     for name in patcher.__all__:
         assert hasattr(patcher, name), f"__all__ promises `{name}` but it is not on the package"
+
+
+def test_leaf_import_stays_lightweight():
+    """
+    ``import patcher.catalog`` (the wire schemas the API server shares) must not
+    drag in the CLI/report-only heavyweights. Guards the lazy ``__init__`` from
+    regressing if someone re-adds an eager top-level import. Runs in a fresh
+    interpreter because the test process has already imported these elsewhere.
+    """
+    code = (
+        "import sys, patcher.catalog;"
+        "heavy = [m for m in ('pandas', 'keyring', 'fpdf', 'openpyxl', 'numpy')"
+        " if any(k == m or k.startswith(m + '.') for k in sys.modules)];"
+        "print(','.join(heavy))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    assert result.stdout.strip() == "", f"leaf import pulled heavy deps: {result.stdout.strip()}"
