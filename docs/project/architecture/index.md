@@ -323,6 +323,7 @@ api/patcher_api/
 ├── db.py                    # async SQLAlchemy engine + session, SQLite-tuned pragmas
 ├── catalog.py               # version token (newest row timestamp) for ETag derivation
 ├── stitch.py                # canonical-row projection (see concept page)
+├── services.py              # per-app fetch/project/label logic shared by routes + MCP
 ├── drift.py                 # cross-source version disagreement detection
 ├── labels.py                # Installomator-shaped label fragment builder
 ├── seed.py                  # smoke seed for empty DBs
