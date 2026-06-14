@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Patcher API schema drift audit
+Documentation=https://github.com/liquidz00/Patcher
+
+[Timer]
+# An hour after the catalog refresh; schema only changes on deploy, so the exact time is not critical.
+OnCalendar=*-*-* 06:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

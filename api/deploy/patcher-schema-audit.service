@@ -1,0 +1,23 @@
+[Unit]
+Description=Audit the Patcher API DB schema against the ORM models
+Documentation=https://github.com/liquidz00/Patcher
+After=network-online.target patcher-api.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/patcher-api/env
+WorkingDirectory=/opt/patcher/api
+
+# Healthchecks dead-man's switch; AUDIT_HEALTHCHECK_URL lives in the env file.
+ExecStartPre=-/usr/bin/curl -fsS -m 10 --retry 3 -o /dev/null ${AUDIT_HEALTHCHECK_URL}/start
+
+# Read-only audit (runs as the DB owner). Drift makes it exit non-zero, which
+# fails the unit so ExecStopPost fires the /fail ping.
+ExecStart=/usr/sbin/runuser -u patcher -- /opt/patcher/.venv/bin/python /opt/patcher/api/scripts/audit_schema.py
+
+ExecStartPost=-/usr/bin/curl -fsS -m 10 --retry 3 -o /dev/null ${AUDIT_HEALTHCHECK_URL}
+ExecStopPost=/bin/sh -c '[ "$$SERVICE_RESULT" = success ] || [ -z "$$AUDIT_HEALTHCHECK_URL" ] || curl -fsS -m 10 --retry 3 -o /dev/null "$$AUDIT_HEALTHCHECK_URL/fail"'
+
+StandardOutput=journal
+StandardError=journal
