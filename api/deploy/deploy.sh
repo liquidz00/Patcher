@@ -4,6 +4,7 @@ set -euo pipefail
 
 REPO=/opt/patcher
 ALEMBIC="$REPO/.venv/bin/alembic"
+PYTHON="$REPO/.venv/bin/python"
 CODE_USER="${DEPLOY_CODE_USER:?set DEPLOY_CODE_USER in the env file}"  # owns the code + venv
 DB_USER="${DEPLOY_DB_USER:-patcher}"                                  # owns the DB
 UV="${DEPLOY_UV_BIN:?set DEPLOY_UV_BIN in the env file}"              # the code user's uv binary
@@ -26,6 +27,10 @@ main() {
     /usr/sbin/runuser -u "$DB_USER" -- bash -c "cd '$REPO/api' && '$ALEMBIC' upgrade head"
 
     systemctl restart patcher-api.service
+
+    # Automatically stitch after migrations so new code meets the new schema first
+    # Stitch doesn't move ingested_at, so the edge cache lags briefly.
+    /usr/sbin/runuser -u "$DB_USER" -- bash -c "cd '$REPO/api' && '$PYTHON' scripts/ingest.py stitch"
 }
 
 main "$@"
