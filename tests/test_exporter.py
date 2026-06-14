@@ -108,8 +108,8 @@ class TestExportExcel:
         ]
 
     @pytest.mark.asyncio
-    async def test_export_adds_homebrew_column_when_matched(self, temp_output_dir):
-        """A Homebrew coverage column appears (showing cask tokens) only when titles matched a cask."""
+    async def test_export_never_adds_integration_columns_even_when_matched(self, temp_output_dir):
+        """Rendered reports carry no integration coverage column, even when a cask matched."""
         from src.patcher.core.models.cask import CaskMatch
 
         matched = PatchTitle(
@@ -137,16 +137,16 @@ class TestExportExcel:
         )
         out = pd.read_excel(exported["excel"])
 
-        assert "Homebrew" in out.columns
-        assert out.loc[out["Title"] == "Firefox", "Homebrew"].iloc[0] == "firefox"
-        # Raw list-of-dicts field is never surfaced as a column.
+        # The cask match still rides on the title (it reaches analyze/JSON), but a
+        # rendered report surfaces no integration column, derived or raw.
+        assert "Homebrew" not in out.columns
         assert "Homebrew Cask" not in out.columns
 
     @pytest.mark.asyncio
     async def test_export_omits_homebrew_column_without_matches(
         self, sample_patch_reports, temp_output_dir
     ):
-        """Default (Installomator-only) exports gain no Homebrew column."""
+        """Installomator-only exports gain no Homebrew column either."""
         df = _frame(sample_patch_reports)
         exported = await Exporter(sample_patch_reports).export(
             df, temp_output_dir, "Test Report", formats={"excel"}

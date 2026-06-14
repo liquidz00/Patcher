@@ -175,6 +175,11 @@ patcher = PatcherClient(
 
 With matching disabled, patch title fetching never calls the matching algorithm. `install_label` field on every patch title stays empty.
 
+### Export Field Policy
+
+```{include} _export-fields.md
+```
+
 ## Analyze
 
 {meth}`~patcher.core.patcher_client.PatcherClient.analyze` filters and sorts the titles you fetched against a named criterion, the same criteria the CLI exposes (for example `"most-installed"` or `"below-threshold"`). For type-checked, autocomplete-friendly access, construct {class}`~patcher.core.analyze.TitleFilter` directly instead of passing a string.

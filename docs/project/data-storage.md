@@ -27,7 +27,11 @@ Everything Patcher writes outside of the keychain and the patch-data cache lives
 └── logs/                             # LaunchAgent stdout/stderr (if scheduled)
 ```
 
+:::{admonition} Deprecated in version 3.3.2
+:class: warning
+
 Older versions also kept a `.labels/` directory of cached label scripts. That cache is gone; Patcher removes any leftover directory automatically on the next run and on `reset cache`.
+:::
 
 To wipe this directory entirely, use `patcherctl reset full`. To wipe just the patch-data cache (separate location, see below), use `patcherctl reset cache`.
 

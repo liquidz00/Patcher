@@ -393,7 +393,7 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
 @click.option(
     "--homebrew/--no-homebrew",
     default=False,
-    help="Also match titles against the Homebrew Cask catalog (a second matching dimension alongside Installomator). Adds a Homebrew coverage column to reports.",
+    help="Also match titles against the Homebrew Cask catalog (a second matching dimension alongside Installomator). Coverage surfaces in analyze and JSON exports, not rendered reports.",
 )
 @click.pass_context
 async def export(
@@ -437,7 +437,7 @@ async def export(
     :type concurrency: int
     :param device_details: If True, includes per-title device detail sheets in Excel export.
     :type device_details: bool
-    :param homebrew: If True, also match titles against the Homebrew Cask catalog and add a Homebrew coverage column to reports.
+    :param homebrew: If True, also match titles against the Homebrew Cask catalog. Coverage surfaces in analyze and JSON exports, not rendered reports.
     :type homebrew: bool
     """
     settings = ctx.obj.get("settings")

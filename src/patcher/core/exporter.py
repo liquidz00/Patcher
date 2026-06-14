@@ -29,8 +29,7 @@ class Exporter:
         :class:`~patcher.core.data_manager.DataManager` and handed in to
         :meth:`export`; the exporter never touches the cache.
 
-        :param patch_titles: Titles backing the report (used for the JSON
-            payload and the derived Homebrew coverage column).
+        :param patch_titles: Titles backing the report (used for the JSON payload).
         :type patch_titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
         :param ui_config: Optional dict of UI settings (header text, footer
             text, font paths, logo, header color) forwarded to
@@ -327,13 +326,6 @@ class Exporter:
             columns=[col.replace("_", " ").title() for col in IGNORED_EXPORT_COLUMNS],
             errors="ignore",
         )
-
-        # Derived Homebrew column (matched cask tokens); the raw field is dropped, added only when a cask matched.
-        if any(title.homebrew_cask for title in self.patch_titles):
-            df["Homebrew"] = [
-                ", ".join(match.token for match in (title.homebrew_cask or []))
-                for title in self.patch_titles
-            ]
 
         # Verification of directory existence runs synchronously
         output_dir = Path(output_dir)

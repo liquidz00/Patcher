@@ -58,7 +58,7 @@ Pulling patch data out of Jamf and into formats you can actually share. By defau
 : Per-title device sheets in the Excel export (slower on large fleets)
 
 `--homebrew` / `--no-homebrew`
-: Also match titles against Homebrew Cask; adds a `Homebrew` coverage column (see [Homebrew matching](#homebrew))
+: Also match titles against Homebrew Cask, a second matching dimension (see [Homebrew matching](#homebrew)). Coverage surfaces in `analyze` and JSON exports, not rendered reports.
 
 ### Examples
 
@@ -156,6 +156,12 @@ If catalog matching doesn't fit your environment, turn it off entirely. When dis
 $ defaults write \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist \
   enable_matching -bool false
+```
+
+(exported-field-policy)=
+### Export Field Policy
+
+```{include} _export-fields.md
 ```
 
 (analyze)=

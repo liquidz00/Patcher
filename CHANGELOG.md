@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+- **Rendered reports (PDF/Excel/HTML) no longer include a Homebrew coverage column.** Catalog-integration matches are kept out of the rendered reports entirely now, for consistency: coverage belongs in `analyze` and the JSON export. `--homebrew` still enables Homebrew as a matching dimension (it just no longer adds a column), and the cask matches still ride on each title for `analyze` and JSON. A future release will add an opt-in to surface per-integration coverage columns on demand.
 
 ## [v3.3.2] - 2026-06-13
 ### Added

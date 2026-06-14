@@ -97,7 +97,7 @@ packages = ["src/patcher"]
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
-exclude = ["docs", "api/alembic"]
+exclude = ["docs", "api/alembic", "src/patcher/policy.py"]
 force-exclude = true
 
 [tool.ruff.format]
