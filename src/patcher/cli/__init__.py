@@ -449,6 +449,7 @@ async def export(
         debug=ctx.obj.get("debug"),
         enable_matching=settings.enable_matching,
         enable_homebrew=homebrew,
+        integrations=settings.integrations,
         ui_config=settings.user_interface_settings.model_dump(),
         ignored_titles=settings.ignored_titles,
     )
@@ -485,7 +486,6 @@ async def export(
         date_format=actual_format,
         report_title=patcher.ui_config.get("header_text"),
         enable_iom=patcher.api is not None,
-        enable_homebrew=patcher.enable_homebrew,
         header_color=patcher.ui_config.get("header_color"),
         device_details=device_details,
     )

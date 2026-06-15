@@ -132,7 +132,6 @@ async def process_reports(
     header_color: str,
     date_format: str = "%B %d %Y",
     enable_iom: bool = True,
-    enable_homebrew: bool = False,
     device_details: bool = False,
 ) -> None:
     """
@@ -164,14 +163,8 @@ async def process_reports(
     :type header_color: str
     :param date_format: ``datetime.strftime`` format string for date columns.
     :type date_format: str
-    :param enable_iom: If False, skip Installomator label matching.
+    :param enable_iom: If False, skip catalog matching entirely.
     :type enable_iom: bool
-    :param enable_homebrew: If True, widen matching to the Homebrew Cask
-        source so cask-only titles can match, recording matched cask slugs
-        under :attr:`~patcher.core.models.patch.PatchTitle.sources`. Rides on
-        the same match pass as Installomator, so it is a no-op when
-        ``enable_iom`` is False.
-    :type enable_homebrew: bool
     :param device_details: If True, include per-title device sheets in Excel export.
     :type device_details: bool
     """
@@ -208,9 +201,10 @@ async def process_reports(
             patch_reports = await append_ios_status(patch_reports, patcher.jamf)
 
         if enable_iom and patcher.api is not None:
+            enabled = patcher.integrations.enabled_tokens()
             msg = (
                 "Identifying Installomator and Homebrew support for titles..."
-                if enable_homebrew
+                if "homebrew_cask" in enabled
                 else "Identifying Installomator support for titles..."
             )
             progress.update(task, description=msg, total=len(patch_reports), completed=0)
@@ -223,7 +217,7 @@ async def process_reports(
                     patch_reports,
                     jamf=patcher.jamf,
                     api=patcher.api,
-                    include_homebrew=enable_homebrew,
+                    enabled_sources=enabled,
                     progress_callback=on_match,
                 )
             except APIResponseError as e:

@@ -33,7 +33,7 @@ from .exporter import Exporter
 from .logger import LogMe
 from .matching import match_titles
 from .models.patch import PatchTitle
-from .models.settings import PatcherSettings, UIConfigKeys, UIDefaults
+from .models.settings import Integrations, PatcherSettings, UIConfigKeys, UIDefaults
 from .serialization import excel_to_titles
 
 
@@ -59,6 +59,7 @@ class PatcherClient:
         debug: bool = False,
         enable_matching: bool = True,
         enable_homebrew: bool = False,
+        integrations: Integrations | None = None,
         ui_config: dict | None = None,
         ignored_titles: list[str] | None = None,
         enable_installomator: bool | None = None,  # deprecated alias for enable_matching
@@ -118,14 +119,16 @@ class PatcherClient:
             catalog matching (Installomator labels and Homebrew Cask) is
             skipped. Defaults to True.
         :type enable_matching: bool
-        :param enable_homebrew: Default for whether :meth:`fetch_patches`
-            widens matching to the Homebrew Cask source so cask-only titles
-            can match, recording matched cask slugs under
-            :attr:`~patcher.core.models.patch.PatchTitle.sources`. Has
-            no effect when :attr:`api` is ``None`` (i.e.
-            ``enable_matching=False``), since matching rides on the same
-            catalog client. Defaults to False.
+        :param enable_homebrew: Deprecated force-on override for the Homebrew
+            Cask integration; prefer ``integrations``. When True, enables the
+            ``homebrew`` source regardless of ``integrations``. Defaults to
+            False (no override).
         :type enable_homebrew: bool
+        :param integrations: Per-source matching toggles
+            (:class:`~patcher.core.models.settings.Integrations`). Gates which
+            sources are paged as match candidates and recorded on each title's
+            ``sources`` map. Defaults to all sources enabled.
+        :type integrations: :class:`~patcher.core.models.settings.Integrations` | None
         :param ui_config: Optional dict of UI settings (header text,
             footer, font paths, header color, etc.) for PDF/HTML report
             styling. Defaults to :class:`UIDefaults` values.
@@ -169,7 +172,9 @@ class PatcherClient:
         self.debug = debug
         self.jamf = JamfClient(config=config, concurrency=concurrency)
         self.api = PatcherAPIClient(max_concurrency=concurrency) if enable_matching else None
-        self.enable_homebrew = enable_homebrew
+        self.integrations = integrations.model_copy() if integrations else Integrations()
+        if enable_homebrew:  # deprecated force-on override
+            self.integrations.homebrew = True
         self.ignored_titles = ignored_titles or []
         # Resolve ui_config before DataManager so PDF export gets the user's branding, not UIDefaults. See #69.
         self.ui_config = ui_config if ui_config is not None else UIDefaults().model_dump()
@@ -181,8 +186,8 @@ class PatcherClient:
         Construct a ``PatcherClient`` using state already persisted on this Mac.
 
         Reads Jamf credentials from the macOS keychain, UI customization
-        from the property list, and the ``enable_matching`` /
-        ``enable_homebrew`` toggles.
+        from the property list, and the ``enable_matching`` toggle plus the
+        per-source ``integrations``.
         Equivalent to what the ``patcherctl`` CLI does on startup; useful
         for library callers running on a workstation that has already been
         through the setup wizard.
@@ -202,7 +207,7 @@ class PatcherClient:
         kwargs: dict[str, Any] = {
             "config": ConfigManager(),
             "enable_matching": settings.enable_matching,
-            "enable_homebrew": settings.integrations.homebrew,
+            "integrations": settings.integrations,
             "ui_config": settings.user_interface_settings.model_dump(),
             "ignored_titles": settings.ignored_titles,
         }
@@ -237,13 +242,11 @@ class PatcherClient:
             (:func:`~patcher.core.matching.match_titles`). No-op when
             ``enable_matching=False`` was passed at construction time.
         :type match_installomator: bool
-        :param match_homebrew: Whether to widen matching to the Homebrew Cask
-            source so cask-only titles can match, recording matched cask slugs
-            under :attr:`~patcher.core.models.patch.PatchTitle.sources`.
-            ``None`` (default) falls back to the ``enable_homebrew`` value
-            set at construction time. Rides on the same match pass as
-            Installomator, so it is a no-op when ``match_installomator`` is
-            False or :attr:`api` is ``None``.
+        :param match_homebrew: Per-call override for the Homebrew Cask source.
+            ``True`` forces it on, ``False`` forces it off, ``None`` (default)
+            uses the ``integrations`` configured at construction. Rides on the
+            same match pass as Installomator, so it is a no-op when
+            ``match_installomator`` is False or :attr:`api` is ``None``.
         :type match_homebrew: bool | None
         :param include_ios: If True, append per-iOS-version summaries to the
             returned list. Costs additional Jamf API calls.
@@ -270,12 +273,16 @@ class PatcherClient:
             title.name_id = name_id_by_title.get(title.title_id)
 
         if match_installomator and self.api is not None:
-            include_homebrew = self.enable_homebrew if match_homebrew is None else match_homebrew
+            enabled = self.integrations.enabled_tokens()
+            if match_homebrew is True:
+                enabled.add("homebrew_cask")
+            elif match_homebrew is False:
+                enabled.discard("homebrew_cask")
             await match_titles(
                 titles,
                 jamf=self.jamf,
                 api=self.api,
-                include_homebrew=include_homebrew,
+                enabled_sources=enabled,
                 ignored_titles=self.ignored_titles,
             )
 

@@ -106,7 +106,13 @@ class TestMatchTitlesPipeline:
         jamf = AsyncMock()
         jamf.get_app_names.return_value = [{"Patch": "Firefox", "App Names": ["Firefox"]}]
 
-        await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "review.json")
+        await match_titles(
+            [title],
+            jamf=jamf,
+            api=api,
+            review_file=tmp_path / "review.json",
+            enabled_sources={"installomator"},
+        )
 
         api.list_apps.assert_awaited_once_with(source="installomator", limit=1000, offset=0)
         assert title.installomator == ["firefox"]
@@ -233,14 +239,20 @@ class TestMatchTitlesPipeline:
 class TestHomebrewMatching:
     @pytest.mark.asyncio
     @pytest.mark.filterwarnings("ignore::src.patcher.core.exceptions.InstallomatorWarning")
-    async def test_off_by_default_ignores_cask_only_slug(self, tmp_path):
-        """With include_homebrew unset, only the installomator source is fetched."""
+    async def test_installomator_only_skips_homebrew_fetch(self, tmp_path):
+        """With only installomator enabled, the homebrew source is never queried."""
         title = _patch_title("Rectangle")
         api = _api_with({"homebrew_cask": [_app("rectangle", sources=["homebrew_cask"])]})
         jamf = AsyncMock()
         jamf.get_app_names.return_value = [{"Patch": "Rectangle", "App Names": ["Rectangle"]}]
 
-        await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "r.json")
+        await match_titles(
+            [title],
+            jamf=jamf,
+            api=api,
+            review_file=tmp_path / "r.json",
+            enabled_sources={"installomator"},
+        )
 
         # homebrew_cask source was never queried; the cask-only slug is invisible.
         api.list_apps.assert_awaited_once_with(source="installomator", limit=1000, offset=0)
@@ -248,14 +260,13 @@ class TestHomebrewMatching:
 
     @pytest.mark.asyncio
     async def test_cask_only_populates_homebrew_source(self, tmp_path):
+        """The default (ungated) run fetches the homebrew source too, so cask-only apps match."""
         title = _patch_title("Rectangle")
         api = _api_with({"homebrew_cask": [_app("rectangle", sources=["homebrew_cask"])]})
         jamf = AsyncMock()
         jamf.get_app_names.return_value = [{"Patch": "Rectangle", "App Names": ["Rectangle"]}]
 
-        await match_titles(
-            [title], jamf=jamf, api=api, review_file=tmp_path / "r.json", include_homebrew=True
-        )
+        await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "r.json")
 
         assert title.installomator == []
         assert title.homebrew_cask == ["rectangle"]
@@ -268,16 +279,14 @@ class TestHomebrewMatching:
         jamf = AsyncMock()
         jamf.get_app_names.return_value = [{"Patch": "Firefox", "App Names": ["Firefox"]}]
 
-        await match_titles(
-            [title], jamf=jamf, api=api, review_file=tmp_path / "r.json", include_homebrew=True
-        )
+        await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "r.json")
 
         assert title.installomator == ["firefox"]
         assert title.homebrew_cask == ["firefox"]
 
     @pytest.mark.asyncio
-    async def test_dual_source_with_toggle_off_records_all_sources(self, tmp_path):
-        """A dual-source slug matched via Installomator still records every source it carries."""
+    async def test_records_all_sources_when_ungated(self, tmp_path):
+        """A dual-source slug records every source it carries when no gating is applied."""
         dual = _app("firefox", name="Firefox", sources=["installomator", "homebrew_cask"])
         title = _patch_title("Firefox")
         api = _api_with({"installomator": [dual]})
@@ -286,10 +295,30 @@ class TestHomebrewMatching:
 
         await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "r.json")
 
-        # Coverage surfaces for free: the cask source is recorded even though the
-        # candidate set was Installomator-only (toggle off).
+        # Coverage surfaces for free: the cask source is recorded from the matched
+        # App even though it was fetched via the installomator candidate set.
         assert title.installomator == ["firefox"]
         assert title.homebrew_cask == ["firefox"]
+
+    @pytest.mark.asyncio
+    async def test_gating_excludes_disabled_source(self, tmp_path):
+        """A source absent from enabled_sources is not recorded, even if the App carries it."""
+        dual = _app("firefox", name="Firefox", sources=["installomator", "homebrew_cask"])
+        title = _patch_title("Firefox")
+        api = _api_with({"installomator": [dual]})
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = [{"Patch": "Firefox", "App Names": ["Firefox"]}]
+
+        await match_titles(
+            [title],
+            jamf=jamf,
+            api=api,
+            review_file=tmp_path / "r.json",
+            enabled_sources={"installomator"},
+        )
+
+        assert title.installomator == ["firefox"]
+        assert title.homebrew_cask == []
 
     @pytest.mark.asyncio
     async def test_second_pass_routes_cask(self, tmp_path):
@@ -300,9 +329,7 @@ class TestHomebrewMatching:
         # No app names — forces the second pass to normalize the patch title text.
         jamf.get_app_names.return_value = [{"Patch": "Google Chrome", "App Names": []}]
 
-        await match_titles(
-            [title], jamf=jamf, api=api, review_file=tmp_path / "r.json", include_homebrew=True
-        )
+        await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "r.json")
 
         assert title.installomator == []
         assert title.homebrew_cask == ["googlechrome"]
@@ -326,7 +353,13 @@ class TestHomebrewMatching:
         jamf.get_app_names.return_value = [{"Patch": "C App", "App Names": ["c"]}]
         title = _patch_title("C App")
 
-        await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "r.json")
+        await match_titles(
+            [title],
+            jamf=jamf,
+            api=api,
+            review_file=tmp_path / "r.json",
+            enabled_sources={"installomator"},
+        )
 
         # Two list_apps calls: offset 0 (full page) then offset 2 (short page → stop).
         assert api.list_apps.await_count == 2
