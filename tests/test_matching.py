@@ -13,7 +13,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
-from src.patcher.clients.patcher_api import App, InstallMethod
+from src.patcher.clients.patcher_api import App
 from src.patcher.core import matching
 from src.patcher.core.exceptions import APIResponseError, InstallomatorWarning
 from src.patcher.core.matching import (
@@ -99,7 +99,7 @@ class TestMatchFuzzy:
 
 class TestMatchTitlesPipeline:
     @pytest.mark.asyncio
-    async def test_direct_match_attaches_label_stub(self, tmp_path):
+    async def test_direct_match_records_installomator_slug(self, tmp_path):
         title = _patch_title("Firefox")
         api = AsyncMock()
         api.list_apps.return_value = [_app("firefox", name="Firefox")]
@@ -109,33 +109,8 @@ class TestMatchTitlesPipeline:
         await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "review.json")
 
         api.list_apps.assert_awaited_once_with(source="installomator", limit=1000, offset=0)
-        assert len(title.install_label) == 1
-        assert title.install_label[0].installomator_label == "firefox"
-        assert title.install_label[0].name == "Firefox"
-
-    @pytest.mark.asyncio
-    async def test_install_label_stub_hydrated_from_app(self, tmp_path):
-        """The stub carries install type, download URL, and Team ID from the matched App."""
-        title = _patch_title("Firefox")
-        app = App(
-            slug="firefox",
-            name="Firefox",
-            sources=["installomator"],
-            install_method=InstallMethod.DMG,
-            expected_team_id="43AQ936H96",
-            download_url="https://download.mozilla.org/?product=firefox-latest&os=osx",
-        )
-        api = AsyncMock()
-        api.list_apps.return_value = [app]
-        jamf = AsyncMock()
-        jamf.get_app_names.return_value = [{"Patch": "Firefox", "App Names": ["Firefox"]}]
-
-        await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "review.json")
-
-        stub = title.install_label[0]
-        assert stub.type == "dmg"
-        assert stub.expected_team_id == "43AQ936H96"
-        assert stub.download_url is not None and "download.mozilla.org" in stub.download_url
+        assert title.installomator == ["firefox"]
+        assert title.sources == {"installomator": ["firefox"]}
 
     @pytest.mark.asyncio
     async def test_no_match_writes_review_file(self, tmp_path):
@@ -149,7 +124,7 @@ class TestMatchTitlesPipeline:
         with pytest.warns(InstallomatorWarning):
             await match_titles([title], jamf=jamf, api=api, review_file=review_file)
 
-        assert title.install_label == []
+        assert title.installomator == []
         assert review_file.exists()
         assert "Acme Reader" in review_file.read_text()
 
@@ -164,7 +139,7 @@ class TestMatchTitlesPipeline:
 
         await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "review.json")
 
-        assert title.install_label == []
+        assert title.installomator == []
         # Jamf side still gets queried, but no match attempt is made for the
         # ignored title (no entry appears in unmatched_apps either).
 
@@ -180,7 +155,7 @@ class TestMatchTitlesPipeline:
 
         await match_titles([title], jamf=jamf, api=api, review_file=review_file)
 
-        assert title.install_label == []
+        assert title.installomator == []
         assert not review_file.exists() or ignored not in review_file.read_text()
 
     @pytest.mark.asyncio
@@ -196,8 +171,7 @@ class TestMatchTitlesPipeline:
 
         await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "review.json")
 
-        assert len(title.install_label) == 1
-        assert title.install_label[0].installomator_label == "googlechrome"
+        assert title.installomator == ["googlechrome"]
 
     @pytest.mark.asyncio
     async def test_api_failure_returns_early(self, tmp_path):
@@ -210,7 +184,7 @@ class TestMatchTitlesPipeline:
         await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "review.json")
 
         jamf.get_app_names.assert_not_called()
-        assert title.install_label == []
+        assert title.installomator == []
 
     @pytest.mark.asyncio
     async def test_jamf_404_returns_silently(self, tmp_path):
@@ -224,7 +198,7 @@ class TestMatchTitlesPipeline:
 
         await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "review.json")
 
-        assert title.install_label == []
+        assert title.installomator == []
 
     @pytest.mark.asyncio
     async def test_review_file_none_skips_persistence(self, tmp_path, monkeypatch):
@@ -253,7 +227,7 @@ class TestMatchTitlesPipeline:
 
         await match_titles([title], jamf=jamf, api=api, review_file=None, ignored_titles=["Acme *"])
 
-        assert title.install_label == []
+        assert title.installomator == []
 
 
 class TestHomebrewMatching:
@@ -270,8 +244,7 @@ class TestHomebrewMatching:
 
         # homebrew_cask source was never queried; the cask-only slug is invisible.
         api.list_apps.assert_awaited_once_with(source="installomator", limit=1000, offset=0)
-        assert title.install_label == []
-        assert title.homebrew_cask == []
+        assert title.sources == {}
 
     @pytest.mark.asyncio
     async def test_cask_only_populates_homebrew_not_install_label(self, tmp_path):
@@ -284,10 +257,8 @@ class TestHomebrewMatching:
             [title], jamf=jamf, api=api, review_file=tmp_path / "r.json", include_homebrew=True
         )
 
-        assert title.install_label == []
-        assert len(title.homebrew_cask) == 1
-        assert title.homebrew_cask[0].token == "rectangle"
-        assert title.homebrew_cask[0].name == "Rectangle"
+        assert title.installomator == []
+        assert title.homebrew_cask == ["rectangle"]
 
     @pytest.mark.asyncio
     async def test_dual_source_populates_both(self, tmp_path):
@@ -301,12 +272,12 @@ class TestHomebrewMatching:
             [title], jamf=jamf, api=api, review_file=tmp_path / "r.json", include_homebrew=True
         )
 
-        assert [stub.installomator_label for stub in title.install_label] == ["firefox"]
-        assert [m.token for m in title.homebrew_cask] == ["firefox"]
+        assert title.installomator == ["firefox"]
+        assert title.homebrew_cask == ["firefox"]
 
     @pytest.mark.asyncio
-    async def test_dual_source_with_toggle_off_skips_homebrew(self, tmp_path):
-        """A dual-source slug is reachable with the toggle off, but must not populate homebrew_cask."""
+    async def test_dual_source_with_toggle_off_records_all_sources(self, tmp_path):
+        """A dual-source slug matched via Installomator still records every source it carries."""
         dual = _app("firefox", name="Firefox", sources=["installomator", "homebrew_cask"])
         title = _patch_title("Firefox")
         api = _api_with({"installomator": [dual]})
@@ -315,8 +286,10 @@ class TestHomebrewMatching:
 
         await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "r.json")
 
-        assert [stub.installomator_label for stub in title.install_label] == ["firefox"]
-        assert title.homebrew_cask == []
+        # Coverage surfaces for free: the cask source is recorded even though the
+        # candidate set was Installomator-only (toggle off).
+        assert title.installomator == ["firefox"]
+        assert title.homebrew_cask == ["firefox"]
 
     @pytest.mark.asyncio
     async def test_second_pass_routes_cask(self, tmp_path):
@@ -331,8 +304,8 @@ class TestHomebrewMatching:
             [title], jamf=jamf, api=api, review_file=tmp_path / "r.json", include_homebrew=True
         )
 
-        assert title.install_label == []
-        assert [m.token for m in title.homebrew_cask] == ["googlechrome"]
+        assert title.installomator == []
+        assert title.homebrew_cask == ["googlechrome"]
 
     @pytest.mark.asyncio
     async def test_paginates_past_page_size(self, tmp_path, monkeypatch):
@@ -357,7 +330,7 @@ class TestHomebrewMatching:
 
         # Two list_apps calls: offset 0 (full page) then offset 2 (short page → stop).
         assert api.list_apps.await_count == 2
-        assert [stub.installomator_label for stub in title.install_label] == ["c"]
+        assert title.installomator == ["c"]
 
 
 class TestDeterministicMatch:
@@ -373,7 +346,7 @@ class TestDeterministicMatch:
 
         await match_titles([title], jamf=jamf, api=api, review_file=None)
 
-        assert [stub.installomator_label for stub in title.install_label] == ["firefox"]
+        assert title.installomator == ["firefox"]
 
     @pytest.mark.asyncio
     async def test_name_id_not_indexed_falls_back_to_fuzzy(self):
@@ -386,7 +359,7 @@ class TestDeterministicMatch:
 
         await match_titles([title], jamf=jamf, api=api, review_file=None)
 
-        assert [stub.installomator_label for stub in title.install_label] == ["firefox"]
+        assert title.installomator == ["firefox"]
 
     @pytest.mark.asyncio
     async def test_index_slug_absent_from_catalog_falls_back_to_fuzzy(self):
@@ -400,7 +373,7 @@ class TestDeterministicMatch:
 
         await match_titles([title], jamf=jamf, api=api, review_file=None)
 
-        assert [stub.installomator_label for stub in title.install_label] == ["firefox"]
+        assert title.installomator == ["firefox"]
 
     @pytest.mark.asyncio
     async def test_index_unavailable_degrades_to_fuzzy(self):
@@ -413,4 +386,4 @@ class TestDeterministicMatch:
 
         await match_titles([title], jamf=jamf, api=api, review_file=None)
 
-        assert title.install_label[0].installomator_label == "firefox"
+        assert title.installomator == ["firefox"]

@@ -59,8 +59,7 @@ CURATED_BUNDLE_IDS: dict[str, str] = {
 
 #: The internal columns dropped from the rendered reports. See :ref:`the exported field policy <exported-field-policy>` in the usage docs for more.
 IGNORED_EXPORT_COLUMNS: list[str] = [
-    "install_label",
-    "homebrew_cask",
+    "sources",
     "title_id",
     "name_id"
 ]

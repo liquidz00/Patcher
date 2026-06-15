@@ -110,8 +110,6 @@ class TestExportExcel:
     @pytest.mark.asyncio
     async def test_export_never_adds_integration_columns_even_when_matched(self, temp_output_dir):
         """Rendered reports carry no integration coverage column, even when a cask matched."""
-        from src.patcher.core.models.cask import CaskMatch
-
         matched = PatchTitle(
             title="Firefox",
             title_id="1",
@@ -119,7 +117,7 @@ class TestExportExcel:
             hosts_patched=5,
             missing_patch=5,
             latest_version="1.0",
-            homebrew_cask=[CaskMatch(name="Firefox", token="firefox", version="1.0")],
+            sources={"homebrew_cask": ["firefox"]},
         )
         unmatched = PatchTitle(
             title="Acme",

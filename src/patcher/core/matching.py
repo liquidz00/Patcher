@@ -1,11 +1,10 @@
 """
 Match Jamf patch titles against the Patcher API catalog (direct → normalized → fuzzy).
 
-Matches are routed by provenance: Installomator-sourced slugs populate
-``install_label``, Homebrew Cask-sourced slugs populate ``homebrew_cask``, and a
-dual-source slug populates both. This keeps the Installomator-only meaning of
-``install_label`` intact rather than overloading it. Module-level functions so
-the algorithm can be exercised standalone in tests.
+A matched slug is recorded on ``PatchTitle.sources`` under every source its
+catalog ``App`` carries, so coverage from all sources (including AutoPkg and
+Jamf App Installers) surfaces for free. Module-level functions so the algorithm
+can be exercised standalone in tests.
 """
 
 from __future__ import annotations
@@ -25,8 +24,6 @@ from ..clients.patcher_api import App, PatcherAPIClient
 from ..policy import IGNORED_TITLES
 from .exceptions import APIResponseError, InstallomatorWarning
 from .logger import LogMe
-from .models.cask import CaskMatch
-from .models.label import Label
 from .models.patch import PatchTitle
 
 DEFAULT_FUZZY_THRESHOLD = 85
@@ -69,40 +66,6 @@ def match_fuzzy(
     return matched
 
 
-def _make_stub(patch_title: str, app: App) -> Label:
-    """Coverage stub for an Installomator match, hydrated from the matched catalog App."""
-    return Label(
-        name=patch_title,
-        installomator_label=app.slug,
-        type=app.install_method.value if app.install_method else None,
-        expected_team_id=app.expected_team_id,
-        download_url=str(app.download_url) if app.download_url else None,
-    )
-
-
-def _make_cask_match(patch_title: str, app: App) -> CaskMatch:
-    """
-    Build a :class:`~patcher.core.models.cask.CaskMatch` coverage stub from a
-    matched catalog ``App``.
-
-    Carries the version and download URL the catalog already resolved so
-    reports can surface them without a second lookup.
-
-    :param patch_title: The patch title the match is attached to.
-    :type patch_title: str
-    :param app: The matched catalog record (a Homebrew Cask-sourced slug).
-    :type app: :class:`~patcher.clients.patcher_api.App`
-    :return: A Homebrew Cask coverage stub.
-    :rtype: :class:`~patcher.core.models.cask.CaskMatch`
-    """
-    return CaskMatch(
-        name=patch_title,
-        token=app.slug,
-        version=app.current_version,
-        download_url=str(app.download_url) if app.download_url else None,
-    )
-
-
 async def _fetch_catalog_apps(
     api: PatcherAPIClient,
     *,
@@ -116,7 +79,7 @@ async def _fetch_catalog_apps(
     :data:`_CATALOG_PAGE_SIZE`) until a short page signals the end. The
     returned ``App.sources`` is authoritative for provenance regardless of
     which source query surfaced the row, so a dual-source app is stored once
-    and still routes to both ``install_label`` and ``homebrew_cask``.
+    and still records every source it carries.
 
     :param api: Catalog client.
     :type api: :class:`~patcher.clients.patcher_api.PatcherAPIClient`
@@ -143,21 +106,13 @@ def _attach_matches(
     patch_title: PatchTitle,
     slugs: list[str],
     apps_by_slug: dict[str, App],
-    *,
-    include_homebrew: bool,
 ) -> bool:
     """
-    Route matched slugs onto the patch title by source provenance.
+    Record matched slugs on the title's ``sources`` map by provenance.
 
-    An Installomator-sourced slug appends a :class:`Label` stub to
-    ``install_label``; a Homebrew Cask-sourced slug appends a
-    :class:`~patcher.core.models.cask.CaskMatch` to ``homebrew_cask`` (only
-    when ``include_homebrew`` is set). A dual-source slug appends to both.
-
-    Homebrew attachment is gated on ``include_homebrew`` rather than on
-    ``App.sources`` alone: dual-source apps are reachable even with the
-    toggle off (they carry an Installomator label), and we must not populate
-    ``homebrew_cask`` unless the caller opted in.
+    Each slug is bucketed under every source its catalog ``App`` carries, so a
+    dual-source slug appears under each, and coverage the catalog already knows
+    about (AutoPkg, Jamf App Installers) surfaces without a second lookup.
 
     :param patch_title: The title to mutate in place.
     :type patch_title: :class:`~patcher.core.models.patch.PatchTitle`
@@ -165,26 +120,21 @@ def _attach_matches(
     :type slugs: list[str]
     :param apps_by_slug: Slug-to-``App`` map carrying provenance.
     :type apps_by_slug: dict[str, :class:`~patcher.clients.patcher_api.App`]
-    :param include_homebrew: Whether to populate ``homebrew_cask``.
-    :type include_homebrew: bool
-    :return: True if any stub was attached.
+    :return: True if any source bucket gained a slug.
     :rtype: bool
     """
+    if patch_title.sources is None:
+        patch_title.sources = {}
     attached = False
     for slug in slugs:
         app = apps_by_slug.get(slug)
         if app is None:
             continue
-        if "installomator" in app.sources:
-            if patch_title.install_label is None:
-                patch_title.install_label = []
-            patch_title.install_label.append(_make_stub(patch_title.title, app))
-            attached = True
-        if include_homebrew and "homebrew_cask" in app.sources:
-            if patch_title.homebrew_cask is None:
-                patch_title.homebrew_cask = []
-            patch_title.homebrew_cask.append(_make_cask_match(patch_title.title, app))
-            attached = True
+        for source in app.sources:
+            bucket = patch_title.sources.setdefault(source, [])
+            if slug not in bucket:
+                bucket.append(slug)
+                attached = True
     return attached
 
 
@@ -201,14 +151,13 @@ async def match_titles(
 ) -> None:
     """
     Match each :class:`~patcher.core.models.patch.PatchTitle` against the API
-    catalog and populate coverage stubs for matches.
+    catalog and record matched slugs on its ``sources`` map.
 
-    Installomator-sourced matches populate ``install_label`` with
-    :class:`Label` stubs. When ``include_homebrew`` is set, the candidate
-    slug set also includes Homebrew Cask-sourced entries, and matches against
-    those populate ``homebrew_cask`` with
-    :class:`~patcher.core.models.cask.CaskMatch` stubs; a dual-source slug
-    populates both fields.
+    Matching runs against the Installomator candidate set by default. When
+    ``include_homebrew`` is set, the candidate set also includes Homebrew
+    Cask-sourced slugs so cask-only apps can match. Either way, a matched slug
+    is recorded under every source its catalog ``App`` carries, so coverage from
+    all sources surfaces regardless of which set produced the match.
 
     Each title is matched deterministically first by its ``name_id`` (Jamf
     softwareTitleNameId) against the catalog's jamf-index; titles without a
@@ -233,9 +182,10 @@ async def match_titles(
         for manual review. ``None`` disables the review-file write. Defaults
         to ``~/Library/Application Support/Patcher/unmatched_apps.json``.
     :type review_file: Path | None
-    :param include_homebrew: If True, widen matching to the Homebrew Cask
-        source and populate ``PatchTitle.homebrew_cask`` for Cask matches.
-        Defaults to False (Installomator-only, the historical behavior).
+    :param include_homebrew: If True, widen the candidate set to the Homebrew
+        Cask source so cask-only apps can match. Defaults to False
+        (Installomator candidates only, the historical behavior). Coverage for
+        every source on a matched slug is recorded regardless of this flag.
     :type include_homebrew: bool
     :param ignored_titles: Extra Jamf-title skip patterns (``fnmatch`` syntax)
         merged with the built-in :data:`~patcher.policy.IGNORED_TITLES`. Lets
@@ -317,7 +267,7 @@ async def match_titles(
         names = per_title_matches.get(patch_title.title)
         if not names:
             continue
-        if _attach_matches(patch_title, names, apps_by_slug, include_homebrew=include_homebrew):
+        if _attach_matches(patch_title, names, apps_by_slug):
             matched_count += 1
 
     matched_count += await _second_pass(
@@ -326,7 +276,6 @@ async def match_titles(
         patch_titles,
         apps_by_slug,
         threshold=threshold,
-        include_homebrew=include_homebrew,
     )
 
     log.info(f"Matching process finished. {matched_count} PatchTitle objects were updated.")
@@ -353,11 +302,10 @@ async def _second_pass(
     apps_by_slug: dict[str, App],
     *,
     threshold: int,
-    include_homebrew: bool,
 ) -> int:
     """
     Retry unmatched titles using normalized + fuzzy matching against the
-    patch title text, routing hits by source provenance.
+    patch title text, recording hits by source provenance.
 
     :param unmatched_apps: Mutable list of unmatched entries; matched ones
         are removed in place.
@@ -370,8 +318,6 @@ async def _second_pass(
     :type apps_by_slug: dict[str, :class:`~patcher.clients.patcher_api.App`]
     :param threshold: Fuzzy-match score cutoff.
     :type threshold: int
-    :param include_homebrew: Whether to populate ``homebrew_cask`` on hits.
-    :type include_homebrew: bool
     :return: Count of titles updated in this pass.
     :rtype: int
     """
@@ -399,9 +345,7 @@ async def _second_pass(
                     )
 
         if target_name and patch_title is not None:
-            if _attach_matches(
-                patch_title, [target_name], apps_by_slug, include_homebrew=include_homebrew
-            ):
+            if _attach_matches(patch_title, [target_name], apps_by_slug):
                 matched_count += 1
                 continue
 

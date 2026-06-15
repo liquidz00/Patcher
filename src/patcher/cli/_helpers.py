@@ -166,9 +166,9 @@ async def process_reports(
     :type date_format: str
     :param enable_iom: If False, skip Installomator label matching.
     :type enable_iom: bool
-    :param enable_homebrew: If True, also match titles against the Homebrew
-        Cask source, populating
-        :attr:`~patcher.core.models.patch.PatchTitle.homebrew_cask`. Rides on
+    :param enable_homebrew: If True, widen matching to the Homebrew Cask
+        source so cask-only titles can match, recording matched cask slugs
+        under :attr:`~patcher.core.models.patch.PatchTitle.sources`. Rides on
         the same match pass as Installomator, so it is a no-op when
         ``enable_iom`` is False.
     :type enable_homebrew: bool

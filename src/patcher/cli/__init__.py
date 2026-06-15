@@ -710,7 +710,7 @@ async def analyze(
                 t.latest_version,
                 completion_text(t.completion_percent, threshold),
                 t.total_hosts,
-                "Y" if t.install_label else "N",
+                "Y" if t.installomator else "N",
             ]
             for t in filtered_titles
         ]

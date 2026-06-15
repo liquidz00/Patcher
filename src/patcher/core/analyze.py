@@ -306,8 +306,8 @@ class TitleFilter:
         return self._cap(result, top_n)
 
     def installomator(self, top_n: int | None = None) -> list[PatchTitle]:
-        """Titles that carry one or more Installomator labels."""
-        result = [pt for pt in self._titles if pt.install_label]
+        """Titles that carry one or more Installomator-sourced matches."""
+        result = [pt for pt in self._titles if pt.installomator]
         return self._cap(result, top_n)
 
     def impact_weighted_risk(self, top_n: int | None = None) -> list[PatchTitle]:
@@ -342,13 +342,13 @@ class TitleFilter:
 
     def coverage_gaps(self, top_n: int | None = None) -> list[PatchTitle]:
         """
-        Titles with no Installomator label and no Homebrew cask match,
-        sorted by ``missing_patch`` descending (worst non-covered first).
+        Titles that matched no catalog source at all, sorted by
+        ``missing_patch`` descending (worst non-covered first).
 
         :param top_n: Optional cap on result length.
         :returns: Uncovered titles sorted by missing-patch count.
         """
-        uncovered = [pt for pt in self._titles if not pt.install_label and not pt.homebrew_cask]
+        uncovered = [pt for pt in self._titles if not pt.sources]
         result = sorted(uncovered, key=lambda pt: pt.missing_patch, reverse=True)
         return self._cap(result, top_n)
 

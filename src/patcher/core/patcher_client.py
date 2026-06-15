@@ -119,9 +119,9 @@ class PatcherClient:
             skipped. Defaults to True.
         :type enable_matching: bool
         :param enable_homebrew: Default for whether :meth:`fetch_patches`
-            also matches titles against the Homebrew Cask source (a second
-            matching dimension), populating
-            :attr:`~patcher.core.models.patch.PatchTitle.homebrew_cask`. Has
+            widens matching to the Homebrew Cask source so cask-only titles
+            can match, recording matched cask slugs under
+            :attr:`~patcher.core.models.patch.PatchTitle.sources`. Has
             no effect when :attr:`api` is ``None`` (i.e.
             ``enable_matching=False``), since matching rides on the same
             catalog client. Defaults to False.
@@ -237,9 +237,9 @@ class PatcherClient:
             (:func:`~patcher.core.matching.match_titles`). No-op when
             ``enable_matching=False`` was passed at construction time.
         :type match_installomator: bool
-        :param match_homebrew: Whether to also match titles against the
-            Homebrew Cask source, populating
-            :attr:`~patcher.core.models.patch.PatchTitle.homebrew_cask`.
+        :param match_homebrew: Whether to widen matching to the Homebrew Cask
+            source so cask-only titles can match, recording matched cask slugs
+            under :attr:`~patcher.core.models.patch.PatchTitle.sources`.
             ``None`` (default) falls back to the ``enable_homebrew`` value
             set at construction time. Rides on the same match pass as
             Installomator, so it is a no-op when ``match_installomator`` is

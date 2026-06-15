@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-- **Rendered reports (PDF/Excel/HTML) no longer include a Homebrew coverage column.** Catalog-integration matches are kept out of the rendered reports entirely now, for consistency: coverage belongs in `analyze` and the JSON export. `--homebrew` still enables Homebrew as a matching dimension (it just no longer adds a column), and the cask matches still ride on each title for `analyze` and JSON. A future release will add an opt-in to surface per-integration coverage columns on demand.
+- **Breaking: `PatchTitle` now reports integration coverage as a single `sources` map.** Each title carries `sources: dict[str, list[str]]`, mapping each catalog source (`installomator`, `homebrew_cask`, `autopkg`, `jamf_app_installer`) to the matched catalog slugs that carry it. A matched app records *every* source it carries, so AutoPkg and Jamf App Installers coverage now surfaces in the JSON export and `analyze` for free, not just Installomator and Homebrew. The old `install_label` and `homebrew_cask` rich-object fields are gone; `title.installomator` / `title.homebrew_cask` (plus `title.autopkg` / `title.jamf_app_installer`) are now read-only properties returning the matched slug list for that source. The detailed per-source metadata lives in the catalog API (`GET /apps/{slug}/sources`).
+- **Rendered reports (PDF/Excel/HTML) no longer include a Homebrew coverage column.** Catalog-integration matches are kept out of the rendered reports entirely now, for consistency: coverage belongs in `analyze` and the JSON export. `--homebrew` still enables Homebrew as a matching dimension (it just no longer adds a column), and the matches still ride on each title's `sources` map for `analyze` and JSON. A future release will add an opt-in to surface per-integration coverage columns on demand.
 
 ## [v3.3.2] - 2026-06-13
 ### Added
