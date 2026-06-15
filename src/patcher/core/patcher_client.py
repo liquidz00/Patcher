@@ -549,6 +549,7 @@ class PatcherClient:
         header_color: str | None = None,
         analysis: bool = False,
         device_reports: dict[str, list] | None = None,
+        coverage: list[str] | None = None,
     ) -> dict[str, str]:
         """
         Export patch titles to one or more report formats. Builds and caches
@@ -577,6 +578,9 @@ class PatcherClient:
         :param device_reports: Optional per-title device detail data for
             Excel's per-title sheets.
         :type device_reports: dict[str, list] | None
+        :param coverage: Source tokens to render as opt-in ``Y``/``N`` coverage
+            columns. ``None`` (default) renders no integration columns.
+        :type coverage: list[str] | None
         :return: Mapping of format → output path for every report written.
         :rtype: dict[str, str]
         """
@@ -592,6 +596,7 @@ class PatcherClient:
             formats=formats,
             header_color=header_color,
             device_reports=device_reports,
+            coverage=coverage,
         )
         # Track the latest Excel so get_latest_dataset can prefer it as a dataset source.
         if "excel" in exported:

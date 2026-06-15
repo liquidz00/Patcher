@@ -638,6 +638,7 @@ class TestExport:
             formats={"pdf"},
             header_color="#ff0000",
             device_reports=None,
+            coverage=None,
         )
         assert result == {"pdf": "/tmp/out.pdf", "excel": "/tmp/out.xlsx"}
 

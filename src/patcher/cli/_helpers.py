@@ -133,6 +133,7 @@ async def process_reports(
     date_format: str = "%B %d %Y",
     enable_iom: bool = True,
     device_details: bool = False,
+    coverage: list[str] | None = None,
 ) -> None:
     """
     Drive the full CLI report-generation workflow against a configured
@@ -167,6 +168,8 @@ async def process_reports(
     :type enable_iom: bool
     :param device_details: If True, include per-title device sheets in Excel export.
     :type device_details: bool
+    :param coverage: Source tokens to render as opt-in ``Y``/``N`` coverage columns.
+    :type coverage: list[str] | None
     """
     with progress_bar(disable=patcher.debug) as progress:
         task = progress.add_task("Initializing...", total=None)
@@ -240,6 +243,7 @@ async def process_reports(
             date_format=date_format,
             header_color=header_color,
             device_reports=device_reports,
+            coverage=coverage,
         )
 
     console.print(f"✅ Success! Reports saved to {output_path}", style=SUCCESS_STYLE)

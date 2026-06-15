@@ -5,7 +5,7 @@ A `PatchTitle` carries a few fields that exist purely as internal metadata. For 
 :::{marker} Rendered reports (PDF, Excel, HTML)
 :icon: octicon:file-badge-16
 
-For a human reading a patch report. The {class}`~patcher.core.exporter.Exporter` drops configured columns before rendering, so the join keys and raw matcher fields never show up as columns.
+For a human reading a patch report. The {class}`~patcher.core.exporter.Exporter` drops configured columns before rendering, so the join keys and raw matcher fields never show up as columns. Opt into per-source coverage columns with `export --coverage`.
 :::
 
 :::{marker} JSON

@@ -141,6 +141,43 @@ class TestExportExcel:
         assert "Homebrew Cask" not in out.columns
 
     @pytest.mark.asyncio
+    async def test_export_renders_requested_coverage_columns(self, temp_output_dir):
+        """--coverage adds a Y/N column per requested source, read from each title's sources map."""
+        matched = PatchTitle(
+            title="Firefox",
+            title_id="1",
+            released="2026-01-01",
+            hosts_patched=5,
+            missing_patch=5,
+            latest_version="1.0",
+            sources={"installomator": ["firefox"], "homebrew_cask": ["firefox"]},
+        )
+        unmatched = PatchTitle(
+            title="Acme",
+            title_id="2",
+            released="2026-01-01",
+            hosts_patched=1,
+            missing_patch=1,
+            latest_version="2.0",
+        )
+        titles = [matched, unmatched]
+        df = _frame(titles)
+
+        exported = await Exporter(titles).export(
+            df,
+            temp_output_dir,
+            "Test Report",
+            formats={"excel"},
+            coverage=["installomator", "homebrew_cask", "autopkg"],
+        )
+        out = pd.read_excel(exported["excel"])
+
+        assert list(out["Installomator"]) == ["Y", "N"]
+        assert list(out["Homebrew"]) == ["Y", "N"]
+        # AutoPkg was requested but nothing matched it: an honest "N", not absent.
+        assert list(out["AutoPkg"]) == ["N", "N"]
+
+    @pytest.mark.asyncio
     async def test_export_omits_homebrew_column_without_matches(
         self, sample_patch_reports, temp_output_dir
     ):

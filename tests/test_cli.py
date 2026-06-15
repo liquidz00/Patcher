@@ -27,7 +27,7 @@ from asyncclick.testing import CliRunner
 from src.patcher.cli import analyze, cli, diff, drift, export, reset
 from src.patcher.core.exceptions import PatcherError
 from src.patcher.core.models.patch import PatchTitle
-from src.patcher.core.models.settings import PatcherSettings
+from src.patcher.core.models.settings import Integrations, PatcherSettings
 
 
 @pytest.fixture(autouse=True)
@@ -290,14 +290,68 @@ class TestExport:
             concurrency=7,
             device_details=False,
             homebrew=False,
+            coverage=(),
+            force=False,
         )
 
         kwargs = mock_client_cls.call_args.kwargs
         assert kwargs["enable_matching"] is True
         assert kwargs["ignored_titles"] == ["Adobe *"]
         assert kwargs["concurrency"] == 7
-        assert kwargs["enable_homebrew"] is False
+        assert "integrations" in kwargs
         mock_proc.assert_awaited_once()
+
+    async def _run_export(self, ctx, mocker, *, coverage, force):
+        mock_client_cls = mocker.patch("src.patcher.cli.PatcherClient")
+        mock_proc = mocker.patch("src.patcher.cli.process_reports", new_callable=AsyncMock)
+        await export.callback.__wrapped__(
+            ctx,
+            path="/tmp/does-not-matter",
+            formats=(),
+            sort=None,
+            omit=False,
+            date_format="Month-Day-Year",
+            ios=False,
+            concurrency=5,
+            device_details=False,
+            homebrew=False,
+            coverage=coverage,
+            force=force,
+        )
+        return mock_client_cls, mock_proc
+
+    @pytest.mark.asyncio
+    async def test_coverage_threads_enabled_sources_as_tokens(self, mocker):
+        """Enabled --coverage sources reach process_reports as catalog tokens."""
+        ctx = _ctx(settings=PatcherSettings(enable_matching=True))
+        _, mock_proc = await self._run_export(
+            ctx, mocker, coverage=("installomator", "homebrew"), force=False
+        )
+        assert mock_proc.call_args.kwargs["coverage"] == ["installomator", "homebrew_cask"]
+
+    @pytest.mark.asyncio
+    async def test_coverage_skips_disabled_source(self, mocker):
+        """A disabled --coverage source is skipped (no column) without --force."""
+        ctx = _ctx(
+            settings=PatcherSettings(enable_matching=True, integrations=Integrations(autopkg=False))
+        )
+        _, mock_proc = await self._run_export(ctx, mocker, coverage=("autopkg",), force=False)
+        assert mock_proc.call_args.kwargs["coverage"] == []
+
+    @pytest.mark.asyncio
+    async def test_force_overrides_disabled_source_and_matching(self, mocker):
+        """--force renders a disabled source and turns matching on for the run."""
+        ctx = _ctx(
+            settings=PatcherSettings(
+                enable_matching=False, integrations=Integrations(autopkg=False)
+            )
+        )
+        mock_client_cls, mock_proc = await self._run_export(
+            ctx, mocker, coverage=("autopkg",), force=True
+        )
+        assert mock_proc.call_args.kwargs["coverage"] == ["autopkg"]
+        assert mock_client_cls.call_args.kwargs["enable_matching"] is True
+        assert mock_client_cls.call_args.kwargs["integrations"].autopkg is True
 
 
 class TestAnalyze:
