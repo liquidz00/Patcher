@@ -99,7 +99,7 @@ For customization commands, see {doc}`customizing reports </getting-started/cust
 
 #### Matching Toggle
 
-The `enable_matching` boolean is the master switch for catalog matching: when false, Patcher skips all source matching on every invocation and the `install_label` field on every {class}`~patcher.core.models.patch.PatchTitle` stays empty. The `integrations` dict toggles individual sources (`installomator`, `homebrew`) when matching is on. See {ref}`disabling_installomator_support` for the full behavior breakdown and the command to flip it.
+The `enable_matching` boolean is the master switch for catalog matching: when false, Patcher skips all source matching on every invocation and the `sources` map on every {class}`~patcher.core.models.patch.PatchTitle` stays empty. The `integrations` dict toggles individual sources (`installomator`, `homebrew`) when matching is on. See {ref}`disabling_installomator_support` for the full behavior breakdown and the command to flip it.
 
 #### Full Example
 

@@ -247,7 +247,7 @@ class TestHomebrewMatching:
         assert title.sources == {}
 
     @pytest.mark.asyncio
-    async def test_cask_only_populates_homebrew_not_install_label(self, tmp_path):
+    async def test_cask_only_populates_homebrew_source(self, tmp_path):
         title = _patch_title("Rectangle")
         api = _api_with({"homebrew_cask": [_app("rectangle", sources=["homebrew_cask"])]})
         jamf = AsyncMock()

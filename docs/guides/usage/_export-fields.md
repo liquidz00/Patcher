@@ -1,4 +1,4 @@
-A `PatchTitle` carries a few fields that exist purely as internal metadata. For example, `title_id` and `name_id` are Jamf join keys, and `install_label` / `homebrew_cask` are raw matcher output. Whether those reach an export depends on the format, because the formats serve two different audiences.
+A `PatchTitle` carries a few fields that exist purely as internal metadata. For example, `title_id` and `name_id` are Jamf join keys, and `sources` is raw matcher output (the source-to-matched-slugs map). Whether those reach an export depends on the format, because the formats serve two different audiences.
 
 ::::{markers}
 

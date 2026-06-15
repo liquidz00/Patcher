@@ -148,7 +148,7 @@ The flag is off by default, so reports without it stay byte-for-byte unchanged. 
 
 ### Disabling Matching
 
-If catalog matching doesn't fit your environment, turn it off entirely. When disabled, no catalog calls are made and the `install_label` field on every {class}`~patcher.core.models.patch.PatchTitle` stays empty.
+If catalog matching doesn't fit your environment, turn it off entirely. When disabled, no catalog calls are made and the `sources` map on every {class}`~patcher.core.models.patch.PatchTitle` stays empty.
 
 ```{code-block} bash
 :caption: Disabling catalog matching

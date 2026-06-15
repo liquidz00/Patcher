@@ -107,7 +107,7 @@ When a report is missing data or looks out of date, it's usually one of these.
 
 ::::{markers}
 
-:::{marker} Every title has an empty `install_label`
+:::{marker} Every title has an empty `sources` map
 :icon: octicon:unlink-16
 Installomator matching is switched off. Turn it back on per {ref}`disabling_installomator_support`.
 :::
