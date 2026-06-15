@@ -1,14 +1,16 @@
 """
 Match Jamf patch titles against the Patcher API catalog (direct → normalized → fuzzy).
 
-A matched slug is recorded on ``PatchTitle.sources`` under every source its
-catalog ``App`` carries, so coverage from all sources (including AutoPkg and
-Jamf App Installers) surfaces for free. Module-level functions so the algorithm
-can be exercised standalone in tests.
+A matched slug is recorded on ``PatchTitle.sources`` under every enabled source
+its catalog ``App`` carries. Installomator and Homebrew Cask keep the slug (the
+slug is the native id); AutoPkg and Jamf App Installers are enriched to native
+identifiers (repo sets / Jamf titles) from per-slug source detail. Module-level
+functions so the algorithm can be exercised standalone in tests.
 """
 
 from __future__ import annotations
 
+import asyncio
 import fnmatch
 import json
 import warnings
@@ -20,7 +22,7 @@ from rapidfuzz import fuzz, process
 
 from ..catalog._normalize import normalize_name
 from ..clients.jamf import JamfClient
-from ..clients.patcher_api import App, PatcherAPIClient
+from ..clients.patcher_api import App, AppSources, PatcherAPIClient
 from ..policy import IGNORED_TITLES
 from .exceptions import APIResponseError, InstallomatorWarning
 from .logger import LogMe
@@ -37,6 +39,9 @@ _CATALOG_PAGE_SIZE = 1000
 # Sources we can page /apps by as match candidates; autopkg/jai ride along on matched slugs.
 _FETCHABLE_SOURCES = ("installomator", "homebrew_cask")
 _SOURCE_DISPLAY = {"installomator": "Installomator", "homebrew_cask": "Homebrew"}
+
+# Sources whose map values are enriched from per-slug source detail (native ids, not slugs).
+_ENRICHABLE_SOURCES = ("autopkg", "jamf_app_installer")
 
 
 def match_directly(app_names: list[str], available: set[str]) -> list[str]:
@@ -149,6 +154,80 @@ def _attach_matches(
     return attached
 
 
+def _native_ids(app_sources: AppSources, source: str) -> list[str]:
+    """
+    Native identifiers for ``source`` from a slug's source detail.
+
+    AutoPkg resolves to its deduped repo set (an app carries dozens of recipes
+    across a handful of repos, so the repo is the actionable axis); Jamf App
+    Installers resolves to the Jamf title.
+    """
+    if source == "autopkg" and app_sources.autopkg:
+        repos: list[str] = []
+        for recipe in app_sources.autopkg.recipes:
+            if recipe.repo and recipe.repo not in repos:
+                repos.append(recipe.repo)
+        return repos
+    if source == "jamf_app_installer" and app_sources.jamf_app_installer:
+        title = app_sources.jamf_app_installer.title
+        return [title] if title else []
+    return []
+
+
+async def _enrich_native_ids(
+    patch_titles: list[PatchTitle],
+    api: PatcherAPIClient,
+    *,
+    sources: set[str],
+    log: LogMe,
+) -> None:
+    """
+    Swap slug values for native identifiers on the given ``sources``.
+
+    Installomator and Homebrew Cask keep their slugs. AutoPkg and Jamf App
+    Installers carry coarse slugs from the match pass; here they become repo
+    sets / Jamf titles pulled from each matched slug's
+    ``GET /apps/{slug}/sources`` payload. Detail is fetched once per unique slug
+    (titles share slugs) and concurrently. A title's value is left as slugs if
+    enrichment yields nothing, so the coverage signal is never lost.
+    """
+    needed: set[str] = set()
+    for title in patch_titles:
+        for source in sources:
+            needed.update((title.sources or {}).get(source) or [])
+    if not needed:
+        return
+
+    slugs = list(needed)
+    results = await asyncio.gather(
+        *(api.get_app_sources(slug) for slug in slugs), return_exceptions=True
+    )
+    detail: dict[str, AppSources] = {}
+    for slug, result in zip(slugs, results):
+        if isinstance(result, Exception):
+            log.warning(f"Could not fetch source detail for {slug}: {result}")
+        elif result is not None:
+            detail[slug] = result
+
+    for title in patch_titles:
+        if not title.sources:
+            continue
+        for source in sources:
+            matched_slugs = title.sources.get(source)
+            if not matched_slugs:
+                continue
+            native: list[str] = []
+            for slug in matched_slugs:
+                app_sources = detail.get(slug)
+                if app_sources is None:
+                    continue
+                for nid in _native_ids(app_sources, source):
+                    if nid not in native:
+                        native.append(nid)
+            if native:
+                title.sources[source] = native
+
+
 async def match_titles(
     patch_titles: list[PatchTitle],
     jamf: JamfClient,
@@ -170,7 +249,9 @@ async def match_titles(
     *enabled* source its catalog ``App`` carries, so AutoPkg and Jamf App
     Installers coverage surfaces for free when enabled. ``None`` (the default)
     disables gating: candidates page from both fetchable sources and every
-    source on a matched slug is recorded.
+    source on a matched slug is recorded. AutoPkg and Jamf App Installers values
+    are then enriched from per-slug source detail into repo sets / Jamf titles
+    (Installomator and Homebrew Cask keep their slugs).
 
     Each title is matched deterministically first by its ``name_id`` (Jamf
     softwareTitleNameId) against the catalog's jamf-index; titles without a
@@ -293,6 +374,12 @@ async def match_titles(
         threshold=threshold,
         enabled_sources=enabled_sources,
     )
+
+    enrich = set(_ENRICHABLE_SOURCES)
+    if enabled_sources is not None:
+        enrich &= enabled_sources
+    if enrich:
+        await _enrich_native_ids(patch_titles, api, sources=enrich, log=log)
 
     log.info(f"Matching process finished. {matched_count} PatchTitle objects were updated.")
     if unmatched_apps:

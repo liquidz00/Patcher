@@ -13,7 +13,13 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
-from src.patcher.clients.patcher_api import App
+from src.patcher.clients.patcher_api import (
+    App,
+    AppSources,
+    AutopkgRecipeEntry,
+    AutopkgSource,
+    JamfAppInstallerSource,
+)
 from src.patcher.core import matching
 from src.patcher.core.exceptions import APIResponseError, InstallomatorWarning
 from src.patcher.core.matching import (
@@ -420,3 +426,74 @@ class TestDeterministicMatch:
         await match_titles([title], jamf=jamf, api=api, review_file=None)
 
         assert title.installomator == ["firefox"]
+
+
+def _app_sources(*, repos: list[str], jai_title: str | None) -> AppSources:
+    """Build an AppSources payload with AutoPkg recipes (by repo) and an optional JAI title."""
+    autopkg = AutopkgSource(
+        recipes=[
+            AutopkgRecipeEntry(
+                identifier=f"com.github.autopkg.{i}", repo=repo, path=f"{repo}/r{i}.recipe"
+            )
+            for i, repo in enumerate(repos)
+        ]
+    )
+    jai = JamfAppInstallerSource(title=jai_title, source="Jamf App Catalog") if jai_title else None
+    return AppSources(autopkg=autopkg, jamf_app_installer=jai)
+
+
+class TestNativeIdEnrichment:
+    @pytest.mark.asyncio
+    async def test_autopkg_becomes_repo_set_and_jai_becomes_title(self, tmp_path):
+        """AutoPkg slugs become a deduped repo set; JAI slugs become the Jamf title."""
+        app = _app(
+            "firefox", name="Firefox", sources=["installomator", "autopkg", "jamf_app_installer"]
+        )
+        api = _api_with({"installomator": [app]})
+        api.get_app_sources.return_value = _app_sources(
+            repos=["autopkg/recipes", "autopkg/recipes", "autopkg/grahampugh-recipes"],
+            jai_title="Mozilla Firefox",
+        )
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = [{"Patch": "Firefox", "App Names": ["Firefox"]}]
+        title = _patch_title("Firefox")
+
+        await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "r.json")
+
+        assert title.installomator == ["firefox"]  # slug kept (slug is the native id)
+        assert title.autopkg == ["autopkg/recipes", "autopkg/grahampugh-recipes"]  # deduped repos
+        assert title.jamf_app_installer == ["Mozilla Firefox"]  # native Jamf title
+
+    @pytest.mark.asyncio
+    async def test_enrichment_skipped_for_disabled_source(self, tmp_path):
+        """A disabled enrichable source is never bucketed, so no source detail is fetched."""
+        app = _app("firefox", name="Firefox", sources=["installomator", "autopkg"])
+        api = _api_with({"installomator": [app]})
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = [{"Patch": "Firefox", "App Names": ["Firefox"]}]
+        title = _patch_title("Firefox")
+
+        await match_titles(
+            [title],
+            jamf=jamf,
+            api=api,
+            review_file=tmp_path / "r.json",
+            enabled_sources={"installomator"},
+        )
+
+        assert title.sources == {"installomator": ["firefox"]}
+        api.get_app_sources.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_enrichment_keeps_slugs_when_detail_unavailable(self, tmp_path):
+        """If source detail can't be fetched, the slug stays as a fallback coverage signal."""
+        app = _app("firefox", name="Firefox", sources=["installomator", "autopkg"])
+        api = _api_with({"installomator": [app]})
+        api.get_app_sources.return_value = None  # 404 from the catalog
+        jamf = AsyncMock()
+        jamf.get_app_names.return_value = [{"Patch": "Firefox", "App Names": ["Firefox"]}]
+        title = _patch_title("Firefox")
+
+        await match_titles([title], jamf=jamf, api=api, review_file=tmp_path / "r.json")
+
+        assert title.autopkg == ["firefox"]

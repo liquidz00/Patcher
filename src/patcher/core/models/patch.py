@@ -29,7 +29,7 @@ class PatchTitle(Model):
     :type total_hosts: int
     :ivar name_id: Internal match key, stripped from rendered reports.
     :type name_id: str | None
-    :ivar sources: Automated integrations matched to specific software title.
+    :ivar sources: Maps each matched integration source to its identifiers: catalog slugs for Installomator and Homebrew Cask, AutoPkg repo names, and the Jamf title for Jamf App Installers.
     :type sources: dict[str, list[str]]
     """
 
