@@ -16,6 +16,7 @@ open write surface.
 """
 
 import asyncio
+import html
 import json
 import logging
 import secrets
@@ -187,6 +188,10 @@ async def ingest_resolved_labels(
         values: dict[str, object] = {}
         download_url = _scalar_for_column(record.get("downloadURL"))
         app_new_version = _scalar_for_column(record.get("appNewVersion"))
+        if isinstance(download_url, str):
+            download_url = html.unescape(download_url)
+        if isinstance(app_new_version, str):
+            app_new_version = html.unescape(app_new_version)
         if download_url and looks_like_clean_http_url(download_url):
             values["download_url"] = download_url
         if app_new_version and looks_like_clean_version(app_new_version):

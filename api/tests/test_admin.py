@@ -243,6 +243,44 @@ async def test_ingest_coerces_array_shaped_values_to_first_scalar(
 
 
 @pytest.mark.asyncio
+async def test_ingest_decodes_html_entities_in_urls(client, test_session, monkeypatch):
+    """
+    A resolved URL that came back HTML-entity-encoded (``&amp;`` for ``&``) is
+    decoded before validation, so the corrected URL is stored — not silently
+    kept broken (``&amp;`` is a syntactically valid URL, so it slips past the
+    clean-URL check otherwise).
+    """
+    _configure_token(monkeypatch, _TOKEN)
+
+    await _add_label(test_session, "firefox_da")
+
+    body = _ndjson(
+        {
+            "label": "firefox_da",
+            "ok": True,
+            "downloadURL": "https://download.mozilla.org/?product=firefox-latest&amp;os=osx&amp;lang=da",
+            "appNewVersion": "152.0",
+        },
+    )
+
+    resp = await client.post(
+        "/admin/labels/resolved",
+        content=body,
+        headers={"Authorization": f"Bearer {_TOKEN}"},
+    )
+
+    assert resp.status_code == 200
+    summary = resp.json()
+    assert summary["updated"] == 1
+    assert summary["skipped_invalid"] == 0
+
+    row = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "firefox_da")
+    )
+    assert row.download_url == "https://download.mozilla.org/?product=firefox-latest&os=osx&lang=da"
+
+
+@pytest.mark.asyncio
 async def test_ingest_counts_malformed_lines(client, monkeypatch):
     _configure_token(monkeypatch, _TOKEN)
 
