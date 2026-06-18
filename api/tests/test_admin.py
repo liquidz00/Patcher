@@ -13,6 +13,8 @@ import pytest
 from patcher_api.models.installomator import InstallomatorLabel
 from sqlalchemy import select
 
+from patcher.policy import RESOLUTION_EXCLUDED_LABELS
+
 _TOKEN = "s3cret-admin-token"
 
 
@@ -192,6 +194,27 @@ async def test_unresolved_worklist_excludes_user_context_labels(client, test_ses
             InstallomatorLabel(
                 name="thunderbird_intl", raw={"downloadURL": dyn}, download_url=None
             ),
+            InstallomatorLabel(name="resolvable", raw={"downloadURL": dyn}, download_url=None),
+        ]
+    )
+    await test_session.commit()
+
+    resp = await client.get(
+        "/admin/labels/unresolved", headers={"Authorization": f"Bearer {_TOKEN}"}
+    )
+    assert resp.json()["labels"] == ["resolvable"]
+
+
+@pytest.mark.asyncio
+async def test_unresolved_worklist_excludes_policy_labels(client, test_session, monkeypatch):
+    """Labels in RESOLUTION_EXCLUDED_LABELS (discontinued/gated) never reach the runner."""
+    _configure_token(monkeypatch, _TOKEN)
+    excluded = next(iter(RESOLUTION_EXCLUDED_LABELS))  # any curated member
+    dyn = "$(curl -fsL https://example.com | grep ...)"
+    test_session.add_all(
+        [
+            # would normally qualify (dynamic + NULL), but is policy-excluded -> dropped
+            InstallomatorLabel(name=excluded, raw={"downloadURL": dyn}, download_url=None),
             InstallomatorLabel(name="resolvable", raw={"downloadURL": dyn}, download_url=None),
         ]
     )

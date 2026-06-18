@@ -28,6 +28,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher.policy import RESOLUTION_EXCLUDED_LABELS
 from patcher_api.catalog import recompute_catalog_version
 from patcher_api.config import get_settings
 from patcher_api.db import get_session
@@ -127,7 +128,12 @@ async def list_unresolved_labels(
     keeps each runner pass to the ~gap Linux can't cover instead of every label.
     """
     rows = (await session.execute(select(InstallomatorLabel))).scalars().all()
-    return UnresolvedLabels(labels=sorted(r.name for r in rows if _needs_macos_resolution(r)))
+    unresolved = [
+        r.name
+        for r in rows
+        if _needs_macos_resolution(r) and r.name not in RESOLUTION_EXCLUDED_LABELS
+    ]
+    return UnresolvedLabels(labels=sorted(unresolved))
 
 
 @router.post(

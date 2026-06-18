@@ -63,3 +63,29 @@ IGNORED_EXPORT_COLUMNS: list[str] = [
     "title_id",
     "name_id"
 ]
+
+#: Installomator labels the macOS resolver **never** attempts. These labels are either discontinued products, login/license gated downloads, or per-account custom builds. The Temporal worklist will ignore these labels entirely.
+RESOLUTION_EXCLUDED_LABELS: frozenset[str] = frozenset({
+    # Discontinued / deprecated
+    "skype",  # Retired 2026
+    "workplacechat",  # Meta Workplace shut down
+    "salesforcesfdx",  # superseded by `sf` CLI
+    "microsoftazuredatastudio",  # Retired 2026
+    # Per-account custom builds
+    "teamviewerhostcustom",
+    "teamviewerqscustom",
+    # License/login/enterprise gated downloads
+    "examplify",
+    "steinbergcubaseelementsaile13",
+    "steinbergcubaseproartist13",
+    "toonboomharmony2024",
+    "sketchupviewer",
+    "nditools",
+    "lsagent",
+    "appsanywhere",
+    "editshare-connect",
+    "editshare-flowstory",
+    "surfdrive",
+    "outputhub",
+    "realvnconedemandassist",
+})
