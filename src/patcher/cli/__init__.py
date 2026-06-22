@@ -14,13 +14,14 @@ from pathlib import Path
 
 import asyncclick as click
 import rich.traceback
+from rich.panel import Panel
 
 from ..__about__ import __version__
 from ..clients.patcher_api import DriftEntry
 from ..core.config_manager import ConfigManager
 from ..core.exceptions import APIResponseError, PatcherError, SetupError
 from ..core.logger import LogMe
-from ..core.models.settings import PatcherSettings, UIDefaults
+from ..core.models.settings import _INTEGRATION_TOKENS, PatcherSettings, UIDefaults
 from ..core.patcher_client import PatcherClient
 from ._console import (
     SUCCESS_STYLE,
@@ -56,6 +57,14 @@ DATE_FORMATS = {
     "Year-Month-Day": "%Y %B %d",  # 2024 April 21
     "Day-Month-Year": "%d %B %Y",  # 16 April 2024
     "Full": "%A %B %d %Y",  # Thursday September 26 2013
+}
+
+# User-facing labels for the per-source coverage columns (export --coverage).
+_COVERAGE_LABELS = {
+    "installomator": "Installomator",
+    "homebrew": "Homebrew",
+    "autopkg": "AutoPkg",
+    "jai": "Jamf App Installers",
 }
 
 # Context settings to enable both ``-h`` and ``--help`` for help output
@@ -393,7 +402,20 @@ async def reset(ctx: click.Context, kind: str, credential: str | None) -> None:
 @click.option(
     "--homebrew/--no-homebrew",
     default=False,
-    help="Also match titles against the Homebrew Cask catalog (a second matching dimension alongside Installomator). Adds a Homebrew coverage column to reports.",
+    help="(Deprecated) Force Homebrew Cask matching on for this run. Configure integrations in setup, or use --coverage instead.",
+)
+@click.option(
+    "--coverage",
+    "-c",
+    multiple=True,
+    metavar="<source>",
+    type=click.Choice(["installomator", "homebrew", "autopkg", "jai"], case_sensitive=False),
+    help="Render an opt-in Y/N coverage column per source (repeatable). Sources disabled in your config are skipped unless --force is passed.",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Force the requested --coverage sources on for this run, overriding the config and matching toggle.",
 )
 @click.pass_context
 async def export(
@@ -407,6 +429,8 @@ async def export(
     concurrency: int,
     device_details: bool,
     homebrew: bool,
+    coverage: tuple[str, ...],
+    force: bool,
 ) -> None:
     """
     Collects patch management data from Jamf API calls and exports data to Excel and optional
@@ -437,18 +461,57 @@ async def export(
     :type concurrency: int
     :param device_details: If True, includes per-title device detail sheets in Excel export.
     :type device_details: bool
-    :param homebrew: If True, also match titles against the Homebrew Cask catalog and add a Homebrew coverage column to reports.
+    :param homebrew: (Deprecated) Force Homebrew Cask matching on for this run. Prefer configuring integrations in setup, or ``--coverage``.
     :type homebrew: bool
+    :param coverage: Source names to render as opt-in Y/N coverage columns. Disabled sources are skipped unless ``force`` is set.
+    :type coverage: tuple[str, ...]
+    :param force: If True, force the requested ``coverage`` sources on for this run, overriding config and the matching toggle.
+    :type force: bool
     """
     settings = ctx.obj.get("settings")
+
+    if homebrew:
+        console.print(
+            "⚠️  --homebrew is deprecated; enable Homebrew in setup or use --coverage homebrew.",
+            style=WARNING_STYLE,
+        )
+    if force and not coverage:
+        console.print("⚠️  --force has no effect without --coverage.", style=WARNING_STYLE)
+
+    integrations = settings.integrations.model_copy()
+    if homebrew:  # deprecated force-on override
+        integrations.homebrew = True
+
+    render_fields: list[str] = []
+    skipped: list[str] = []
+    for field in coverage:
+        if force or (settings.enable_matching and getattr(settings.integrations, field)):
+            render_fields.append(field)
+            setattr(integrations, field, True)
+        else:
+            skipped.append(field)
+    if skipped:
+        labels = ", ".join(_COVERAGE_LABELS[f] for f in skipped)
+        console.print(
+            Panel(
+                f"Skipped coverage for {labels}: disabled in your configuration (or matching is "
+                "off). Enable it in setup, or pass --force to override for this run.",
+                title="Coverage skipped",
+                border_style=WARNING_STYLE,
+                expand=False,
+            )
+        )
+
+    enable_matching = settings.enable_matching or (force and bool(render_fields))
+    coverage_tokens = [_INTEGRATION_TOKENS[field] for field in render_fields]
 
     patcher = PatcherClient(
         config=ctx.obj.get("config"),
         concurrency=concurrency,
         disable_cache=ctx.obj.get("disable_cache"),
         debug=ctx.obj.get("debug"),
-        enable_matching=settings.enable_matching,
-        enable_homebrew=homebrew,
+        enable_matching=enable_matching,
+        integrations=integrations,
         ui_config=settings.user_interface_settings.model_dump(),
         ignored_titles=settings.ignored_titles,
     )
@@ -485,9 +548,9 @@ async def export(
         date_format=actual_format,
         report_title=patcher.ui_config.get("header_text"),
         enable_iom=patcher.api is not None,
-        enable_homebrew=patcher.enable_homebrew,
         header_color=patcher.ui_config.get("header_color"),
         device_details=device_details,
+        coverage=coverage_tokens,
     )
 
 
@@ -710,7 +773,7 @@ async def analyze(
                 t.latest_version,
                 completion_text(t.completion_percent, threshold),
                 t.total_hosts,
-                "Y" if t.install_label else "N",
+                "Y" if t.installomator else "N",
             ]
             for t in filtered_titles
         ]

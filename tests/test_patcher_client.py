@@ -65,7 +65,7 @@ class TestFetchPatches:
             patcher.jamf.get_summaries.return_value,
             jamf=patcher.jamf,
             api=patcher.api,
-            include_homebrew=False,
+            enabled_sources={"installomator", "homebrew_cask", "autopkg", "jamf_app_installer"},
             ignored_titles=[],
         )
         assert result == patcher.jamf.get_summaries.return_value
@@ -82,29 +82,42 @@ class TestFetchPatches:
         assert chrome.name_id == "0BC"
 
     @pytest.mark.asyncio
-    async def test_match_homebrew_override_widens_match(self, patcher, mocker):
-        """match_homebrew=True overrides the (default False) enable_homebrew toggle."""
+    async def test_match_homebrew_true_forces_source_on(self, patcher, mocker):
+        """match_homebrew=True records homebrew even when the integration is off."""
         mock_match = mocker.patch(
             "src.patcher.core.patcher_client.match_titles",
             new_callable=AsyncMock,
         )
+        patcher.integrations.homebrew = False
 
         await patcher.fetch_patches(match_homebrew=True)
 
-        assert mock_match.await_args.kwargs["include_homebrew"] is True
+        assert "homebrew_cask" in mock_match.await_args.kwargs["enabled_sources"]
 
     @pytest.mark.asyncio
-    async def test_match_homebrew_defaults_to_enable_homebrew(self, patcher, mocker):
-        """When match_homebrew is None, the construction-time enable_homebrew default applies."""
+    async def test_match_homebrew_false_forces_source_off(self, patcher, mocker):
+        """match_homebrew=False drops homebrew even when the integration is on."""
         mock_match = mocker.patch(
             "src.patcher.core.patcher_client.match_titles",
             new_callable=AsyncMock,
         )
-        patcher.enable_homebrew = True
+
+        await patcher.fetch_patches(match_homebrew=False)
+
+        assert "homebrew_cask" not in mock_match.await_args.kwargs["enabled_sources"]
+
+    @pytest.mark.asyncio
+    async def test_match_homebrew_none_uses_integrations(self, patcher, mocker):
+        """match_homebrew=None defers to the configured integrations."""
+        mock_match = mocker.patch(
+            "src.patcher.core.patcher_client.match_titles",
+            new_callable=AsyncMock,
+        )
+        patcher.integrations.homebrew = False
 
         await patcher.fetch_patches()
 
-        assert mock_match.await_args.kwargs["include_homebrew"] is True
+        assert "homebrew_cask" not in mock_match.await_args.kwargs["enabled_sources"]
 
     @pytest.mark.asyncio
     async def test_skips_match_when_disabled(self, patcher, mocker):
@@ -562,7 +575,7 @@ class TestFromState:
         call_kwargs = mock_client_cls.call_args.kwargs
         assert call_kwargs["config"] is mock_config_cls.return_value
         assert call_kwargs["enable_matching"] is True
-        assert call_kwargs["enable_homebrew"] is True
+        assert call_kwargs["integrations"].homebrew is True
         assert call_kwargs["ui_config"]["header_text"] == "Org Header"
         assert call_kwargs["ignored_titles"] == ["Adobe *"]
 
@@ -625,6 +638,7 @@ class TestExport:
             formats={"pdf"},
             header_color="#ff0000",
             device_reports=None,
+            coverage=None,
         )
         assert result == {"pdf": "/tmp/out.pdf", "excel": "/tmp/out.xlsx"}
 

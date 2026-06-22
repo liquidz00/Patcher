@@ -57,8 +57,14 @@ Pulling patch data out of Jamf and into formats you can actually share. By defau
 `--device-details`, `-D`
 : Per-title device sheets in the Excel export (slower on large fleets)
 
+`--coverage`, `-c`
+: Render an opt-in `Y`/`N` coverage column per source (`installomator`, `homebrew`, `autopkg`, `jai`). Pass multiple times. Sources disabled in your config are skipped with a notice unless `--force` is passed.
+
+`--force`
+: Force the requested `--coverage` sources on for this run, overriding your config (and the matching toggle).
+
 `--homebrew` / `--no-homebrew`
-: Also match titles against Homebrew Cask; adds a `Homebrew` coverage column (see [Homebrew matching](#homebrew))
+: *(Deprecated)* Force Homebrew Cask matching on for this run. Configure integrations in setup, or use `--coverage` instead.
 
 ### Examples
 
@@ -81,9 +87,9 @@ $ patcherctl export --path ~/reports --sort "Released" --omit
 ```
 
 ```{code-block} bash
-:caption: Add iOS device data and Homebrew Cask coverage
+:caption: Add iOS device data and opt-in coverage columns
 
-$ patcherctl export --path ~/reports --ios --homebrew
+$ patcherctl export --path ~/reports --ios --coverage installomator --coverage homebrew
 ```
 
 (date-format)=
@@ -138,17 +144,17 @@ The aggregate appears in the report as a count of mobile devices on the latest O
 
 (homebrew)=
 
-### Homebrew Cask Matching
+### Catalog Source Matching
 
-Patcher matches each Jamf patch title against the Installomator-sourced slugs in the Patcher API catalog. Passing `--homebrew` widens catalog matching to [Homebrew Cask's](https://github.com/Homebrew/homebrew-cask) catalog, which covers apps that carry no Installomator label.
+Patcher matches each Jamf patch title against the Patcher API catalog across every source enabled in your `integrations` config (`installomator`, `homebrew`, `autopkg`, `jai`), all on by default. A source you disable in setup is no longer matched or recorded anywhere. [Homebrew Cask](https://github.com/Homebrew/homebrew-cask) coverage, for example, picks up apps that carry no Installomator label.
 
-The flag is off by default, so reports without it stay byte-for-byte unchanged. Homebrew matching rides on the same catalog pass as Installomator, so it has no effect when Installomator matching is turned off.
+The legacy `--homebrew` flag is deprecated: it now just force-enables Homebrew for a single run. Configure sources in setup instead, and use [`--coverage`](#export) to surface a source as a column in rendered reports.
 
 (disabling_installomator_support)=
 
 ### Disabling Matching
 
-If catalog matching doesn't fit your environment, turn it off entirely. When disabled, no catalog calls are made and the `install_label` field on every {class}`~patcher.core.models.patch.PatchTitle` stays empty.
+If catalog matching doesn't fit your environment, turn it off entirely. When disabled, no catalog calls are made and the `sources` map on every {class}`~patcher.core.models.patch.PatchTitle` stays empty.
 
 ```{code-block} bash
 :caption: Disabling catalog matching
@@ -156,6 +162,12 @@ If catalog matching doesn't fit your environment, turn it off entirely. When dis
 $ defaults write \
   ~/Library/Application\ Support/Patcher/com.liquidzoo.patcher.plist \
   enable_matching -bool false
+```
+
+(exported-field-policy)=
+### Export Field Policy
+
+```{include} _export-fields.md
 ```
 
 (analyze)=

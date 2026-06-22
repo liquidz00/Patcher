@@ -13,7 +13,9 @@ class TestPersistence:
         assert s.enable_caching is True
         assert s.interpreter_path == sys.executable
         assert s.integrations.installomator is True
-        assert s.integrations.homebrew is False
+        assert s.integrations.homebrew is True
+        assert s.integrations.autopkg is True
+        assert s.integrations.jai is True
         assert s.ignored_titles == []
         assert s.user_interface_settings.header_text == "Default header text"
 

@@ -144,7 +144,7 @@ Fetches the latest released iOS/iPadOS versions from [SOFA](https://sofa.macadmi
 
 ### Homebrew Cask Matching
 
-Constructing the client with `enable_homebrew=True` widens catalog matching to [Homebrew Cask's](https://github.com/Homebrew/homebrew-cask) catalog, which covers apps that carry no Installomator label. Installomator matches are assigned to each title's `install_label` attribute, Cask matches are assigned to each title's `homebrew_cask` attribute.
+Constructing the client with `enable_homebrew=True` widens catalog matching to [Homebrew Cask's](https://github.com/Homebrew/homebrew-cask) catalog, which covers apps that carry no Installomator label. Each matched slug is recorded on the title's `sources` map under every catalog source it carries; the convenience properties `title.installomator` and `title.homebrew_cask` return the matched slugs for those sources.
 
 ```python
 from pathlib import Path
@@ -152,7 +152,7 @@ from patcher import PatcherClient
 
 async with PatcherClient.from_state(enable_homebrew=True) as patcher:
     titles = await patcher.fetch_patches()
-    # titles[n].homebrew_cask holds CaskMatch stubs for Cask-covered apps
+    # titles[n].homebrew_cask holds the matched cask slugs for Cask-covered apps
     await patcher.export(titles, output_dir=Path("~/reports").expanduser())
 ```
 
@@ -173,7 +173,12 @@ patcher = PatcherClient(
 )
 ```
 
-With matching disabled, patch title fetching never calls the matching algorithm. `install_label` field on every patch title stays empty.
+With matching disabled, patch title fetching never calls the matching algorithm. The `sources` map on every patch title stays empty.
+
+### Export Field Policy
+
+```{include} _export-fields.md
+```
 
 ## Analyze
 

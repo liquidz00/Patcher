@@ -5,8 +5,6 @@ from datetime import datetime
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from . import Model
-from .cask import CaskMatch
-from .label import Label
 
 
 class PatchTitle(Model):
@@ -29,9 +27,10 @@ class PatchTitle(Model):
     :type completion_percent: float
     :ivar total_hosts: The total number of hosts.
     :type total_hosts: int
-    :ivar install_label: The corresponding `InstallomatorClient <https://github.com/InstallomatorClient/InstallomatorClient>`_ label(s) if available.
-    :ivar homebrew_cask: The corresponding `Homebrew Cask <https://github.com/Homebrew/homebrew-cask>`_ coverage stub(s) if available. Populated only when Homebrew matching is enabled; an independent signal from ``install_label``.
-    :type homebrew_cask: list[:class:`~patcher.core.models.cask.CaskMatch`] | None
+    :ivar name_id: Internal match key, stripped from rendered reports.
+    :type name_id: str | None
+    :ivar sources: Maps each matched integration source to its identifiers: catalog slugs for Installomator and Homebrew Cask, AutoPkg repo names, and the Jamf title for Jamf App Installers.
+    :type sources: dict[str, list[str]]
     """
 
     title: str
@@ -45,13 +44,29 @@ class PatchTitle(Model):
     name_id: str | None = (
         None  # Jamf softwareTitleNameId; internal match key, stripped from PDF/Excel
     )
-    install_label: list[Label] | None = []  # account for variants (e.g., zulujdk8, zulujdk9)
-    homebrew_cask: list[CaskMatch] | None = []  # second matching dimension, opt-in
+    sources: dict[str, list[str]] = Field(default_factory=dict)
 
     def __str__(self):
         return f"{self.title} ({self.latest_version})"
 
+    @property
+    def installomator(self) -> list[str]:
+        return self.sources.get("installomator", [])
+
+    @property
+    def homebrew_cask(self) -> list[str]:
+        return self.sources.get("homebrew_cask", [])
+
+    @property
+    def autopkg(self) -> list[str]:
+        return self.sources.get("autopkg", [])
+
+    @property
+    def jamf_app_installer(self) -> list[str]:
+        return self.sources.get("jamf_app_installer", [])
+
     @field_validator("title_id")
+    @classmethod
     def cast_as_string(cls, value: int | str) -> str:
         """
         Ensures the ``title_id`` property is always a string, regardless of type in API response payload.

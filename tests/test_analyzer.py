@@ -8,8 +8,6 @@ import pytest
 from src.patcher.core.analyze import Diff, TitleFilter, TrendAnalysis, get_sofa_feed
 from src.patcher.core.data_manager import DataManager
 from src.patcher.core.exceptions import APIResponseError, PatcherError
-from src.patcher.core.models.cask import CaskMatch
-from src.patcher.core.models.label import Label
 from src.patcher.core.models.patch import PatchTitle
 
 pytestmark = pytest.mark.unit
@@ -22,7 +20,7 @@ def make_title(
     missing_patch: int = 0,
     released: str = "Jan 01 2024",
     latest_version: str = "1.0.0",
-    install_label: list[str] | None = None,
+    sources: dict[str, list[str]] | None = None,
 ) -> PatchTitle:
     """Builder for PatchTitle test fixtures.
 
@@ -37,7 +35,7 @@ def make_title(
         hosts_patched=hosts_patched,
         missing_patch=missing_patch,
         latest_version=latest_version,
-        install_label=install_label or [],
+        sources=sources or {},
     )
 
 
@@ -109,13 +107,10 @@ class TestTitleFilterMethods:
         assert [t.title for t in result] == ["Bad"]
 
     def test_installomator_keeps_titles_with_labels(self):
-        label = Label(name="Firefox", installomator_label="firefox")
-        none_title = make_title("None labels")
-        none_title.install_label = None  # uncovered titles can deserialize to None
         titles = [
-            make_title("With label", install_label=[label]),
-            make_title("Without", install_label=[]),
-            none_title,
+            make_title("With label", sources={"installomator": ["firefox"]}),
+            make_title("Without", sources={"homebrew_cask": ["slack"]}),
+            make_title("No coverage"),
         ]
         result = TitleFilter(titles).installomator()
         assert [t.title for t in result] == ["With label"]
@@ -300,13 +295,18 @@ class TestImpactWeightedRisk:
 
 class TestCoverageGaps:
     def test_only_uncovered_titles_returned(self):
-        label = Label(name="Firefox", installomator_label="firefox")
-        cask = CaskMatch(name="Slack", token="slack")
         covered_label = make_title(
-            "Covered by Label", hosts_patched=10, missing_patch=5, install_label=[label]
+            "Covered by Label",
+            hosts_patched=10,
+            missing_patch=5,
+            sources={"installomator": ["firefox"]},
         )
-        covered_cask = make_title("Covered by Cask", hosts_patched=10, missing_patch=5)
-        covered_cask.homebrew_cask = [cask]
+        covered_cask = make_title(
+            "Covered by Cask",
+            hosts_patched=10,
+            missing_patch=5,
+            sources={"homebrew_cask": ["slack"]},
+        )
         gap = make_title("Gap", hosts_patched=10, missing_patch=20)
         result = TitleFilter([covered_label, covered_cask, gap]).coverage_gaps()
         assert [t.title for t in result] == ["Gap"]
@@ -327,8 +327,9 @@ class TestCoverageGaps:
         assert TitleFilter([]).coverage_gaps() == []
 
     def test_all_covered_returns_empty(self):
-        label = Label(name="Firefox", installomator_label="firefox")
-        covered = make_title("All Set", hosts_patched=10, missing_patch=5, install_label=[label])
+        covered = make_title(
+            "All Set", hosts_patched=10, missing_patch=5, sources={"installomator": ["firefox"]}
+        )
         assert TitleFilter([covered]).coverage_gaps() == []
 
 

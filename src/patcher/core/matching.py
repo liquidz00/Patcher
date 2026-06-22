@@ -1,15 +1,16 @@
 """
 Match Jamf patch titles against the Patcher API catalog (direct → normalized → fuzzy).
 
-Matches are routed by provenance: Installomator-sourced slugs populate
-``install_label``, Homebrew Cask-sourced slugs populate ``homebrew_cask``, and a
-dual-source slug populates both. This keeps the Installomator-only meaning of
-``install_label`` intact rather than overloading it. Module-level functions so
-the algorithm can be exercised standalone in tests.
+A matched slug is recorded on ``PatchTitle.sources`` under every enabled source
+its catalog ``App`` carries. Installomator and Homebrew Cask keep the slug (the
+slug is the native id); AutoPkg and Jamf App Installers are enriched to native
+identifiers (repo sets / Jamf titles) from per-slug source detail. Module-level
+functions so the algorithm can be exercised standalone in tests.
 """
 
 from __future__ import annotations
 
+import asyncio
 import fnmatch
 import json
 import warnings
@@ -21,12 +22,10 @@ from rapidfuzz import fuzz, process
 
 from ..catalog._normalize import normalize_name
 from ..clients.jamf import JamfClient
-from ..clients.patcher_api import App, PatcherAPIClient
+from ..clients.patcher_api import App, AppSources, PatcherAPIClient
 from ..policy import IGNORED_TITLES
 from .exceptions import APIResponseError, InstallomatorWarning
 from .logger import LogMe
-from .models.cask import CaskMatch
-from .models.label import Label
 from .models.patch import PatchTitle
 
 DEFAULT_FUZZY_THRESHOLD = 85
@@ -36,6 +35,13 @@ DEFAULT_REVIEW_FILE = Path.home() / "Library/Application Support/Patcher/unmatch
 # The ``/apps`` endpoint caps ``limit`` at 1000. Installomator's slug set fits
 # in one page, but the Homebrew Cask set (~7k) does not, so callers paginate.
 _CATALOG_PAGE_SIZE = 1000
+
+# Sources we can page /apps by as match candidates; autopkg/jai ride along on matched slugs.
+_FETCHABLE_SOURCES = ("installomator", "homebrew_cask")
+_SOURCE_DISPLAY = {"installomator": "Installomator", "homebrew_cask": "Homebrew"}
+
+# Sources whose map values are enriched from per-slug source detail (native ids, not slugs).
+_ENRICHABLE_SOURCES = ("autopkg", "jamf_app_installer")
 
 
 def match_directly(app_names: list[str], available: set[str]) -> list[str]:
@@ -69,40 +75,6 @@ def match_fuzzy(
     return matched
 
 
-def _make_stub(patch_title: str, app: App) -> Label:
-    """Coverage stub for an Installomator match, hydrated from the matched catalog App."""
-    return Label(
-        name=patch_title,
-        installomator_label=app.slug,
-        type=app.install_method.value if app.install_method else None,
-        expected_team_id=app.expected_team_id,
-        download_url=str(app.download_url) if app.download_url else None,
-    )
-
-
-def _make_cask_match(patch_title: str, app: App) -> CaskMatch:
-    """
-    Build a :class:`~patcher.core.models.cask.CaskMatch` coverage stub from a
-    matched catalog ``App``.
-
-    Carries the version and download URL the catalog already resolved so
-    reports can surface them without a second lookup.
-
-    :param patch_title: The patch title the match is attached to.
-    :type patch_title: str
-    :param app: The matched catalog record (a Homebrew Cask-sourced slug).
-    :type app: :class:`~patcher.clients.patcher_api.App`
-    :return: A Homebrew Cask coverage stub.
-    :rtype: :class:`~patcher.core.models.cask.CaskMatch`
-    """
-    return CaskMatch(
-        name=patch_title,
-        token=app.slug,
-        version=app.current_version,
-        download_url=str(app.download_url) if app.download_url else None,
-    )
-
-
 async def _fetch_catalog_apps(
     api: PatcherAPIClient,
     *,
@@ -116,7 +88,7 @@ async def _fetch_catalog_apps(
     :data:`_CATALOG_PAGE_SIZE`) until a short page signals the end. The
     returned ``App.sources`` is authoritative for provenance regardless of
     which source query surfaced the row, so a dual-source app is stored once
-    and still routes to both ``install_label`` and ``homebrew_cask``.
+    and still records every source it carries.
 
     :param api: Catalog client.
     :type api: :class:`~patcher.clients.patcher_api.PatcherAPIClient`
@@ -144,20 +116,15 @@ def _attach_matches(
     slugs: list[str],
     apps_by_slug: dict[str, App],
     *,
-    include_homebrew: bool,
+    enabled: set[str] | None,
 ) -> bool:
     """
-    Route matched slugs onto the patch title by source provenance.
+    Record matched slugs on the title's ``sources`` map by provenance.
 
-    An Installomator-sourced slug appends a :class:`Label` stub to
-    ``install_label``; a Homebrew Cask-sourced slug appends a
-    :class:`~patcher.core.models.cask.CaskMatch` to ``homebrew_cask`` (only
-    when ``include_homebrew`` is set). A dual-source slug appends to both.
-
-    Homebrew attachment is gated on ``include_homebrew`` rather than on
-    ``App.sources`` alone: dual-source apps are reachable even with the
-    toggle off (they carry an Installomator label), and we must not populate
-    ``homebrew_cask`` unless the caller opted in.
+    Each slug is bucketed under every source its catalog ``App`` carries that is
+    also in ``enabled``, so a dual-source slug appears under each enabled source
+    and coverage the catalog already knows about (AutoPkg, Jamf App Installers)
+    surfaces without a second lookup. ``enabled=None`` disables gating entirely.
 
     :param patch_title: The title to mutate in place.
     :type patch_title: :class:`~patcher.core.models.patch.PatchTitle`
@@ -165,27 +132,100 @@ def _attach_matches(
     :type slugs: list[str]
     :param apps_by_slug: Slug-to-``App`` map carrying provenance.
     :type apps_by_slug: dict[str, :class:`~patcher.clients.patcher_api.App`]
-    :param include_homebrew: Whether to populate ``homebrew_cask``.
-    :type include_homebrew: bool
-    :return: True if any stub was attached.
+    :param enabled: Source tokens permitted on the map, or ``None`` for no gating.
+    :type enabled: set[str] | None
+    :return: True if any source bucket gained a slug.
     :rtype: bool
     """
+    if patch_title.sources is None:
+        patch_title.sources = {}
     attached = False
     for slug in slugs:
         app = apps_by_slug.get(slug)
         if app is None:
             continue
-        if "installomator" in app.sources:
-            if patch_title.install_label is None:
-                patch_title.install_label = []
-            patch_title.install_label.append(_make_stub(patch_title.title, app))
-            attached = True
-        if include_homebrew and "homebrew_cask" in app.sources:
-            if patch_title.homebrew_cask is None:
-                patch_title.homebrew_cask = []
-            patch_title.homebrew_cask.append(_make_cask_match(patch_title.title, app))
-            attached = True
+        for source in app.sources:
+            if enabled is not None and source not in enabled:
+                continue
+            bucket = patch_title.sources.setdefault(source, [])
+            if slug not in bucket:
+                bucket.append(slug)
+                attached = True
     return attached
+
+
+def _native_ids(app_sources: AppSources, source: str) -> list[str]:
+    """
+    Native identifiers for ``source`` from a slug's source detail.
+
+    AutoPkg resolves to its deduped repo set (an app carries dozens of recipes
+    across a handful of repos, so the repo is the actionable axis); Jamf App
+    Installers resolves to the Jamf title.
+    """
+    if source == "autopkg" and app_sources.autopkg:
+        repos: list[str] = []
+        for recipe in app_sources.autopkg.recipes:
+            if recipe.repo and recipe.repo not in repos:
+                repos.append(recipe.repo)
+        return repos
+    if source == "jamf_app_installer" and app_sources.jamf_app_installer:
+        title = app_sources.jamf_app_installer.title
+        return [title] if title else []
+    return []
+
+
+async def _enrich_native_ids(
+    patch_titles: list[PatchTitle],
+    api: PatcherAPIClient,
+    *,
+    sources: set[str],
+    log: LogMe,
+) -> None:
+    """
+    Swap slug values for native identifiers on the given ``sources``.
+
+    Installomator and Homebrew Cask keep their slugs. AutoPkg and Jamf App
+    Installers carry coarse slugs from the match pass; here they become repo
+    sets / Jamf titles pulled from each matched slug's
+    ``GET /apps/{slug}/sources`` payload. Detail is fetched once per unique slug
+    (titles share slugs) and concurrently. A title's value is left as slugs if
+    enrichment yields nothing, so the coverage signal is never lost.
+    """
+    needed: set[str] = set()
+    for title in patch_titles:
+        for source in sources:
+            needed.update((title.sources or {}).get(source) or [])
+    if not needed:
+        return
+
+    slugs = list(needed)
+    results = await asyncio.gather(
+        *(api.get_app_sources(slug) for slug in slugs), return_exceptions=True
+    )
+    detail: dict[str, AppSources] = {}
+    for slug, result in zip(slugs, results):
+        if isinstance(result, Exception):
+            log.warning(f"Could not fetch source detail for {slug}: {result}")
+        elif result is not None:
+            detail[slug] = result
+
+    for title in patch_titles:
+        if not title.sources:
+            continue
+        for source in sources:
+            matched_slugs = title.sources.get(source)
+            if not matched_slugs:
+                continue
+            native: list[str] = []
+            for slug in matched_slugs:
+                app_sources = detail.get(slug)
+                if app_sources is None:
+                    continue
+                for nid in _native_ids(app_sources, source):
+                    if nid not in native:
+                        native.append(nid)
+            if native:
+                title.sources[source] = native
 
 
 async def match_titles(
@@ -195,20 +235,23 @@ async def match_titles(
     *,
     threshold: int = DEFAULT_FUZZY_THRESHOLD,
     review_file: Path | None = DEFAULT_REVIEW_FILE,
-    include_homebrew: bool = False,
+    enabled_sources: set[str] | None = None,
     ignored_titles: list[str] | None = None,
     progress_callback: Callable[[int, int], None] | None = None,
 ) -> None:
     """
     Match each :class:`~patcher.core.models.patch.PatchTitle` against the API
-    catalog and populate coverage stubs for matches.
+    catalog and record matched slugs on its ``sources`` map.
 
-    Installomator-sourced matches populate ``install_label`` with
-    :class:`Label` stubs. When ``include_homebrew`` is set, the candidate
-    slug set also includes Homebrew Cask-sourced entries, and matches against
-    those populate ``homebrew_cask`` with
-    :class:`~patcher.core.models.cask.CaskMatch` stubs; a dual-source slug
-    populates both fields.
+    ``enabled_sources`` is the set of catalog source tokens permitted for this
+    run. The candidate set is paged from the fetchable subset of those tokens
+    (Installomator, Homebrew Cask), and a matched slug is recorded under every
+    *enabled* source its catalog ``App`` carries, so AutoPkg and Jamf App
+    Installers coverage surfaces for free when enabled. ``None`` (the default)
+    disables gating: candidates page from both fetchable sources and every
+    source on a matched slug is recorded. AutoPkg and Jamf App Installers values
+    are then enriched from per-slug source detail into repo sets / Jamf titles
+    (Installomator and Homebrew Cask keep their slugs).
 
     Each title is matched deterministically first by its ``name_id`` (Jamf
     softwareTitleNameId) against the catalog's jamf-index; titles without a
@@ -224,8 +267,8 @@ async def match_titles(
         for :meth:`~patcher.clients.jamf.JamfClient.get_app_names` to
         retrieve per-title Jamf app-name lists.
     :param api: :class:`~patcher.clients.patcher_api.PatcherAPIClient`
-        pointed at the catalog. Pages ``GET /apps`` for the ``installomator``
-        source (and ``homebrew_cask`` when ``include_homebrew`` is set).
+        pointed at the catalog. Pages ``GET /apps`` for each fetchable enabled
+        source (``installomator`` and/or ``homebrew_cask``).
     :param threshold: Fuzzy-match score cutoff (rapidfuzz ratio, 0–100).
         Defaults to 85, matching ``InstallomatorClient``'s historical value.
     :type threshold: int
@@ -233,10 +276,10 @@ async def match_titles(
         for manual review. ``None`` disables the review-file write. Defaults
         to ``~/Library/Application Support/Patcher/unmatched_apps.json``.
     :type review_file: Path | None
-    :param include_homebrew: If True, widen matching to the Homebrew Cask
-        source and populate ``PatchTitle.homebrew_cask`` for Cask matches.
-        Defaults to False (Installomator-only, the historical behavior).
-    :type include_homebrew: bool
+    :param enabled_sources: Catalog source tokens permitted for this run.
+        Gates both the candidate set (fetchable subset) and which sources are
+        recorded on each title. ``None`` (default) disables gating.
+    :type enabled_sources: set[str] | None
     :param ignored_titles: Extra Jamf-title skip patterns (``fnmatch`` syntax)
         merged with the built-in :data:`~patcher.policy.IGNORED_TITLES`. Lets
         callers skip titles managed out-of-band without editing policy.
@@ -248,19 +291,22 @@ async def match_titles(
     """
     log = LogMe("matching")
     ignore_patterns = [*IGNORED_TITLES, *(ignored_titles or [])]
-    sources = ["installomator"]
-    if include_homebrew:
-        sources.append("homebrew_cask")
-    log.debug(f"Starting API-backed matching (sources: {', '.join(sources)})")
+    if enabled_sources is None:
+        fetch_sources = list(_FETCHABLE_SOURCES)
+    else:
+        fetch_sources = [s for s in _FETCHABLE_SOURCES if s in enabled_sources]
+    log.debug(f"Starting API-backed matching (sources: {', '.join(fetch_sources)})")
 
     try:
-        apps_by_slug = await _fetch_catalog_apps(api, sources=sources)
+        apps_by_slug = await _fetch_catalog_apps(api, sources=fetch_sources)
     except APIResponseError as exc:
         log.error(f"Failed to fetch catalog from Patcher API: {exc}")
         return
 
     available: set[str] = set(apps_by_slug)
-    log.info(f"Loaded {len(available)} catalog slugs from Patcher API ({', '.join(sources)}).")
+    log.info(
+        f"Loaded {len(available)} catalog slugs from Patcher API ({', '.join(fetch_sources)})."
+    )
 
     try:
         jamf_index = await api.get_jamf_index()
@@ -317,7 +363,7 @@ async def match_titles(
         names = per_title_matches.get(patch_title.title)
         if not names:
             continue
-        if _attach_matches(patch_title, names, apps_by_slug, include_homebrew=include_homebrew):
+        if _attach_matches(patch_title, names, apps_by_slug, enabled=enabled_sources):
             matched_count += 1
 
     matched_count += await _second_pass(
@@ -326,12 +372,18 @@ async def match_titles(
         patch_titles,
         apps_by_slug,
         threshold=threshold,
-        include_homebrew=include_homebrew,
+        enabled_sources=enabled_sources,
     )
+
+    enrich = set(_ENRICHABLE_SOURCES)
+    if enabled_sources is not None:
+        enrich &= enabled_sources
+    if enrich:
+        await _enrich_native_ids(patch_titles, api, sources=enrich, log=log)
 
     log.info(f"Matching process finished. {matched_count} PatchTitle objects were updated.")
     if unmatched_apps:
-        source_label = "Installomator or Homebrew" if include_homebrew else "Installomator"
+        source_label = " or ".join(_SOURCE_DISPLAY.get(s, s) for s in fetch_sources) or "catalog"
         log.warning(f"{len(unmatched_apps)} PatchTitle objects had no matches.")
         if review_file is not None:
             _save_unmatched(review_file, unmatched_apps)
@@ -353,11 +405,11 @@ async def _second_pass(
     apps_by_slug: dict[str, App],
     *,
     threshold: int,
-    include_homebrew: bool,
+    enabled_sources: set[str] | None,
 ) -> int:
     """
     Retry unmatched titles using normalized + fuzzy matching against the
-    patch title text, routing hits by source provenance.
+    patch title text, recording hits by source provenance.
 
     :param unmatched_apps: Mutable list of unmatched entries; matched ones
         are removed in place.
@@ -370,8 +422,8 @@ async def _second_pass(
     :type apps_by_slug: dict[str, :class:`~patcher.clients.patcher_api.App`]
     :param threshold: Fuzzy-match score cutoff.
     :type threshold: int
-    :param include_homebrew: Whether to populate ``homebrew_cask`` on hits.
-    :type include_homebrew: bool
+    :param enabled_sources: Source tokens permitted on the map, or ``None``.
+    :type enabled_sources: set[str] | None
     :return: Count of titles updated in this pass.
     :rtype: int
     """
@@ -399,9 +451,7 @@ async def _second_pass(
                     )
 
         if target_name and patch_title is not None:
-            if _attach_matches(
-                patch_title, [target_name], apps_by_slug, include_homebrew=include_homebrew
-            ):
+            if _attach_matches(patch_title, [target_name], apps_by_slug, enabled=enabled_sources):
                 matched_count += 1
                 continue
 

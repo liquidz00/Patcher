@@ -16,6 +16,7 @@ open write surface.
 """
 
 import asyncio
+import html
 import json
 import logging
 import secrets
@@ -27,6 +28,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from patcher.policy import RESOLUTION_EXCLUDED_LABELS
 from patcher_api.catalog import recompute_catalog_version
 from patcher_api.config import get_settings
 from patcher_api.db import get_session
@@ -126,7 +128,12 @@ async def list_unresolved_labels(
     keeps each runner pass to the ~gap Linux can't cover instead of every label.
     """
     rows = (await session.execute(select(InstallomatorLabel))).scalars().all()
-    return UnresolvedLabels(labels=sorted(r.name for r in rows if _needs_macos_resolution(r)))
+    unresolved = [
+        r.name
+        for r in rows
+        if _needs_macos_resolution(r) and r.name not in RESOLUTION_EXCLUDED_LABELS
+    ]
+    return UnresolvedLabels(labels=sorted(unresolved))
 
 
 @router.post(
@@ -187,6 +194,10 @@ async def ingest_resolved_labels(
         values: dict[str, object] = {}
         download_url = _scalar_for_column(record.get("downloadURL"))
         app_new_version = _scalar_for_column(record.get("appNewVersion"))
+        if isinstance(download_url, str):
+            download_url = html.unescape(download_url)
+        if isinstance(app_new_version, str):
+            app_new_version = html.unescape(app_new_version)
         if download_url and looks_like_clean_http_url(download_url):
             values["download_url"] = download_url
         if app_new_version and looks_like_clean_version(app_new_version):

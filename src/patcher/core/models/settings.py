@@ -21,6 +21,14 @@ SETTINGS_PATH = Path.home() / "Library/Application Support/Patcher/com.liquidzoo
 # Top-level keys that mark a pre-v2 (nested) plist still needing migration.
 _LEGACY_V1_KEYS = ("Setup", "UI", "InstallomatorClient")
 
+# Maps each Integrations field to the catalog source token it gates.
+_INTEGRATION_TOKENS = {
+    "installomator": "installomator",
+    "homebrew": "homebrew_cask",
+    "autopkg": "autopkg",
+    "jai": "jamf_app_installer",
+}
+
 
 class UIConfigKeys(str, Enum):
     """Plist keys for the user-interface settings block."""
@@ -49,12 +57,16 @@ class UIDefaults(Model):
 
 
 class Integrations(Model):
-    """Per-source matching toggles. Only ``installomator`` and ``homebrew`` are wired today."""
+    """Per-source matching toggles, all enabled by default (opt-out model)."""
 
     installomator: bool = True
-    homebrew: bool = False
-    autopkg: bool = False
-    jai: bool = False
+    homebrew: bool = True
+    autopkg: bool = True
+    jai: bool = True
+
+    def enabled_tokens(self) -> set[str]:
+        """Catalog source tokens for the currently-enabled integrations."""
+        return {token for field, token in _INTEGRATION_TOKENS.items() if getattr(self, field)}
 
 
 class PatcherSettings(Model):

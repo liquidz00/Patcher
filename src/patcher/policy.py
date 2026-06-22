@@ -9,12 +9,15 @@ App Installers to install sources that carry none, and ``IGNORED_EXPORT_COLUMNS`
 lists the internal columns stripped from the rendered PDF/Excel/HTML reports.
 """
 
-# LL3KBL2M3A is lcadvancedvpnclient (broken data); Frydendal/Media are non-standard team values
-# TDTHCUPYFR is zulujdk* labels which are problematic due to versioning nuances and HTML scraping
-INGEST_EXCLUDED_TEAM_IDS: frozenset[str] = frozenset(
-    {"Frydendal", "Media", "LL3KBL2M3A", "TDTHCUPYFR"}
-)
+#: Apple Developer Team IDs dropped while parsing Installomator fragments. These are labels with broken or non-standard data (for example, ``lcadvancedvpnclient``, and the ``zulujdk*`` labels whose versioning relies on HTML scraping). Excluding them at ingest keeps the bad records out of the catalog entirely.
+INGEST_EXCLUDED_TEAM_IDS: frozenset[str] = frozenset({
+    "Frydendal",  # Non-standard team value
+    "Media",  # Non-standard team value
+    "LL3KBL2M3A",  # lcadvancedvpnclient (broken data)
+    "TDTHCUPYFR",  # zulujdk* labels (problematic versioning nuances, web scraping)
+})
 
+#: The client matcher's skip list of Jamf patch-title names. A title here is never matched against the catalog, either because it is managed out-of-band (Adobe via the Admin Console), updated by its own mechanism (Jamf, Apple), or no longer supported. This is distinct from the user-configurable ``ignored_titles`` plist setting, which is a per-install preference layered on top.
 IGNORED_TITLES: list[str] = [
     "Apple macOS *",
     "Oracle Java SE *",
@@ -26,8 +29,7 @@ IGNORED_TITLES: list[str] = [
     "Jamf *",  # updated by Jamf's own mechanisms
 ]
 
-# Apps whose install source has no bundle_id but Jamf's catalog does; values are
-# the authoritative bundleId from the App Installers titles API. Keyed by slug.
+#: Some install sources carry no bundle identifier, so Jamf App Installers titles cannot attach to them automatically. Each entry supplies the authoritative ``bundleId`` (taken from the App Installers titles API) so the stitch can bridge the gap for high-value apps like Zoom, Docker, and OBS.
 CURATED_BUNDLE_IDS: dict[str, str] = {
     "aspera": "com.ibm.software.aspera.desktop",
     "bbedit": "com.barebones.bbedit",
@@ -55,5 +57,35 @@ CURATED_BUNDLE_IDS: dict[str, str] = {
     "zoom": "us.zoom.xos",
 }
 
-# Dropped from rendered reports (PDF/Excel/HTML); JSON keeps them as machine-to-machine transport
-IGNORED_EXPORT_COLUMNS: list[str] = ["install_label", "homebrew_cask", "title_id", "name_id"]
+#: The internal columns dropped from the rendered reports. See :ref:`the exported field policy <exported-field-policy>` in the usage docs for more.
+IGNORED_EXPORT_COLUMNS: list[str] = [
+    "sources",
+    "title_id",
+    "name_id"
+]
+
+#: Installomator labels the macOS resolver **never** attempts. These labels are either discontinued products, login/license gated downloads, or per-account custom builds. The Temporal worklist will ignore these labels entirely.
+RESOLUTION_EXCLUDED_LABELS: frozenset[str] = frozenset({
+    # Discontinued / deprecated
+    "skype",  # Retired 2026
+    "workplacechat",  # Meta Workplace shut down
+    "salesforcesfdx",  # superseded by `sf` CLI
+    "microsoftazuredatastudio",  # Retired 2026
+    # Per-account custom builds
+    "teamviewerhostcustom",
+    "teamviewerqscustom",
+    # License/login/enterprise gated downloads
+    "examplify",
+    "steinbergcubaseelementsaile13",
+    "steinbergcubaseproartist13",
+    "toonboomharmony2024",
+    "sketchupviewer",
+    "nditools",
+    "lsagent",
+    "appsanywhere",
+    "editshare-connect",
+    "editshare-flowstory",
+    "surfdrive",
+    "outputhub",
+    "realvnconedemandassist",
+})

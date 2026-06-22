@@ -121,9 +121,9 @@ Fetch per-title app names from Jamf via `jamf.get_app_names`.
 For each title, match its Jamf-side app names against the slug set in three passes: direct → normalized (lowercase, dots stripped) → fuzzy (rapidfuzz ratio, threshold 85).
 :::
 
-:::{step} Attach `Label` stubs to matched titles.
+:::{step} Record matched slugs on each title.
 
-Attach name-only `Label` stubs to matched titles' `install_label` list.
+Record each matched catalog slug under every source it carries on the title's `sources` map.
 :::
 
 :::{step} Run a second pass on unmatched titles.

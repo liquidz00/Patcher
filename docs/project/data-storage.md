@@ -27,7 +27,11 @@ Everything Patcher writes outside of the keychain and the patch-data cache lives
 └── logs/                             # LaunchAgent stdout/stderr (if scheduled)
 ```
 
+:::{admonition} Deprecated in version 3.3.2
+:class: warning
+
 Older versions also kept a `.labels/` directory of cached label scripts. That cache is gone; Patcher removes any leftover directory automatically on the next run and on `reset cache`.
+:::
 
 To wipe this directory entirely, use `patcherctl reset full`. To wipe just the patch-data cache (separate location, see below), use `patcherctl reset cache`.
 
@@ -95,7 +99,7 @@ For customization commands, see {doc}`customizing reports </getting-started/cust
 
 #### Matching Toggle
 
-The `enable_matching` boolean is the master switch for catalog matching: when false, Patcher skips all source matching on every invocation and the `install_label` field on every {class}`~patcher.core.models.patch.PatchTitle` stays empty. The `integrations` dict toggles individual sources (`installomator`, `homebrew`) when matching is on. See {ref}`disabling_installomator_support` for the full behavior breakdown and the command to flip it.
+The `enable_matching` boolean is the master switch for catalog matching: when false, Patcher skips all source matching on every invocation and the `sources` map on every {class}`~patcher.core.models.patch.PatchTitle` stays empty. The `integrations` dict toggles individual sources (`installomator`, `homebrew`) when matching is on. See {ref}`disabling_installomator_support` for the full behavior breakdown and the command to flip it.
 
 #### Full Example
 

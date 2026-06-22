@@ -13,6 +13,8 @@ import pytest
 from patcher_api.models.installomator import InstallomatorLabel
 from sqlalchemy import select
 
+from patcher.policy import RESOLUTION_EXCLUDED_LABELS
+
 _TOKEN = "s3cret-admin-token"
 
 
@@ -204,6 +206,27 @@ async def test_unresolved_worklist_excludes_user_context_labels(client, test_ses
 
 
 @pytest.mark.asyncio
+async def test_unresolved_worklist_excludes_policy_labels(client, test_session, monkeypatch):
+    """Labels in RESOLUTION_EXCLUDED_LABELS (discontinued/gated) never reach the runner."""
+    _configure_token(monkeypatch, _TOKEN)
+    excluded = next(iter(RESOLUTION_EXCLUDED_LABELS))  # any curated member
+    dyn = "$(curl -fsL https://example.com | grep ...)"
+    test_session.add_all(
+        [
+            # would normally qualify (dynamic + NULL), but is policy-excluded -> dropped
+            InstallomatorLabel(name=excluded, raw={"downloadURL": dyn}, download_url=None),
+            InstallomatorLabel(name="resolvable", raw={"downloadURL": dyn}, download_url=None),
+        ]
+    )
+    await test_session.commit()
+
+    resp = await client.get(
+        "/admin/labels/unresolved", headers={"Authorization": f"Bearer {_TOKEN}"}
+    )
+    assert resp.json()["labels"] == ["resolvable"]
+
+
+@pytest.mark.asyncio
 async def test_ingest_coerces_array_shaped_values_to_first_scalar(
     client, test_session, monkeypatch
 ):
@@ -240,6 +263,44 @@ async def test_ingest_coerces_array_shaped_values_to_first_scalar(
     )
     assert row.download_url == "https://example.com/arr.dmg"
     assert row.app_new_version == "1.2.3"
+
+
+@pytest.mark.asyncio
+async def test_ingest_decodes_html_entities_in_urls(client, test_session, monkeypatch):
+    """
+    A resolved URL that came back HTML-entity-encoded (``&amp;`` for ``&``) is
+    decoded before validation, so the corrected URL is stored — not silently
+    kept broken (``&amp;`` is a syntactically valid URL, so it slips past the
+    clean-URL check otherwise).
+    """
+    _configure_token(monkeypatch, _TOKEN)
+
+    await _add_label(test_session, "firefox_da")
+
+    body = _ndjson(
+        {
+            "label": "firefox_da",
+            "ok": True,
+            "downloadURL": "https://download.mozilla.org/?product=firefox-latest&amp;os=osx&amp;lang=da",
+            "appNewVersion": "152.0",
+        },
+    )
+
+    resp = await client.post(
+        "/admin/labels/resolved",
+        content=body,
+        headers={"Authorization": f"Bearer {_TOKEN}"},
+    )
+
+    assert resp.status_code == 200
+    summary = resp.json()
+    assert summary["updated"] == 1
+    assert summary["skipped_invalid"] == 0
+
+    row = await test_session.scalar(
+        select(InstallomatorLabel).where(InstallomatorLabel.name == "firefox_da")
+    )
+    assert row.download_url == "https://download.mozilla.org/?product=firefox-latest&os=osx&lang=da"
 
 
 @pytest.mark.asyncio

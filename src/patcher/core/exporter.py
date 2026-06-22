@@ -18,6 +18,14 @@ from .models.patch import PatchDevice, PatchTitle
 from .pdf_report import PDFReport
 from .serialization import titles_to_dict
 
+# Display names for the opt-in coverage columns (export --coverage), keyed by source token.
+_COVERAGE_COLUMNS = {
+    "installomator": "Installomator",
+    "homebrew_cask": "Homebrew",
+    "autopkg": "AutoPkg",
+    "jamf_app_installer": "Jamf App Installer",
+}
+
 
 class Exporter:
     """Renders a list of ``PatchTitle`` objects to report files (PDF, Excel, HTML, JSON)."""
@@ -29,8 +37,7 @@ class Exporter:
         :class:`~patcher.core.data_manager.DataManager` and handed in to
         :meth:`export`; the exporter never touches the cache.
 
-        :param patch_titles: Titles backing the report (used for the JSON
-            payload and the derived Homebrew coverage column).
+        :param patch_titles: Titles backing the report (used for the JSON payload).
         :type patch_titles: list[:class:`~patcher.core.models.patch.PatchTitle`]
         :param ui_config: Optional dict of UI settings (header text, footer
             text, font paths, logo, header color) forwarded to
@@ -293,6 +300,7 @@ class Exporter:
         formats: set[str] | None = None,
         header_color: str | None = None,
         device_reports: dict[str, list[PatchDevice]] | None = None,
+        coverage: list[str] | None = None,
     ) -> dict[str, str]:
         """
         Render the patch data to the specified report formats.
@@ -315,6 +323,10 @@ class Exporter:
         :type header_color: str | None
         :param device_reports: Optional dictionary mapping title IDs to device lists for per-title detail sheets.
         :type device_reports: dict[str, list[:class:`~patcher.core.models.patch.PatchDevice`]] | None
+        :param coverage: Source tokens to render as opt-in ``Y``/``N`` coverage
+            columns (one per token). Read from each title's ``sources`` map.
+            ``None`` (default) renders no integration columns.
+        :type coverage: list[str] | None
         :return: A dictionary containing paths to generated reports.
         :rtype: dict[str, str]
         """
@@ -328,12 +340,11 @@ class Exporter:
             errors="ignore",
         )
 
-        # Derived Homebrew column (matched cask tokens); the raw field is dropped, added only when a cask matched.
-        if any(title.homebrew_cask for title in self.patch_titles):
-            df["Homebrew"] = [
-                ", ".join(match.token for match in (title.homebrew_cask or []))
-                for title in self.patch_titles
-            ]
+        # Opt-in coverage columns ride on top of the rendered df; built from each
+        # title's sources map so a disabled/unmatched source reads "N", not absent.
+        for token in coverage or []:
+            column = _COVERAGE_COLUMNS.get(token, token)
+            df[column] = ["Y" if title.sources.get(token) else "N" for title in self.patch_titles]
 
         # Verification of directory existence runs synchronously
         output_dir = Path(output_dir)

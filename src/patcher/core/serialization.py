@@ -1,5 +1,6 @@
 """Conversions between ``PatchTitle`` objects and their DataFrame / dict representations."""
 
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -15,9 +16,16 @@ def titles_to_df(titles: list[PatchTitle]) -> pd.DataFrame:
     Build a DataFrame from ``PatchTitle`` objects.
 
     Columns are the model's snake_case field names. Callers that render reports
-    re-case the columns for display; the diff path keeps them as-is.
+    re-case the columns for display; the diff path keeps them as-is. The nested
+    ``sources`` map is stored as a JSON string so it survives the Parquet cache
+    round-trip — Parquet can't write an empty struct column.
     """
-    return pd.DataFrame([title.model_dump() for title in titles])
+    rows = []
+    for title in titles:
+        row = title.model_dump()
+        row["sources"] = json.dumps(row.get("sources") or {})
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
 def df_to_titles(df: pd.DataFrame) -> tuple[list[PatchTitle], list[str]]:
@@ -33,6 +41,9 @@ def df_to_titles(df: pd.DataFrame) -> tuple[list[PatchTitle], list[str]]:
     for _, row in df.iterrows():
         try:
             normalized = {str(key).lower().replace(" ", "_"): value for key, value in row.items()}
+            sources = normalized.get("sources")
+            if isinstance(sources, str):  # JSON string from a Parquet snapshot
+                normalized["sources"] = json.loads(sources) if sources else {}
             titles.append(PatchTitle(**normalized))
         except (KeyError, ValueError, TypeError, ValidationError) as e:
             errors.append(f"{type(e).__name__}: {e}")
