@@ -8,17 +8,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v3.4.0] - 2026-06-22
 ### Added
-- **`export --coverage <source>` renders opt-in per-source coverage columns.** Repeatable like `--format` (e.g. `--coverage installomator --coverage homebrew`), it adds a `Y`/`N` column per source, read from each title's `sources` map. Requesting a source that's disabled in your config skips that column with a clear notice; pass the new `--force` flag to override the config (and the matching toggle) for that run.
+- **`export --coverage <source>` renders opt-in per-source coverage columns.** Repeatable like `--format` (e.g. `--coverage installomator --coverage homebrew`), it adds a `Y`/`N` column per source. A source disabled in your config is skipped with a notice, and the new `--force` flag overrides the config for that run.
 
 ### Changed
-- **Breaking: `PatchTitle` now reports integration coverage as a single `sources` map.** Each title carries `sources: dict[str, list[str]]`, mapping each catalog source (`installomator`, `homebrew_cask`, `autopkg`, `jamf_app_installer`) to the identifiers that carry it: catalog slugs for Installomator and Homebrew Cask, the deduped AutoPkg repo set, and the Jamf title for Jamf App Installers. A matched app records every *enabled* source it carries, so AutoPkg and Jamf App Installers coverage now surfaces in the JSON export and `analyze` for free, not just Installomator and Homebrew. The old `install_label` and `homebrew_cask` rich-object fields are gone; `title.installomator` / `title.homebrew_cask` (plus `title.autopkg` / `title.jamf_app_installer`) are now read-only properties returning the matched slug list for that source. The detailed per-source metadata lives in the catalog API (`GET /apps/{slug}/sources`).
-- **All catalog integrations are enabled by default, and matching is gated by them consistently.** The `integrations` toggles (`installomator`, `homebrew`, `autopkg`, `jai`) now default to on (opt-out), and a source disabled in your settings is no longer matched or recorded anywhere (`analyze`, JSON, exports). Previously `homebrew`, `autopkg`, and `jai` defaulted off, and AutoPkg/JAI coverage leaked into the map regardless. The `--homebrew` flag and `PatcherClient(enable_homebrew=...)` are now a deprecated force-on override; configure sources in setup instead.
-- **Rendered reports (PDF/Excel/HTML) carry no integration columns by default.** Catalog-integration matches stay out of rendered reports unless explicitly requested: coverage belongs in `analyze` and the JSON export. Use `export --coverage <source>` to opt into per-source `Y`/`N` columns on demand.
+- **Breaking: `PatchTitle` now reports integration coverage as a single `sources` map.** Each title carries `sources: dict[str, list[str]]` covering all four sources (Installomator, Homebrew Cask, AutoPkg, Jamf App Installers), so AutoPkg and Jamf App Installers coverage now surfaces in `analyze` and the JSON export, not just Installomator and Homebrew. The `install_label` / `homebrew_cask` rich-object fields are gone. Use the read-only `title.installomator` / `title.homebrew_cask` / `title.autopkg` / `title.jamf_app_installer` slug-list properties, with full per-source detail at `GET /apps/{slug}/sources`.
+- **All catalog integrations are enabled by default, and matching is gated by them consistently.** The `integrations` toggles now default to on (opt-out), and a source disabled in your settings is no longer matched or recorded anywhere; previously Homebrew, AutoPkg, and JAI defaulted off.
+- **Rendered reports (PDF/Excel/HTML) carry no integration columns by default.** Coverage lives in `analyze` and the JSON export; use `export --coverage <source>` to opt into per-source `Y`/`N` columns.
 
 ### Deprecated
-- **The `export --homebrew` flag and `PatcherClient(enable_homebrew=...)`** are deprecated in favor of the per-source `integrations` config (and `--coverage` for report columns). They still work as a force-on override for now, and `--homebrew` prints a deprecation notice.
+- **`export --homebrew` and `PatcherClient(enable_homebrew=...)`** are deprecated in favor of the per-source `integrations` config (and `--coverage` for report columns). They still work as a force-on override, and `--homebrew` prints a deprecation notice.
 
 ## [v3.3.2] - 2026-06-13
 ### Added
