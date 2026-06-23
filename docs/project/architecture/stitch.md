@@ -118,7 +118,7 @@ The newest row timestamp advances, so the catalog version token changes, so the 
 
 ::::
 
-How long this takes from end to end depends on the source. Cask refreshes the same day it merges upstream. AutoPkg recipes follow their own cadence. Installomator's resolved values may need the {doc}`macOS runner pass <resolution>` for dynamic fields. The stitch step itself is fast (it's a Python loop over rows already in memory).
+How long this takes from end to end depends on the source. Cask refreshes the same day it merges upstream. AutoPkg recipes follow their own cadence. Installomator's resolved values may need the {doc}`macOS worker pass <resolution>` for dynamic fields. The stitch step itself is fast (it's a Python loop over rows already in memory).
 
 ## Adding a New Source
 

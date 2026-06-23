@@ -331,7 +331,7 @@ api/patcher_api/
 ├── installomator/           # parser, resolver, ingest (co-located subsystem)
 ├── routes/
 │   ├── apps.py              # public catalog reads
-│   └── admin.py             # token-gated upserts from the macOS resolver runner
+│   └── admin.py             # token-gated upserts from the macOS worker
 ├── mcp/                     # MCP server (Streamable HTTP, mounted at /mcp)
 │   ├── server.py
 │   ├── tools.py
@@ -368,7 +368,7 @@ flowchart LR
     EXT --> ING[Ingest modules]
     ING --> SD[(app_source_details)]
 
-    MACR[macOS GitHub<br/>Actions runner] -- POST /admin/labels/resolved --> ADM[Admin route]
+    MACR[self-hosted macOS<br/>worker] -- POST /admin/labels/resolved --> ADM[Admin route]
     ADM --> SD
 
     SD --> ST[Stitch] --> APPS[(apps)]
@@ -390,7 +390,7 @@ flowchart LR
 : How source-detail rows become canonical app records via per-field fallbacks.
 
 {doc}`Resolution Pipeline </project/architecture/resolution>`
-: How Installomator's dynamic shell fragments become concrete versions and URLs, across a Linux ingest server and a macOS runner.
+: How Installomator's dynamic shell fragments become concrete versions and URLs, across a Linux ingest server and a self-hosted macOS worker.
 
 {doc}`Upstream Sources </project/sources>`
 : How Patcher integrates with Installomator, Homebrew, AutoPkg, and Jamf App Installers.
@@ -405,11 +405,11 @@ A standard FastAPI app, with three nuances worth surfacing:
 :icon: octicon:gear-16
 
 :::{marker} ETag middleware on `/apps*`
-A weak ETag whose value is a version token: the catalog's newest row timestamp (latest ingest plus the latest macOS resolver write). The token changes exactly when the served data changes (typically once per day, plus whenever a macOS runner pass uploads resolved values) and never otherwise. `If-None-Match` is parsed per RFC 7232, with both multi-value lists and the `*` wildcard honored. Revalidating clients short-circuit to 304 instantly between deploys, and Cloudflare absorbs the bulk of traffic in front of the origin.
+A weak ETag whose value is a version token: the catalog's newest row timestamp (latest ingest plus the latest macOS resolver write). The token changes exactly when the served data changes (typically once per day, plus whenever the macOS worker uploads resolved values) and never otherwise. `If-None-Match` is parsed per RFC 7232, with both multi-value lists and the `*` wildcard honored. Revalidating clients short-circuit to 304 instantly between deploys, and Cloudflare absorbs the bulk of traffic in front of the origin.
 :::
 
 :::{marker} Admin-route hardening
-Deploy tokens used by the macOS resolver runner carry an `expires_at` column (90-day default for new tokens; legacy NULL means never expires) and the `/admin/*` routes apply a per-IP rate limit on top of the token check. The token gate is fail-closed: no token configured means the endpoint refuses every request, so a misconfigured host can't accidentally expose a write surface.
+Deploy tokens used by the macOS worker carry an `expires_at` column (90-day default for new tokens; legacy NULL means never expires) and the `/admin/*` routes apply a per-IP rate limit on top of the token check. The token gate is fail-closed: no token configured means the endpoint refuses every request, so a misconfigured host can't accidentally expose a write surface.
 :::
 
 :::{marker} Lifespan composition
