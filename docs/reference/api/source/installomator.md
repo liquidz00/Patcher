@@ -14,7 +14,7 @@ Tokenizes Installomator's bash label fragments into structured field assignments
 :::
 
 :::{marker} resolver
-Evaluates dynamic field values (e.g. `downloadURL=$(curl ... | grep ...)`) inline where possible, in subprocess as an opt-in fallback. For the two-stage split with the macOS runner see {doc}`/project/architecture/resolution`.
+Evaluates dynamic field values (e.g. `downloadURL=$(curl ... | grep ...)`) inline where possible, in subprocess as an opt-in fallback. For the two-stage split with the macOS worker see {doc}`/project/architecture/resolution`.
 :::
 
 :::{marker} ingest

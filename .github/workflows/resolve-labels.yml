@@ -1,8 +1,8 @@
 name: Resolve Installomator labels (macOS)
 
 on:
-  schedule:
-    - cron: "0 5 * * *"
+  # Manual fallback only. The self-hosted Temporal resolver owns day-to-day resolution;
+  # a cron here would re-resolve the whole worklist and clobber its values (last-write-wins).
   workflow_dispatch:
 
 # Never let two resolver runs race the same upload.

@@ -31,7 +31,7 @@ A short, lowercase identifier for an app in the catalog, taken from its Installo
 :::
 
 What it contributes
-: The label slug set is Patcher's backbone for "is this app automatable." Patcher matches each Jamf patch title against the Installomator slug set, and titles that match record that slug under the `installomator` key of their `sources` map, surfaced in `analyze` and JSON exports. Beyond the slug, a label can yield a concrete download URL, version string, and install method once its dynamic shell fragments are resolved (a Linux-ingest / macOS-runner step described in {doc}`/project/architecture/resolution`).
+: The label slug set is Patcher's backbone for "is this app automatable." Patcher matches each Jamf patch title against the Installomator slug set, and titles that match record that slug under the `installomator` key of their `sources` map, surfaced in `analyze` and JSON exports. Beyond the slug, a label can yield a concrete download URL, version string, and install method once its dynamic shell fragments are resolved (a Linux-ingest / macOS-worker step described in {doc}`/project/architecture/resolution`).
 
 Coverage characteristics
 : Broad coverage of common third-party Mac apps, maintained by an active community. The catch is that many labels compute their version and URL at runtime via shell, so the static label alone does not always carry a version. Apple-managed software (macOS, Safari, Xcode) and license-gated runtimes (Oracle Java, Eclipse Temurin) are intentionally outside Installomator's useful scope for patch tracking.

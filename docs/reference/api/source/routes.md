@@ -26,7 +26,7 @@ Public catalog reads. List + filter, per-slug fetch, per-source payloads, drift 
 
 ## admin
 
-Write surface used by the macOS resolver runner to push resolved label values back into the catalog. Token-gated and fail-closed when no token is configured.
+Write surface used by the macOS worker to push resolved label values back into the catalog. Token-gated and fail-closed when no token is configured.
 
 ```{eval-rst}
 .. autoclass:: patcher_api.routes.admin.ResolvedIngestSummary
