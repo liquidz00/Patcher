@@ -60,6 +60,29 @@ assuming, the app binds a localhost port that cloudflared fronts.
 Run these read-only checks in order and report a per-component verdict. Don't
 stop at the first yellow, complete the sweep so the summary is whole.
 
+Run the checks **sequentially**, and append `|| true` to any check whose non-zero
+exit is benign, notably `systemctl is-failed`, which exits non-zero precisely when
+a unit is *healthy*. One un-guarded non-zero exit can cancel a parallel command
+batch and abort the sweep mid-run.
+
+### Privileges (no passwordless sudo assumed)
+
+This sweep runs **unprivileged** and must never invoke `sudo` or hang on a
+password prompt. `systemctl` reads, `curl` to localhost, and `df` need no
+privilege. Two capabilities unlock the rest:
+
+- **Journal reads** (`journalctl -u ...`) require the invoking user to be in the
+  `systemd-journal` group. Grant once: `sudo usermod -aG systemd-journal <user>`,
+  then re-login. Without it, `journalctl` for a unit returns nothing or permission
+  errors.
+- **DB-file inspection** (step 7) needs read/traverse on `/var/lib/patcher-api`
+  (owned by `patcher`). Add the user to the `patcher` group, or skip the raw file
+  check and lean on `/stats` for freshness.
+
+If a check needs elevation the sweep user doesn't have, **do not run `sudo`.**
+Print the exact `sudo ...` command for the human, mark that line "needs
+elevation" in the summary, and continue the rest of the sweep.
+
 ### 1. Discover the running config
 
 ```bash
@@ -85,11 +108,14 @@ journalctl -u patcher-api.service -p warning --since "6 hours ago" --no-pager
 
 ```bash
 systemctl list-timers 'patcher-*' --no-pager
-systemctl is-failed patcher-catalog-refresh.service patcher-schema-audit.service
+# `is-failed` has INVERTED exit codes: non-zero when HEALTHY (a oneshot at rest
+# reads "inactive"). Guard with `|| true` or it cancels a parallel batch.
+systemctl is-failed patcher-catalog-refresh.service patcher-schema-audit.service || true
 ```
 
 Confirm `patcher-catalog-refresh.timer` and `patcher-schema-audit.timer` are
-active with a sane `NEXT`. Then check each last run:
+active with a sane `NEXT`. A oneshot reading `inactive`/`dead` at rest is normal;
+only a literal `failed` is a problem. Then check each last run:
 
 ```bash
 journalctl -u patcher-catalog-refresh.service -n 15 --no-pager
@@ -140,11 +166,14 @@ curl -fsS "http://127.0.0.1:${PORT}/apps" | head -c 200
 ### 7. Database + disk
 
 ```bash
-ls -l /var/lib/patcher-api/patcher_api.db
-stat -c '%U:%G' /var/lib/patcher-api/patcher_api.db   # expect patcher:patcher
-df -h /var/lib/patcher-api /opt/patcher
+df -h /var/lib/patcher-api /opt/patcher                # no privilege needed
+stat -c '%U:%G' /var/lib/patcher-api/patcher_api.db    # needs read on the dir
 ```
 
+- `df` always works. The `stat` needs read/traverse on `/var/lib/patcher-api`
+  (owned by `patcher`); if the sweep user isn't in the `patcher` group, skip it and
+  note "DB file check needs elevation" rather than sudo-prompting. Freshness is
+  already covered by `/stats` in step 6.
 - DB owner mismatch → **G4** (write failures incoming).
 - Low disk on the DB or code volume → flag; SQLite + backups + logs grow.
 
