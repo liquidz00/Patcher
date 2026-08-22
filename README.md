@@ -49,6 +49,7 @@ Full library and CLI references plus assembled recipes live in the [Guides secti
 import asyncio
 from patcher import PatcherClient
 
+
 async def main():
     async with PatcherClient(
         client_id="...",
@@ -57,6 +58,7 @@ async def main():
     ) as patcher:
         titles = await patcher.fetch_patches()
         await patcher.export(titles, output_dir="./reports", formats={"pdf"})
+
 
 asyncio.run(main())
 ```

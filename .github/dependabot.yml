@@ -6,6 +6,9 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
+    groups:
+      github-actions:
+        patterns: ["*"]
 
   # Python (uv-managed). Groups all updates into a single weekly PR
   # to avoid noise — security alerts still fire individually as needed.
