@@ -37,7 +37,7 @@ repos:
 
   # Python linting and formatting with ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.3
+    rev: v0.16.3
     hooks:
       # Run the linter
       - id: ruff
